@@ -292,10 +292,49 @@ async function googleSearch(query,type,start) {
     const feedContainer = document.getElementById('feed-container');
     const dateString = new Date().toISOString();
 
+    const feedContainer = document.getElementById('feed-container');
+    const dateString = new Date().toISOString();
+
+        // Get generater from accounts
+    // Assumes 'accounts' array has been preloaded
+    // If necessary, fetch the accounts from the KVstore
+    if (accounts.length === 0) {
+        try {
+            // Fetch the accounts from the KVstore
+            accounts = await getAccounts(flaskSiteUrl); 
+
+        } catch (error) {
+            alert('Error getting Editor accounts: ' + error.message);
+        }
+    }
+    
+    let API_KEY = null;
+    let SEARCH_ENGINE_ID = null;
+
+     accounts.forEach(account => {                           // Check the accounts
+        const parsedValue = JSON.parse(account.value);
+        console.log("checking account: ", parsedValue);
+        if (parsedValue.title.includes('Google Search')) {  // Check if 'permissions' contains 'g'
+            console.log("FOUND account: ", parsedValue);
+            console.log("parsedValue.id: ", parsedValue.id);
+            console.log("parsedValue.key: ", parsedValue.key);
+            API_KEY = parsedValue.id;
+            SEARCH_ENGINE_ID = parsedValue.instance;
+        }
+    });
+
+
+    // Check for required values and handle errors
+    if (!API_KEY || !SEARCH_ENGINE_ID) {
+        alert("ApiKey and url are both required to continue.");
+        throw new Error("Missing required values: apiKey or url.");
+    }
+
+
     // 1. Store API information
     const GOOGLE_SEARCH_URL = "https://www.googleapis.com/customsearch/v1";
-    const API_KEY = "AIzaSyCKHKnWj9CzfuXn70swf_DK7RYv1rzD9QY";
-    const SEARCH_ENGINE_ID = "80ceb6d9f747d4b16";
+
+    
 
     // Construct URL with query parameters
     let url = `${GOOGLE_SEARCH_URL}?key=${API_KEY}&cx=${SEARCH_ENGINE_ID}&q=${encodeURIComponent(query)}`;
