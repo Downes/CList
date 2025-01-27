@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="1.1">
+    <head>
+        <title>Sample OPML</title>
+    </head>
+    <body>
+        <outline text="Sample RSS Feeds" title="Sample RSS Feeds">
+            <outline text="Tech News" title="Tech News" xmlurl="https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml" />
+            <outline text="World News" title="World News" xmlurl="https://feeds.bbci.co.uk/news/world/rss.xml" />
+            <outline text="Science News" title="Science News" xmlurl="https://rss.sciam.com/sciam/global" />
+            <outline text="OLDaily" title="OLDaily" xmlurl="https://www.downes.ca/news/OLDaily.xml" />
+        </outline>
+    </body>
+</opml>

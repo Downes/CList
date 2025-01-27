@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script> <!-- Beacuse my stupid server defaults to http -->
+    if (window.location.protocol === "http:") {
+    window.location.href = window.location.href.replace("http:", "https:");
+    }
+  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CList</title>
+  <link rel="stylesheet" href="css/interface.css">
+  <link rel="stylesheet" href="css/reader.css">
+  <link rel="icon" type="image/x-icon" href="assets/icons/CList.ico">
+
+  <!-- Google Fonts for the entire page -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@200..700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <script src="https://www.downes.ca/assets/tinymce/tinymce.min.js" referrerpolicy="origin"></script>
+  
+    <!-- Global Variables for essential services -->
+    <script>
+        let username = "none";                              // Global var for username
+        let flaskSiteUrl = 'https://datastore.downes.ca';   // Base URL of your identity server
+        let accounts = [];                                // Global var to store accounts
+        let BaseURL = "none";
+        let accessCode = "none";
+    </script> 
+
+
+</head>
+<body>
+
+    <!-- Hidden divs to store baseURL, accessToken, and instanceType from cookies -->
+    <div id="baseURL" style="display:none;"></div>
+    <div id="accessToken" style="display:none;"></div>
+    <div id="instanceType" style="display:none;"></div>
+
+    <div id="main-container">
+    <div id="main-window">
+        <div id="main-content" class="content">
+
+            <div id="read-pane">
+                <div id="left-main-command" class="command">
+                    <div>
+                    <button id="openLeftButton" class="left" onclick="playRead();">Read</button>
+                    <button id="openFindButton" class="left" onclick="playFind();">Find</button>
+                    <button id="openChatButton" class="left" onclick="playChat();">Chat</button>
+                    </div>
+                </div>
+                <div id="feed-section">
+                    <!-- Dynamic buttons will be inserted here -->
+                    <div id="feed-menu"></div><!-- This div will display the feed menu -->
+                    <div id="feed-container"></div><!-- This div will display the feed content -->
+                </div>
+            </div> <!-- / read-pane -->
+            <div id="divider" class="draggable-border"></div>
+            <div id="write-pane">
+                <div id="right-main-command" class="command">
+                    <div>
+
+                    </div>
+                    <div>
+                        <!--button id="load-button" class="right" onclick="loadFile();">Load</button>--> 
+                       <button id="load-button" class="right" onclick="playEditors();">Load</button> 
+                         <button id="save-button" class="right" onclick="playSave()">Save</button>
+                         <button id="save-button" class="right" onclick="playPost()">Post</button>
+                         <button id="references-button" class="right" onclick="alternateDivs(currentEditor + '-references','write-pane-content')">Refs</button>
+                    </div>
+                </div>
+                    <!-- Place to store Loaded file input while it is processed-->
+                    <input 
+                        type="file" 
+                        id="fileInput" 
+                        style="display: none;" 
+                        onchange="handleFileFallback(event)" 
+                    />
+                <div id="writeReferences"></div>        
+                <div id="write-load">
+                    <div id="write-load-header" class="flex-container">
+                        <h2>Load an Editor</h2>
+                        <button id="write-load-close-button" onclick="closeWriteLoadPane()">X</button>
+                    </div>
+                    <div id="write-load-content">
+                        <div id="write-load-instructions">
+                            <p>Choose an editor</p>
+                        </div>
+                        <div id="write-load-options"> <!-- Default Editors-->
+                            <!-- button class="save-button" onclick="loadOpml()">OPML</button> -->
+                            <button class="save-button" onclick="initializeEditor('tinymce');alternateDivs('write-load','write-pane-content');">HTML</button>
+                            <!-- <button class="save-button" onclick="loadMd()">Markdown</button> -->
+                            <button class="save-button" onclick="initializeEditor('texteditor');alternateDivs('write-load','write-pane-content');">Text</button>
+                        </div>
+                        <div id="more-write-load-options"> <!-- Additional Editors-->
+                            <!-- Additional Editors will be added here dynamically --></div>
+
+
+                    </div>
+
+                </div>       
+
+
+                <div id="write-title" contenteditable="true">
+                    Title (Optional)
+                </div>
+
+                <div id="write-pane-content">
+                   
+                    <!-- Text Editor -->
+                    <!-- currentEditor = 'texteditor' -->
+                    <div id="textEditorDiv" style="display:block" class="editor">
+                        <textarea id="text-column"></textarea>
+                        <div class="currentReferences"></div>
+                    </div>
+
+                    <!-- Other editor windows may be added here dynamically -->
+                    <!-- Handlers defined in editors.js -->
+
+                </div>
+                
+                <div id="texteditor-references" class="allReferences"></div>                
+                <!-- Other references divs may be added here dynamically -->
+
+            </div> <!-- /write-pane -->
+            
+        </div> <!-- main-content -->
+
+    </div> <!-- /main-window -->
+
+
+    <div id="left-pane">
+        <div id="left-command" class="pane command">
+            <div class="command-left-buttons">
+                <button id="loginButton" onclick="redirectToKVLogin()">Login</button>
+                <button id="logoutButton" onclick="KVlogout(flaskSiteUrl);">Logout</button>
+                <button id="accountButton" onclick="playAccounts();">Accounts</button>
+            </div>
+            <button id="left-close-button" onclick="closeLeftPane()">X</button>
+        </div>
+        <!--- Display current identity -->
+        <div id="identityDiv">
+            Please login to Identity Server
+        </div>
+        <div id="left-content" class="content">
+
+            <div id="response"></div>
+            <!-- List to display fetched key-value pairs -->
+            <div id="kvList"></div>
+            
+            <!-- Section for account switching (initially hidden) -->
+            <div id="accounts-section" style="display: none;">
+                <div id="accounts-header">
+                    <h2>Manage Accounts</h2>
+                    <button 
+                        id="accounts-left-close-button" 
+                        onclick="document.getElementById('accounts-section').style.display='none';">
+                        &times;
+                    </button>
+                </div>
+                <iframe src = 'flasker.html' id="manage-accounts-frame" style="width:100%; height:600px; border:none;"></iframe>
+            </div>
+
+
+            <!-- Chat Section -->
+            <div id="chat-section" style="display: none;">
+                <div id="chat-header">
+                    <h2>Chat</h2>
+                    <button 
+                        id="chat-left-close-button" 
+                        onclick="document.getElementById('chat-section').style.display='none';">
+                        &times;
+                    </button>
+                </div>
+                <div id="discussion-button-div">
+                    <label for="discussionNameInput" class="visually-hidden">Discussion Name:</label>
+                    <input type="text" id="discussionNameInput" placeholder="Enter discussion name">
+                    <button id="advertiseDiscussionButton" onClick="advertiseDiscussion()">Create Discussion</button>
+                    <button id="refreshDiscussionsButton" onClick="refreshDiscussions()">Join Discussion</button>
+                    <button id="chat-advanced-button" onclick="toggleDiv('chat-advanced')">A</button>
+                </div>
+                <div id="discussionListDiv">
+                    
+                    <ul id="discussion-list"></ul>
+                </div>
+                <div id="end-discussion-div" style="display: none;">
+                    <button id="endDiscussionButton" onClick="endDiscussion()">Leave Discussion</button>
+                </div>
+
+                <div id="chat-messages"></div>
+                <input type="text" id="messageInput" placeholder="Type your message">
+                <button id="sendButton">Send</button>
+                <div id="chat-advanced" style="display:none;margin-top:10px;">
+                    PeerID: <span id="my-peer-id"></span><br>
+                    <label for="peerIdInput" class="visually-hidden">Connect to Peer ID:</label>
+                    <input type="text" id="peerIdInput" placeholder="Connect to Peer ID:">
+                    <button id="connectButton">Connect</button>
+                    
+                </div>
+            </div>
+
+            
+
+            <!--               Audio             -->
+            <div id="audio-section" style="display: none;">
+                <div id="audio-header">
+                    <h2>Audio</h2>
+                    <button 
+                        id="audio-left-close-button" 
+                        onclick="document.getElementById('audio-section').style.display='none';">
+                        &times;
+                    </button>
+                </div>
+                <audio 
+                    id="myAudioPlayer" 
+                    controls>
+                    Your browser does not support the audio element.
+                </audio>
+                <div id="audio-list">
+                    <!-- Playlist will be dynamically inserted here -->
+                </div>
+            </div>
+
+        </div> <!-- /left-content -->
+    </div> <!-- /left-pane -->
+
+    <div id="right-pane">
+        <div id="right-command" class="command">
+            <button id="right-close-button" onclick="closeRightPane()">X</button>
+        </div>
+        <div id="right-content" class="pane content">
+            <div id="save-instructions" style="display: none;">
+                
+                <div id="save-header">
+                    <h2>Save Content</h2>
+                    <button 
+                        id="save-right-close-button" 
+                        onclick="document.getElementById('save-instructions').style.display='none';">
+                        &times;
+                    </button>
+                </div>
+                <div id="save-options"></div>
+                <div id="save-result">saveResult</div>
+            </div>
+            <div id="post-instructions"  style="display: none;">
+                <div id="post-header">
+                    <h2>Post Content</h2>
+                    <button 
+                        id="post-right-close-button" 
+                        onclick="document.getElementById('post-instructions').style.display='none';">
+                        &times;
+                    </button>
+                </div>
+                <p class="save-instructions">Click on accounts to select then click 'Save'. Contents of the 'Write' panel will be posted on the selected accounts</p>
+                <div id="post-options"></div>
+                <div id="post-result">saveResult</div>
+            </div>
+
+
+
+
+        </div> <!-- right-content -->
+
+
+    </div> <!-- /right-pane -->
+    </div> <!-- /main-container-->
+    <div id="statusPane"></div>  <!-- Status pane-->
+
+    <div id="loading-indicator">
+        <p>Loading...</p>
+        <div class="loader"></div>
+    </div>
+
+  <!-- Not happy I have to include a Google JS script to make Blogger API work-->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+
+
+
+  <script src="js/utilities.js" defer></script>    <!-- Utility functions -->
+  <script src="js/crypto_utils.js" defer></script>
+  <script src="js/kvstore.js" defer></script>     <!-- Loads usere and account data --> 
+  <script src="js/editors.js" defer></script>   <!-- Major function handlers-->
+
+  <script src="js/files.js" defer></script>     <!-- handlers -->  
+  <script src="js/mastodon.js" defer></script>
+  <script src="js/bluesky.js" defer></script>
+  <script src="js/opml.js" defer></script>
+  <script src="js/translate.js" defer></script>
+  <script src="js/wordpress.js" defer></script>
+  <script src="js/tinymce.js" defer></script>
+  <script src="js/blogger.js" defer></script>
+  <script src="js/etherpad.js" defer></script>
+  <script src="js/summarize.js" defer></script>
+  <script src="js/peerjs.min.js" defer></script>
+  <script src="js/dynamicp2p.js" defer></script>
+  <script src="js/chatgpt.js" defer></script>
+
+ 
+  <script src="js/reader.js" defer></script>    <!-- Keep these below functions so we can load handlers below -->
+  <script src="js/publish.js" defer></script>
+  <script src="js/interface.js"></script>   <!-- keep last as it depends on the previous scripts -->
+
+</body>
+</html>

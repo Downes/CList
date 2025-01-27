@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Formatted JSON Viewer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        #content {
+            margin-top: 20px;
+        }
+        .item {
+            margin-bottom: 15px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+        }
+        .item h3 {
+            margin: 0 0 10px;
+            font-size: 1.2em;
+        }
+        .item p {
+            margin: 5px 0;
+        }
+        .item a {
+            text-decoration: none;
+            color: #007bff;
+        }
+        .item a:hover {
+            text-decoration: underline;
+        }
+        .hidden-content {
+            display: none;
+            margin-top: 10px;
+            background-color: #f1f1f1;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .toggle-button {
+            margin-top: 10px;
+            padding: 5px 10px;
+            font-size: 14px;
+            color: #fff;
+            background-color: #007bff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .toggle-button:hover {
+            background-color: #0056b3;
+        }
+        #load-more {
+            display: block;
+            margin: 20px auto;
+            padding: 10px 20px;
+            font-size: 16px;
+            color: #fff;
+            background-color: #007bff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #load-more:hover {
+            background-color: #0056b3;
+        }
+        #error {
+            color: red;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>OPML2JSON Feed Viewer</h1>
+    <p>Fetching data from <code>https://opml2json.downes.ca/upload_opml</code> using the input URL <code>https://www.downes.ca/test.opml</code>. For more information about this service, please see <code>https://github.com/Downes/opml2json/tree/main?tab=readme-ov-file#opml2json</code></p>
+    <div id="content"></div>
+    <div id="error"></div>
+    <button id="load-more">Load Next Page</button>
+
+    <script>
+        const apiUrl = 'https://opml2json.downes.ca/upload_opml'; // Correct endpoint
+        const inputUrl = 'https://www.downes.ca/test.opml'; // Input OPML URL
+        const contentDiv = document.getElementById('content');
+        const errorDiv = document.getElementById('error');
+        const loadMoreButton = document.getElementById('load-more');
+        let nextCursor = null; // Cursor for pagination
+
+        // Function to fetch and display JSON data
+        async function fetchAndDisplayData() {
+            try {
+                // Clear previous error messages
+                errorDiv.innerHTML = '';
+
+                // Construct the request payload
+                const formData = new FormData();
+                formData.append('url', inputUrl);
+                if (nextCursor) {
+                    formData.append('cursor', nextCursor);
+                }
+
+                // Send the POST request to the server
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                // Check if the response is OK
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                // Parse the JSON response
+                const data = await response.json();
+
+                // Validate the response structure
+                if (!data.items || !Array.isArray(data.items)) {
+                    throw new Error('Invalid response format: Missing or invalid "items" array.');
+                }
+
+                // Process items and update the cursor
+                const items = data.items;
+                nextCursor = data.next_cursor || null;
+
+                // Display the items
+                if (items.length === 0) {
+                    contentDiv.innerHTML += '<p>No more items to display.</p>';
+                    loadMoreButton.style.display = 'none';
+                    return;
+                }
+
+                items.forEach(item => {
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'item';
+
+                    // Display only the summary by default
+                    itemDiv.innerHTML = `
+                        <h3>${item.title || 'No Title'}</h3>
+                        <p><strong>Source:</strong> ${item.source || 'Unknown Source'}</p>
+                        <p><strong>Published:</strong> ${item.published || 'Unknown Date'}</p>
+                        <p><strong>Summary:</strong> ${item.summary || 'No Summary'}</p>
+                    `;
+
+                    // Add hidden content if description or full content is available
+                    if (item.full_content && item.full_content.length > (item.summary || '').length) {
+                        const hiddenDiv = document.createElement('div');
+                        hiddenDiv.className = 'hidden-content';
+                        hiddenDiv.textContent = item.full_content;
+
+                        const toggleButton = document.createElement('button');
+                        toggleButton.className = 'toggle-button';
+                        toggleButton.textContent = 'Read More';
+                        toggleButton.addEventListener('click', () => {
+                            if (hiddenDiv.style.display === 'none') {
+                                hiddenDiv.style.display = 'block';
+                                toggleButton.textContent = 'Show Less';
+                            } else {
+                                hiddenDiv.style.display = 'none';
+                                toggleButton.textContent = 'Read More';
+                            }
+                        });
+
+                        itemDiv.appendChild(toggleButton);
+                        itemDiv.appendChild(hiddenDiv);
+                    }
+
+                    contentDiv.appendChild(itemDiv);
+                });
+
+                // Hide the button if no more pages are available
+                if (!nextCursor) {
+                    loadMoreButton.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                errorDiv.innerHTML = `<p>Error: ${error.message}</p>`;
+            }
+        }
+
+        // Load the first page on page load
+        fetchAndDisplayData();
+
+        // Load the next page when the button is clicked
+        loadMoreButton.addEventListener('click', fetchAndDisplayData);
+    </script>
+</body>
+</html>

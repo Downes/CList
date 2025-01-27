@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>KV Board</title>
+    <script>
+        let username;   // Global variable to store the username
+        let flaskSiteUrl = 'https://datastore.downes.ca';  // Base URL of your identity server
+        let accounts = [];
+       </script> <!-- Global variable to store accounts, filled by kvstore.js -->
+    <script>
+
+        let currentMode = 'add';  // Track whether we're adding or updating
+
+        async function addOrUpdateKeyValue() {
+            const token = getSiteSpecificCookie(flaskSiteUrl);  // Retrieve the token for the specific Flask site
+            // const token = localStorage.getItem('token');  // Retrieve the token from storage
+            const key = document.getElementById("keyInput").value;
+            const instanceData = {
+                permissions: document.getElementById("permissionsInput").value,
+                type: document.getElementById("instanceType").value,
+                id: document.getElementById("idInput").value,
+                title: document.getElementById("titleInput").value
+            };
+            const jsonString = JSON.stringify(instanceData);
+console.log("Update Data");
+console.log(jsonString);
+                // ===========================
+                //  ENCRYPT LOCALLY (Web Crypto)
+                // ===========================
+                // Demo passphrase
+                const passphrase = "MY_SUPER_SECRET_PASSPHRASE";
+
+            let encryptedValue;
+            try {
+                encryptedValue = await encryptData(passphrase, jsonString);
+            } catch (err) {
+                console.error('Encryption error:', err);
+                alert('Failed to encrypt data');
+                return;
+            }
+
+            // Data key is defined by 'key', which in the form is 'keyInput'
+            // If we change the key (ie., we're creating a new username) we're creating a new account
+            // (or possibly over-writing one with the same key; I don't care either way).
+            // So - if there is an account in 'accounts' with this key, we keep the currentMode as 'update'
+            // Otherwise, we switch to 'add'
+            const matchingAccount = accounts.find(account => account.key === key);
+            if (matchingAccount) { currentMode = "update"; }
+            else { currentMode = "add"; }
+console.log("Current mode is:"+currentMode);
+
+            // Perform the add or update action
+            const endpoint = currentMode === 'add' ? 'add_kv/' : 'update_kv/';
+            const actionUrl = `${flaskSiteUrl}/${endpoint}`;
+console.log("Fetch "+key+" = "+encryptedValue);
+            fetch(actionUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer '+token  // Include the token in the Authorization header
+                },
+                body: JSON.stringify({ key: key, value: encryptedValue })
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById("addKvForm").reset();
+
+                (async () => {
+                    try {  // Refresh the list to show updated data
+                        accounts = await window.parent.getAccounts(flaskSiteUrl);
+                        console.log('Accounts fetched from flasker.html add or update:', accounts);
+                        resetForm(); // Reset form to default state
+                        window.parent.populatePostOptions(accounts);
+                    } catch (error) {
+                        console.error('Error fetching accounts:', error);
+                    }
+                })();
+
+            })
+            .catch(error => alert('Error processing key-value pair: ' + error));
+        }
+
+        
+        async function setFormValues(targetKey) {
+
+            // Assumes 'accounts' have already been retrieved by getAccounts()
+            const matchingAccount = accounts.find(account => account.key === targetKey);
+            let valueData;
+            if (matchingAccount) {
+                valueData = JSON.parse(matchingAccount.value);
+            } else {
+                alert("Can't find an account called "+targetKey);
+                return;
+            }
+
+            document.getElementById("keyInput").value = targetKey;
+            document.getElementById("permissionsInput").value = valueData.permissions;
+            document.getElementById("instanceType").value = valueData.type;
+            document.getElementById("idInput").value = valueData.id;
+            document.getElementById("titleInput").value = valueData.title;
+
+            currentMode = 'update';  // Switch to update mode
+
+            document.getElementById("submitBtn").textContent = 'Update Account';  // Change button text to Update
+            document.getElementById("deleteBtn").style.display = 'inline';  // Show the delete button
+  
+        }
+
+        function resetForm() {
+            document.getElementById("addKvForm").reset();
+            currentMode = 'add';  // Reset mode to add
+            document.getElementById("submitBtn").textContent = 'Add Account';  // Reset button text to Add
+            document.getElementById("deleteBtn").style.display = 'none';  // Hide the delete button
+            updateFormFields(); // Reset placeholders to default when form is reset
+        }
+       
+
+        async function getSite(flaskSiteUrl) {
+            const token = getSiteSpecificCookie(flaskSiteUrl);  // Retrieve the token for the specific Flask site
+            
+            try {
+                const response = await fetch(`${flaskSiteUrl}/get_kvs/`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': 'Bearer ' + token
+                    }
+                });
+                
+                const data = await response.json();
+                const kvList = document.getElementById("kvList");
+                kvList.innerHTML = '';  // Clear previous entries
+                
+                for (const kv of data) {
+                    let parsedValue = null;
+                    try {
+                        const passphrase = "MY_SUPER_SECRET_PASSPHRASE";
+                        const decryptedString = await decryptData(passphrase, kv.value);
+                        parsedValue = decryptedString ? JSON.parse(decryptedString) : null;
+                    } catch (error) {
+                        console.error(`Error parsing kv.value for key: ${kv.key} ${kv.value}`, error);
+                    }
+                    
+                    const button = document.createElement("button");
+                    button.textContent = parsedValue?.title || kv.key;
+                    button.onclick = () => setFormValues(kv.key);
+                    kvList.appendChild(button);
+                }
+            } catch (error) {
+                alert('Error fetching key-value pairs: ' + error);
+            }
+        }
+
+        
+        async function deleteKeyValue() {
+            const token = getSiteSpecificCookie(flaskSiteUrl);  // Retrieve the token for the specific Flask site
+            // const token = localStorage.getItem('token');  // Retrieve the token from storage
+            const key = document.getElementById("keyInput").value;
+
+            if (key) {
+                fetch(`${flaskSiteUrl}/delete_kv/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer '+token  // Include the token in the Authorization header
+                    },
+                    body: JSON.stringify({ key: key })
+                })
+                .then(response => response.json())
+                .then(async () => {
+                    try { 
+                        // Refresh the key-value list
+                        accounts = await window.parent.getAccounts(flaskSiteUrl);
+                        console.log('Accounts fetched from flasker.html deleteKeyValue():', accounts);
+                        resetForm(); // Reset form to default state
+                    } catch (error) {
+                        console.error('Error fetching accounts:', error);
+                    }
+                })
+                .catch(error => alert('Error deleting key-value pair: ' + error));
+            } else {
+                alert('No key specified for deletion.');
+            }
+        }
+
+        function logout() {
+            // Remove the token from localStorage
+            deleteSiteSpecificCookie(flaskSiteUrl);  // Clears the token for the specific Flask site
+
+            //localStorage.removeItem('token');
+            
+            alert('You have been logged out.');
+
+            // Redirect to the login page with the current URL as the 'next' parameter
+            const currentUrl = encodeURIComponent(parent.window.location.href);
+            // parent.window.location.href = `${flaskSiteUrl}/auth/login?next=${currentUrl}`;
+            return;
+        }
+
+        // Function to display the username stored in localStorage
+        function displayUsername() {
+            username = localStorage.getItem('username');
+            if (username) {
+                usernameDisplay = document.getElementById('username-display');
+                usernameDisplay.textContent = `Logged in as ${username}!`;
+            } else {
+                // If no username is found, display a default message or hide the element
+                document.getElementById('username-display').textContent = 'Welcome, guest!';
+            }
+        }
+
+        function setCookie(name, value, days) {
+            let expires = "";
+            if (days) {
+                const date = new Date();
+                date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+                expires = "; expires=" + date.toUTCString();
+            }
+            document.cookie = name + "=" + (value || "") + expires + "; path=/; Secure; SameSite=None";
+        }
+
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+        }
+
+        function deriveSiteIdentifier(flaskSiteUrl) {
+            if (!flaskSiteUrl) { alert("Can't find flask site URL in deriveSiteIdentifier()"); }
+            const url = new URL(flaskSiteUrl).hostname;  // Extract the hostname from the Flask site URL
+            return url.replace(/\./g, '_');  // Replace dots with underscores to create a valid cookie name
+        }
+
+        function setSiteSpecificCookie(flaskSiteUrl, token, days) {
+            const siteIdentifier = deriveSiteIdentifier(flaskSiteUrl);
+            const cookieName = `access_token_${siteIdentifier}`;
+            setCookie(cookieName, token, days);
+        }
+
+        function getSiteSpecificCookie(flaskSiteUrl) {
+            const siteIdentifier = deriveSiteIdentifier(flaskSiteUrl);
+            const cookieName = `access_token_${siteIdentifier}`;        
+            return getCookie(cookieName);
+        }
+
+        function deleteSiteSpecificCookie(flaskSiteUrl) {
+            const siteIdentifier = deriveSiteIdentifier(flaskSiteUrl);
+            const cookieName = `access_token_${siteIdentifier}`;
+            setCookie(cookieName, '', -1);  // Deletes the cookie
+        }
+
+
+        function isTokenExpired(token) {
+            if (!token) { return 1; }
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            return payload.exp < Date.now() / 1000;
+        }
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            async function initializePage() { 
+                // Function to get a parameter from the URL by name
+                // localStorage.setItem('username', 'merle');
+                //    alert('set item');
+                function getParamFromUrl(name) {
+                    const urlParams = new URLSearchParams(window.location.search);
+                    return urlParams.get(name);
+                }
+
+                // Get the Token from the URL (which means we just logged in)
+                const token = getParamFromUrl('token');
+                // If we got the token from the URL, set it as a cookie for next time
+                if (token) {
+                    setSiteSpecificCookie(flaskSiteUrl, token, 1);
+                    console.log("Token cookie set from login");
+                }
+
+                // Get the usename from the URL (which means we just logged in)
+                let username = getParamFromUrl('username');
+                console.log("Username from URL: "+username);
+                // Otherwise, try to get the username from local storage
+                username = username ?? localStorage.getItem('username');
+                console.log("Username from local storage: "+username);
+
+                // If we have a username, we will store it in local storage
+                if (username) { 
+                    localStorage.setItem('username', username);
+                    console.log("Username set in local storage: "+username);
+                } else {
+                    // If we don't have a username by now we're going to need to login
+                    alert("Please login.");
+                }
+
+
+
+                // Store the token and username in localStorage if they're present in the URL
+
+
+
+
+
+                if (token) {
+                    setSiteSpecificCookie(flaskSiteUrl, token, 1);
+                    // localStorage.setItem('token', token);
+                }
+
+
+
+                if (token || username) {
+                    history.replaceState({}, document.title, window.location.pathname);
+                }
+
+                // Proceed with other actions, e.g., fetching key-value pairs
+                if (getSiteSpecificCookie(flaskSiteUrl)) {
+                        resetForm(); // Reset form to default state
+                        try { // Refresh the key-value list
+                            accounts = await window.parent.getAccounts(flaskSiteUrl);
+                            console.log('Accounts fetched from flasker.html event listener:', accounts);
+                        } catch (error) {
+                            console.error('Error fetching accounts:', error);
+                        }
+                    
+                } else {
+                    console.error('Token not found. Redirecting to login page.');
+                    //window.location.href = `${flaskSiteUrl}/auth/login?next=${encodeURIComponent(window.location.href)}`;
+                    return;
+                }
+
+                if (isTokenExpired(getSiteSpecificCookie(flaskSiteUrl))) {
+                    console.error('Token expired. Redirecting to login page.');
+                    alert("Token expired. Please login.");
+                    //window.location.href = `${flaskSiteUrl}/auth/login?next=${encodeURIComponent(window.location.href)}`;
+                    return;
+                }
+
+                // Display the user name
+                displayUsername();
+
+                getSite(flaskSiteUrl);  // Fetch key-value pairs from the Flask site
+            }
+            await initializePage();
+        });
+
+        function updateFormFields() {
+            const instanceType = document.getElementById('instanceType').value;
+
+            // Update labels
+            document.querySelector('label[for="titleInput"]').innerHTML =
+                instanceType === 'Etherpad' ? 'Etherpad Title' :
+                instanceType === 'Blogger' || instanceType === 'WordPress' ? 'Blog Title' : 
+                instanceType === 'AI' ? 'AI Title' :
+                instanceType === 'OPML' ? 'OPML Title' : 
+                'Account Title';
+            document.querySelector('label[for="keyInput"]').innerHTML =
+                instanceType === 'Etherpad' ? 'Etherpad API URL' :
+                instanceType === 'Mastodon' ? 'Username' :
+                instanceType === 'Bluesky' ? 'Username' :
+                instanceType === 'WordPress' ? 'Username' :
+                instanceType === 'OPML' ? 'URL' :
+                instanceType === 'AI' ? 'Project' :
+                instanceType === 'Blogger' ? 'Blog ID' : 
+                'Username';
+            document.querySelector('label[for="idInput"]').innerHTML =
+                instanceType === 'Etherpad' ? 'Proxy Server URL' :
+                instanceType === 'Mastodon' ? 'Access Code' :
+                instanceType === 'Bluesky' ? 'Password' :
+                instanceType === 'WordPress' ? 'API Key' :
+                instanceType === 'OPML' ? 'API Endpoint' :
+                instanceType === 'AI' ? 'API key' :
+                instanceType === 'Blogger' ? 'Client ID' :
+                'Access Code';
+            document.querySelector('label[for="permissionsInput"]').innerHTML = 'Permissions';
+
+            // Update placeholders
+            document.getElementById('titleInput').placeholder = 
+                instanceType === 'Etherpad' ? 'Stephen\'s Etherpad' :
+                instanceType === 'Blogger' ? 'Blog Title' : 
+                instanceType === 'OPML' ? 'OPML Title' : 
+                instanceType === 'AI' ? 'AI Service Title' : 
+                'Title';
+            document.getElementById('keyInput').placeholder = 
+                instanceType === 'Etherpad' ? 'https://etherpad.cloudron.downes.ca/api/1.2.15' :
+                instanceType === 'Mastodon' ? 'downes@mastodon.social' :
+                instanceType === 'Bluesky' ? 'downes.bsky.social' :
+                instanceType === 'WordPress' ? 'downes@wordpress.site' :
+                instanceType === 'OPML' ? 'https://www.downes.ca/test.opml' :
+                instanceType === 'AI' ? 'project ID number' :
+                instanceType === 'Blogger' ? '1234567' :
+                'username@instance.social';
+            document.getElementById('idInput').placeholder = 
+                instanceType === 'Etherpad' ? 'https://www.downes.ca/cgi-bin/proxyp.cgi' :
+                instanceType === 'Mastodon' ? 'Access Code' :
+                instanceType === 'Bluesky' ? 'Password' :
+                instanceType === 'WordPress' ? 'API Key' :
+                instanceType === 'OPML' ? 'https://opml2json.downes.ca/' :
+                instanceType === 'AI' ? 'API key' :
+                instanceType === 'Blogger' ? '696533554-usgopp2aghr35lu3.apps.googleusercontent.com' :
+                'Access Code';
+            document.getElementById('permissionsInput').value = 
+                instanceType === 'Etherpad' ? 'e' :
+                instanceType === 'Mastodon' || instanceType === 'Bluesky' ? 'rw' :
+                instanceType === 'WordPress' || instanceType === 'Blogger' ? 'w' :
+                instanceType === 'AI' ? 't or s or g' :
+                instanceType === 'OPML' ? 'r' : '';
+
+            // Update tooltips
+            document.getElementById('instanceType-tooltip').innerHTML = 
+                'Choose the platform type (e.g., Mastodon, Bluesky).';
+            document.getElementById('title-tooltip').innerHTML =
+                instanceType === 'Etherpad' ? 'Title of Etherpad instance' :
+                instanceType === 'Blogger' || instanceType === 'WordPress' ? 'Title of your blog.' :
+                instanceType === 'OPML' ? 'Descriptive title for the OPML.' :
+                instanceType === 'AI' ? 'Descriptive title for the AI Service.' :
+                'Enter a descriptive title for the account.';
+            document.getElementById('keyInput-tooltip').innerHTML =
+                instanceType === 'Etherpad' ? 'Enter the API URL for the Etherpad instance.' :
+                instanceType === 'Mastodon' ? 'Enter your Mastodon username (e.g., downes@mastodon.social).' :
+                instanceType === 'Bluesky' ? 'Enter your Bluesky username (e.g., downes.bsky.social).' :
+                instanceType === 'WordPress' ? 'Enter your WordPress username (e.g., downes@wordpress.site).' :
+                instanceType === 'OPML' ? 'Provide the URL for the OPML file.' :
+                instanceType === 'Blogger' ? 'Enter your Blogger Blog ID.' :
+                instanceType === 'AI' ? 'Enter the AI service or prtoject number.' :
+                'Provide the username for the account.';
+            document.getElementById('idInput-tooltip').innerHTML =
+                instanceType === 'Etherpad' ? 'Enter the proxy server URL for the Etherpad instance.' :
+                instanceType === 'Mastodon' ? 'Enter the access code for your Mastodon account.' :
+                instanceType === 'Bluesky' ? 'Enter your Bluesky password.' :
+                instanceType === 'WordPress' ? 'Enter the API key for your WordPress site.' :
+                instanceType === 'AI' ? 'Enter the API key for the AI service.' :
+                instanceType === 'OPML' ? 'Enter the API endpoint for the OPML2JSON service.' :
+                instanceType === 'Blogger' ? 'Enter the CList Client created in Google' :
+                'Enter the access code for the account.';
+            document.getElementById('permissionsInput-tooltip').innerHTML = 
+                'Specify the account permissions (e.g., rw, r, or w, or e for editor).';
+        }
+
+        // Permissions
+        // r  read
+        // w  write
+        // e  edit
+        // s  summarize
+        // t  translate
+        // g  generate
+
+
+        async function getAccounts(flaskSiteUrl) {
+            if (typeof username === 'undefined' || username === "none" || !username) {
+                window.parent.loginRequired();
+                return;
+            }
+      
+            const token = getSiteSpecificCookie(flaskSiteUrl, 'access_token');
+            const passphrase = "MY_SUPER_SECRET_PASSPHRASE";
+
+            try {
+                const response = await fetch(`${flaskSiteUrl}/get_kvs/`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': 'Bearer ' + token
+                    }
+                });
+        
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+        
+                const data = await response.json();
+                const accounts = await Promise.all(data.map(async kv => {
+
+                    try {
+                        // ===========================
+                        //   DECRYPT LOCALLY
+                        // ===========================
+                        const decryptedString = await decryptData(passphrase, kv.value);
+                        const accountData = JSON.parse(decryptedString);
+
+
+console.log(kv.value+"  "+'61C4qdvBtIL4X2J7tXkC5WxsAi/Qu5xWtm0aAJhjLBccydRnn2ulOgVlI0kvvIdo7fg8roUDDRMo4iB22j4LeAzTkUxZXmKHacGfHznJhSMcXOGbpv+KWltBUyt+J3S39Bs9Ym0wJrkO03bTorM=');
+
+                        const altd = await decryptData(passphrase,'61C4qdvBtIL4X2J7tXkC5WxsAi/Qu5xWtm0aAJhjLBccydRnn2ulOgVlI0kvvIdo7fg8roUDDRMo4iB22j4LeAzTkUxZXmKHacGfHznJhSMcXOGbpv+KWltBUyt+J3S39Bs9Ym0wJrkO03bTorM=');
+
+                        
+                        
+                        return {
+                            key: kv.key,
+                            value: JSON.stringify({
+                                instance: kv.key,
+                                id: accountData.id || '',
+                                permissions: accountData.permissions || '',
+                                type: accountData.type || '',
+                                title: accountData.title || ''
+                            })
+                        };
+                    } catch (error) {
+                        console.error(`Error parsing kv.value for key: ${kv.key}`, error);
+                        return {
+                            key: kv.key,
+                            value: JSON.stringify({
+                                instance: kv.key,
+                                id: 'bad',
+                                permissions: 'bad',
+                                type: 'bad',
+                                title: 'bad'
+                            })
+                        };
+                    }
+                }));
+        
+       
+                return accounts; // Return the accounts array
+            } catch (error) {
+                alert('Error fetching key-value pairs: ' + error);
+                throw error; // Re-throw the error for the caller to handle
+            }
+        }
+         
+
+
+    </script>
+
+    <link rel="stylesheet" href="css/interface.css">
+    <link rel="stylesheet" href="css/reader.css">
+    <link rel="stylesheet" href="css/kvlist.css">
+
+        <style>
+            body {
+                width: 100%;
+                font-family: Arial, sans-serif;
+                line-height: 1.6;
+                box-sizing: border-box; /* Ensure width calculations include padding and border */
+            }
+
+            /* Style for the main container */
+            .kvcontainer {
+                max-width: 400px;
+                width: 100%;
+                max-height: 100%;
+                margin: 0 auto;
+                padding: 0px;
+                overflow-y: scroll;
+                box-sizing: border-box; /* Include padding in the width */
+            }
+
+            /* Tooltip container */
+            .tooltip {
+                position: absolute;
+                background: #888;
+                color: #fff;
+                padding: 3px 8px;
+                margin-top:10px;
+                font-size: 0.6rem;
+                border-radius: 1px;
+                visibility: hidden; /* Hidden by default */
+                opacity: 0;
+                transform: translateY(10px);
+                transform: translateX(-30px);
+                transition: visibility 0s, opacity 0.3s, transform 0.3s;
+                z-index: 1000;
+            }
+
+            /* Form */
+            #addKvForm {
+                width: 100%;
+            }
+
+            /* Labels */
+            #addKvForm label {
+                margin-bottom: 0; /* Reduce spacing between label and element */
+                display: block;
+                font-variant: small-caps; /* Keep small caps */
+                font-weight: 400; /* Lighter font weight */
+                font-size: 0.8rem; /* Slightly smaller font size */
+                line-height: 0.8rem; /* Slightly smaller font size */
+                color: #555; /* Lighter text color */
+            }
+
+            /* Form inputs, selects, and buttons */
+            .kvcontainer input,
+            .kvcontainer select,
+            .kvcontainer button {
+                display: block;
+                margin-top: 2px; /* Reduce space above inputs */
+                margin-bottom: 0.5rem;
+                padding: 0.2rem;
+                width: 100%; /* Full width of the container */
+                font-size: 0.8rem;
+                box-sizing: border-box; /* Prevent padding from breaking layout */
+            }
+
+            .kvcontainer input:hover + .tooltip,
+            .kvcontainer select:hover + .tooltip {
+                visibility: visible; /* Make tooltip visible */
+                opacity: 1;          /* Fully opaque */
+                transform: translateY(-15px); /* Position above the input field */
+            }
+             
+        </style>
+    
+</head>
+<body>
+    <div class="kvcontainer">
+        <div><span id="username-display"></span>
+        <button id="logout-button" onclick="logout()">Logout</button></div>
+
+        <form id="addKvForm" onsubmit="addOrUpdateKeyValue(); return false;" aria-labelledby="form-title">
+            <label for="instanceType">Instance Type</label>
+            <select id="instanceType" required onchange="updateFormFields();" aria-describedby="instanceType-tooltip">
+                <option value="" disabled selected>Select Instance Type</option>
+                <option value="Mastodon">Mastodon</option>
+                <option value="Bluesky">Bluesky</option>
+                <option value="WordPress">WordPress</option>
+                <option value="OPML">OPML</option>
+                <option value="Blogger">Blogger</option>
+                <option value="Etherpad">Etherpad</option>
+                <option value="AI">AI</option>
+            </select>
+            <span id="instanceType-tooltip" class="tooltip">Choose the platform type (e.g., Mastodon, Bluesky).</span>
+    
+            <label for="titleInput">Title</label>
+            <input type="text" id="titleInput" placeholder="Title" required aria-describedby="title-tooltip">
+            <span id="title-tooltip" class="tooltip">Enter a descriptive title for the account.</span>
+    
+            <label for="keyInput">Username</label>
+            <input type="text" id="keyInput" placeholder="username@instance.social" required aria-describedby="keyInput-tooltip">
+            <span id="keyInput-tooltip" class="tooltip">Provide the username in the format: username@instance.social.</span>
+    
+            <label for="permissionsInput">Permissions</label>
+            <input type="text" id="permissionsInput" placeholder="Permissions" required aria-describedby="permissionsInput-tooltip">
+            <span id="permissionsInput-tooltip" class="tooltip">Specify the account permissions.</span>
+    
+            <label for="idInput">Access Code</label>
+            <input type="password" id="idInput" placeholder="Access Code" required aria-describedby="idInput-tooltip">
+            <span id="idInput-tooltip" class="tooltip">Enter the account's access code securely.</span>
+    
+            <button type="button" id="submitBtn" onclick="addOrUpdateKeyValue()">Add New Account</button>
+            <button type="button" id="deleteBtn" onclick="deleteKeyValue()" style="display: none;">Delete Account</button>
+            <!-- button type="button" onclick="getAccounts(flaskSiteUrl)">Display Key-Values</button> -->
+            <button type="button" onclick="resetForm()">Reset Form</button>
+        </form>
+
+
+
+
+        <div>
+            <h2>Accounts</h2>
+            <div id="kvList"></div>
+        </div>
+    </div>
+
+    <script src="js/crypto_utils.js" defer></script>
+</body>
+</html>
+

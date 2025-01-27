@@ -1,0 +1,339 @@
+        /* Style for the whole page */
+        body {
+            font-family: 'Roboto', sans-serif;
+            font-size: 11px;            /* Slightly larger text */
+        }
+        
+
+        h1,h2,h3 {
+            font-family: 'Oswald', sans-serif;
+            font-size: 18px;            /* Slightly larger text */
+
+        }
+
+  
+        /* Style for buttons */
+        button {
+            background-color: var(--highlight-color);  /* Green background */
+            color: white;               /* White text */
+            padding: 5px 10px;         /* Padding around the button */
+            border: none;               /* No border */
+            border-radius: 3px;         /* Rounded corners */
+            cursor: pointer;            /* Pointer cursor on hover */
+            font-size: 10px;            /* Slightly larger text */
+            margin-right: 3px;          /* space between buttons */
+        }
+    
+        /* Change background on hover for buttons */
+        button:hover {
+            background-color: var(--highlight-color);  /* Darker green on hover */
+        }
+    
+        /* Input fields */
+        select, input[type="text"],  input[type="password"], textarea {
+            width: 100%;                /* Full width */
+            padding: 10px;              /* Padding inside the input */
+            margin: 8px 0;              /* Margin between elements */
+            box-sizing: border-box;      /* Ensures padding doesn’t affect width */
+            border: 1px solid #ccc;      /* Light border */
+            border-radius: 4px;          /* Rounded corners */
+        }
+
+        /* Select fields */
+
+        /* Style for the status box */
+        .status-box {
+            margin-left: 10px;
+            display: flex;
+            justify-content: space-between;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+
+        /* Style for the status content */
+        .status-content {
+            flex: 1;
+            margin-right: 20px;
+        }
+
+        .status-reblog {
+            padding: 0;
+        }
+
+        .reblog-info {
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 5px;
+            padding-bottom: 3px;
+        }
+
+        .status-images-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px; /* Optional spacing between images */
+            align-content: flex-start;
+        }
+        
+        .image-item {
+            display: flex;
+            justify-content: left;
+            align-items: left;
+            flex: 1;
+        }
+        
+        .image-item img {
+            max-height:150px;
+            width: auto;         /* let width scale automatically */
+            max-width: 100%;     /* keep it from overflowing horizontally */
+            object-fit: contain; /* ensures the image is 'letterboxed' if necessary */
+
+        }
+
+
+        /* Style for the action buttons */
+        .status-actions {
+            display: flex;
+            flex-direction: row;
+            justify-content: left;
+        }
+
+        .status-actions button {
+            margin-bottom: 5px;
+            padding: 5px 10px;
+            border: none;
+            background-color: rgb(249, 249, 249);
+            color: rgb(32, 104, 186);
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+
+        .status-actions button:hover {
+            background-color: #efede9;
+        }
+
+        /* Style for the clist action buttons */
+        .clist-actions {
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            align-items: center;
+            gap: 8px; /* Adds space between icons */
+        }
+
+        .clist-actions button {
+            margin-bottom: 5px;
+            padding: 5px 10px;
+            border: none;
+            background-color: rgb(249, 249, 249);
+            color: rgb(32, 104, 186);
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+
+        .clist-actions button:hover {
+            background-color: #efede9;
+        }
+
+        .visually-hidden {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            border: 0;
+        }
+
+        .clistImage {
+        /* Limit images to fit within the column */
+            float: left;
+            max-width: 300px;
+            height: auto; /* Maintains the aspect ratio */
+            display: block;
+            margin: 0 auto; /* Center-aligns the image within the div */
+        }
+
+        #accountSection {
+            padding: 10px;padding: 5px 10px;    /* 5px top & bottom, 10px left & right */  
+
+        }
+
+        #feed-section {
+            display: flex;
+            flex-direction: column;
+            height: calc(100dvh - 50px); /* 100% of the viewport height minus 50px */
+            overflow: hidden;           /* Prevent scrolling on the parent */
+        }
+        
+        #feed-menu {
+            height: 41px;               /* Fixed height for the menu */
+            padding: 10px;padding: 5px 10px;    /* 5px top & bottom, 10px left & right */            flex-shrink: 0;             /* Prevent shrinking */
+            border-bottom: 1px solid lightgray;
+        }
+        
+        #feed-container {
+            flex-grow: 1;               /* Take remaining space */
+            overflow-y: scroll;         /* Always show vertical scrollbar */
+        }
+
+        .feed-header {
+
+            margin-left: 10px;
+            display: flex;
+            justify-content: space-between;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+
+
+        }
+        
+        .feed-header h2 {
+            margin: 0;
+            font-size: 1.5em;
+            color: #333;
+        }
+        
+        .feed-header p {
+            margin: 5px 0 0;
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        /*  Audio List (From feed) */
+
+        #audio-section audio {
+            background-color: var(--highlight-color); /* Your desired background color */
+        }
+
+        /* Input fields */
+        audio {
+            background-color: var(--highlight-color);  /* Green background */
+            color: white;               /* White text */
+            width: 100%;                /* Full width */
+        }
+
+        #accounts-header,#audio-header, #chat-header, #read-header, #find-header, #save-header, #post-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid #ccc;      /* Light border */
+            border-radius: 4px;          /* Rounded corners */
+            background-color: #f5f5f5;
+        }
+        
+        #accounts-header h2,#audio-header h2,#chat-header h2,#read-header h2, #find-header h2, #save-header h2, #post-header h2 {
+            margin: 0;
+            flex-grow: 1;
+            text-align: center;
+
+        }
+        
+        #audio-left-close-button,#chat-left-close-button {
+
+        }
+        
+        #accounts-left-close-button:hover,#audio-left-close-button:hover,#chat-left-close-button:hover,#read-left-close-button:hover,#find-left-close-button:hover,#save-right-close-button:hover,#post-right-close-button:hover {
+            color: var(--highlight-color);
+        }
+
+        #chat-messages {
+            overflow:auto;
+            height:500px;
+            max-height:80%;
+            padding: 5px 10px 5px 10px;              /* Margin between elements */
+            border: 1px solid #ccc;      /* Light border */
+            box-sizing: border-box;      /* Ensures padding doesn’t affect width */
+            border-radius: 4px;          /* Rounded corners */
+        }
+
+        #accounts-section,#chat-section, #audio-section, #read-section, #find-section {
+            width: 100%;                /* Full width */
+            margin: 0;              /* Padding inside the input */
+            padding: 5px 0px 5px 0px;              /* Margin between elements */
+            box-sizing: border-box;      /* Ensures padding doesn’t affect width */
+            border-radius: 4px;          /* Rounded corners */
+        }
+
+        #audio-list p, #audio-list a {
+            width: 100%;                /* Full width */
+            padding: 2px;              /* Padding inside the input */
+            margin:  0;              /* Margin between elements */
+            box-sizing: border-box;      /* Ensures padding doesn’t affect width */
+            margin-top: 1px;    /* Light border */
+            background-color: var(--highlight-color);  /* Green background */
+            text-decoration: none;
+            color: white;               /* White text */
+        }
+
+        /* Pads (Basically a clone of audio */
+
+        #padList p, #padList a,  #padList li {
+            width: 100%;                /* Full width */
+            padding: 2px;              /* Padding inside the input */
+            margin:  0;              /* Margin between elements */
+            box-sizing: border-box;      /* Ensures padding doesn’t affect width */
+            margin-top: 1px;    /* Light border */
+            background-color: var(--highlight-color);  /* Green background */
+            text-decoration: none;
+            color: white;               /* White text */
+            list-style: none;
+        }
+
+
+        /*  Posts   */
+
+        .post { 
+            border-top: 1px solid #ccc; padding: 10px; 
+            padding: 0.5em;
+        }
+
+        .post p, ul, textarea, img, h1, h2, h3 {
+            margin-bottom: 0.75em;
+        }
+
+
+        .post li {
+            margin-left:1.4em;
+        }
+
+        .post img, .post figure, .post wp-block-image {
+            max-width:100%;
+            height: auto;
+        }
+
+
+        .post:last-child { border-bottom: none; }
+        
+
+        /* Mobile Styles */
+        @media (max-width: 768px) {
+
+            body {
+                font-size: 16px;            /* Slightly larger text */
+            }
+            
+    
+            h1,h2,h3 {
+                font-family: 'Oswald', sans-serif;
+                font-size: 24px;            /* Slightly larger text */
+    
+            }
+    
+      
+            /* Style for buttons */
+            button {
+                font-size: 16px;            /* Slightly larger text */
+            }
+        
+        }
+
+
+

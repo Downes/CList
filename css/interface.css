@@ -1,0 +1,630 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  :root {
+    --highlight-color: #4CAF50; /* Define the default highlight color */
+  }
+
+
+  /* General Body and HTML */
+  body, html {
+    height: 100%;
+    font-family: Arial, sans-serif;
+    margin: 0;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  body a, html a {
+    color: var(--highlight-color);
+    cursor: pointer;
+  }
+
+  body a:hover, html a:hover {
+    text-decoration: underline; /* Optional hover effect */
+  }
+  
+  /* Command Alignment */
+  .left {
+    margin-right: auto;
+  }
+
+  .right {
+    margin-left: auto;
+  }
+
+  /* Main Container */
+  #main-container {
+    width: 100vw;
+    height: 100dvh;
+    position: relative;
+    overflow: hidden;
+  }
+
+  #main-window {
+    height: 100vh;
+    background-color: #f5f5f5;
+    transition: left 0.5s ease; /* Smoothly move the left border */
+    transition: right 0.5s ease; /* Smoothly move the right border */
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0; 
+    overflow: hidden; /* Prevent visible content overflow */
+  }
+
+  #main-content {
+    display: flex;
+    position: relative;
+    transform: translateX(0); /* Translate smoothly with the pane */
+    transition: transform 0.7s ease-in-out; /* Match the transition timing */
+    transition: width 0.5s ease; /* Smooth expand */
+  }
+
+  .pane {
+    flex: 1; /* Allow both panes to grow/shrink equally */
+    overflow: auto; /* Enable scrolling if content overflows */
+  }
+
+  /* Left Pane */
+  #left-pane {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100dvh;
+    width: 0; /* Start with 0 width */
+    background-color: #f0f0f0;
+    overflow: hidden;
+    transition: width 0.5s ease; /* Smooth expand */
+    z-index: 10; /* Ensure it appears above main content */
+  }
+
+  /* Left Pane */
+  #right-pane {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100dvh;
+    width: 0; /* Start with 0 width */
+    background-color: #f0f0f0;
+    overflow: hidden;
+    transition: width 0.5s ease; /* Smooth expand */
+    z-index: 10; /* Ensure it appears above main content */
+  }
+
+  
+
+
+  .pane-content {
+    padding: 0px;
+  }
+  
+
+
+    #read-pane,
+    #write-pane {
+        height: 100%;
+        overflow: auto;
+    }
+
+    #read-pane {
+      flex: 1; /* Default size */
+      background-color: #f5f5f5;
+  }
+
+    #write-pane {
+      flex: 1; /* Default size */
+      background-color: #e5e5e5;
+    }
+
+    #write-pane-content {
+      max-height: calc(100dvh - 50px);
+      min-height: 25px;
+      margin: 5px 10px;
+      overflow: auto;
+      overflow-y: auto; 
+      position: relative;
+      display:block;
+      overflow: auto;
+
+
+    }
+
+    #write-title {
+      border: 1px solid #ccc;
+      background-color: #ffffff;
+      padding: 10px;
+      margin-left: 10px;
+      margin-right: 10px;
+      height: 41px;
+      min-height: 25px;
+      border-radius: 5px;
+    }
+
+    #write-column {
+      width: 100%;
+      height: 150px;
+      overflow: auto;
+    }
+            /* Editor Styling */
+
+    #text-column {
+        width: 100%;
+        height: 500px;
+        padding: 10px;
+        font-size: 16px;
+        font-family: Arial, sans-serif;
+        color: #333;
+        background-color: #f9f9f9;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        resize: both;
+        box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+        transition: border-color 0.3s, box-shadow 0.3s;
+    }
+
+    #text-column:focus {
+        border-color: var(--highlight-color); /* Highlight border on focus */
+        box-shadow: 0 0 5px rgba(143, 143, 143, 0.5);
+        outline: none; /* Remove the default focus outline */
+    }
+
+    #write-load {
+      width: 100%;
+      height: 100%;
+      padding: 10px;
+      display: none;
+      z-index: 10; /* Ensure it appears above other content */
+    }
+
+    #write-load-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    #write-load-close-button {
+      font-size: 10px;
+      margin: 0;
+      padding: 4;
+      cursor: pointer;
+    }
+
+    #loadedContent {
+      display:none;
+    }
+    .editor {
+      width: 100%;
+      height: 100%;
+      padding: 0px;
+      display: none;
+    }
+
+    .editor textarea {
+      width: 100%;
+      height: 400px;
+      max-height: 100%;
+      padding: 10px;
+      margin: 0px;
+      border-radius: 5px;
+    }
+
+    .currentReference {
+      display:block;
+      margin-top: 10px;
+      justify-content: space-between;
+      border: 1px solid #ddd;
+      padding: 10px;
+      margin-bottom: 10px;
+      border-radius: 5px;
+      background-color: #f9f9f9;
+    }
+
+    .allReferences {
+      position: relative;
+      width: 100%;
+      height: 400px; /* Adjust to control the height */
+      max-height:100%;
+      background-color: #ffffff;
+      overflow-y: auto; /* Allow scrolling if content exceeds the height */
+      z-index: 100; /* Ensure it appears above other content */
+      display: none; /* Initially hidden */
+
+    }
+
+
+    #divider {
+      width: 5px;
+      background-color: #ccc;
+      cursor: col-resize;
+      height: 100dvh;
+  }
+
+  .command {
+    display: flex; /* Enable Flexbox for the command bar */
+    align-items: center; /* Vertically center items */
+    justify-content: space-between; /* Push left and right items to the edges */
+    padding: 5px 10px; /* Add padding for aesthetics */
+    background: #ddd; /* Optional: Background color for visibility */
+    border-bottom: 1px solid #ccc; /* Optional: Border for separation */
+  }
+
+  .command .command-left-buttons {
+    display: flex;                /* Group left buttons */
+    gap: 10px;                    /* Add space between buttons */
+}
+
+  .command .left-close-button {
+    margin-left: auto;            /* Push the close button to the far right */
+    background: none;             /* Optional: Style for the close button */
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+  }
+
+  #command-main {
+    
+    display: flex;
+    align-items: center; /* Vertically align items */
+    justify-content: space-between; /* Separate left and right sections */
+
+}
+
+  #command-main-left {
+      display: flex; /* Align items in a row */
+      align-items: center; /* Vertically center items */
+      gap: 10px; /* Add small separation between logo and Find button */
+      padding: 0 10px 0 0;
+  }
+
+  .left-close {
+    margin: 0 10px 0 0;
+  }
+
+          /* Style for the account header */
+        #identityDiv {
+            background-color: #ffffff;  /* Light gray background */
+            padding: 10px;         /* Padding around the content */
+            height: 41px;
+            margin-bottom: 0px;        /* Space below the bar */
+            display: flex;              /* Use flexbox for layout */
+            align-items: center;        /* Center vertically */
+            border: 1px solid #ddd;     /* Light border */
+
+        }
+
+        #accountDiv {
+
+          background-color: #ffffff;  /* Light gray background */
+          padding: 10px;         /* Padding around the content */
+          margin-bottom: 0px;        /* Space below the bar */
+          display: flex;              /* Use flexbox for layout */
+          align-items: center;        /* Center vertically */
+        }
+
+        /* Style for the account section */
+        #accountSection {
+            background-color: #f9f9f9;  /* Light background color */
+            border: 1px solid #ddd;     /* Light border */
+            padding:0;              /* Space inside the box */
+            border-radius: 0px;         /* Rounded corners */
+            max-width: 400px;           /* Set a maximum width */
+            margin: 0px auto;          /* Center the box */
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1); /* Subtle shadow */
+        }
+
+  .logo {
+      height: 100%; /* Scale logo to fit the command bar height */
+      max-height: 26px; /* Prevent the logo from being too large */
+      margin-left:0;
+      margin-right:10px;
+  }
+  
+  button {
+    padding: 0px;
+    padding-left: 10px;
+    padding-right: 10px;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  
+
+
+
+  
+  #left-pane, #right-pane {
+    width: 0;
+    position: absolute;
+    top: 0dvh;
+    bottom: 0;
+    background: #fafafa;
+    border-right: 1px solid #ccc;
+    transition: width 0.5s;
+    overflow: hidden;
+    z-index: 2;
+  }
+  
+  #left-pane {
+    left: 0;
+  }
+
+  #left-content {
+    padding: 5px 10px;
+    max-height: calc(100% - 81px); /* Maximum height: viewport minus 81px */
+    height: 100%; /* Fill available height */
+    direction: rtl; /* Move scrollbar to the left side */
+    overflow: auto; /* Enable scrolling when content exceeds container height */
+    scrollbar-width: thin; /* Slim scrollbar for Firefox */
+    scrollbar-color: #888 #f1f1f1; /* Custom scrollbar colors for Firefox */
+  }
+
+  /* Reset text direction for child elements */
+  #left-content * {
+    direction: ltr; /* Normal left-to-right text flow for child elements */
+  }
+
+  /* Custom scrollbar for WebKit browsers (Chrome, Edge, Safari) */
+  #left-content::-webkit-scrollbar {
+      width: 8px; /* Slim scrollbar width */
+      background-color: #f1f1f1; /* Scrollbar track color */
+  }
+
+  #left-content::-webkit-scrollbar-thumb {
+      background-color: #888; /* Scrollbar thumb color */
+      border-radius: 10px; /* Rounded scrollbar thumb */
+  }
+
+  #left-content::-webkit-scrollbar-thumb:hover {
+      background-color: #555; /* Thumb hover color */
+  }
+
+
+  /* Save and Post Options */
+
+  .right-pane-content {
+    width: 90%;  /* Set a specific width, like 80%, or you can use a fixed width */
+    padding:5%;
+  }
+
+  #save-options {
+    display: flex;
+    padding: 5px 0px; 
+    flex-direction: column;  /* Arrange the buttons vertically */
+    gap: 10px;  /* Add space between each button */
+  }
+
+  #post-options {
+    display: flex;
+    padding: 5px 0px; 
+    flex-direction: column;  /* Arrange the buttons vertically */
+    gap: 10px;  /* Add space between each button */
+  }
+
+  #save-instructions {
+    display: flex;
+    flex-direction: column;
+    padding: 5px 10px; 
+    gap: 10px;  /* Add space between each button */
+  }
+
+  #post-instructions {
+    display: flex;
+    flex-direction: column;
+    padding: 5px 10px; 
+    gap: 10px;  /* Add space between each button */
+  }
+
+  #nextPageButton, #loadMoreButton {
+    margin-left: 10px;
+  }
+
+  .save-button {
+      width: 60%;  /* Set a specific width, like 80%, or you can use a fixed width */
+      padding: 10px;  /* Add some padding for better appearance */
+      margin: 0 auto;  /* Center the buttons */
+      font-size: 10px;  /* Adjust font size for readability */
+      box-sizing: border-box;  /* Ensure padding is included in the button width */
+      background: #ddd;
+      color: #444;
+      border-bottom: 1px solid #444;
+  }
+
+  .save-button.selected {
+    background-color: var(--highlight-color);  /* Change to green when selected */
+    color: white;  /* Change text color when selected */
+  }
+
+  .save-button:hover {
+    background-color: #e0e0e0;  /* Change background color when hovering */
+  }
+
+  .save-button:active {
+    background-color: #739c7c;  /* Change color when the mouse is down (pressed) */
+    transition: background-color 0.01s;  /* Quick transition when active */
+}
+
+  .final-save-button {
+    width: 80%;  /* Set a specific width, like 80%, or you can use a fixed width */
+    padding: 10px;  /* Add some padding for better appearance */
+    margin: 0 auto;  /* Center the buttons */
+    font-size: 12px;  /* Adjust font size for readability */
+    box-sizing: border-box;  /* Ensure padding is included in the button width */
+  }
+
+
+ 
+  
+  /*  Icons  */
+  /* Use <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"> in document head */
+
+  /* Rules for sizing the icon. */
+.material-icons.md-18 { font-size: 18px; }
+.material-icons.md-24 { font-size: 24px; }
+.material-icons.md-36 { font-size: 36px; }
+.material-icons.md-48 { font-size: 48px; }
+
+/* Rules for using icons as black on a light background. */
+.material-icons.md-dark { color: rgba(33, 134, 55, 0.696); }
+.material-icons.md-dark.md-inactive { color: rgba(30, 150, 56, 0.553); }
+
+/* Rules for using icons as white on a dark background. */
+.material-icons.md-light { color: rgb(81, 177, 88); }
+.material-icons.md-light.md-inactive { color: rgba(186, 234, 184, 0.671); }
+
+
+#statusPane {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  width: calc(100% - 20px); /* Full width minus padding */
+  max-width: 400px; /* Limit the width to 400px */
+  border:1 px solid rgb(93, 95, 93);
+  background-color: rgba(231, 234, 231, 0.8); /* Semi-transparent black background */
+  color: var(--highlight-color); /*Green text */
+  padding: 10px; /* Padding for content */
+  border-radius: 5px; /* Rounded corners */
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  display: none; /* Hidden by default */
+  z-index: 1000; /* Ensure it’s above other elements */
+}
+
+/* Loading Indicator */
+
+/* Loading Indicator */
+#loading-indicator {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.2); /* Semi-transparent black background */
+  display: none; /* Flexbox for centering */
+  flex-direction: column;
+  justify-content: center; /* Vertical alignment */
+  align-items: center; /* Horizontal alignment */
+  z-index: 1000; /* Ensure it's above everything else */
+}
+
+
+.loader {
+  border: 4px solid #f3f3f3; /* Light grey */
+  border-top: 4px solid var(--highlight-color); /* Highlight */
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+
+
+/* Generic Modal */
+#generic-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10000;
+}
+
+#modal-content {
+
+  background-color: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  max-width: 90%;
+  max-height: 80%;
+  overflow-y: auto;
+  position: relative;
+}
+
+
+/* Mobile Styles */
+@media (max-width: 768px) {
+
+  body {
+    font-size: clamp(16px, 2.5vw, 20px); /* Adapts font size based on screen width */
+  }
+  
+  html {
+    font-size: 112.5%; /* Scale to 18px (16px × 1.125) */
+  }
+
+  #main-window {
+    position: absolute;
+    left: 0; /* Reset left position */
+    right: 0; /* Reset right position */
+    width: 200vw; /* Double the viewport width */
+  }
+
+  #main-content {
+    width: 200vw; /* Use vw instead of dvw */
+    display: flex;
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    transition: transform 0.5s ease-in-out; /* Simplified transition */
+    will-change: transform; /* Optimize for hardware acceleration */
+    overflow: hidden; /* Prevent scrolling issues */
+  }
+
+  #read-pane, #write-pane {
+    width: 100vw; /* Use vw for width */
+    height: 100%; /* Explicit height for consistency */
+    flex: none; /* Prevent flex behavior */
+    position: relative; /* Ensure proper containment */
+    overflow: auto; /* Allow scrolling within the panes */
+    flex: 1 0 auto; /* Prevent flexbox resizing */
+  }
+
+  #divider {
+    display: none; /* Disable draggable resizing on mobile */
+  }
+
+  .active {
+    transform: translateX(0); /* Pane is fully visible */
+  }
+
+  .inactive {
+    transform: translateX(100%); /* Pane is fully hidden */
+  }
+
+
+/* Firefox-Specific Fix */
+@supports (-moz-appearance: none) {
+  #main-content {
+    width: 200vw; /* Explicit width for Firefox */
+  }
+
+  #main-window {
+    width: 200vw; /* Explicit width for Firefox */
+  }
+
+  #read-pane, #write-pane {
+    width: 100vw;
+    flex: 1 0 100vw; /* Prevent flexbox resizing */
+    webkit-flex-shrink: 0; /* Prevent flexbox resizing */
+  }
+}
+}
