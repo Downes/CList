@@ -1,10 +1,21 @@
+//  wordpress.js  -  Publishes a post to a WordPress site using the REST API
+//  Part of CList, the next generation of learning and connecting with your community
+//
+//  Version version 0.1 created by Stephen Downes on January 27, 2025
+//
+//  Copyright National Research Council of Canada 2025
+//  Licensed under Creative Commons Attribution 4.0 International https://creativecommons.org/licenses/by/4.0/
+//
+//  This software carries NO WARRANTY OF ANY KIND.
+//  This software is provided "AS IS," and you, its user, assume all risks when using it.
+// 
+
+
 async function publishPost(instance,username,password,title,content) {
     //const contentWindow = document.getElementById('content-window').innerHTML; // Get the content of the editable div
    // const title = "New Post from Content Window"; // You can change this dynamically if needed
 
     const url = instance+'/wp-json/wp/v2/posts'; // WordPress REST API endpoint for posts
- //   const username = 'Downes'; // Replace with your WordPress username
-//    const password = 'wYTR Ouie eVXr 7lGF DsDj esiH'; // Replace with the application password you generated
 
     const postData = {
       title: title,
@@ -38,5 +49,3 @@ async function publishPost(instance,username,password,title,content) {
       return null; // Return null on failure
     }
   }
-
- // document.getElementById('publish-btn').addEventListener('click', publishPost);
