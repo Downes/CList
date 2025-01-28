@@ -292,9 +292,6 @@ async function googleSearch(query,type,start) {
     const feedContainer = document.getElementById('feed-container');
     const dateString = new Date().toISOString();
 
-    const feedContainer = document.getElementById('feed-container');
-    const dateString = new Date().toISOString();
-
         // Get generater from accounts
     // Assumes 'accounts' array has been preloaded
     // If necessary, fetch the accounts from the KVstore
