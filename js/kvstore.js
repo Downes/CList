@@ -256,7 +256,12 @@ function playAccounts() {
             }
       
             const token = getSiteSpecificCookie(flaskSiteUrl, 'access_token');
-            const passphrase = "MY_SUPER_SECRET_PASSPHRASE";
+            const passphrase = getSiteSpecificCookie(flaskSiteUrl, 'passphrase');
+            if (!token) {
+                console.error('No access token found in cookies.');
+                alert('No access token found in cookies.');
+                return;
+            }
 
             try {
                 const response = await fetch(`${flaskSiteUrl}/get_kvs/`, {
@@ -277,7 +282,7 @@ function playAccounts() {
                         // ===========================
                         //   DECRYPT LOCALLY
                         // ===========================
-                        const passphrase = "MY_SUPER_SECRET_PASSPHRASE";
+                        const passphrase = getSiteSpecificCookie(flaskSiteUrl, 'passphrase');
                         const decryptedString = await decryptData(passphrase, kv.value);
 
                         const accountData = JSON.parse(decryptedString);

@@ -59,9 +59,13 @@
             //const params = new URLSearchParams(window.location.search);
             const username = urlParams.get('username');
             const token = urlParams.get('token');
+            const passphrase = urlParams.get('passphrase');
 
             if (username && token) {
 
+                // Set cookies for the Flask site (1 day expiry
+
+                setSiteSpecificCookie(flaskSiteUrl, 'passphrase', passphrase, 1);
                 setSiteSpecificCookie(flaskSiteUrl, 'access_token', token, 1);
                 setSiteSpecificCookie(flaskSiteUrl, 'username', username, 1);
                 localStorage.setItem('username', username);

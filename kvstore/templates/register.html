@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title }}</title>
+</head>
+<body>
+<h1>Register</h1>
+{% from "bootstrap/wtf.html" import wtf_quick_form %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+<form method="POST" action="{{ url_for('auth.register', next=request.args.get('next')) }}">
+    {{ form.hidden_tag() }}
+    <input type="hidden" name="next" value="{{ request.args.get('next') }}">
+    <p>
+        {{ form.username.label }}<br>
+        {{ form.username(size=32) }}
+    </p>
+    <p>
+        {{ form.password.label }}<br>
+        {{ form.password(size=32) }}
+    </p>
+    <p>
+        {{ form.confirm_password.label }}<br>
+        {{ form.confirm_password(size=32) }}
+    </p>
+    <p>{{ form.submit() }}</p>
+</form>
+</body>
+</html>

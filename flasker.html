@@ -13,7 +13,7 @@
         let currentMode = 'add';  // Track whether we're adding or updating
 
         async function addOrUpdateKeyValue() {
-            const token = getSiteSpecificCookie(flaskSiteUrl);  // Retrieve the token for the specific Flask site
+            const token = getSiteSpecificCookie(flaskSiteUrl,'access_token');  // Retrieve the token for the specific Flask site
             // const token = localStorage.getItem('token');  // Retrieve the token from storage
             const key = document.getElementById("keyInput").value;
             const instanceData = {
@@ -23,13 +23,13 @@
                 title: document.getElementById("titleInput").value
             };
             const jsonString = JSON.stringify(instanceData);
-console.log("Update Data");
-console.log(jsonString);
+
                 // ===========================
                 //  ENCRYPT LOCALLY (Web Crypto)
                 // ===========================
-                // Demo passphrase
-                const passphrase = "MY_SUPER_SECRET_PASSPHRASE";
+                // Get passphrase
+                const passphrase = getSiteSpecificCookie(flaskSiteUrl, 'passphrase');
+
 
             let encryptedValue;
             try {
@@ -117,7 +117,7 @@ console.log("Fetch "+key+" = "+encryptedValue);
        
 
         async function getSite(flaskSiteUrl) {
-            const token = getSiteSpecificCookie(flaskSiteUrl);  // Retrieve the token for the specific Flask site
+            const token = getSiteSpecificCookie(flaskSiteUrl,'access_token');  // Retrieve the token for the specific Flask site
             
             try {
                 const response = await fetch(`${flaskSiteUrl}/get_kvs/`, {
@@ -134,7 +134,7 @@ console.log("Fetch "+key+" = "+encryptedValue);
                 for (const kv of data) {
                     let parsedValue = null;
                     try {
-                        const passphrase = "MY_SUPER_SECRET_PASSPHRASE";
+                        const passphrase = getSiteSpecificCookie(flaskSiteUrl, 'passphrase');
                         const decryptedString = await decryptData(passphrase, kv.value);
                         parsedValue = decryptedString ? JSON.parse(decryptedString) : null;
                     } catch (error) {
@@ -153,7 +153,7 @@ console.log("Fetch "+key+" = "+encryptedValue);
 
         
         async function deleteKeyValue() {
-            const token = getSiteSpecificCookie(flaskSiteUrl);  // Retrieve the token for the specific Flask site
+            const token = getSiteSpecificCookie(flaskSiteUrl,'access_token');  // Retrieve the token for the specific Flask site
             // const token = localStorage.getItem('token');  // Retrieve the token from storage
             const key = document.getElementById("keyInput").value;
 
@@ -225,28 +225,23 @@ console.log("Fetch "+key+" = "+encryptedValue);
             if (parts.length === 2) return parts.pop().split(';').shift();
         }
 
+        // Site Specific Cookies
+
         function deriveSiteIdentifier(flaskSiteUrl) {
-            if (!flaskSiteUrl) { alert("Can't find flask site URL in deriveSiteIdentifier()"); }
-            const url = new URL(flaskSiteUrl).hostname;  // Extract the hostname from the Flask site URL
-            return url.replace(/\./g, '_');  // Replace dots with underscores to create a valid cookie name
+            if (!flaskSiteUrl) { alert('No flaskSiteUrl provided'); console.error("No flask site URL provided."); } //
+            return new URL(flaskSiteUrl).hostname.replace(/\./g, '_');
         }
 
-        function setSiteSpecificCookie(flaskSiteUrl, token, days) {
-            const siteIdentifier = deriveSiteIdentifier(flaskSiteUrl);
-            const cookieName = `access_token_${siteIdentifier}`;
-            setCookie(cookieName, token, days);
+        function setSiteSpecificCookie(flaskSiteUrl, name, value, days) {
+            setCookie(`${name}_${deriveSiteIdentifier(flaskSiteUrl)}`, value, days);
         }
 
-        function getSiteSpecificCookie(flaskSiteUrl) {
-            const siteIdentifier = deriveSiteIdentifier(flaskSiteUrl);
-            const cookieName = `access_token_${siteIdentifier}`;        
-            return getCookie(cookieName);
+        function getSiteSpecificCookie(flaskSiteUrl, name) {
+            return getCookie(`${name}_${deriveSiteIdentifier(flaskSiteUrl)}`);
         }
 
-        function deleteSiteSpecificCookie(flaskSiteUrl) {
-            const siteIdentifier = deriveSiteIdentifier(flaskSiteUrl);
-            const cookieName = `access_token_${siteIdentifier}`;
-            setCookie(cookieName, '', -1);  // Deletes the cookie
+        function deleteSiteSpecificCookie(flaskSiteUrl, name) {
+            setCookie(`${name}_${deriveSiteIdentifier(flaskSiteUrl)}`, '', -1);
         }
 
 
@@ -270,7 +265,7 @@ console.log("Fetch "+key+" = "+encryptedValue);
                 const token = getParamFromUrl('token');
                 // If we got the token from the URL, set it as a cookie for next time
                 if (token) {
-                    setSiteSpecificCookie(flaskSiteUrl, token, 1);
+                    setSiteSpecificCookie(flaskSiteUrl, 'access_token', token, 1);
                     console.log("Token cookie set from login");
                 }
 
@@ -299,7 +294,7 @@ console.log("Fetch "+key+" = "+encryptedValue);
 
 
                 if (token) {
-                    setSiteSpecificCookie(flaskSiteUrl, token, 1);
+                    setSiteSpecificCookie(flaskSiteUrl, 'access_token',  token, 1);
                     // localStorage.setItem('token', token);
                 }
 
@@ -310,7 +305,7 @@ console.log("Fetch "+key+" = "+encryptedValue);
                 }
 
                 // Proceed with other actions, e.g., fetching key-value pairs
-                if (getSiteSpecificCookie(flaskSiteUrl)) {
+                if (getSiteSpecificCookie(flaskSiteUrl,'access_token')) {
                         resetForm(); // Reset form to default state
                         try { // Refresh the key-value list
                             accounts = await window.parent.getAccounts(flaskSiteUrl);
@@ -325,7 +320,7 @@ console.log("Fetch "+key+" = "+encryptedValue);
                     return;
                 }
 
-                if (isTokenExpired(getSiteSpecificCookie(flaskSiteUrl))) {
+                if (isTokenExpired(getSiteSpecificCookie(flaskSiteUrl,'access_token'))) {
                     console.error('Token expired. Redirecting to login page.');
                     alert("Token expired. Please login.");
                     //window.location.href = `${flaskSiteUrl}/auth/login?next=${encodeURIComponent(window.location.href)}`;
@@ -449,7 +444,7 @@ console.log("Fetch "+key+" = "+encryptedValue);
             }
       
             const token = getSiteSpecificCookie(flaskSiteUrl, 'access_token');
-            const passphrase = "MY_SUPER_SECRET_PASSPHRASE";
+            const passphrase = getSiteSpecificCookie(flaskSiteUrl, 'passphrase');
 
             try {
                 const response = await fetch(`${flaskSiteUrl}/get_kvs/`, {
