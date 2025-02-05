@@ -147,7 +147,7 @@ console.log("Fetch "+key+" = "+encryptedValue);
                     kvList.appendChild(button);
                 }
             } catch (error) {
-                alert('Error fetching key-value pairs: ' + error);
+                console.error('Error fetching key-value pairs: ' + error);
             }
         }
 
@@ -322,7 +322,7 @@ console.log("Fetch "+key+" = "+encryptedValue);
 
                 if (isTokenExpired(getSiteSpecificCookie(flaskSiteUrl,'access_token'))) {
                     console.error('Token expired. Redirecting to login page.');
-                    alert("Token expired. Please login.");
+                    //alert("Token expired. Please login.");
                     //window.location.href = `${flaskSiteUrl}/auth/login?next=${encodeURIComponent(window.location.href)}`;
                     return;
                 }
@@ -439,7 +439,7 @@ console.log("Fetch "+key+" = "+encryptedValue);
 
         async function getAccounts(flaskSiteUrl) {
             if (typeof username === 'undefined' || username === "none" || !username) {
-                window.parent.loginRequired();
+                window.parent.loginRequired('Login required to access accounts.');
                 return;
             }
       
@@ -466,14 +466,7 @@ console.log("Fetch "+key+" = "+encryptedValue);
                         //   DECRYPT LOCALLY
                         // ===========================
                         const decryptedString = await decryptData(passphrase, kv.value);
-                        const accountData = JSON.parse(decryptedString);
-
-
-console.log(kv.value+"  "+'61C4qdvBtIL4X2J7tXkC5WxsAi/Qu5xWtm0aAJhjLBccydRnn2ulOgVlI0kvvIdo7fg8roUDDRMo4iB22j4LeAzTkUxZXmKHacGfHznJhSMcXOGbpv+KWltBUyt+J3S39Bs9Ym0wJrkO03bTorM=');
-
-                        const altd = await decryptData(passphrase,'61C4qdvBtIL4X2J7tXkC5WxsAi/Qu5xWtm0aAJhjLBccydRnn2ulOgVlI0kvvIdo7fg8roUDDRMo4iB22j4LeAzTkUxZXmKHacGfHznJhSMcXOGbpv+KWltBUyt+J3S39Bs9Ym0wJrkO03bTorM=');
-
-                        
+                        const accountData = JSON.parse(decryptedString);                    
                         
                         return {
                             key: kv.key,
@@ -503,7 +496,6 @@ console.log(kv.value+"  "+'61C4qdvBtIL4X2J7tXkC5WxsAi/Qu5xWtm0aAJhjLBccydRnn2ulO
        
                 return accounts; // Return the accounts array
             } catch (error) {
-                alert('Error fetching key-value pairs: ' + error);
                 throw error; // Re-throw the error for the caller to handle
             }
         }

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About CList</title>
+
+    <link rel="icon" type="image/x-icon" href="assets/icons/CList.ico">
+    <style>
+        :root {
+            --highlight-color: #4CAF50; /* Define the default highlight color */
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+            color: #333;
+            overflow-y: auto;
+        }
+        .container {
+            width: 60%;
+            margin: 20px auto;
+            padding: 20px;
+            background: white;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+            border-radius: 5px;
+            overflow-y: auto;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        p {
+            margin: 0;
+            padding: 10px;
+        }
+        a {
+            color: var(--highlight-color);
+            text-decoration: none;
+        }
+        h1 {
+            color: var(--highlight-color);
+            text-align: center;
+        }
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        li {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+        li:last-child {
+            border-bottom: none;
+        }
+        .text-size-controls {
+            text-align: center;
+            margin: 20px;
+        }
+        .text-size-controls button {
+            padding: 10px 20px;
+            font-size: 14px;
+            margin: 5px;
+            cursor: pointer;
+        }
+    </style>
+    <script>
+        function increaseTextSize(sizeChange) {
+            let container = document.querySelector('.container');
+            let currentSize = parseFloat(window.getComputedStyle(container).fontSize);
+            let newSize = currentSize + sizeChange;
+            if (newSize >= 10 && newSize <= 30) { // Prevent too small or too large sizes
+                container.style.fontSize = newSize + 'px';
+            }
+        }
+        function decreaseTextSize(sizeChange) {
+            let container = document.querySelector('.container');
+            let currentSize = parseFloat(window.getComputedStyle(container).fontSize);
+            let newSize = currentSize - sizeChange;
+            if (newSize >= 10 && newSize <= 30) { // Prevent too small or too large sizes
+                container.style.fontSize = newSize + 'px';
+            }
+        }
+    </script>
+</head>
+<body>
+
+    <div class="container">
+        <h1>About CList</h1>
+        <p><strong>CList</strong> is your personal learning environment. Find resources, follow media feeds, chat with colleagues, create new resources on your own or with others, publish to social media, blogs or your own web site.<br/></p>
+        <p>CList is a single user application, not a multi-user platform. Think of it the way you might your web browser or your email service. You define what you want to read, and you decide where to send what you create. Your data is your own and you can access it from whereever you find this client.<br/></p><p><br></p>
+        <p><strong>Free, open and can never be acquired:</strong></p>
+        <ul>
+            <li>It’s completely open source CC-by to be used by anyone</li>
+            <li>It is part of distributed and decentralized network of people and services</li>
+            <li>It is as simple as possible, so anyone can use it</li>
+            <li>The ideal is that it can run anywhere (still working on that)</li>
+            <li>It's simple HTML-JS-CSS scripting so it can't be acquired and locked down</li>
+        </ul><br/></p>
+        <p><strong>How to use it:</strong></p>
+        <ul>
+            <li>Create an account using any CList client (including <a href="index.html">this one</a>)</li>
+            <li>Set up your Mastodon, Bluesky, Wordpress, Blogger or other services in your account</li>
+            <li>Use the client to read, find, chat, load, edit, save, and post whatever you want wherever you want</li>
+            <li>Tap into the educational services that are being enabled to help you learn</li>
+        </ul><br/></p>
+        <p><strong>What you can do with it:</strong></p>
+        <ul>
+            <li>Follow your friends and have conversations whether they use blogs, Mastodon or Bluesky</li>
+            <li>Read and write to your own blog, Mastodon or Bluesky account</li>
+            <li>Find and read resources from the web, including open educational resources</li>
+            <li>Use the client to create new resources and share them with others</li>
+            <li>Chat with others, share resources, and work collaboratively</li>
+        </ul><br/></p>     
+        <p><strong>This is just the beginning</strong></p>
+        <p><a href="index.html">Return to CList</a><br/></p><p><br></p>
+            <p><strong>Learn More</strong></p>
+            <ul>
+                <li>CList <a href="https://www.downes.ca/cgi-bin/page.cgi?presentation=589">announcement and demo</a> (slides and video)</li>
+                <li><a href="https://github.com/Downes/CList">CList Code</a> on GitHub</li>
+                <li>Help and more documents on the <a href="https://github.com/Downes/CList/wiki">CList Wiki</a></li>
+            </ul><br/></p>             
+    </div>
+</body>
+</html>

@@ -1,5 +1,5 @@
 # app.py
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_login import LoginManager, current_user
 from auth import auth_bp, login_manager  # Assuming auth.py defines both
 from routes import routes_bp
@@ -15,7 +15,7 @@ from config import Config  # If you have a config.py for other settings
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 # Initialize Flask App
-app = Flask(__name__, static_folder='static')
+app = Flask(__name__, static_folder='static',static_url_path='')
 app.secret_key = "some_super_secret_key"
 
 # Optional: Load additional config
@@ -52,13 +52,31 @@ def load_user(username):
     return user  # or None if not found
 
 # ------------------------------------------------------------------------------
-# ROOT ROUTE (SERVES A STATIC INDEX)
+# SERVE STATIC PAGES FROM ROOT
 # ------------------------------------------------------------------------------
 @app.route('/')
 def serve_static_index():
     """Serve the static index page."""
     return app.send_static_file('index.html')
 
+# Serve any static file from the "static" directory (including subdirectories)
+@app.route('/<path:filename>')
+def serve_static_files(filename):
+    logging.info(f"Trying to serve static file: {filename}")
+    return send_from_directory('static', filename)
+
+# Serve CSS, JS, and other static files without "/static/"
+@app.route('/css/<path:filename>')
+def serve_css(filename):
+    return send_from_directory('static/css', filename)
+
+@app.route('/js/<path:filename>')
+def serve_js(filename):
+    return send_from_directory('static/js', filename)
+
+@app.route('/images/<path:filename>')
+def serve_images(filename):
+    return send_from_directory('static/images', filename)
 
 # ------------------------------------------------------------------------------
 # DEBUG: LIST ROUTES

@@ -10,16 +10,8 @@
         const params = new URLSearchParams(window.location.hash.substring(1));
         const urlParams = new URLSearchParams(window.location.search);
         const state = urlParams.get('state');
-        const CLIENT_ID = 'oH0xp_-mgjuqE0bmwwviCg';
-        const CLIENT_SECRET = 'lQcN0P-3YwHlF6vyroVdQF7EMGmmBw';
-        const REDIRECT_URI = 'https://www.downes.ca/CList/redirect.html';
 
         if (state==='Reddit') {
-            document.write("Reddit<br>");
-            const authCode = urlParams.get('code');
-            document.write(authCode);
-            const tokenUrl = 'https://www.reddit.com/api/v1/access_token';
-            getAccessToken(tokenUrl,authCode);
 
 
         } else {
@@ -73,6 +65,8 @@
                 history.replaceState({}, document.title, window.location.pathname); // Hide params from history
 
                 // Update localStorage with a new value for 'kvstore'
+                // This tells the CList site that the user has logged in
+
                 localStorage.setItem('kvstore', Date.now().toString()); // Store a timestamp as a new value
 
                 // Close the redirect page
@@ -106,7 +100,7 @@
             } else {
                 console.error('Failed to get access token:', response.statusText);
             }
-            }
+        }
 
     </script>
 </head>

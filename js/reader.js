@@ -688,6 +688,8 @@ async function playRead() {
 
         // Append the reader to the left content
         leftContent.prepend(reader);
+        console.log("Tuning on read list");
+        document.getElementById('read-account-list').style.display = 'block';
 
     }
     if (!Array.isArray(accounts)) {
@@ -697,14 +699,17 @@ async function playRead() {
     try {
         if (!accounts || accounts.length === 0) {
             accounts = await getAccounts(flaskSiteUrl); // Fetch  accounts only if needed
+            populateReadAccountList(accounts);
         }
-        populateReadAccountList(accounts);
     } catch (error) {
         alert('Error in playRead: ' + error.message);
     }
 
 
+
     reader.style.display = 'block'; // Make the reader visible
+    let accList = document.getElementById('read-account-list');
+    accList.style.display = 'block'; // Make the accoounts visible
 
 }
 
@@ -775,8 +780,9 @@ function playFind() {
 
 // Function to populate the dropdown with account keys
 function populateReadAccountList(accounts) {
- 
+    console.log("Populating read account list");
     const accountList = document.getElementById('read-account-list');
+    accountList.innerHTML = '';                         // Clear previous options
     //accountDropdown.innerHTML = '';                         // Clear previous options
   //  const defaultoption = document.createElement('option'); // Create a blank instruction option
    // defaultoption.value = "";

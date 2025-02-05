@@ -71,13 +71,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
     // Check for identity server access token to determine whether a login is required
-    if (!getSiteSpecificCookie(flaskSiteUrl,'access_token')) { alert('no login cookie'); loginRequired(); }   
-    else if (isTokenExpired(getSiteSpecificCookie(flaskSiteUrl,'access_token'))) { alert('token expired');loginRequired(); }
+    if (!getSiteSpecificCookie(flaskSiteUrl,'access_token')) { 
+        loginRequired("No login cookie found."); }   
+    else if (isTokenExpired(getSiteSpecificCookie(flaskSiteUrl,'access_token'))) { 
+        //alert('token expired');
+        loginRequired("Token expired.");
+    }
     else { loginNotRequired();  }
 
 
     if (!username || username === "none") {
-        loginRequired();
+        loginRequired("No username found.");
     }
 
     displayUsername();
@@ -89,12 +93,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 // Login is required
-function loginRequired() {
+function loginRequired(msg) {
     toggleFormDisplay('loginButton','left',true);
     accountButton.style.display="none";
     logoutButton.style.display="none";
     //accountDiv.style.display="none";
-    identityDiv.innerHTML = "Please login to Identity Server";
+    identityDiv.innerHTML = `${msg} Please login to Identity Server`;
 }
 
 // Login not required
@@ -217,12 +221,13 @@ function playAccounts() {
             document.getElementById('accessToken').value = '';
 
 
-
+            // Reset left content
+            document.querySelectorAll('#left-content > div').forEach(div => div.style.display = 'none');
 
             // Display logout message
-            alert('You have been logged out.');
+           //alert('You have been logged out.');
 
-            loginRequired();
+            loginRequired("You have been logged out.");
 
             // Optionally redirect to the home page or keep the user on the same page
             // window.location.href = '/';
@@ -249,20 +254,42 @@ function playAccounts() {
             return payload.exp < Date.now() / 1000;
         }
 
-        async function getAccounts(flaskSiteUrl) {
-            if (typeof username === 'undefined' || username === "none" || !username) {
-                loginRequired();
-                return;
-            }
-      
-            const token = getSiteSpecificCookie(flaskSiteUrl, 'access_token');
+        async function getAccounts(flaskSiteUrl, retryCount = 3, retryDelay = 500) {
+
+            // Set up debugging for this crucial function
+            const stack = new Error().stack;
+            const callerFunction = stack.split("\n")[2]?.trim(); // Get the caller function name
+        
+            console.log(`getAccounts() called using ${flaskSiteUrl}`);
+            console.log(`Called by: ${callerFunction}`);
+
+            let username = getSiteSpecificCookie(flaskSiteUrl, 'username');
+            let token = getSiteSpecificCookie(flaskSiteUrl, 'access_token');
             const passphrase = getSiteSpecificCookie(flaskSiteUrl, 'passphrase');
-            if (!token) {
-                console.error('No access token found in cookies.');
-                alert('No access token found in cookies.');
+
+                // Retry logic: If username is not set, wait and retry
+            let attempt = 0;
+            while ((!username || username === "none" || !token) && attempt < retryCount) {
+                console.warn(`No username found in cookies. Retrying in ${retryDelay}ms... (${attempt + 1}/${retryCount})`);
+                await new Promise(resolve => setTimeout(resolve, retryDelay));
+                username = getSiteSpecificCookie(flaskSiteUrl, 'username');
+                token = getSiteSpecificCookie(flaskSiteUrl, 'access_token');
+                attempt++;
+            }
+
+            if (typeof username === 'undefined' || username === "none" || !username) {
+                console.error('No username found in cookies.');
+                loginRequired('No username found in cookies.');
                 return;
             }
 
+            if (!token) {
+                console.error('No access token found in cookies.');
+                loginRequired('No access token found in cookies.');
+                return;
+            }
+
+            console.log('Tring using access token ' + token);
             try {
                 const response = await fetch(`${flaskSiteUrl}/get_kvs/`, {
                     method: 'GET',
@@ -311,10 +338,10 @@ function playAccounts() {
                     }
                 }));
         
-       
+                console.log('Accounts in getAccounts():', accounts);
                 return accounts; // Return the accounts array
             } catch (error) {
-                alert('Error fetching key-value pairs: ' + error);
+                //alert('Error fetching key-value pairs: ' + error);
                 throw error; // Re-throw the error for the caller to handle
             }
         }
@@ -324,11 +351,30 @@ function playAccounts() {
 
 
         // Event listener for changes in localStorage
+        // This happens when redirect.html sets the username in localStorage
+        // which only happens after a successful login
+
         window.addEventListener('storage', (event) => {
             if (event.key === 'kvstore') {
                 console.log('Detected change in kvstore:', event.newValue);
-                updateIdentityDiv(); // Update the div when kvstore changes
-                acceptLogin();
+                console.log('Getting accounts from KVStore...' + flaskSiteUrl);
+                             
+                // Introduce a small delay to allow cookies to be set before calling getAccounts
+                setTimeout(async () => {
+                    try {
+                        console.log('Delaying getAccounts() call to ensure cookies are set...');
+                        accounts = await getAccounts(flaskSiteUrl)
+                        console.log('Accounts:', accounts);
+                        populateReadAccountList(accounts);
+                        
+                        updateIdentityDiv(); // Update the div when kvstore changes
+                        acceptLogin();
+                    } catch (error) {
+                        console.error('Error fetching accounts:', error);
+                        alert('Error fetching accounts: ' + error);
+                    }
+                }, 500); // Adjust delay time if needed (500ms should be sufficient)
+
             }
         });
 
