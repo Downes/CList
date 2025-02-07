@@ -363,8 +363,10 @@ function playAccounts() {
                 setTimeout(async () => {
                     try {
                         console.log('Delaying getAccounts() call to ensure cookies are set...');
-                        accounts = await getAccounts(flaskSiteUrl)
+                        accounts = await getAccounts(flaskSiteUrl);
                         console.log('Accounts:', accounts);
+                        await playRead();
+                        console.log('PlayRead() run');
                         populateReadAccountList(accounts);
                         
                         updateIdentityDiv(); // Update the div when kvstore changes
