@@ -53,12 +53,8 @@ if ($method eq 'GET') {
         exit;
     }
 
-    # Add the API key to the parameters
-    my $api_key = '90bd20825632bda2897e3b6d7dbd61c8311cd72d95f654547cd43afb2a251aa2';
-    my %params = $cgi->Vars;  # Get existing query parameters
-    $params{'apikey'} = $api_key;  # Add the API key
-
-    # Construct the URI with the updated parameters
+    # Construct the URI with query parameters
+    my %params = $cgi->Vars;  # Get query parameters (includes apikey)
     my $uri = URI->new($url);
     $uri->query_form(%params);  # Use the updated params including apikey
 

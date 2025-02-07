@@ -230,7 +230,7 @@ tinymceConfig = {
     content_style: `
         body {
             background: #fff;
-            font-size: 10pt;
+            font-size: 14px;
         }
 
 

@@ -13,45 +13,43 @@
 
 const proxyUrl = 'https://www.downes.ca/cgi-bin/proxyp.cgi';
 const etherpadBaseUrl = 'https://etherpad.cloudron.downes.ca/api/1.2.15';
-let padName = ''; // Global pad name
-let authorID = ''; // Global author ID
-let etherpadUsername = 'exampleUser'; // Will be replaced with the actual username
 
-// HTML elements for Etherpad editor
-let etherpadHTML = `<!-- Pad List Section -->
-    <div id="padListSection">
-        <h2>Existing Pads</h2>
-        <div id="padList" style="border: 1px solid #ccc; padding: 10px; min-height: 100px;"></div>
-        <br>
-        <div>
-            <label for="newPadName">Create a New Pad: </label>
-            <input type="text" id="newPadName" placeholder="Enter a new pad name">
-            <button onclick="createAndLoadEtherpad()">Create and Load</button>
-        </div>
-    </div>
 
-    <!-- Pad Content Section -->
-    <div id="padContentSection" style="display: none;">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-            <h2 id="currentPadName" style="margin: 0;">Pad Name</h2>
-            <button onclick="sharePad()" style="padding: 5px 10px;">Share</button>
-        </div>
-        <iframe id="padIframe" style="width: 100%; height: 80vh; border: 1px solid #ccc;"></iframe>
-        <br>
-        <div style="display: flex; align-items: center; justify-content: center; gap: 10px;">
-            <button onclick="showPadList()" style="margin-left: 10px;">Select Pad</button>
-        </div>
-    </div>
-    
-    <!-- Pad Share Section  -->;
-    <div id="padShareSection" style="display: none;">
-        <h2>Share</h2>
-        
-    </div>`;
 
 // Utility function to make API calls through the proxy
 async function callEtherpadApi(endpoint, params) {
+
+    // Add the Etherpad API URL and API key to the parameters
+    // as obtained from the accounts array
+
+    // Assuming 'accounts' is your array of account objects.
+    const accounts = await getAccounts(flaskSiteUrl);
+    console.log(accounts);
+    const etherpadAccountObj = accounts.find(account => {
+        // Parse the JSON string stored in the 'value' property.
+        try {
+            const accountData = JSON.parse(account.value);
+            console.log(accountData);
+            return accountData.type === 'Etherpad';
+        } catch (error) {
+            console.error('Error parsing account value:', error);
+            return false;
+        }
+    });
+    
+    let etherpadBaseUrl;
+    let etherpadId;
+    if (etherpadAccountObj) {
+        // Parse the account data once more to extract instance and id.
+        ({ instance: etherpadBaseUrl, id: etherpadId }  = JSON.parse(etherpadAccountObj.value));
+        console.log('Etherpad instance:', etherpadBaseUrl);
+        console.log('Etherpad id:', etherpadId);
+    } else {
+        console.log('No Etherpad account found.');
+    }
+  
     params.url = `${etherpadBaseUrl}/${endpoint}`;
+    params.apikey = etherpadId;
     //params.apikey = apiKey;
 
     const response = await fetch(proxyUrl, {

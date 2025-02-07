@@ -13,6 +13,7 @@
   body, html {
     height: 100%;
     font-family: Arial, sans-serif;
+    font-size:14pt;
     margin: 0;
     overflow: hidden;
     display: flex;
@@ -189,7 +190,7 @@
     }
 
     #write-load-close-button {
-      font-size: 10px;
+      font-size: 14px;
       margin: 0;
       padding: 4;
       cursor: pointer;
@@ -427,7 +428,7 @@
       width: 60%;  /* Set a specific width, like 80%, or you can use a fixed width */
       padding: 10px;  /* Add some padding for better appearance */
       margin: 0 auto;  /* Center the buttons */
-      font-size: 10px;  /* Adjust font size for readability */
+      font-size: 14px;  /* Adjust font size for readability */
       box-sizing: border-box;  /* Ensure padding is included in the button width */
       background: #ddd;
       color: #444;
@@ -624,7 +625,8 @@
   #read-pane, #write-pane {
     width: 100vw;
     flex: 1 0 100vw; /* Prevent flexbox resizing */
-    webkit-flex-shrink: 0; /* Prevent flexbox resizing */
+    -webkit-flex-shrink: 0; /* Prevent flexbox resizing */
+    flex-shrink: 0; /* Standard property for compatibility */
   }
 }
 }

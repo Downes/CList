@@ -20,7 +20,7 @@
             border: none;               /* No border */
             border-radius: 3px;         /* Rounded corners */
             cursor: pointer;            /* Pointer cursor on hover */
-            font-size: 10px;            /* Slightly larger text */
+            font-size: 14px;            /* Slightly larger text */
             margin-right: 3px;          /* space between buttons */
         }
     

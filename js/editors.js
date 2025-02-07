@@ -32,6 +32,7 @@ let currentEditor = 'texteditor'; // Default editor is TinyMCE
 const editorHandlers = {
     texteditor: {
         initialize: () => {
+
             currentEditor = 'texteditor';
             // alert(flaskSiteUrl);
             etherpadUsername = getSiteSpecificCookie(flaskSiteUrl, 'username');
@@ -114,6 +115,42 @@ const editorHandlers = {
 
             currentEditor = 'etherpad';
             closeAllEditors();
+
+            // HTML elements for Etherpad editor
+            let etherpadHTML = `<!-- Pad List Section -->
+            <div id="padListSection">
+                <h2>Existing Pads</h2>
+                <div id="padList" style="border: 1px solid #ccc; padding: 10px; min-height: 100px;"></div>
+                <br>
+                <div>
+                    <label for="newPadName">Create a New Pad: </label>
+                    <input type="text" id="newPadName" placeholder="Enter a new pad name">
+                    <button onclick="createAndLoadEtherpad()">Create and Load</button>
+                </div>
+            </div>
+
+            <!-- Pad Content Section -->
+            <div id="padContentSection" style="display: none;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                    <h2 id="currentPadName" style="margin: 0;">Pad Name</h2>
+                    <button onclick="sharePad()" style="padding: 5px 10px;">Share</button>
+                </div>
+                <iframe id="padIframe" style="width: 100%; height: 80vh; border: 1px solid #ccc;"></iframe>
+                <br>
+                <div style="display: flex; align-items: center; justify-content: center; gap: 10px;">
+                    <button onclick="showPadList()" style="margin-left: 10px;">Select Pad</button>
+                </div>
+            </div>
+
+            <!-- Pad Share Section  -->;
+            <div id="padShareSection" style="display: none;">
+                <h2>Share</h2>
+                
+            </div>`;
+
+            padName = ''; // Global pad name
+            authorID = ''; // Global author ID
+            etherpadUsername = 'exampleUser'; // Will be replaced with the actual username
 
             // Check whether etherpadDiv exists; if it doesn't, create it
             const writePaneContent = document.getElementById('write-pane-content');
