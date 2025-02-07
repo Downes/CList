@@ -74,10 +74,7 @@ if ($method eq 'GET') {
 
     # Extract all form parameters
     my %params = $cgi->Vars;
-    my $api_key = '90bd20825632bda2897e3b6d7dbd61c8311cd72d95f654547cd43afb2a251aa2';  
-
     # Add the API key to the parameters
-    $params{'apikey'} = $api_key;
 
 
 
