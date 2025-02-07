@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redirect Page</title>
+    
+    <script src="js/utilities.js"></script>
+    <script>
+        const params = new URLSearchParams(window.location.hash.substring(1));
+        const urlParams = new URLSearchParams(window.location.search);
+        const state = urlParams.get('state');
+        const CLIENT_ID = 'oH0xp_-mgjuqE0bmwwviCg';
+        const CLIENT_SECRET = 'lQcN0P-3YwHlF6vyroVdQF7EMGmmBw';
+        const REDIRECT_URI = 'https://www.downes.ca/CList/redirect.html';
+
+        if (state==='Reddit') {
+            document.write("Reddit<br>");
+            const authCode = urlParams.get('code');
+            document.write(authCode);
+            const tokenUrl = 'https://www.reddit.com/api/v1/access_token';
+            getAccessToken(tokenUrl,authCode);
+
+
+        } else {
+
+            // Set cookies and update localStorage on page load
+            window.onload = setLoginCookiesAndUpdateLocalStorage;
+
+        }
+
+        function getFlaskSiteUrl() {
+            // Try to extract from the `next` parameter
+            const currentUrl = new URL(window.location.href);
+            const nextParam = currentUrl.searchParams.get('next');
+
+            if (nextParam) {
+                return new URL(nextParam).origin;
+            }
+
+            // Try to extract from the referrer
+            if (document.referrer) {
+                return new URL(document.referrer).origin;
+            }
+
+            // Fallback to the current page's origin
+            return window.location.origin;
+        }
+
+
+        function setLoginCookiesAndUpdateLocalStorage() {
+
+            // Extract the service name from the state parameter
+
+
+
+            const flaskSiteUrl = getFlaskSiteUrl();
+            console.log('Identity Server URL:'+flaskSiteUrl);
+            //const params = new URLSearchParams(window.location.search);
+            const username = urlParams.get('username');
+            const token = urlParams.get('token');
+            const passphrase = urlParams.get('passphrase');
+
+            if (username && token) {
+
+                // Set cookies for the Flask site (1 day expiry
+
+                setSiteSpecificCookie(flaskSiteUrl, 'passphrase', passphrase, 1);
+                setSiteSpecificCookie(flaskSiteUrl, 'access_token', token, 1);
+                setSiteSpecificCookie(flaskSiteUrl, 'username', username, 1);
+                localStorage.setItem('username', username);
+      
+                history.replaceState({}, document.title, window.location.pathname); // Hide params from history
+
+                // Update localStorage with a new value for 'kvstore'
+                // This tells the CList site that the user has logged in
+
+                localStorage.setItem('kvstore', Date.now().toString()); // Store a timestamp as a new value
+
+                // Close the redirect page
+                window.close();
+            } else {
+                console.error('Missing login data in query parameters.');
+            }
+        }
+
+        async function getAccessToken(tokenUrl,authCode) {
+            const credentials = btoa(`${CLIENT_ID}:${CLIENT_SECRET}`); // Base64 encode client_id and client_secret
+
+            const response = await fetch(tokenUrl, {
+                method: 'POST',
+                headers: {
+                'Authorization': `Basic ${credentials}`,
+                'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                grant_type: 'authorization_code',
+                code: authCode,
+                redirect_uri: REDIRECT_URI,
+                }),
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                document.write('Access Token:', data.access_token);
+                document.write('Refresh Token:', data.refresh_token); // If duration is "permanent"
+                document.write('Expires In:', data.expires_in); // Usually in seconds
+            } else {
+                console.error('Failed to get access token:', response.statusText);
+            }
+        }
+
+    </script>
+</head>
+<body>
+    <h1>Processing Login...</h1>
+    <p>If this page doesn't close automatically, please close it manually.</p>
+
+
+
+</body>
+</html>
+
