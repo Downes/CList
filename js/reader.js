@@ -359,7 +359,7 @@ async function googleSearch(query,type,start) {
         }
 
         setupFeedButtons('google');  // Different feed buttons for different services
-    console.log("RESULTS");
+
         // Check if items array exists
         if (data.items && data.items.length > 0) {
             data.items.forEach((item) => {

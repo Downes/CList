@@ -12,25 +12,61 @@
 // 
 // // TinyMCE Editor Handlers
 
+let TinyMCE_Intialized = false;
+
 (function () {
 
     const tinymceHandler = {
         initialize: () => {
             currentEditor = 'tinymce';
-            closeAllEditors();
+            //closeAllEditors();
+            console.log("Not closing editors");
+
+            if (TinyMCE_Intialized) {
+                console.log("TinyMCE already initialized.");
+                const writePaneContent = document.getElementById('write-pane-content');
+                writePaneContent.style.display = 'block'; // Show the content area
+                let tinymceEditorDiv = document.getElementById('tinymceEditorDiv');
+                tinymceEditorDiv.style.display = 'block'; // Show the editor
+                return true;
+            }
+
 
             // Check whether tinymceEditorDiv exists; if it doesn't, create it
             const writePaneContent = document.getElementById('write-pane-content');
             let tinymceEditorDiv = document.getElementById('tinymceEditorDiv');
             if (!tinymceEditorDiv) {
+                console.log("Creating TinyMCE editor div");
                 tinymceEditorDiv = document.createElement('div');
                 tinymceEditorDiv.id = 'tinymceEditorDiv';
                 tinymceEditorDiv.innerHTML = `<textarea id="write-column"></textarea> 
                         <div class="currentReferences"></div>`;
                 writePaneContent.appendChild(tinymceEditorDiv);
             }
-            tinymce.init(window.tinymceConfig); // Initialize TinyMCE
+
+            // Check whether write-column (used by TinyMCE) exists 
+            const editorElement = document.querySelector('#write-column');
+            if (editorElement) {
+                console.log("Editor element found:", editorElement);
+            } else {
+                console.error("Editor element not found for selector '#write-column'.");
+                alert("Editor element not found for selector '#write-column'.");
+            }
+
+            // Check whether the TinyMCE editor is loaded; if it is, don't load it again
+            if (typeof tinymce === 'undefined') {
+                console.error('TinyMCE is not loaded.');
+                alert('TinyMCE is not loaded.');
+            } else {
+                console.log('TinyMCE is loaded; initializing now:', tinymce);
+                tinymce.init(window.tinymceConfig);
+            }
+
+
+
             tinymceEditorDiv.style.display = 'block'; // Show the editor
+
+
 
             // Check whether <div id="tinymce-references" ...> exists; if it doesn't, create it
             let tinymceReferences = document.getElementById('tinymce-references');
@@ -44,7 +80,8 @@
             // Initialize the tinymce editor
             // This is a placeholder function
             loadPredefinedContent('tinymce');
-            console.log("Text editor initialized");
+            TinyMCE_Intialized = true;
+            console.log("TinyMCE editor initialized");
         },
         getContent: () => {
             // Retrieve content for TinyMCE  - locatioon defined in tinymceConfig.selector

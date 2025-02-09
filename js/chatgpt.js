@@ -21,37 +21,16 @@ async function generateTemplateFromChatGPT() {
     return;
   }
 
-  // Set up template div
-  // Check if templateDiv exists; create it if it doesn't
-  let templateDiv = document.getElementById("templateDiv");
-
-  if (!templateDiv) {
-    // Create the div element
-    templateDiv = document.createElement("div");
-    templateDiv.id = "templateDiv"; // Set the ID
-
-    // Optionally, you can add it to a specific parent element
-    document.body.appendChild(templateDiv); // Append to the body or a specific container
-  }
-
-  //const templateDiv = document.getElementById("templateDiv");
-  templateDiv.innerHTML = "";
-
   try {
     // Make a single API call to generate the template
     const template = await generateNewTemplateFromChatGPT(templateType, outputFormat);
-
-    // Display the generated template
-    if (outputFormat === "text") {
-      templateDiv.innerHTML = `<pre>${template}</pre>`;
-    } else {
-      templateDiv.innerHTML = template; // Render HTML
-    }
+    return template;
   } catch (error) {
     // Handle errors
     templateDiv.innerHTML = "<p style='color:red;'>Error generating template. Please try again.</p>";
     console.error("Error generating template:", error);
   } 
+
 }
 
 async function generateNewTemplateFromChatGPT(templateType, outputFormat) {

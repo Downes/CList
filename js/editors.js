@@ -37,7 +37,7 @@ const editorHandlers = {
             // alert(flaskSiteUrl);
             etherpadUsername = getSiteSpecificCookie(flaskSiteUrl, 'username');
             if (!etherpadUsername) { etherpadUsername = 'user' + Math.floor(Math.random() * 1000); }
-            closeAllEditors();
+            // closeAllEditors();
 
             // Check whether textEditorDiv exists; if it doesn't, create it
             const writePaneContent = document.getElementById('write-pane-content');
@@ -114,7 +114,7 @@ const editorHandlers = {
         initialize: async (content) => {
 
             currentEditor = 'etherpad';
-            closeAllEditors();
+           // closeAllEditors();
 
             // HTML elements for Etherpad editor
             let etherpadHTML = `<!-- Pad List Section -->
@@ -252,7 +252,7 @@ async function playEditors() {
     const writeLoadDiv = document.getElementById('write-load');
     if (!writeLoadDiv) {
         alert('Error: write-load not found');
-        console.error("Error: can't find an item named write-load");
+        console.error("Error: can't find an div named write-load. It should be created in index.html and it's where we stash the content to be pre-loaded into the editor.");
         return;
     }
     // Make the 'write-load' div invisible
@@ -264,6 +264,7 @@ async function playEditors() {
         writeLoadHeading = document.createElement('div');
         writeLoadHeading.id = 'write-load-heading';
         writeLoadDiv.appendChild(writeLoadHeading);
+        console.log("write-load-heading created");
     }
     writeLoadHeading.innerHTML = '<h2>Load Content</h2>';
 
@@ -273,6 +274,7 @@ async function playEditors() {
         writeLoadContent = document.createElement('div');
         writeLoadContent.id = 'write-load-content';
         writeLoadDiv.appendChild(writeLoadContent);
+        console.log("write-load-content created");
     }
     writeLoadContent.innerHTML = ''; // Clear any existing content
 
@@ -297,6 +299,7 @@ async function playEditors() {
 
     // Process the user's selection
     let content = null;
+    console.log(`User choice: ${userChoice}`);
 
     switch (userChoice) {
         case "loadBlank":
@@ -321,12 +324,14 @@ async function playEditors() {
         case "generateTemplate":
             console.log("Generating new template...");
             content = await generateTemplateContent();
+            console.log(`Content loaded: ${content.type}`);
+            console.log(`Content value: ${content.value}`);
             break;
         case "loadEtherpad":
             console.log("Loading Etherpad...");
             toggleDiv('write-load');
             //toggleDiv('write-title');   // we'll leave this for now until we can reliably always open it when needed
-            content = await editorHandlers['etherpad'].initialize(); 
+            content = initializeEditor('etherpad'); 
             return;   // No content to process if we're just opening an existing etherpad
         default:
             console.error("Unknown selection");
@@ -343,24 +348,23 @@ async function playEditors() {
     console.log(`Content value: ${content.value}`);
 
     // Proceed to the next step with the loaded content
-
+    console.log("Moving on to the next step");
     if (writeLoadDiv) {     
         await populateEditorAccountList(content);
         writeLoadDiv.style.display = 'block';
     } else {    // If 'write-load' doesn't exist, alert the user     
-        alert('playEditors error: write-load not found');
         console.error("Error: can't find an item named write-load");
     }
 
     // Check if 'write-pane-content' exists and set its display to 'none'
     const writePaneContentDiv = document.getElementById('write-pane-content');
     if (writePaneContentDiv) {
-        writePaneContentDiv.style.display = 'none';
+       writePaneContentDiv.style.display = 'none';
     } else {    // If 'write-pane-content' doesn't exist, alert the user        
         alert('playEditors error: write-pane-content not found');
-        console.error("Error: can't find an item named write-pane-content");
+        console.error("Error: can't find an div named write-pane-content. It should be created in index.html and it's where we display the editor.");
     }
-
+    console.log("playEditors completed");
 
 }
 
@@ -421,18 +425,38 @@ async function generateTemplateContent() {
 
             // Call generateTemplate with user inputs
             const template = await generateTemplateFromChatGPT(finalTemplateType, outputFormat);
+            const extractedContent = extractCodeContent(template);
+
+            // Remove the form from the page so the generated template is not appended anywhere
+            if (formDiv.parentNode) {
+                formDiv.parentNode.removeChild(formDiv);
+            }
 
             document.getElementById('loading-indicator').style.display = 'none';
             // Resolve the promise with the generated template
             resolve({
                 type: outputFormat,
-                value: template
+                value: extractedContent
             });
         });
     });
 }
 
-
+function extractCodeContent(template) {
+    // This regex will capture text between the first pair of triple backticks.
+    // It optionally allows a language identifier after the opening backticks.
+    const regex = /```(?:\w*\n)?([\s\S]*?)```/;
+    const match = template.match(regex);
+    
+    if (match && match[1]) {
+      // Return the content between the triple backticks, trimming any extra whitespace.
+      return match[1].trim();
+    }
+    
+    // If no triple backticks are found, return the original content.
+    return template;
+  }
+  
 
 // Function to initialize an editor by type
 
@@ -442,7 +466,7 @@ async function populateEditorAccountList(content) {
     const writeLoadDiv = document.getElementById('write-load');
     if (!writeLoadDiv) {
         alert('Error: write-load not found');
-        console.error("Error: can't find an item named write-load");
+        console.error("Error: can't find an div named write-load. It should be created in index.html and it's where we stash the content to be pre-loaded into the editor.");
         return;
     }
     // Make the 'write-load' div visible
@@ -472,6 +496,7 @@ async function populateEditorAccountList(content) {
     // Stash the loaded content into the div
     // It will be found and loaded by initializeEditor();
     document.getElementById('loadedContent').textContent = content.value;
+    console.log('Content stashed in loadedContent');
 
     const accountList = document.getElementById('more-write-load-options');
     if (!accountList) {  // I know, I just created it, but just in case of future edits...
@@ -480,7 +505,6 @@ async function populateEditorAccountList(content) {
         return;
     }
     accountList.innerHTML = '';                             // Clear previous options
-
     if (!Array.isArray(accounts)) {
         throw new Error('Error: Accounts array not found; maybe you need to log in.');
     }
@@ -498,9 +522,11 @@ async function populateEditorAccountList(content) {
 
     accounts.forEach(account => {                           // Load the options stored in the KVstore
         const parsedValue = JSON.parse(account.value);
-        if (parsedValue.permissions.includes('e')) {  // Check if 'permissions' contains 'r'
+        if (parsedValue.permissions.includes('e')) {  // Check if 'permissions' contains 'e' for 'edit'
             const accountItem = document.createElement('button');   // Set the class
             accountItem.className = 'save-button';                  //  Set the class and onclick attribute
+
+            // This is specifically for etherpad and I will need to change this when I add additional editors
             accountItem.setAttribute('onclick', "initializeEditor('etherpad');alternateDivs('write-load','write-pane-content');");
             accountItem.innerHTML = parsedValue.title;       // Set the innerHTML
             accountList.appendChild(accountItem);             // Append to a parent element 
@@ -509,14 +535,19 @@ async function populateEditorAccountList(content) {
 }
 
 async function initializeEditor(editorType) {
-    // Check and clear for an editing window
+
+    // Close all editors
+    // Note that we do not remove the editors, we just hide them
     const writePaneContent = document.getElementById('write-pane-content');
-    if (!writePaneContent) {
-        console.error("Write pane content not found.");
+    if (writePaneContent) {
+        Array.from(writePaneContent.children).forEach(child => {
+            child.style.display = 'none';
+        });
+    } else {   
+        console.error("Write pane content not found. Obviously a major programming error.");
         alert("Write pane content not found. Please consult the console for details.");
         return;
     }
-    writePaneContent.innerHTML = '';
 
     // Initialize the editor
     if (editorHandlers[editorType] && typeof editorHandlers[editorType].initialize === 'function') {
