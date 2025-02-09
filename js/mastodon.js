@@ -23,9 +23,57 @@
 
 
 // -----------------------------------------------------
-    
+//
+// Handle Mastodon Actions
+// 
 
+          (function () {
+              const mastodonHandler = {
+                initialize: async (baseURL, accessToken) => {
+            
+                    await initializeMasto(baseURL, accessToken);
+        
+                    // Set up controls in left column 
+        
+                    // mastodon-lists 
+                    let mastodonLists = document.getElementById('mastodon-lists');
+                    if (!mastodonLists) {
+                        // If it doesn't exist, create the div
+                        mastodonLists = document.createElement('div');
+                        mastodonLists.id = 'mastodon-lists'; // Set the ID for the div
+                        leftContent.appendChild(mastodonLists);
+                    }
+        
+                    // mastodon-hashtag-form 
+                    mastodonFeedFiller('hashtag','Enter a hashtag without the #');
+        
+                    // mastodon-user-form 
+                    mastodonFeedFiller('user','@username@instance.social');
+        
+                    // mastodon-status-form 
+                    mastodonFormFiller('status','place');    
+                    
+                },
+                feedFunctions: {
+                    'Post': toggleDiv.bind(null, 'mastodon-status-form', 'left', true),
+                    'Following': loadMastodonFeed.bind(null, 'home', null),
+                    'Bookmarks': loadMastodonFeed.bind(null, 'bookmarks', null),
+                    'Lists': loadMastodonLists.bind(null, 'list', null),
+                    'Local': loadMastodonFeed.bind(null, 'local', null),
+                    'Hashtag': toggleDiv.bind(null, 'mastodon-hashtag-form', 'left',true),
+                    'User': toggleDiv.bind(null, 'mastodon-user-form', 'left',true)
+                }
+              };
 
+              // Ensure readerHandlers exists
+              if (typeof window.readerHandlers === 'undefined') {
+                window.readerHandlers = {}; // Create it if it doesn't exist
+              }
+            
+              // Add the handler
+              window.readerHandlers['Mastodon'] = mastodonHandler;
+              
+           })();
 
 
 // Mastodon Feed Functions

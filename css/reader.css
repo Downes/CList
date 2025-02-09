@@ -237,7 +237,13 @@
         }
         
         #audio-left-close-button,#chat-left-close-button {
-
+            padding: 5px 10px;         /* Padding around the button */
+            border: none;               /* No border */
+            border-radius: 3px;         /* Rounded corners */
+            cursor: pointer;            /* Pointer cursor on hover */
+            font-size: 14px;            /* Slightly larger text */
+            margin-right: 3px;          /* space between buttons */
+            color: #333;               /* White text */
         }
         
         #accounts-left-close-button:hover,#audio-left-close-button:hover,#chat-left-close-button:hover,#read-left-close-button:hover,#find-left-close-button:hover,#save-right-close-button:hover,#post-right-close-button:hover {

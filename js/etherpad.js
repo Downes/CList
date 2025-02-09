@@ -14,6 +14,123 @@
 const proxyUrl = 'https://www.downes.ca/cgi-bin/proxyp.cgi';
 const etherpadBaseUrl = 'https://etherpad.cloudron.downes.ca/api/1.2.15';
 
+(function () {
+
+    const etherpadHandler = {
+        initialize: async (content) => {
+
+            currentEditor = 'etherpad';
+           // closeAllEditors();
+
+            // HTML elements for Etherpad editor
+            let etherpadHTML = `<!-- Pad List Section -->
+            <div id="padListSection">
+                <h2>Existing Pads</h2>
+                <div id="padList" style="border: 1px solid #ccc; padding: 10px; min-height: 100px;"></div>
+                <br>
+                <div>
+                    <label for="newPadName">Create a New Pad: </label>
+                    <input type="text" id="newPadName" placeholder="Enter a new pad name">
+                    <button onclick="createAndLoadEtherpad()">Create and Load</button>
+                </div>
+            </div>
+
+            <!-- Pad Content Section -->
+            <div id="padContentSection" style="display: none;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                    <h2 id="currentPadName" style="margin: 0;">Pad Name</h2>
+                    <button onclick="sharePad()" style="padding: 5px 10px;">Share</button>
+                </div>
+                <iframe id="padIframe" style="width: 100%; height: 80vh; border: 1px solid #ccc;"></iframe>
+                <br>
+                <div style="display: flex; align-items: center; justify-content: center; gap: 10px;">
+                    <button onclick="showPadList()" style="margin-left: 10px;">Select Pad</button>
+                </div>
+            </div>
+
+            <!-- Pad Share Section  -->;
+            <div id="padShareSection" style="display: none;">
+                <h2>Share</h2>
+                
+            </div>`;
+
+            padName = ''; // Global pad name
+            authorID = ''; // Global author ID
+            etherpadUsername = 'exampleUser'; // Will be replaced with the actual username
+
+            // Check whether etherpadDiv exists; if it doesn't, create it
+            const writePaneContent = document.getElementById('write-pane-content');
+            let etherpadDiv = document.getElementById('etherpadDiv');   
+
+            if (!etherpadDiv) { 
+                etherpadDiv = document.createElement('div');
+                etherpadDiv.id = 'etherpadDiv';
+                writePaneContent.appendChild(etherpadDiv);
+
+            }
+
+            etherpadDiv.style.display = 'block';  // Show the editor
+            etherpadDiv.innerHTML = etherpadHTML;
+
+
+            listAllEtherpads();
+            showPadList();
+            
+            // User clicks on a pad link that calls initializeEtherpad(padName)
+
+
+        },
+        
+        getContent: async () => {
+            response = await callEtherpadApi('getHTML', { padID: padName });
+            return response.html;
+        },
+        
+        loadContent: async (itemContent, itemId) => {
+            
+            // Ensure padName and authorID are available
+            if (!padName || !authorID) {
+                alert('Pad or author information is missing. Please select or create a pad.');
+                return;
+            }
+
+            // Etherpad doesn's support appendHTML as an API method, so we extract
+            // the current HTML content, append new content, and set the HTML content
+            try {
+
+                // Make the API call to get the pad content and append the new content
+                const response = await callEtherpadApi('getHTML', { padID: padName });
+                const content = response.html;
+                const newHtmlContent = `<body>${content}${itemContent}</body>`;
+
+                // the updated HTML content back to the pad
+                await callEtherpadApi('setHTML', { padID: padName, html: newHtmlContent });
+        
+                console.log("HTML content appended successfully.");
+            } catch (error) {
+                console.error("Error appending HTML content to Etherpad:", error);
+            }
+   
+            // Add to references
+            if (itemId) {
+                const editorDiv = document.getElementById('etherpadDiv');
+                const reference = createReference(itemId, editorDiv);
+                displayCurrentReference(reference, editorDiv);
+                displayReferences(editorDiv);
+            }
+        }
+
+    };
+
+    // Add the handler to editorHandlers
+    if (typeof editorHandlers !== 'undefined') {
+        editorHandlers.etherpad = etherpadHandler;
+    } else {
+        console.error("editorHandlers object is not defined.");
+    }
+
+})();
+
 
 
 // Utility function to make API calls through the proxy

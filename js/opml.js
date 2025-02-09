@@ -22,6 +22,49 @@ let opmlServer;
 let cursor;
 
 
+// Handler
+
+(function () {
+    const opmlHandler = {
+        name: 'OPML',
+        display: 'OPML',
+        icon: 'rss_feed',
+        description: 'Harvests links from an OPML file and displays them.',
+        type: 'feed',
+        initialize: () => {
+        },
+        feedFunctions: {
+            'Timeline': fetchAndDisplayOPMLData.bind(null, '')
+            // Add more named functions as needed
+        },
+        statusActions: (item,opmlID,itemLink) => {
+            let opmlstatusActions = ``;
+
+            // Enlarge Content
+            if (item.content) { opmlstatusActions += `<button class="material-icons md-18 md-light" onClick="toggleFormDisplay('${opmlID}-content');toggleFormDisplay('${opmlID}-summary');">zoom_out_map</button>`; }
+//alert("Audio3?"+item.audioIcon);
+
+            // Play audio
+            if (item.audioIcon && item.audioIcon != '') { opmlstatusActions +=  `${item.audioIcon}`; }
+
+            // Bookmark (needs to be finished)
+            opmlstatusActions += `<button class="material-icons md-18 md-light" onClick="Action('${opmlID}', 'bookmark')">bookmarks</button>`;
+
+            // Open link in a new window
+            if (item.link) { opmlstatusActions += `<button class="material-icons md-18 md-light" onClick="window.open('${item.link}', '_blank', 'width=800,height=600,scrollbars=yes')">launch</button>`; }
+
+            return opmlstatusActions;
+        }
+    };
+    // Ensure readerHandlers exists
+    if (typeof window.readerHandlers === 'undefined') {
+    window.readerHandlers = {}; // Create it if it doesn't exist
+    }
+
+    // Add the handler
+    window.readerHandlers['OPML'] = opmlHandler;
+ })();
+
 // -----------------------------------------------------
     
 

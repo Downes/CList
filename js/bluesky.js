@@ -14,6 +14,37 @@ let accessToken = null; // Global variable for access token
 let did = null; // Global variable to store the DID
 let pds = null; // Personal data Server location
 
+// Handlers
+
+
+(function () {
+    const blueskyHandler = {
+        initialize: async(instance, accessToken) => {
+
+            createBlueskySession(instance, accessToken);
+
+            blueskyForms();
+
+        },        
+        feedFunctions: {
+            'Post': toggleFormDisplay.bind(null, 'blueSkyStatusFormDiv','left'),
+            'Timeline': fetchBlueskyTimeline.bind(null, 'home'),
+            'Favorites': fetchBlueskyFavorites.bind(null,'favorites'),
+            'Pinned': selectBlueskyFeed.bind(null,'pinned'),
+            'Recommended': selectBlueskyFeed.bind(null,'recommended'),
+            'What\'s Hot': fetchBlueskyWhatsHotFeed.bind(null,'hot'),
+            'Search': selectBlueskyFeed.bind(null,'search'),
+        }
+    };
+    // Ensure readerHandlers exists
+    if (typeof window.readerHandlers === 'undefined') {
+    window.readerHandlers = {}; // Create it if it doesn't exist
+    }
+
+    // Add the handler
+    window.readerHandlers['Bluesky'] = blueskyHandler;
+ })();
+
 
 
 // -----------------------------------------------------

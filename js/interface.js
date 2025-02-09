@@ -234,7 +234,7 @@ document.addEventListener("mouseup", () => {
 
         // Access feed functions for the given instance type
         const handler = readerHandlers[instanceType];
-        if (!handler) {alert('no handler');}
+        if (!handler) {alert('no handler for '+instanceType);}
         if (!handler.feedFunctions) {alert('no functions');}
         if (Object.keys(handler.feedFunctions).length === 0) {alert('length = 0');}
 

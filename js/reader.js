@@ -11,138 +11,59 @@
 // 
 
 
+// 
+// Define handlers for each reader
+//
+// Definition:
+// 
+//      Readers are defined as objects that pass content to the feed reader in a standardized format
+//      The readerHandlers object contains a set of handlers for each type of reader
+//      Each handler must have the following methods:
+//          initialize:  Initialize the reader
+//          feedFunctions:  A set of functions that the reader supports
+//          statusActions:  A set of actions that can be taken on a status item
+
+//      The readerHandlers object is used to call the appropriate methods for the current reader.
+//      Usage:
+//      
+//      Add an reader to the readerHandlers object as follows:
+//          (function () {
+//              const serviceHandler = {
+//                   initialize: async (instance,id) => {    // Initialize the reader    
+                                                             // Values for instance and id
+                                                             // are passed in from the accounts array               
+//                   },
+//                   feedFunctions: {                        // Feed functions
+//                       'Funcname': function() { },           // Name of the function, which will appear as a button
+//                       'Funcname2': function() { }          // Name of the function, which will appear as a button
+//                   },
+//                   statusActions: (item,itemID,itemLink) => {   // Status actions - icons below each status item
+//                   },
+//                   search: () => {                         // Search (optional)
+//                   },
+//               };
+//               editorHandlers['service'] = serviceHandler;
+//           })();
+// 
+//      The readerHandlers object is used to call the appropriate methods for the current editor.
+//      Usage:
+//
+//      const handler = readerHandlers[currentReader];
+//      if (handler && typeof handler.getContent === 'function') {
+//         const buttons = handler.feedFunctions();
+//      }
+//
+
+
+
 const leftContent = document.getElementById('left-content');
 if (!leftContent) { console.error('Element with ID "left-content" not found.'); }
 
-const readerHandlers = {
-    Mastodon: {
-        initialize: async (baseURL, accessToken) => {
-            
-            await initializeMasto(baseURL, accessToken);
-
-            // Set up controls in left column 
-
-            // mastodon-lists 
-            let mastodonLists = document.getElementById('mastodon-lists');
-            if (!mastodonLists) {
-                // If it doesn't exist, create the div
-                mastodonLists = document.createElement('div');
-                mastodonLists.id = 'mastodon-lists'; // Set the ID for the div
-                leftContent.appendChild(mastodonLists);
-            }
-
-            // mastodon-hashtag-form 
-            mastodonFeedFiller('hashtag','Enter a hashtag without the #');
-
-            // mastodon-user-form 
-            mastodonFeedFiller('user','@username@instance.social');
-
-            // mastodon-status-form 
-            mastodonFormFiller('status','place');    
-            
-        },
-        feedFunctions: {
-            'Post': toggleDiv.bind(null, 'mastodon-status-form', 'left', true),
-            'Following': loadMastodonFeed.bind(null, 'home', null),
-            'Bookmarks': loadMastodonFeed.bind(null, 'bookmarks', null),
-            'Lists': loadMastodonLists.bind(null, 'list', null),
-            'Local': loadMastodonFeed.bind(null, 'local', null),
-            'Hashtag': toggleDiv.bind(null, 'mastodon-hashtag-form', 'left',true),
-            'User': toggleDiv.bind(null, 'mastodon-user-form', 'left',true)
-        }
-    },
-    Bluesky: {
-        initialize: async(instance, accessToken) => {
-
-            createBlueskySession(instance, accessToken);
-
-            blueskyForms();
-
-        },        
-        feedFunctions: {
-            'Post': toggleFormDisplay.bind(null, 'blueSkyStatusFormDiv','left'),
-            'Timeline': fetchBlueskyTimeline.bind(null, 'home'),
-            'Favorites': fetchBlueskyFavorites.bind(null,'favorites'),
-            'Pinned': selectBlueskyFeed.bind(null,'pinned'),
-            'Recommended': selectBlueskyFeed.bind(null,'recommended'),
-            'What\'s Hot': fetchBlueskyWhatsHotFeed.bind(null,'hot'),
-            'Search': selectBlueskyFeed.bind(null,'search'),
-        }
-    },
-    OPML: {
-        initialize: () => {
-        },
-        feedFunctions: {
-            'Timeline': fetchAndDisplayOPMLData.bind(null, '')
-            // Add more named functions as needed
-        },
-        statusActions: (item,opmlID,itemLink) => {
-            let opmlstatusActions = ``;
-
-            // Enlarge Content
-            if (item.content) { opmlstatusActions += `<button class="material-icons md-18 md-light" onClick="toggleFormDisplay('${opmlID}-content');toggleFormDisplay('${opmlID}-summary');">zoom_out_map</button>`; }
-//alert("Audio3?"+item.audioIcon);
-
-            // Play audio
-            if (item.audioIcon && item.audioIcon != '') { opmlstatusActions +=  `${item.audioIcon}`; }
-
-            // Bookmark (needs to be finished)
-            opmlstatusActions += `<button class="material-icons md-18 md-light" onClick="Action('${opmlID}', 'bookmark')">bookmarks</button>`;
-
-            // Open link in a new window
-            if (item.link) { opmlstatusActions += `<button class="material-icons md-18 md-light" onClick="window.open('${item.link}', '_blank', 'width=800,height=600,scrollbars=yes')">launch</button>`; }
-
-            return opmlstatusActions;
-        }
-
-    },
-    duckduckgo: {
-        statusActions: (item,itemID,itemLink) => {
-            return `
-            <button class="material-icons md-18 md-light" onClick="window.open('${itemLink}', '_blank', 'width=800,height=600,scrollbars=yes')">launch</button>`;
-        }
-    },
-    google: {
-        statusActions: (item,itemID,itemLink) => {
-            return  `<button class="material-icons md-18 md-light" onClick="window.open('${itemLink}', '_blank', 'width=800,height=600,scrollbars=yes')">launch</button>`;;
-        },
-        feedFunctions: {
-            'Web': function() { finderHandlers['google'].search(); },
-            'Images': function() { finderHandlers['google'].search('image'); }
-        }
-    },
-    oasis: {
-        statusActions: (item,itemID,itemLink) => {
-            oasisStatusActions = `<button class="material-icons md-18 md-light" onClick="window.open('${itemLink}', '_blank', 'width=800,height=600,scrollbars=yes')">launch</button>`;
-
-            // Enlarge Content
-            if (item.full_content) { oasisStatusActions += `<button class="material-icons md-18 md-light" onClick="toggleFormDisplay('${itemID}-content');toggleFormDisplay('${itemID}-summary');">zoom_out_map</button>`; }
-
-            return oasisStatusActions;
-        }
-    }
+// Ensure readerHandlers exists
+if (typeof window.readerHandlers === 'undefined') {
+    window.readerHandlers = {}; // Create it if it doesn't exist
 }
 
-const finderHandlers = {
-    duckduckgo: {
-        search: async (baseURL, accessToken) => {
-            searchString = finderString();
-            await duckduckgoSearch(searchString);
-        }
-    },
-    google: {
-        search: async (type) => {
-            searchString = finderString();
-            await googleSearch(searchString,type);
-        }
-    },
-    oasis: {
-        search: async (baseURL, accessToken) => {
-            searchString = finderString();
-            await oasisSearch(searchString);
-        }
-    }
-}
 
 
 function finderString() {
@@ -152,457 +73,7 @@ function finderString() {
     return searchString;
 }
 
-async function oasisSearch(query,start) {
-
-
-    const feedContainer = document.getElementById('feed-container');
-    const dateString = new Date().toISOString();
-
-    let proxyUrl = "https://www.downes.ca/cgi-bin/proxyp.cgi";
-    let oasisUrl = `http://oasis.geneseo.edu/basic_search.php?search_query=${query}`;
-    // ?title=Test&author=&subject=&format=json
-
-    // Construct URL with query parameters
-    if (start) { oasisUrl += `&start=${start}`;}
-
-    if (start === undefined || start === null || start === '' || start === 0) {
-        // First page will have a title, but not subsequent pages
-        feedContainer.innerHTML = '';                         // Clear previous content
-        feedContainer.appendChild(createFeedHeader('OASIS Search: '+query));   // Header
-    }
-
-    let data;
-    let params = {};
-    params.url = `${oasisUrl}`;
-    //params.apikey = apiKey;
-
-    try {
-        const response = await fetch(proxyUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams(params),
-        });
-
-        const htmlText = await response.text(); // use .text() instead of .json()
-       // const cleanedHtmlText = htmlText.replace(/textarea/g, '');
-
-
-        const data = parseOasisHtml(htmlText);
-
-        if (data && Array.isArray(data) && data.length > 0) {
-            data.forEach((item) => {
-                try {
-                    // console.log("Item\n");
-                    // console.log(item);
-
-                    // Create the listing object - align to main listing item fields
-                    // makeListing(service,url,title,desc,feed,author,date,full_content) 
-                    item.service = 'oasis';
-                    item.desc = `${item.itemType} ${item.description}`;
-                    item.content = item.desc;
-                    item.feed = item.source;
-
-                    const listing = makeListing(item);
-        
-                    // Append the listing to the feed container
-                    feedContainer.appendChild(listing);
-                } catch (error) {
-                    console.error(`Error processing item: ${JSON.stringify(item)}`, error);
-                }
-            });
-        } else {
-            console.warn('No items found in the parsed data.');
-        }
-
-    } catch (error) {
-        console.error("Failed to fetch from Oasis Search API:", error);
-    }
-
-
-    console.log(data);
-}
-
-
-/**
- * Takes the raw HTML text from OASIS and returns an
- * array of item objects containing metadata fields:
- *   item-type, title, description, author, source, url, etc.
- */
-function parseOasisHtml(htmlString) {
-    // 1) Parse the HTML string into a Document
-console.log(htmlString);
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(htmlString, 'text/html');
   
-    // 2) Select all "cards" (each search result) by their CSS class
-    const results = doc.querySelectorAll('.row.sources.results');
-    
-    const items = [];
-  
-    results.forEach((resultEl) => {
-      const item = {};
-  
-      // TITLE + URL
-      // The anchor under <b><a rel="external" href="...">Some Title</a></b>
-      const titleAnchor = resultEl.querySelector('b > a[rel="external"]');
-      if (titleAnchor) {
-        item.title = titleAnchor.textContent.trim();
-        item.url   = titleAnchor.getAttribute('href');
-      } else {
-        item.title = '';
-        item.url   = '';
-      }
-  
-      // AUTHOR
-      // Author line often looks like: <b>Author</b>: Name<br/>
-      // We can match it with a small regex on the entire element’s HTML:
-      const authorMatch = resultEl.innerHTML.match(/<b>Author<\/b>:\s?(.*?)<br\/>/);
-      item.author = authorMatch ? authorMatch[1].trim() : '';
-  
-      // SOURCE
-      // Source line looks like: <b>Source</b>: <a ...>OAPEN</a>
-      const sourceMatch = resultEl.innerHTML.match(/<b>Source<\/b>:\s?<a.*?>(.*?)<\/a>/);
-      item.source = sourceMatch ? sourceMatch[1].trim() : '';
-  
-      // TYPE
-      // Type line looks like: <b>Type</b>: Open Access Book<br>
-      const typeMatch = resultEl.innerHTML.match(/<b>Type<\/b>:\s?(.*?)<br/);
-      item.itemType = typeMatch ? typeMatch[1].replace(/<.*?>/g, '').trim() : ''; 
-      // (Replace any stray HTML tags.)
-  
-      // DESCRIPTION
-      // Descriptions usually appear inside the associated "Detailed Item View" modal (class="modal-body").
-      // We'll look for the modal tied to this row (it’s usually right next to it).
-      // But to simplify, we can also just do a regex on resultEl's HTML (if it includes the modal):
-      const descMatch = resultEl.innerHTML.match(/<strong>Description<br><\/strong>(.*?)<\/div>/);
-      item.description = descMatch
-        ? descMatch[1].replace(/<br\s*\/?>/g, '\n').trim()
-        : '';
-  
-      items.push(item);
-    });
-  
-    return items;
-  }
-  
-
-    
-async function googleSearch(query,type,start) {
-
-    const feedContainer = document.getElementById('feed-container');
-    const dateString = new Date().toISOString();
-
-        // Get generater from accounts
-    // Assumes 'accounts' array has been preloaded
-    // If necessary, fetch the accounts from the KVstore
-    if (accounts.length === 0) {
-        try {
-            // Fetch the accounts from the KVstore
-            accounts = await getAccounts(flaskSiteUrl); 
-
-        } catch (error) {
-            alert('Error getting Editor accounts: ' + error.message);
-        }
-    }
-    
-    let API_KEY = null;
-    let SEARCH_ENGINE_ID = null;
-
-     accounts.forEach(account => {                           // Check the accounts
-        const parsedValue = JSON.parse(account.value);
-        console.log("checking account: ", parsedValue);
-        if (parsedValue.title.includes('Google Search')) {  // Check if 'permissions' contains 'g'
-            console.log("FOUND account: ", parsedValue);
-            console.log("parsedValue.id: ", parsedValue.id);
-            console.log("parsedValue.key: ", parsedValue.key);
-            API_KEY = parsedValue.id;
-            SEARCH_ENGINE_ID = parsedValue.instance;
-        }
-    });
-
-
-    // Check for required values and handle errors
-    if (!API_KEY || !SEARCH_ENGINE_ID) {
-        alert("ApiKey and url are both required to continue.");
-        throw new Error("Missing required values: apiKey or url.");
-    }
-
-
-    // 1. Store API information
-    const GOOGLE_SEARCH_URL = "https://www.googleapis.com/customsearch/v1";
-
-    
-
-    // Construct URL with query parameters
-    let url = `${GOOGLE_SEARCH_URL}?key=${API_KEY}&cx=${SEARCH_ENGINE_ID}&q=${encodeURIComponent(query)}`;
-    if (start) { url += `&start=${start}`;}
-    if (type === 'image') { url += '&searchType=image'; }
-    if (type === 'video') { url += '&searchType=video'; }    
-
-    if (start === undefined || start === null || start === '' || start === 0) {
-        // First page will have a title, but not subsequent pages
-        feedContainer.innerHTML = '';                         // Clear previous content
-        feedContainer.appendChild(createFeedHeader('GoogleSearch: '+query));   // Header
-    }
-
-    try {
-        // Make the request
-        const response = await fetch(url);
-        
-        // Convert response to JSON
-        const data = await response.json();
-        
-        // Handle potential errors from the API
-        if (data.error) {
-            console.error("Google Search API Error: ", data.error);
-            return;
-        }
-
-        setupFeedButtons('google');  // Different feed buttons for different services
-
-        // Check if items array exists
-        if (data.items && data.items.length > 0) {
-            data.items.forEach((item) => {
-                console.log(JSON.stringify(item, null, 2));
-
-                // Create the listing object - align to main listing item fields
-                // makeListing(service,url,title,desc,feed,author,date,full_content) 
-                item.service = 'google';
-                item.url = item.link;
-                item.desc = item.snippet;
-                item.feed = 
-                    item?.pagemap?.metatags?.[0]?.['og:site_name'] ||
-                    item?.pagemap?.metatags?.[0]?.['twitter:site'] ||       // ex: "@BBCWorld"
-                    item?.pagemap?.metatags?.[0]?.['application:name'] ||   // made-up fallback
-                    item?.displayLink || // e.g. "www.bbc.com"
-                    '';
-                item.author = extractAuthorFromGoogle(item);
-                item.content = item.htmlSnippet;
-
-                // Put image information into standard images array with url preview_url description
-                if (type === 'image') {
-                    item.images = [];
-                    item.images.push({
-                        url: item.link,
-                        preview_url: item.image.thumbnailLink,
-                        description: item.snippet
-                    });
-                }
-
-
-                const listing = makeListing(item);
-                feedContainer.appendChild(listing);
-        
-                // For demo, just log it:
-                console.log(listing);
-                });
-
-            // Show a button to load the next page if there is more data
-            let nextPageButton = document.getElementById('nextPageButton');
-            if (typeof start === 'undefined') {
-                start = 11;
-              } else {
-                start += 10;
-              }
-            if (!nextPageButton) {
-                nextPageButton = document.createElement('button');
-                nextPageButton.id = 'nextPageButton';
-                nextPageButton.textContent = 'Load Next Page';
-                nextPageButton.onclick = () => googleSearch(query,type,start);
-                feedContainer.appendChild(nextPageButton);
-            } else if (nextPageButton) {  
-                nextPageButton.onclick = () => googleSearch(query,type,start);
-            }
-
-            // Push Next Page button to the Bottom
-            feedContainer.appendChild(nextPageButton);
-
-        }
-
-      
-        // console.log("Google Search results:", data);
-        
-        
-    } catch (error) {
-        console.error("Failed to fetch from Google Search API:", error);
-    }
-}
-
-/**
- * Attempt to extract an author from the item’s pagemap, if present.
- * Note: This is not an official or standardized approach; it’s heuristic-based
- * because different pages provide different metadata fields for authors.
- */
-function extractAuthorFromGoogle(item) {
-    if (!item.pagemap) {
-      return "";
-    }
-  
-    const { pagemap } = item;
-  
-    // 1. Check the metatags array
-    if (pagemap.metatags && pagemap.metatags.length > 0) {
-      for (const tagObject of pagemap.metatags) {
-
-        // LinkedIn profiles
-        const tagObject = item.pagemap.metatags[0];
-        const firstName = tagObject["profile:first_name"];
-        const lastName = tagObject["profile:last_name"];
-        if (firstName || lastName) {
-          return `${firstName} ${lastName}`;
-        }
-
-        // hcard
-        if (item.pagemap.hcard && item.pagemap.hcard.length > 0) {
-            const fn = item.pagemap.hcard[0].fn; 
-            if (fn) {
-              return fn;
-            }
-        }
-
-        // Some possible keys we might look for:
-        const potentialKeys = [
-          "author",
-          "fediverse:creator",
-          "twitter:creator",
-          "twitter:title",
-          "article:author",
-          "og:article:author",
-          "og:author",
-        ];
-  
-        for (const key of potentialKeys) {
-          if (tagObject[key]) {
-            return tagObject[key];
-          }
-        }
-      }
-    }
-  
-    // 2. Check if there's a 'person' array with names (schema.org style)
-    if (pagemap.person && pagemap.person.length > 0) {
-      if (pagemap.person[0].name) {
-        return pagemap.person[0].name;
-      }
-    }
-  
-    // 3. Add any other fallback logic here, e.g. checking “pagemap.review” or custom fields
-  
-    return "";
-  }
-
-  
-async function duckduckgoSearch(q) {
-
-    const URL = `https://api.duckduckgo.com/?q=${encodeURIComponent(q)}&t=h_&format=json`;
-    const feedContainer = document.getElementById('feed-container');
-    const dateString = new Date().toISOString();
-    let data;
-    try {
-        const response = await fetch(URL);
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! Status: ${response.status}`);
-        }
-
-
-        data = await response.json();
-        console.log("Data received:", data);
-
-    } catch (error) {
-        console.error("Error accessing the URL:", error.message);
-    }
-
-    let ddgHeading = data.Heading || "No heading found";
-    let ddgAbstract = data.Abstract || "";
-    let listing;
-
-    // If there's no abstract, check if we have a disambiguation page
-    if (!ddgAbstract && data.RelatedTopics && data.RelatedTopics.length > 0) {
-        // Mark the heading as disambiguation
-        ddgHeading += " (Disambiguation)";
-        if (ddgHeading != null) {  // First page will have a title, but not subsequent pages
-            feedContainer.innerHTML = '';                         // Clear previous content
-            feedContainer.appendChild(createFeedHeader(ddgHeading));   // Header
-        }
-
-        // Loop through related topics to find titles & descriptions
-        data.RelatedTopics.forEach((item) => {
-        // Some related topic items have the shape:
-        // {
-        //   "FirstURL": "https://duckduckgo.com/...",
-        //   "Text": "Topic Title - short description"
-        // }
-        //
-        // Others might be sub-group items with a "Topics" array. We’ll handle both cases:
-
-            if (item.Topics && Array.isArray(item.Topics)) {
-                // It's a subgroup
-                item.Topics.forEach((subItem) => {
-                    const { title, description } = getDDGTitleAndDescription(subItem.FirstURL,subItem.Result);
-                    // makeListing(service,url,title,desc,feed,author,date,full_content) 
-                    listing = makeListing('duckduckgo',subItem.FirstURL,title,description,data.AbstractSource,'',dateString,subItem.AbstractText);
-                });
-
-            } else if (item.Text) {
-                // It's a direct item
-
-                const { title, description } = getDDGTitleAndDescription(item.FirstURL,item.Result);
-
-                // makeListing(service,url,title,desc,feed,author,date,full_content) 
-                listing = makeListing('duckduckgo',item.FirstURL,title,description,data.AbstractSource,'',dateString,item.AbstractText);
-            }
-            feedContainer.appendChild(listing);
-        });
-    
-        // Since there's no actual abstract, set a default
-        ddgAbstract = "No abstract found (Disambiguation page).";
-    } else if (!ddgAbstract) {
-        // There's no abstract and no disambiguation
-        feedContainer.appendChild(createFeedHeader("No Result"));   // Header
-        const statusBox = document.createElement('div');
-        statusBox.classList.add('status-box');  // Add a class for styling
-        statusBox.innerHTML = `Duck Duck Go does not have a full search API. Results are generated from a 'fastAPI' that returns results from specific sources such as Wikipedia. This search is not
-        found in any of these sources. A full search service is recommended. Open 'accounts' and create a 'search' account.`
-        feedContainer.appendChild(statusBox);
-
-    } else {
-
-        if (ddgHeading != null) {  // First page will have a title, but not subsequent pages
-            feedContainer.innerHTML = '';                         // Clear previous content
-            feedContainer.appendChild(createFeedHeader(ddgHeading));   // Header
-        }
-        console.log("ddg-abstract:", ddgAbstract);
-        // makeListing(service,url,title,desc,feed,author,date,full_content) 
-        listing = makeListing('duckduckgo',data.AbstractURL,ddgHeading,ddgAbstract,data.AbstractSource,'',dateString,data.AbstractSource,data.AbstractText); 
-        feedContainer.appendChild(listing);
-
-    }
-    
-
- 
-}
-
-// Helper function to extract title and description from text
-function getDDGTitleAndDescription(url, fullText) {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(fullText, "text/html");
-
-    // Extract the <a> tag and its text
-    const linkTag = doc.querySelector("a");
-    if (!linkTag) {
-        console.log("Could not parse link/tag in Result:", fullText);
-        return { title: "(no title)", description: "(no description)" };
-    }
-    const title = linkTag.textContent.trim();
-
-    // The rest of the string after the link is the description
-    let leftoverHtml = doc.body.innerHTML.replace(linkTag.outerHTML, "").trim();
-    leftoverHtml = leftoverHtml.replace(/<br\s*\/?>/gi, "").trim();
-    const description = leftoverHtml || "(no description)";
-
-    return { title, description };
-}
 
 // Call the initialize function
 
@@ -752,15 +223,15 @@ function playFind() {
             </div>
 
             <div id="select-find-account">
-            <button class="save-button" onClick="finderHandlers['duckduckgo'].search();">Duck Duck Go</button>
+            <button class="save-button" onClick="readerHandlers['duckduckgo'].search();">Duck Duck Go</button>
             </div>
 
             <div id="select-find-account">
-            <button class="save-button" onClick="finderHandlers['google'].search();">Google</button>
+            <button class="save-button" onClick="readerHandlers['google'].search();">Google</button>
             </div>
                 
             <div id="select-find-account">
-            <button class="save-button" onClick="finderHandlers['oasis'].search();">OASIS OERs</button>
+            <button class="save-button" onClick="readerHandlers['oasis'].search();">OASIS OERs</button>
             </div>
 
             <div id="find-account-status"></div>
