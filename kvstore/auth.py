@@ -7,6 +7,7 @@ from db_utils import get_user_session   # function that opens username_db.db + c
 from models_user_kv import User
 from forms import RegistrationForm, LoginForm
 from cryptography.fernet import Fernet
+import os
 import base64
 
 auth_bp = Blueprint('auth', __name__)
@@ -93,9 +94,11 @@ def register():
         session.commit()
         session.close()
 
-        flash(f"Registration successful! Your passphrase is: {passphrase}. Please save it securely.", "success")
+        flash(f"Registration successful! Your passphrase is: {passphrase}  Please save it securely.", "success")
 
-        return redirect(url_for('auth.login'))
+        next_page = request.args.get('next')
+        return redirect(url_for('auth.login', next=next_page) if next_page else url_for('auth.login'))
+
     
     # If GET request or form not valid, render the registration template
     return render_template('register.html', form=form)
