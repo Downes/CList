@@ -70,14 +70,19 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
 
-    // Check for identity server access token to determine whether a login is required
-    if (!getSiteSpecificCookie(flaskSiteUrl,'access_token')) { 
-        loginRequired("No login cookie found."); }   
-    else if (isTokenExpired(getSiteSpecificCookie(flaskSiteUrl,'access_token'))) { 
-        //alert('token expired');
+    // Check for access token + session encryption key.
+    // encKey is in sessionStorage (cleared on tab close) — if missing, user must log in again
+    // to re-derive the key even if the token cookie is still valid.
+    const _token = getSiteSpecificCookie(flaskSiteUrl, 'access_token');
+    if (!_token) {
+        loginRequired("No login cookie found.");
+    } else if (isTokenExpired(_token)) {
         loginRequired("Token expired.");
+    } else if (!sessionStorage.getItem(flaskSiteUrl + '_encKey')) {
+        loginRequired("Session key cleared. Please log in again.");
+    } else {
+        loginNotRequired();
     }
-    else { loginNotRequired();  }
 
 
     if (!username || username === "none") {
@@ -95,9 +100,10 @@ document.addEventListener('DOMContentLoaded', function() {
 // Login is required
 function loginRequired(msg) {
     toggleFormDisplay('loginButton','left',true);
+    const registerButton = document.getElementById("registerButton");
+    if (registerButton) registerButton.style.display="inline-block";
     accountButton.style.display="none";
     logoutButton.style.display="none";
-    //accountDiv.style.display="none";
     identityDiv.innerHTML = `${msg} Please login to Identity Server`;
 }
 
@@ -106,6 +112,8 @@ function loginNotRequired() {
     accountButton.style.display="block";
     logoutButton.style.display="block";
     loginButton.style.display="none";
+    const registerButton = document.getElementById("registerButton");
+    if (registerButton) registerButton.style.display="none";
     username = getSiteSpecificCookie(flaskSiteUrl, 'username');
     identityDiv.innerHTML = `Identity: ${username}`;
 }
@@ -178,35 +186,77 @@ function playAccounts() {
             if (getCookie('accountAccessToken')) { return 1; } else { return 0; }
         }
 
-        function redirectToKVLogin() {
-            // Get the current URL path (e.g., "/static/index.html" or "/CList/index.html")
-            const currentPath = window.location.pathname;
-        
-            // Extract the directory of the current file (e.g., "/static/" or "/CList/")
-            const subdirectory = currentPath.substring(0, currentPath.lastIndexOf('/') + 1);
-        
-            // Construct the redirect URL dynamically
-            const currentDomain = window.location.origin; // Includes protocol (http/https) and domain
-            const redirectPath = `${subdirectory}redirect.html`; // Dynamically determine the path to redirect.html
-            const redirectUrl = `${currentDomain}${redirectPath}`;
-        
-            // Construct the login URL
-            const loginUrl = `${flaskSiteUrl}/auth/login?next=${encodeURIComponent(redirectUrl)}`;
-        
-            // Open the login page in a new tab
-            window.open(loginUrl, '_blank');
+        // Show the auth modal in login or register mode.
+        function redirectToKVLogin()    { openAuthModal('login'); }
+        function redirectToKVRegister() { openAuthModal('register'); }
+
+        function openAuthModal(mode) {
+            document.getElementById('authModalTitle').textContent = mode === 'login' ? 'Login' : 'Register';
+            document.getElementById('authSubmitBtn').textContent  = mode === 'login' ? 'Login' : 'Register';
+            document.getElementById('authConfirmWrap').style.display = mode === 'register' ? 'block' : 'none';
+            document.getElementById('authUsername').value  = '';
+            document.getElementById('authPassword').value  = '';
+            document.getElementById('authConfirm').value   = '';
+            document.getElementById('authError').style.display = 'none';
+            const modal = document.getElementById('authModal');
+            modal.dataset.mode = mode;
+            modal.style.display = 'flex';
+            document.getElementById('authUsername').focus();
         }
-        
-        
 
+        function closeAuthModal() {
+            document.getElementById('authModal').style.display = 'none';
+        }
 
+        function toggleAuthPassword(inputId, icon) {
+            const input = document.getElementById(inputId);
+            input.type = input.type === 'password' ? 'text' : 'password';
+            icon.textContent = input.type === 'password' ? '👁' : '🙈';
+        }
+
+        async function submitAuthModal() {
+            const mode = document.getElementById('authModal').dataset.mode;
+            const u = document.getElementById('authUsername').value.trim().toLowerCase();
+            const p = document.getElementById('authPassword').value;
+            const errDiv = document.getElementById('authError');
+            errDiv.style.display = 'none';
+
+            if (!u || !p) { errDiv.textContent = 'Username and password are required.'; errDiv.style.display = 'block'; return; }
+
+            if (mode === 'register') {
+                const p2 = document.getElementById('authConfirm').value;
+                if (p !== p2) { errDiv.textContent = 'Passwords do not match.'; errDiv.style.display = 'block'; return; }
+            }
+
+            document.getElementById('authSubmitBtn').disabled = true;
+            document.getElementById('authSubmitBtn').textContent = 'Please wait\u2026';
+            try {
+                if (mode === 'register') await KVregisterWithCredentials(u, p);
+                await KVloginWithCredentials(u, p);
+                closeAuthModal();
+                updateIdentityDiv();
+                acceptLogin();
+                accounts = await getAccounts(flaskSiteUrl);
+                if (accounts) {
+                    await playRead();
+                    populateReadAccountList(accounts);
+                }
+            } catch (e) {
+                errDiv.textContent = (mode === 'register' ? 'Registration' : 'Login') + ' failed: ' + e.message;
+                errDiv.style.display = 'block';
+                document.getElementById('authSubmitBtn').disabled = false;
+                document.getElementById('authSubmitBtn').textContent = mode === 'login' ? 'Login' : 'Register';
+            }
+        }
 
         // Function to handle logout
         function KVlogout(flaskSiteUrl) {
 
-            // Remove the token (cookie) for the specific Flask site
+            // Remove the token cookies and session encryption key
             deleteSiteSpecificCookie(flaskSiteUrl,'access_token');
             deleteSiteSpecificCookie(flaskSiteUrl,'username');
+            deleteSiteSpecificCookie(flaskSiteUrl,'token_expires');
+            sessionStorage.removeItem(flaskSiteUrl + '_encKey');
 
 
             // Clear the account list
@@ -248,10 +298,13 @@ function playAccounts() {
 
 
         function isTokenExpired(token) {
-            if (!token) return 1;
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            if (payload.exp < Date.now() / 1000) { console.log("access token expired"); }
-            return payload.exp < Date.now() / 1000;
+            // Token is now an opaque string, not a JWT — check the stored expiry cookie.
+            if (!token) return true;
+            const expires = getSiteSpecificCookie(flaskSiteUrl, 'token_expires');
+            if (!expires) return true;
+            const expired = new Date(expires) < new Date();
+            if (expired) console.log("access token expired");
+            return expired;
         }
 
         async function getAccounts(flaskSiteUrl, retryCount = 3, retryDelay = 500) {
@@ -265,7 +318,6 @@ function playAccounts() {
 
             let username = getSiteSpecificCookie(flaskSiteUrl, 'username');
             let token = getSiteSpecificCookie(flaskSiteUrl, 'access_token');
-            const passphrase = getSiteSpecificCookie(flaskSiteUrl, 'passphrase');
 
                 // Retry logic: If username is not set, wait and retry
             let attempt = 0;
@@ -303,14 +355,21 @@ function playAccounts() {
                 }
         
                 const data = await response.json();
+
+                // Load encKey from sessionStorage once, before decrypting all values
+                const encKey = await getEncKey(flaskSiteUrl);
+                if (!encKey) {
+                    loginRequired('Encryption key not found. Please log in again.');
+                    return;
+                }
+
                 const accounts = await Promise.all(data.map(async kv => {
 
                     try {
                         // ===========================
                         //   DECRYPT LOCALLY
                         // ===========================
-                        const passphrase = getSiteSpecificCookie(flaskSiteUrl, 'passphrase');
-                        const decryptedString = await decryptData(passphrase, kv.value);
+                        const decryptedString = await decryptWithKey(encKey, kv.value);
 
                         const accountData = JSON.parse(decryptedString);
                         return {
@@ -396,11 +455,91 @@ function playAccounts() {
             const access_token = getSiteSpecificCookie(flaskSiteUrl, 'access_token');
             if (username && access_token) {
                loginButton.style.display="none";
+               const registerButton = document.getElementById("registerButton");
+               if (registerButton) registerButton.style.display="none";
                logoutButton.style.display="block";
                accountButton.style.display="block";
-               //accountDiv.style.display="block";
-                
-
-            } 
+            }
         }
- 
+
+
+// =============================================================================
+//  NEW AUTH FUNCTIONS (v0.2 — PBKDF2 zero-knowledge login)
+// =============================================================================
+
+/**
+ * Retrieve the session encryption key from sessionStorage.
+ * Returns null if the user has not logged in this tab session.
+ * @param {string} siteUrl - flaskSiteUrl, used as namespace
+ * @returns {Promise<CryptoKey|null>}
+ */
+async function getEncKey(siteUrl) {
+    const b64 = sessionStorage.getItem(siteUrl + '_encKey');
+    if (!b64) return null;
+    const raw = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    return window.crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+}
+
+/**
+ * Authenticate against the kvstore server using PBKDF2-derived credentials.
+ * Derives encKey (stays in browser) and authHash (sent to server) from the password.
+ * On success: stores token+expiry in site-specific cookies, encKey in sessionStorage.
+ * @param {string} uname - lowercase username
+ * @param {string} password
+ * @returns {Promise<{token: string, username: string}>}
+ */
+async function KVloginWithCredentials(uname, password) {
+    // Derive both keys in parallel (each runs 100k PBKDF2 iterations — takes ~2-3s)
+    const [encKey, authHash] = await Promise.all([
+        deriveEncKey(password, uname),
+        deriveAuthHash(password, uname)
+    ]);
+
+    const response = await fetch(`${flaskSiteUrl}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: uname, auth_hash: authHash })
+    });
+
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || `Login failed (${response.status})`);
+    }
+
+    const data = await response.json();
+
+    // Store token and expiry in persistent cookies (365-day lifetime matches server)
+    setSiteSpecificCookie(flaskSiteUrl, 'access_token', data.token, 365);
+    setSiteSpecificCookie(flaskSiteUrl, 'username', data.username, 365);
+    setSiteSpecificCookie(flaskSiteUrl, 'token_expires', data.expires, 365);
+
+    // Export encKey to raw bytes and store in sessionStorage (cleared when tab closes)
+    const rawKey = await window.crypto.subtle.exportKey('raw', encKey);
+    const keyB64 = btoa(String.fromCharCode(...new Uint8Array(rawKey)));
+    sessionStorage.setItem(flaskSiteUrl + '_encKey', keyB64);
+
+    return { token: data.token, username: data.username };
+}
+
+/**
+ * Register a new account on the kvstore server.
+ * Derives authHash client-side; server stores bcrypt(authHash).
+ * Server never sees the raw password or the encryption key.
+ * @param {string} uname - desired username (will be lowercased)
+ * @param {string} password
+ * @returns {Promise<void>}
+ */
+async function KVregisterWithCredentials(uname, password) {
+    const authHash = await deriveAuthHash(password, uname.toLowerCase());
+
+    const response = await fetch(`${flaskSiteUrl}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: uname.toLowerCase(), auth_hash: authHash })
+    });
+
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || `Registration failed (${response.status})`);
+    }
+}

@@ -118,4 +118,94 @@ async function deriveKey(password, salt) {
     const decoder = new TextDecoder();
     return decoder.decode(decryptedBuffer);
   }
-  
+
+
+// =============================================================================
+//  PBKDF2 KEY DERIVATION FOR KVSTORE AUTH (added for v0.2 server rewrite)
+// =============================================================================
+
+/**
+ * Derive the encryption key (encKey) from password and username.
+ * Uses username+"_enc" as salt so it is distinct from authHash.
+ * This key stays in the browser — it is NEVER sent to the server.
+ * extractable:true so the key can be exported and stored in sessionStorage.
+ * @param {string} password
+ * @param {string} username
+ * @returns {Promise<CryptoKey>} AES-GCM-256 key for encrypting/decrypting KV values
+ */
+async function deriveEncKey(password, username) {
+  const enc = new TextEncoder();
+  const keyMaterial = await window.crypto.subtle.importKey(
+    'raw', enc.encode(password), { name: 'PBKDF2' }, false, ['deriveKey']
+  );
+  return window.crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: enc.encode(username + '_enc'), iterations: 100000, hash: 'SHA-256' },
+    keyMaterial,
+    { name: 'AES-GCM', length: 256 },
+    true,  // extractable — needed to store in sessionStorage
+    ['encrypt', 'decrypt']
+  );
+}
+
+/**
+ * Derive the authentication hash (authHash) from password and username.
+ * Uses username+"_auth" as salt — different from encKey salt so server
+ * cannot use authHash to derive encKey.
+ * This value IS sent to the server; the server stores bcrypt(authHash).
+ * @param {string} password
+ * @param {string} username
+ * @returns {Promise<string>} 64-char lowercase hex string (256-bit PBKDF2 output)
+ */
+async function deriveAuthHash(password, username) {
+  const enc = new TextEncoder();
+  const keyMaterial = await window.crypto.subtle.importKey(
+    'raw', enc.encode(password), { name: 'PBKDF2' }, false, ['deriveBits']
+  );
+  const bits = await window.crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt: enc.encode(username + '_auth'), iterations: 100000, hash: 'SHA-256' },
+    keyMaterial,
+    256
+  );
+  return Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Encrypt plaintext using an existing CryptoKey — no PBKDF2 per call.
+ * Use this after deriving encKey once at login rather than calling encryptData()
+ * which re-runs PBKDF2 for every value.
+ * Output format: base64([IV(12 bytes) | ciphertext]) — no salt needed since
+ * the key is already derived and stable.
+ * @param {CryptoKey} cryptoKey - from deriveEncKey()
+ * @param {string} plaintext
+ * @returns {Promise<string>} base64 string
+ */
+async function encryptWithKey(cryptoKey, plaintext) {
+  const iv = window.crypto.getRandomValues(new Uint8Array(12));
+  const cipherBuffer = await window.crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    cryptoKey,
+    new TextEncoder().encode(plaintext)
+  );
+  const combined = new Uint8Array(12 + cipherBuffer.byteLength);
+  combined.set(iv, 0);
+  combined.set(new Uint8Array(cipherBuffer), 12);
+  return btoa(String.fromCharCode(...combined));
+}
+
+/**
+ * Decrypt a value produced by encryptWithKey().
+ * @param {CryptoKey} cryptoKey - from deriveEncKey()
+ * @param {string} combinedBase64 - base64([IV(12) | ciphertext])
+ * @returns {Promise<string>} decrypted plaintext
+ */
+async function decryptWithKey(cryptoKey, combinedBase64) {
+  const combined = Uint8Array.from(atob(combinedBase64), c => c.charCodeAt(0));
+  const iv = combined.slice(0, 12);
+  const ciphertext = combined.slice(12);
+  const decryptedBuffer = await window.crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv },
+    cryptoKey,
+    ciphertext
+  );
+  return new TextDecoder().decode(decryptedBuffer);
+}

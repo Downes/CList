@@ -24,7 +24,7 @@
     <!-- Global Variables for essential services -->
     <script>
         let username = "none";                              // Global var for username
-        let flaskSiteUrl = 'https://datastore.downes.ca';   // Base URL of your identity server
+        let flaskSiteUrl = 'https://kvstore.mooc.ca';   // Base URL of your identity server
         let accounts = [];                                // Global var to store accounts
         let BaseURL = "none";
         let accessCode = "none";
@@ -143,6 +143,7 @@
         <div id="left-command" class="pane command">
             <div class="command-left-buttons">
                 <button id="loginButton" onclick="redirectToKVLogin()">Login</button>
+                <button id="registerButton" onclick="redirectToKVRegister()">Register</button>
                 <button id="logoutButton" onclick="KVlogout(flaskSiteUrl);">Logout</button>
                 <button id="accountButton" onclick="playAccounts();">Accounts</button>
             </div>
@@ -324,6 +325,37 @@
    <!-- Keep these below functions so we can load handlers below -->
   <script src="js/publish.js" defer></script>
   <script src="js/interface.js"></script>   <!-- keep last as it depends on the previous scripts -->
+
+<!-- Login / Register modal -->
+<div id="authModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
+  <div style="background:#fff; padding:2em; border-radius:8px; min-width:300px; max-width:360px; width:90%;">
+    <h3 id="authModalTitle" style="margin-top:0;"></h3>
+    <label style="display:block; margin-bottom:.5em;">Username<br>
+      <input id="authUsername" type="text" autocomplete="username" style="width:100%; box-sizing:border-box; padding:.4em;">
+    </label>
+    <label style="display:block; margin-bottom:.5em;">Password<br>
+      <div style="position:relative;">
+        <input id="authPassword" type="password" autocomplete="current-password" style="width:100%; box-sizing:border-box; padding:.4em; padding-right:2.2em;">
+        <span onclick="toggleAuthPassword('authPassword',this)" title="Show/hide password"
+              style="position:absolute; right:.4em; top:50%; transform:translateY(-50%); cursor:pointer; user-select:none; font-size:1.1em;">👁</span>
+      </div>
+    </label>
+    <div id="authConfirmWrap" style="display:none;">
+      <label style="display:block; margin-bottom:.5em;">Confirm password<br>
+        <div style="position:relative;">
+          <input id="authConfirm" type="password" autocomplete="new-password" style="width:100%; box-sizing:border-box; padding:.4em; padding-right:2.2em;">
+          <span onclick="toggleAuthPassword('authConfirm',this)" title="Show/hide password"
+                style="position:absolute; right:.4em; top:50%; transform:translateY(-50%); cursor:pointer; user-select:none; font-size:1.1em;">👁</span>
+        </div>
+      </label>
+    </div>
+    <div id="authError" style="color:red; margin-bottom:.5em; display:none;"></div>
+    <div style="display:flex; gap:.5em; justify-content:flex-end;">
+      <button onclick="closeAuthModal()">Cancel</button>
+      <button id="authSubmitBtn" onclick="submitAuthModal()"></button>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>
