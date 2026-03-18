@@ -1,0 +1,13 @@
+# OS / editor artifacts
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Sensitive local config
+*.env
+*.local
+
+# Node (if ever used for tooling)
+node_modules/
