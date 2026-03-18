@@ -14,13 +14,16 @@
 
         async function addOrUpdateKeyValue() {
             const token = getSiteSpecificCookie(flaskSiteUrl,'access_token');  // Retrieve the token for the specific Flask site
-            // const token = localStorage.getItem('token');  // Retrieve the token from storage
-            const key = document.getElementById("keyInput").value;
+            const key = document.getElementById("keyInput").value.trim();
+            const title = document.getElementById("titleInput").value.trim();
+            const keyLabel = document.querySelector('label[for="keyInput"]').textContent;
+            if (!key) { alert(`Please enter a value for "${keyLabel}".`); return; }
+            if (!title) { alert('Please enter a Title.'); return; }
             const instanceData = {
                 permissions: document.getElementById("permissionsInput").value,
                 type: document.getElementById("instanceType").value,
                 id: document.getElementById("idInput").value,
-                title: document.getElementById("titleInput").value
+                title: title
             };
             const jsonString = JSON.stringify(instanceData);
 
@@ -65,13 +68,14 @@ console.log("Fetch "+key+" = "+encryptedValue);
                 document.getElementById("addKvForm").reset();
 
                 (async () => {
-                    try {  // Refresh the list to show updated data
+                    try {
                         accounts = await window.parent.getAccounts(flaskSiteUrl);
-                        closeForm();
-                        getSite(flaskSiteUrl);
                         window.parent.populatePostOptions(accounts);
                     } catch (error) {
                         console.error('Error fetching accounts:', error);
+                    } finally {
+                        closeForm();
+                        getSite(flaskSiteUrl);
                     }
                 })();
 
@@ -227,13 +231,14 @@ console.log("Fetch "+key+" = "+encryptedValue);
                 })
                 .then(response => response.json())
                 .then(async () => {
-                    try { 
-                        // Refresh the key-value list
+                    try {
                         accounts = await window.parent.getAccounts(flaskSiteUrl);
-                        closeForm();
-                        getSite(flaskSiteUrl);
+                        window.parent.populatePostOptions(accounts);
                     } catch (error) {
                         console.error('Error fetching accounts:', error);
+                    } finally {
+                        closeForm();
+                        getSite(flaskSiteUrl);
                     }
                 })
                 .catch(error => alert('Error deleting key-value pair: ' + error));
@@ -388,9 +393,6 @@ console.log("Fetch "+key+" = "+encryptedValue);
                     return;
                 }
 
-                // Display the user name
-                displayUsername();
-
                 getSite(flaskSiteUrl);  // Fetch key-value pairs from the Flask site
             }
             await initializePage();
@@ -403,11 +405,18 @@ console.log("Fetch "+key+" = "+encryptedValue);
             const instanceType = document.getElementById('instanceType').value;
 
             // Update labels
+            // Show/hide id field (not needed for Proxyp — auth is the kvstore token itself)
+            const idRow = document.getElementById('idInputRow');
+            const isProxyp = (instanceType === 'Proxyp');
+            document.getElementById('idInput').required = !isProxyp;
+            idRow.style.display = isProxyp ? 'none' : '';
+
             document.querySelector('label[for="titleInput"]').innerHTML =
                 instanceType === 'Etherpad' ? 'Etherpad Title' :
-                instanceType === 'Blogger' || instanceType === 'WordPress' ? 'Blog Title' : 
+                instanceType === 'Blogger' || instanceType === 'WordPress' ? 'Blog Title' :
                 instanceType === 'AI' ? 'AI Title' :
-                instanceType === 'OPML' ? 'OPML Title' : 
+                instanceType === 'OPML' ? 'OPML Title' :
+                instanceType === 'Proxyp' ? 'Proxy Title' :
                 'Account Title';
             document.querySelector('label[for="keyInput"]').innerHTML =
                 instanceType === 'Etherpad' ? 'Etherpad API URL' :
@@ -416,7 +425,8 @@ console.log("Fetch "+key+" = "+encryptedValue);
                 instanceType === 'WordPress' ? 'Username' :
                 instanceType === 'OPML' ? 'URL' :
                 instanceType === 'AI' ? 'Project' :
-                instanceType === 'Blogger' ? 'Blog ID' : 
+                instanceType === 'Blogger' ? 'Blog ID' :
+                instanceType === 'Proxyp' ? 'Proxy URL' :
                 'Username';
             document.querySelector('label[for="idInput"]').innerHTML =
                 instanceType === 'Etherpad' ? 'Proxy Server URL' :
@@ -430,13 +440,14 @@ console.log("Fetch "+key+" = "+encryptedValue);
             document.querySelector('label[for="permissionsInput"]').innerHTML = 'Permissions';
 
             // Update placeholders
-            document.getElementById('titleInput').placeholder = 
+            document.getElementById('titleInput').placeholder =
                 instanceType === 'Etherpad' ? 'Stephen\'s Etherpad' :
-                instanceType === 'Blogger' ? 'Blog Title' : 
-                instanceType === 'OPML' ? 'OPML Title' : 
-                instanceType === 'AI' ? 'AI Service Title' : 
+                instanceType === 'Blogger' ? 'Blog Title' :
+                instanceType === 'OPML' ? 'OPML Title' :
+                instanceType === 'AI' ? 'AI Service Title' :
+                instanceType === 'Proxyp' ? 'My Proxy' :
                 'Title';
-            document.getElementById('keyInput').placeholder = 
+            document.getElementById('keyInput').placeholder =
                 instanceType === 'Etherpad' ? 'https://etherpad.cloudron.downes.ca/api/1.2.15' :
                 instanceType === 'Mastodon' ? 'downes@mastodon.social' :
                 instanceType === 'Bluesky' ? 'downes.bsky.social' :
@@ -444,6 +455,7 @@ console.log("Fetch "+key+" = "+encryptedValue);
                 instanceType === 'OPML' ? 'https://www.downes.ca/test.opml' :
                 instanceType === 'AI' ? 'project ID number' :
                 instanceType === 'Blogger' ? '1234567' :
+                instanceType === 'Proxyp' ? 'https://proxyp.mooc.ca' :
                 'username@instance.social';
             document.getElementById('idInput').placeholder = 
                 instanceType === 'Etherpad' ? 'https://www.downes.ca/cgi-bin/proxyp.cgi' :
@@ -454,12 +466,13 @@ console.log("Fetch "+key+" = "+encryptedValue);
                 instanceType === 'AI' ? 'API key' :
                 instanceType === 'Blogger' ? '696533554-usgopp2aghr35lu3.apps.googleusercontent.com' :
                 'Access Code';
-            document.getElementById('permissionsInput').value = 
+            document.getElementById('permissionsInput').value =
                 instanceType === 'Etherpad' ? 'e' :
                 instanceType === 'Mastodon' || instanceType === 'Bluesky' ? 'rw' :
                 instanceType === 'WordPress' || instanceType === 'Blogger' ? 'w' :
                 instanceType === 'AI' ? 't or s or g' :
-                instanceType === 'OPML' ? 'r' : '';
+                instanceType === 'OPML' ? 'r' :
+                instanceType === 'Proxyp' ? 'p' : '';
 
             // Update tooltips
             document.getElementById('instanceType-tooltip').innerHTML = 
@@ -477,7 +490,8 @@ console.log("Fetch "+key+" = "+encryptedValue);
                 instanceType === 'WordPress' ? 'Enter your WordPress username (e.g., downes@wordpress.site).' :
                 instanceType === 'OPML' ? 'Provide the URL for the OPML file.' :
                 instanceType === 'Blogger' ? 'Enter your Blogger Blog ID.' :
-                instanceType === 'AI' ? 'Enter the AI service or prtoject number.' :
+                instanceType === 'AI' ? 'Enter the AI service or project number.' :
+                instanceType === 'Proxyp' ? 'Enter the URL of the proxyp server (e.g., https://proxyp.mooc.ca).' :
                 'Provide the username for the account.';
             document.getElementById('idInput-tooltip').innerHTML =
                 instanceType === 'Etherpad' ? 'Enter the proxy server URL for the Etherpad instance.' :
@@ -577,7 +591,8 @@ console.log("Fetch "+key+" = "+encryptedValue);
                 width: 100%;
                 font-family: Arial, sans-serif;
                 line-height: 1.6;
-                box-sizing: border-box; /* Ensure width calculations include padding and border */
+                box-sizing: border-box;
+                display: block; /* override interface.css flex centering */
             }
 
             /* Style for the main container */
@@ -644,6 +659,8 @@ console.log("Fetch "+key+" = "+encryptedValue);
                 transform: translateY(-15px); /* Position above the input field */
             }
 
+            #kvList { margin-top: 0.5rem; }
+
             /* Account name buttons in the list */
             .kv-name-btn {
                 text-align: left;
@@ -671,7 +688,7 @@ console.log("Fetch "+key+" = "+encryptedValue);
                 font-size: 0.8rem;
                 margin: 0;
             }
-            .kv-save-btn   { background: #4a7; color: #fff; border: 1px solid #4a7; }
+            .kv-save-btn   { background: var(--highlight-color); color: #fff; border: 1px solid var(--highlight-color); }
             .kv-delete-btn { background: #c44; color: #fff; border: 1px solid #c44; }
             .kv-cancel-btn { background: #888; color: #fff; border: 1px solid #888; }
 
@@ -680,13 +697,7 @@ console.log("Fetch "+key+" = "+encryptedValue);
 </head>
 <body>
     <div class="kvcontainer">
-        <div><span id="username-display"></span>
-        <button id="logout-button" onclick="logout()">Logout</button></div>
-
-        <div>
-            <h2>Accounts</h2>
-            <div id="kvList"></div>
-        </div>
+        <div id="kvList"></div>
 
         <div id="sharedForm" style="display:none">
         <form id="addKvForm" onsubmit="addOrUpdateKeyValue(); return false;" aria-labelledby="form-title">
@@ -700,6 +711,7 @@ console.log("Fetch "+key+" = "+encryptedValue);
                 <option value="Blogger">Blogger</option>
                 <option value="Etherpad">Etherpad</option>
                 <option value="AI">AI</option>
+                <option value="Proxyp">Proxyp</option>
             </select>
             <span id="instanceType-tooltip" class="tooltip">Choose the platform type (e.g., Mastodon, Bluesky).</span>
     
@@ -715,9 +727,11 @@ console.log("Fetch "+key+" = "+encryptedValue);
             <input type="text" id="permissionsInput" placeholder="Permissions" required aria-describedby="permissionsInput-tooltip">
             <span id="permissionsInput-tooltip" class="tooltip">Specify the account permissions.</span>
     
+            <div id="idInputRow">
             <label for="idInput">Access Code</label>
             <input type="password" id="idInput" placeholder="Access Code" required aria-describedby="idInput-tooltip">
             <span id="idInput-tooltip" class="tooltip">Enter the account's access code securely.</span>
+            </div>
     
             <div class="kv-action-buttons">
                 <button type="button" id="submitBtn"  class="kv-action-btn kv-save-btn"   onclick="addOrUpdateKeyValue()">Save</button>

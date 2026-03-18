@@ -260,6 +260,21 @@
     gap: 10px;                    /* Add space between buttons */
 }
 
+  .icon-btn {
+    background: none;
+    border: none;
+    padding: 0 4px;
+    cursor: pointer;
+    line-height: 1;
+    vertical-align: middle;
+  }
+  .icon-btn .material-icons {
+    font-size: 26px;
+    vertical-align: middle;
+    color: var(--highlight-color);
+  }
+  .icon-btn:hover .material-icons { filter: brightness(0.85); }
+
   .command .left-close-button {
     margin-left: auto;            /* Push the close button to the far right */
     background: none;             /* Optional: Style for the close button */
