@@ -65,6 +65,60 @@ if (typeof window.readerHandlers === 'undefined') {
 }
 
 
+// Returns a DOM element for the icon appropriate for the given account type.
+function accountIcon(type) {
+    if (type === 'Mastodon') {
+        const span = document.createElement('span');
+        span.className = 'account-icon-img';
+        span.setAttribute('aria-label', 'Mastodon');
+        return span;
+    }
+    const materialIcons = {
+        'Bluesky':   'cloud',
+        'OPML':      'rss_feed',
+        'WordPress': 'article',
+        'Blogger':   'article',
+    };
+    const span = document.createElement('span');
+    span.className = 'material-icons';
+    span.textContent = materialIcons[type] || 'account_circle';
+    return span;
+}
+
+// Builds and returns a styled account-list div.
+// tip       — instruction string shown above the buttons
+// accounts  — the global accounts array
+// filterFn  — function(parsedValue) → bool; return true to include
+// onClickFn — function(key, parsedValue) called on button click
+function makeAccountList(tip, accounts, filterFn, onClickFn) {
+    const container = document.createElement('div');
+    container.className = 'account-list';
+
+    const tipDiv = document.createElement('div');
+    tipDiv.className = 'account-list-tip';
+    tipDiv.textContent = tip;
+    container.appendChild(tipDiv);
+
+    accounts.forEach(account => {
+        const parsedValue = JSON.parse(account.value);
+        if (!filterFn(parsedValue)) return;
+
+        const btn = document.createElement('button');
+        btn.className = 'account-button';
+        btn.onclick = () => onClickFn(account.key, parsedValue);
+
+        const name = document.createElement('span');
+        name.textContent = parsedValue.title;
+
+        btn.appendChild(accountIcon(parsedValue.type));
+        btn.appendChild(name);
+        container.appendChild(btn);
+    });
+
+    return container;
+}
+
+
 
 function finderString() {
     const findTextarea = document.getElementById('find-textarea');
@@ -93,198 +147,72 @@ async function initializeReader(readerType, baseURL, accessToken) {
 
 
 async function playRead() {
+    openLeftInterface(readPanel());
 
-
-
-    openLeftPane();
-    const leftContent = document.getElementById('left-content');
-    
-    // Check if the reader div exists
-
-    let reader = document.getElementById('read-section');
-    if (!reader) {
-        // Create the reader div if it doesn't exist
-        reader = document.createElement('div');
-        reader.id = 'read-section';
-
-        
-
-        manualEntry = `<br><button id="manual-button" onclick="toggleDiv('manual-entry')">Manual</button>
-                <div id="manual-entry"  style="display:none;">
-                    <label for="baseURL">Mastodon Instance URL:</label>
-                    <input type="text" id="baseURL" placeholder="https://mastodon.social" required><br>
-                    <label for="accessToken">Access Token:</label>
-                    <input type="text" id="accessToken" placeholder="Your Access Token" required><br>
-                    <label for="instanceType">Instance Type:</label>
-                    <input type="text" id="instanceType" placeholder="Mastodon|Bluesky|OPML" required><br>
-                </div>
-                <script>
-                    document.getElementById("manual-button").onclick = function switchReaderAccount() {
-                    </select> <button onclick="switchReaderAccount()">Select Account</button>
-                        const div = document.getElementById("manual-entry");
-                        if (div.style.display === "none") {
-                            div.style.display = "block";  // Show the div
-                        } else {
-                            div.style.display = "none";   // Hide the div
-                        }
-                    };
-                </script>`;
-
-
-        // Set the content only when the reader div is first created
-        reader.innerHTML = `
-        <!-- Read Section -->
-            <div id="read-header">
-                <h2>Read</h2>
-                <button 
-                    id="read-left-close-button" 
-                    onclick="document.getElementById('read-section').style.display='none';">
-                    &times;
-                </button>
-            </div> 
-            <!--  Display current Account  -->
-            <div id="accountDiv">
-                Please select an account
-            </div>
-            <!-- Select Account-->
-            <div id="read-account-list"></div>
-            <div id="select-account"></div>
-
-            ${manualEntry}
-                
-            <div id="account-status"></div>
-            <div id="selectedAccountUrl"></div>
-    
-        `;
-
-        // Append the reader to the left content
-        leftContent.prepend(reader);
-        console.log("Tuning on read list");
-        document.getElementById('read-account-list').style.display = 'block';
-
-    }
     if (!Array.isArray(accounts)) {
         throw new Error('Error: Accounts array not found; maybe you need to log in.');
     }
 
     try {
         if (!accounts || accounts.length === 0) {
-            accounts = await getAccounts(flaskSiteUrl); // Fetch  accounts only if needed
-            populateReadAccountList(accounts);
+            accounts = await getAccounts(flaskSiteUrl);
         }
+        populateReadAccountList(accounts);
     } catch (error) {
         alert('Error in playRead: ' + error.message);
     }
+}
 
-
-
-    reader.style.display = 'block'; // Make the reader visible
-    let accList = document.getElementById('read-account-list');
-    accList.style.display = 'block'; // Make the accoounts visible
-
+// Returns the Read panel element (created on demand)
+function readPanel() {
+    const div = document.createElement('div');
+    div.id = 'read-section';
+    div.innerHTML = `
+        <div id="read-account-list"></div>
+        <div id="select-account"></div>
+        <div id="account-status"></div>
+    `;
+    return div;
 }
 
 
 // playFind
 
 function playFind() {
+    openLeftInterface(findPanel());
+}
 
-    openLeftPane();
-    const leftContent = document.getElementById('left-content');
-    
-    // Check if the reader div exists
-    let finder = document.getElementById('find-section');
-    if (!finder) {
-        // Create the reader div if it doesn't exist
-        finder = document.createElement('div');
-        finder.id = 'find-section';
-
-        // Set the content only when the reader div is first created
-        finder.innerHTML = `
-        <!-- Find Section -->
-            <div id="find-header">
-                <h2>Find</h2>
-                <button 
-                    id="find-left-close-button" 
-                    onclick="document.getElementById('find-section').style.display='none';">
-                    &times;
-                </button>
-            </div> 
-            <div id="find-form">
-                <textarea id="find-textarea" placeholder="Find what?"></textarea>
-            </div>
-
-            <!--  Display current Account  -->
-            <div id="find-account-div">
-                Find where?
-            </div>
-            <!-- Select Account-->
-            <div id="find-account-list">
-            </div>
-
-            <div id="select-find-account">
-            <button class="save-button" onClick="readerHandlers['duckduckgo'].search();">Duck Duck Go</button>
-            </div>
-
-            <div id="select-find-account">
-            <button class="save-button" onClick="readerHandlers['google'].search();">Google</button>
-            </div>
-                
-            <div id="select-find-account">
-            <button class="save-button" onClick="readerHandlers['oasis'].search();">OASIS OERs</button>
-            </div>
-
-            <div id="find-account-status"></div>
-            <div id="selectedFindAccountUrl"></div>
-    
-        `;
-
-        // Append the reader to the left content
-        leftContent.prepend(finder);
-
-    }
-
-    finder.style.display = 'block'; // Make the reader visible
-
+// Returns the Find panel element (created on demand)
+function findPanel() {
+    const div = document.createElement('div');
+    div.id = 'find-section';
+    div.innerHTML = `
+        <div id="find-form">
+            <textarea id="find-textarea" placeholder="Find what?"></textarea>
+        </div>
+        <div id="find-account-div">Find where?</div>
+        <div id="find-account-list"></div>
+        <button class="save-button" onClick="readerHandlers['duckduckgo'].search();">Duck Duck Go</button>
+        <button class="save-button" onClick="readerHandlers['google'].search();">Google</button>
+        <button class="save-button" onClick="readerHandlers['oasis'].search();">OASIS OERs</button>
+        <div id="find-account-status"></div>
+        <div id="selectedFindAccountUrl"></div>
+    `;
+    return div;
 }
 
 
-// Function to populate the dropdown with account keys
+// Function to populate the read account list
 function populateReadAccountList(accounts) {
-    console.log("Populating read account list");
     const accountList = document.getElementById('read-account-list');
-    accountList.innerHTML = '';                         // Clear previous options
-    //accountDropdown.innerHTML = '';                         // Clear previous options
-  //  const defaultoption = document.createElement('option'); // Create a blank instruction option
-   // defaultoption.value = "";
-  //  defaultoption.text = "-- Select Account --";
-  //  accountDropdown.appendChild(defaultoption);
-    if (!accountList) {
-        alert('populateAccountDropdown error: read-account-list not found');
-        console.error("Error: can't find an item named read-account-list");
-        return;
-    }
-
-    const accountDiv = document.getElementById("accountDiv");
-    accountDiv.innerHTML = "Please select an account";
-
-    accounts.forEach(account => {                           // Load the options stored in the KVstore
-        const parsedValue = JSON.parse(account.value);
-
-        if (parsedValue.permissions.includes('r')) {  // Check if 'permissions' contains 'r'
-            const accountItem = document.createElement('button');   // Set the class
-            accountItem.className = 'save-button';                  //  Set the class and onclick attribute
-            accountItem.setAttribute('onclick', "switchReaderAccount('"+account.key+"');");
-            
-            accountItem.innerHTML = parsedValue.title;       // Set the innerHTML
-            accountList.appendChild(accountItem);             // Append to a parent element 
-
-          //  const option = document.createElement('option');
-          //  option.value = account.key;
-          //  option.text = `${account.key} (${parsedValue.permissions})`;
-          //  accountDropdown.appendChild(option);  // Append the option if condition is met
-        }
-    });
+    if (!accountList) return;
+    accountList.innerHTML = '';
+    accountList.appendChild(makeAccountList(
+        'Select an account to read',
+        accounts,
+        v => v.permissions.includes('r'),
+        key => switchReaderAccount(key)
+    ));
 }
 
 
@@ -316,7 +244,13 @@ async function switchReaderAccount(key) {
 
     setupFeedButtons(instanceType);  // Different feed buttons for different services
     document.getElementById('feed-container').innerHTML = '';   // Empty feed container
-    
+
+    const selectedAccountDiv = document.getElementById('selectedAccount');
+    if (selectedAccountDiv) {
+        selectedAccountDiv.innerHTML = '';
+        selectedAccountDiv.appendChild(accountIcon(instanceType));
+        selectedAccountDiv.appendChild(document.createTextNode(accountData.title));
+    }
 }
 
 // Make Listing supports both calling with a single object containing all properties

@@ -30,38 +30,16 @@
           (function () {
               const mastodonHandler = {
                 initialize: async (baseURL, accessToken) => {
-            
                     await initializeMasto(baseURL, accessToken);
-        
-                    // Set up controls in left column 
-        
-                    // mastodon-lists 
-                    let mastodonLists = document.getElementById('mastodon-lists');
-                    if (!mastodonLists) {
-                        // If it doesn't exist, create the div
-                        mastodonLists = document.createElement('div');
-                        mastodonLists.id = 'mastodon-lists'; // Set the ID for the div
-                        leftContent.appendChild(mastodonLists);
-                    }
-        
-                    // mastodon-hashtag-form 
-                    mastodonFeedFiller('hashtag','Enter a hashtag without the #');
-        
-                    // mastodon-user-form 
-                    mastodonFeedFiller('user','@username@instance.social');
-        
-                    // mastodon-status-form 
-                    mastodonFormFiller('status','place');    
-                    
                 },
                 feedFunctions: {
-                    'Post': toggleDiv.bind(null, 'mastodon-status-form', 'left', true),
-                    'Following': loadMastodonFeed.bind(null, 'home', null),
-                    'Bookmarks': loadMastodonFeed.bind(null, 'bookmarks', null),
-                    'Lists': loadMastodonLists.bind(null, 'list', null),
-                    'Local': loadMastodonFeed.bind(null, 'local', null),
-                    'Hashtag': toggleDiv.bind(null, 'mastodon-hashtag-form', 'left',true),
-                    'User': toggleDiv.bind(null, 'mastodon-user-form', 'left',true)
+                    'Post':      () => openLeftInterface(mastodonStatusForm()),
+                    'Following':  loadMastodonFeed.bind(null, 'home', null),
+                    'Bookmarks':  loadMastodonFeed.bind(null, 'bookmarks', null),
+                    'Lists':      loadMastodonLists.bind(null, 'list', null),
+                    'Local':      loadMastodonFeed.bind(null, 'local', null),
+                    'Hashtag':   () => openLeftInterface(mastodonInputForm('hashtag', 'Enter a hashtag without the #')),
+                    'User':      () => openLeftInterface(mastodonInputForm('user', '@username@instance.social'))
                 }
               };
 
@@ -82,13 +60,13 @@ window.feedFunctions = window.feedFunctions || {};
 
 // Define MastodonFunctions
 window.MastodonFunctions = {
-    'Post': toggleDiv.bind(null, 'mastodon-status-form', 'left', true),
-    'Following': loadMastodonFeed.bind(null, 'home', null),
-    'Bookmarks': loadMastodonFeed.bind(null, 'bookmarks', null),
-    'Lists': loadMastodonLists.bind(null, 'list', null),
-    'Local': loadMastodonFeed.bind(null, 'local', null),
-    'Hashtag': toggleDiv.bind(null, 'mastodon-hashtag-form', 'left',true),
-    'User': toggleDiv.bind(null, 'mastodon-user-form', 'left',true)
+    'Post':      () => openLeftInterface(mastodonStatusForm()),
+    'Following':  loadMastodonFeed.bind(null, 'home', null),
+    'Bookmarks':  loadMastodonFeed.bind(null, 'bookmarks', null),
+    'Lists':      loadMastodonLists.bind(null, 'list', null),
+    'Local':      loadMastodonFeed.bind(null, 'local', null),
+    'Hashtag':   () => openLeftInterface(mastodonInputForm('hashtag', 'Enter a hashtag without the #')),
+    'User':      () => openLeftInterface(mastodonInputForm('user', '@username@instance.social'))
 };
 
 // Add MastodonFunctions to feedFunctions
@@ -128,9 +106,6 @@ async function initializeMasto(baseURL, accessToken) {
         accountStatusDiv.innerHTML = `<p>Successfully switched to the account on ${baseURL}</p>`;
         accountStatusDiv.innerHTML += `<p>Logged in as ${accountData.display_name} (@${accountData.acct})</p>`;
 
-        // Display the selected account instance URL      
-        document.getElementById('selectedAccountUrl').innerHTML = baseURL;
-        
 
     } catch (error) {
         const accountStatusDiv = document.getElementById('account-status');
@@ -146,64 +121,31 @@ async function initializeMasto(baseURL, accessToken) {
 
 // Functions to create interaction forms in the left pane
 
-function mastodonFeedFiller(type, placeholder) {
+// Returns a text-input form for parameterised feed requests (hashtag, user, etc.)
+function mastodonInputForm(type, placeholder) {
     const ucfirstType = ucfirst(type);
-    const divId = 'mastodon-' + type + '-form';
-
-    // Check if the div already exists
-    let div = document.getElementById(divId);
-    if (!div) {
-        // If the div does not exist, create the container div
-        div = document.createElement('div');
-        div.id = divId;
-        div.style.display = 'none';
-        div.style.marginTop = '10px';
-        div.innerHTML = `
-            <label for="${type}">Enter a ${ucfirstType}:</label>
-            <input type="text" id="${type}" placeholder="${placeholder}" />
-        
-            <!-- Button to submit the ${type} and close the div -->
-            <button id="submit${ucfirstType}Btn" onclick="loadMastodonFeed('${type}');document.getElementById('${divId}').style.display = 'none';">Submit ${ucfirstType}</button>
-        `;
-    }
-    const leftContent = document.getElementById('left-content');
-    if (leftContent) { leftContent.prepend(div); } 
-    else { console.error("Element with ID 'left-content' not found."); }
-    
+    const div = document.createElement('div');
+    div.innerHTML = `
+        <label for="mastodon-${type}">Enter a ${ucfirstType}:</label>
+        <input type="text" id="mastodon-${type}" placeholder="${placeholder}" />
+        <button onclick="loadMastodonFeed('${type}');">Submit ${ucfirstType}</button>
+    `;
+    return div;
 }
 
-
-function mastodonFormFiller(type, placeholder) {
-    const ucfirstType = ucfirst(type);
-    const divId = 'mastodon-status-form'; // Div ID for the form container
-
-    // Check if the container div already exists
-    let div = document.getElementById(divId);
-    if (!div) {
-        // If the div does not exist, create it
-        div = document.createElement('div');
-        div.id = divId;
-        div.style.display = 'none';
-        div.style.marginTop = '10px';
-        div.innerHTML = `
-            <!-- Form to post a status -->
-            <form id="${type}Form" onsubmit="post${ucfirstType}FromForm(event);">
-                <label class="visually-hidden" for="status">${ucfirstType}:</label><br>
-                <textarea id="${type}" name="${type}" rows="4" cols="50" placeholder="${placeholder}"></textarea>
-                <!-- Hidden input for the ${type} ID (used for replies) -->
-                <input type="hidden" id="${type}IDInput" name="${type}ID" value="">
-                <br><br>
-                <button type="submit">Post ${ucfirstType}</button>
-            </form>
-        `;
-
-    }
-
-    
-    // Append the div to the left content container
-    const leftContent = document.getElementById('left-content');
-    if (leftContent) { leftContent.prepend(div); } 
-    else { console.error("Element with ID 'left-content' not found.");   }
+// Returns a status-posting form (new post or reply)
+function mastodonStatusForm() {
+    const div = document.createElement('div');
+    div.innerHTML = `
+        <form id="statusForm" onsubmit="postStatusFromForm(event);">
+            <label class="visually-hidden" for="status">Status:</label><br>
+            <textarea id="status" name="status" rows="4" cols="50" placeholder="What's on your mind?"></textarea>
+            <input type="hidden" id="statusIDInput" name="statusID" value="">
+            <br><br>
+            <button type="submit">Post Status</button>
+        </form>
+    `;
+    return div;
 }
 
 
@@ -211,58 +153,31 @@ function mastodonFormFiller(type, placeholder) {
 
 // Fetch my list of lists
 // Access token and base URL are global variables
-async function loadMastodonLists(type,listsDiv) {
-
-    // Important! Function is called only by button press after account has loaded
-    // const accessToken = document.getElementById('accessToken').value;
-    // const baseURL = document.getElementById('baseURL').value;
-
+async function loadMastodonLists(type) {
     const endpoint = `${baseURL}/api/v1/lists`;
     try {
         const response = await fetch(endpoint, {
             method: 'GET',
             headers: {
-                'Authorization': `Bearer ${accessToken}`, // Replace with your access token
+                'Authorization': `Bearer ${accessToken}`,
                 'Content-Type': 'application/json'
             }
         });
-        
         if (!response.ok) {
             throw new Error(`Error fetching lists: ${response.status} ${response.statusText}`);
         }
-        
-        // Log the raw response text to see what you're getting
-        const rawText = await response.text();
-        console.log('Raw Response:', rawText);
-
-        // Try parsing the JSON after logging the raw response
-        const lists = JSON.parse(rawText); // Parse manually for better error feedback
-        console.log('Parsed Lists:', lists);
-
-                // Create and attach the dropdown
-        createMastodonListDropdown(lists, listsDiv);
-        // return lists;
-
+        const lists = await response.json();
+        openLeftInterface(createMastodonListDropdown(lists));
     } catch (error) {
         console.error('Error loading lists:', error);
-        //return [];
     }
 }
 
-
-// Function to create and attach the dropdown
+// Returns a <select> dropdown populated with the user's Mastodon lists
 function createMastodonListDropdown(lists) {
-    const listsDiv = document.getElementById('mastodon-lists');
-    if (!listsDiv) {
-        console.error(`Element with ID "${listsDiv}" not found.`);
-        return;
-    }
-
-    // Create the select element
     const select = document.createElement('select');
     select.id = 'mastodonList';
 
-    // Add default non-functioning option
     const defaultOption = document.createElement('option');
     defaultOption.text = 'Select a List';
     defaultOption.value = '';
@@ -270,7 +185,6 @@ function createMastodonListDropdown(lists) {
     defaultOption.selected = true;
     select.appendChild(defaultOption);
 
-    // Populate the dropdown with list options
     lists.forEach(list => {
         const option = document.createElement('option');
         option.text = list.title;
@@ -278,16 +192,11 @@ function createMastodonListDropdown(lists) {
         select.appendChild(option);
     });
 
-    // Add change event listener to call loadMastodonFeed('list')
     select.addEventListener('change', () => {
         loadMastodonFeed('list');
     });
 
-    // Attach the select element to the provided container
-    listsDiv.appendChild(select);
-
-    // Toggle the display
-    toggleFormDisplay('mastodon-lists','left');
+    return select;
 }
 
 
@@ -392,7 +301,7 @@ console.log("baseURL "+baseURL+" accessRoken "+accessToken+" and Loading feed ty
                 url = `${baseURL}/api/v1/timelines/tag/${encodeURIComponent(hashtag)}`;
             } else if (type === 'user' || type === 'username') {
                 // Username in 'typevalue' or from form element
-                username = typevalue || document.getElementById('mastodon-username').value.trim(); 
+                username = typevalue || document.getElementById('mastodon-user').value.trim();
                 if (!username) { feedContainer.innerHTML = `<p>Please enter a username.</p>`; return; }
                 account = await getMastodonUser(username,baseURL);
                 if (!account) { return; }
@@ -695,7 +604,7 @@ async function displayMastodonPost(status,statusBox,reblogger) {
     
     // Function to perform status actions
     // Access token and base URL are global variables
-    async function handleMastodonAction(statusId,actionType,statusElement) {
+    async function handleMastodonAction(statusId,actionType) {
         //const accessToken = document.getElementById('accessToken').value;
         //const baseURL = document.getElementById('baseURL').value;
 
@@ -719,11 +628,8 @@ async function displayMastodonPost(status,statusBox,reblogger) {
         } else if (actionType === 'thread') {
             await loadMastodonFeed(actionType,null,statusId);
         } else if (actionType === 'reply') {
-            const statusForm = document.getElementById('mastodon-status-form');
-            statusElement.insertAdjacentElement('afterend', statusForm);
-            const statusInput = document.getElementById('statusIDInput');
-            statusInput.value = statusId;
-            statusForm.style.display = 'block';
+            openLeftInterface(mastodonStatusForm());
+            document.getElementById('statusIDInput').value = statusId;
         } else if (actionType === 'load') {
             loadContentToTinyMCE(statusId);
             actionSuccessMessage = 'Loaded item to write pane.';
@@ -867,7 +773,7 @@ async function displayMastodonPost(status,statusBox,reblogger) {
         try {
             const response = await fetch(apiUrl);
             if (response.ok) {
-                const data = await response.json();           
+                const data = await response.json();
                 return data.configuration.statuses.max_characters; // Return the character limit
             } else {
                 console.error('Error fetching instance data:', response.statusText);
@@ -878,3 +784,101 @@ async function displayMastodonPost(status,statusBox,reblogger) {
             return null; // Return null in case of a failure
         }
     }
+
+
+// -----------------------------------------------------
+//
+// Mastodon OAuth2 flow
+//
+// Called from flasker.html when user clicks "Authorize with Mastodon".
+// Registers CList as an app on the user's instance, saves session data,
+// and redirects to the Mastodon authorization page.
+// redirect.html handles the callback and stores the result in localStorage.
+// The DOMContentLoaded listener below picks it up on return and saves to kvstore.
+
+async function mastodonOAuthStart(title, username, permissions) {
+    const parts = username.split('@').filter(Boolean);
+    if (parts.length < 2) {
+        alert('Please enter your Mastodon username as user@instance.social');
+        return;
+    }
+    const instanceUrl = 'https://' + parts[parts.length - 1];
+    const redirectUri = window.location.origin + '/redirect.html';
+
+    let appData;
+    try {
+        const response = await fetch(`${instanceUrl}/api/v1/apps`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                client_name: 'CList',
+                redirect_uris: redirectUri,
+                scopes: 'read write',
+                website: window.location.origin
+            })
+        });
+        if (!response.ok) throw new Error(response.statusText);
+        appData = await response.json();
+    } catch (e) {
+        alert('Could not register with Mastodon instance ' + instanceUrl + ': ' + e.message);
+        return;
+    }
+
+    sessionStorage.setItem('mastodon_oauth_client_id',     appData.client_id);
+    sessionStorage.setItem('mastodon_oauth_client_secret', appData.client_secret);
+    sessionStorage.setItem('mastodon_oauth_instance',      instanceUrl);
+    sessionStorage.setItem('mastodon_oauth_username',      username);
+    sessionStorage.setItem('mastodon_oauth_title',         title || username);
+    sessionStorage.setItem('mastodon_oauth_permissions',   permissions || 'rw');
+    sessionStorage.setItem('mastodon_oauth_redirect_uri',  redirectUri);
+
+    window.location.href = instanceUrl + '/oauth/authorize?' + new URLSearchParams({
+        client_id:     appData.client_id,
+        redirect_uri:  redirectUri,
+        response_type: 'code',
+        scope:         'read write',
+        state:         'Mastodon',
+        force_login:   'true'
+    });
+}
+
+// On page load, check whether we're returning from a Mastodon OAuth redirect.
+// redirect.html stores the token in localStorage; we pick it up here and save to kvstore.
+document.addEventListener('DOMContentLoaded', async function () {
+    const raw = localStorage.getItem('mastodon_auth_result');
+    if (!raw) return;
+    localStorage.removeItem('mastodon_auth_result');
+    let data;
+    try { data = JSON.parse(raw); } catch (e) { console.error('Bad mastodon_auth_result', e); return; }
+    await saveMastodonAccount(data.title, data.username, data.accessToken, data.permissions);
+});
+
+async function saveMastodonAccount(title, username, accessToken, permissions) {
+    const token = getSiteSpecificCookie(flaskSiteUrl, 'access_token');
+    if (!token) { showStatusMessage('Please log in to kvstore before authorizing Mastodon.'); return; }
+
+    const encKey = await getEncKey(flaskSiteUrl);
+    if (!encKey) { showStatusMessage('Encryption key missing — please log in again.'); return; }
+
+    const instanceData = { type: 'Mastodon', id: accessToken, title: title, permissions: permissions || 'rw' };
+    const encryptedValue = await encryptWithKey(encKey, JSON.stringify(instanceData));
+
+    const existing = Array.isArray(accounts) && accounts.find(a => a.key === username);
+    const endpoint = existing ? 'update_kv/' : 'add_kv/';
+
+    const response = await fetch(`${flaskSiteUrl}/${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ key: username, value: encryptedValue })
+    });
+
+    if (!response.ok) { showStatusMessage('Failed to save Mastodon account to kvstore.'); return; }
+
+    accounts = await getAccounts(flaskSiteUrl);
+    if (accounts) {
+        await playRead();
+        populateReadAccountList(accounts);
+    }
+    showStatusMessage('Mastodon account authorized and saved.');
+    playAccounts();
+}

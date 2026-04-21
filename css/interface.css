@@ -302,26 +302,51 @@
     margin: 0 10px 0 0;
   }
 
-          /* Style for the account header */
-        #identityDiv {
-            background-color: #ffffff;  /* Light gray background */
-            padding: 10px;         /* Padding around the content */
-            height: 41px;
-            margin-bottom: 0px;        /* Space below the bar */
-            display: flex;              /* Use flexbox for layout */
-            align-items: center;        /* Center vertically */
-            border: 1px solid #ddd;     /* Light border */
+  /* Current status bar: login identity + selected read account */
+  #current-status {
+    display: flex;
+    align-items: stretch;
+    height: 41px;
+    background: #ffffff;
+    border: 1px solid #ddd;
+  }
 
-        }
+  #identityDiv {
+    flex: 1;
+    padding: 10px;
+    display: flex;
+    align-items: center;
+    border-right: 1px solid #ddd;
+    font-size: 13px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
 
-        #accountDiv {
+  #selectedAccount {
+    flex: 1;
+    padding: 10px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 13px;
+    color: #555;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
 
-          background-color: #ffffff;  /* Light gray background */
-          padding: 10px;         /* Padding around the content */
-          margin-bottom: 0px;        /* Space below the bar */
-          display: flex;              /* Use flexbox for layout */
-          align-items: center;        /* Center vertically */
-        }
+  #selectedAccount .material-icons {
+    font-size: 16px;
+    color: #888;
+    flex-shrink: 0;
+  }
+
+  #selectedAccount .account-icon-img {
+    width: 16px;
+    height: 16px;
+  }
+
 
         /* Style for the account section */
         #accountSection {
@@ -463,6 +488,55 @@
     background-color: #739c7c;  /* Change color when the mouse is down (pressed) */
     transition: background-color 0.01s;  /* Quick transition when active */
 }
+
+  /* Account list tip + buttons */
+  .account-list-tip {
+    padding: 8px 10px;
+    font-size: 13px;
+    color: #666;
+    border-bottom: 1px solid #ddd;
+    margin-bottom: 4px;
+  }
+
+  .account-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 9px 10px;
+    background: none;
+    border: none;
+    border-bottom: 1px solid #eee;
+    text-align: left;
+    font-size: 14px;
+    color: #333;
+    cursor: pointer;
+  }
+
+  .account-button .material-icons {
+    font-size: 18px;
+    color: #888;
+    flex-shrink: 0;
+  }
+
+  .account-icon-img {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    background-color: #888;
+    -webkit-mask: url('../assets/icons/mastodon.svg') no-repeat center / contain;
+    mask: url('../assets/icons/mastodon.svg') no-repeat center / contain;
+  }
+
+  .account-button:hover {
+    background-color: #f0f0f0;
+  }
+
+  .account-button:active {
+    background-color: #d8ead0;
+    transition: background-color 0.01s;
+  }
 
   .final-save-button {
     width: 80%;  /* Set a specific width, like 80%, or you can use a fixed width */

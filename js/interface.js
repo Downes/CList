@@ -255,8 +255,28 @@ document.addEventListener("mouseup", () => {
 
     }
 
+    // Open the left pane, clear it, and display content in a standard container.
+    // content may be a DOM Element or an HTML string.
+    function openLeftInterface(content) {
+        openLeftPane();
+        const leftContent = document.getElementById('left-content');
+        leftContent.innerHTML = '';
+
+        const panel = document.createElement('div');
+        panel.id = 'left-interface';
+        panel.className = 'left-interface';
+
+        if (typeof content === 'string') {
+            panel.innerHTML = content;
+        } else if (content instanceof Element) {
+            panel.appendChild(content);
+        }
+
+        leftContent.appendChild(panel);
+    }
+
     function toggleFormDisplay(formId,column,on) {
-  
+
         const form = document.getElementById(formId);
         if (column === 'left') { openLeftPane(); }
         form.style.display = form.style.display === 'block' ? 'none' : 'block';

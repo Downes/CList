@@ -148,20 +148,76 @@ console.log("Fetch "+key+" = "+encryptedValue);
             setFormValues(key);
         }
 
-        // Open shared form below the Add New Account button.
+        // Open the account-type picker to start adding a new account.
         async function openAdd(btn) {
-            const form = document.getElementById('sharedForm');
-            if (form.dataset.openFor === '__add__' && form.style.display !== 'none') {
-                await tryCloseForm(); return;
-            }
-            if (form.style.display !== 'none' && formDirty) {
+            if (document.getElementById('sharedForm').style.display !== 'none' && formDirty) {
                 const closed = await tryCloseForm();
                 if (!closed) return;
             }
-            btn.parentNode.insertBefore(form, btn.nextSibling);
-            form.dataset.openFor = '__add__';
-            form.style.display = 'block';
-            resetForm();
+            closeForm();
+            document.getElementById('kvList').style.display = 'none';
+            showTypePicker();
+        }
+
+        function showTypePicker() {
+            const flow = document.getElementById('add-flow');
+            flow.innerHTML = `
+                <h3 style="margin:0 0 8px;">Add Account</h3>
+                <div id="type-picker-buttons">
+                    <button class="kv-name-btn" style="margin:3px;width:auto;" onclick="selectAccountType('Mastodon')">Mastodon</button>
+                    <button class="kv-name-btn" style="margin:3px;width:auto;" onclick="selectAccountType('Bluesky')">Bluesky</button>
+                    <button class="kv-name-btn" style="margin:3px;width:auto;" onclick="selectAccountType('WordPress')">WordPress</button>
+                    <button class="kv-name-btn" style="margin:3px;width:auto;" onclick="selectAccountType('OPML')">OPML</button>
+                    <button class="kv-name-btn" style="margin:3px;width:auto;" onclick="selectAccountType('Blogger')">Blogger</button>
+                    <button class="kv-name-btn" style="margin:3px;width:auto;" onclick="selectAccountType('Etherpad')">Etherpad</button>
+                    <button class="kv-name-btn" style="margin:3px;width:auto;" onclick="selectAccountType('AI')">AI</button>
+                    <button class="kv-name-btn" style="margin:3px;width:auto;" onclick="selectAccountType('Proxyp')">Proxyp</button>
+                </div>
+                <div class="kv-action-buttons" style="margin-top:8px;">
+                    <button class="kv-action-btn kv-cancel-btn" onclick="cancelAdd()">Cancel</button>
+                </div>`;
+            flow.style.display = 'block';
+        }
+
+        function selectAccountType(type) {
+            if (type === 'Mastodon') {
+                const flow = document.getElementById('add-flow');
+                flow.innerHTML = `
+                    <h3 style="margin:0 0 8px;">Add Mastodon Account</h3>
+                    <label style="font-variant:small-caps;font-size:0.8rem;color:#555;">Username</label>
+                    <input type="text" id="mastodon-username-input"
+                           placeholder="you@mastodon.social"
+                           style="display:block;width:100%;box-sizing:border-box;padding:0.2rem;font-size:0.8rem;margin:2px 0 8px;">
+                    <div class="kv-action-buttons">
+                        <button class="kv-action-btn kv-save-btn" onclick="submitMastodonUsername()">Authorize with Mastodon</button>
+                        <button class="kv-action-btn kv-cancel-btn" onclick="showTypePicker()">Back</button>
+                    </div>`;
+            } else {
+                // For all other types, use the existing form pre-set to the chosen type.
+                cancelAdd();
+                resetForm();
+                document.getElementById('instanceType').value = type;
+                updateFormFields();
+                const form = document.getElementById('sharedForm');
+                const header = document.getElementById('add-account-header');
+                header.parentNode.insertBefore(form, header.nextSibling);
+                form.dataset.openFor = '__add__';
+                form.style.display = 'block';
+            }
+        }
+
+        function cancelAdd() {
+            document.getElementById('add-flow').style.display = 'none';
+            document.getElementById('kvList').style.display = 'block';
+        }
+
+        function submitMastodonUsername() {
+            const username = document.getElementById('mastodon-username-input').value.trim();
+            if (!username.includes('@')) {
+                alert('Please enter your username as you@instance.social');
+                return;
+            }
+            window.top.mastodonOAuthStart(username, username, 'rw');
         }
 
         function resetForm() {
@@ -261,17 +317,6 @@ console.log("Fetch "+key+" = "+encryptedValue);
             return;
         }
 
-        // Function to display the username stored in localStorage
-        function displayUsername() {
-            username = localStorage.getItem('username');
-            if (username) {
-                usernameDisplay = document.getElementById('username-display');
-                usernameDisplay.textContent = `Logged in as ${username}!`;
-            } else {
-                // If no username is found, display a default message or hide the element
-                document.getElementById('username-display').textContent = 'Welcome, guest!';
-            }
-        }
 
         function setCookie(name, value, days) {
             let expires = "";
@@ -405,11 +450,14 @@ console.log("Fetch "+key+" = "+encryptedValue);
             const instanceType = document.getElementById('instanceType').value;
 
             // Update labels
-            // Show/hide id field (not needed for Proxyp — auth is the kvstore token itself)
+            // Show/hide id field and OAuth button based on type
             const idRow = document.getElementById('idInputRow');
+            const oauthRow = document.getElementById('mastodon-oauth-row');
+            const isMastodon = (instanceType === 'Mastodon');
             const isProxyp = (instanceType === 'Proxyp');
-            document.getElementById('idInput').required = !isProxyp;
-            idRow.style.display = isProxyp ? 'none' : '';
+            document.getElementById('idInput').required = !isProxyp && !isMastodon;
+            idRow.style.display  = (isProxyp || isMastodon) ? 'none' : '';
+            oauthRow.style.display = isMastodon ? '' : 'none';
 
             document.querySelector('label[for="titleInput"]').innerHTML =
                 instanceType === 'Etherpad' ? 'Etherpad Title' :
@@ -515,69 +563,6 @@ console.log("Fetch "+key+" = "+encryptedValue);
         // g  generate
 
 
-        async function getAccounts(flaskSiteUrl) {
-            if (typeof username === 'undefined' || username === "none" || !username) {
-                window.parent.loginRequired('Login required to access accounts.');
-                return;
-            }
-      
-            const token = getSiteSpecificCookie(flaskSiteUrl, 'access_token');
-            const passphrase = getSiteSpecificCookie(flaskSiteUrl, 'passphrase');
-
-            try {
-                const response = await fetch(`${flaskSiteUrl}/get_kvs/`, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': 'Bearer ' + token
-                    }
-                });
-        
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-        
-                const data = await response.json();
-                const accounts = await Promise.all(data.map(async kv => {
-
-                    try {
-                        // ===========================
-                        //   DECRYPT LOCALLY
-                        // ===========================
-                        const decryptedString = await decryptData(passphrase, kv.value);
-                        const accountData = JSON.parse(decryptedString);                    
-                        
-                        return {
-                            key: kv.key,
-                            value: JSON.stringify({
-                                instance: kv.key,
-                                id: accountData.id || '',
-                                permissions: accountData.permissions || '',
-                                type: accountData.type || '',
-                                title: accountData.title || ''
-                            })
-                        };
-                    } catch (error) {
-                        console.error(`Error parsing kv.value for key: ${kv.key}`, error);
-                        return {
-                            key: kv.key,
-                            value: JSON.stringify({
-                                instance: kv.key,
-                                id: 'bad',
-                                permissions: 'bad',
-                                type: 'bad',
-                                title: 'bad'
-                            })
-                        };
-                    }
-                }));
-        
-       
-                return accounts; // Return the accounts array
-            } catch (error) {
-                throw error; // Re-throw the error for the caller to handle
-            }
-        }
-         
 
 
     </script>
@@ -675,6 +660,7 @@ console.log("Fetch "+key+" = "+encryptedValue);
             /* Action buttons (Save / Delete / Cancel) */
             .kv-action-buttons {
                 display: flex;
+                flex-wrap: wrap;
                 gap: 0.4rem;
                 margin-top: 0.5rem;
             }
@@ -698,6 +684,7 @@ console.log("Fetch "+key+" = "+encryptedValue);
 <body>
     <div class="kvcontainer">
         <div id="kvList"></div>
+        <div id="add-flow" style="display:none;"></div>
 
         <div id="sharedForm" style="display:none">
         <form id="addKvForm" onsubmit="addOrUpdateKeyValue(); return false;" aria-labelledby="form-title">
@@ -731,6 +718,16 @@ console.log("Fetch "+key+" = "+encryptedValue);
             <label for="idInput">Access Code</label>
             <input type="password" id="idInput" placeholder="Access Code" required aria-describedby="idInput-tooltip">
             <span id="idInput-tooltip" class="tooltip">Enter the account's access code securely.</span>
+            </div>
+
+            <div id="mastodon-oauth-row" style="display:none;">
+                <p style="font-size:0.75rem;color:#666;margin:0 0 4px;">Enter your username above, then click to authorize.</p>
+                <button type="button" class="kv-action-btn kv-save-btn"
+                        onclick="window.top.mastodonOAuthStart(
+                            document.getElementById('titleInput').value,
+                            document.getElementById('keyInput').value,
+                            document.getElementById('permissionsInput').value
+                        )">Authorize with Mastodon</button>
             </div>
     
             <div class="kv-action-buttons">

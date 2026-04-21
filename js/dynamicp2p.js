@@ -160,8 +160,8 @@ function initializeP2PSystem() {
   const processedPeerLists = new Set(); // Track processed peer list messages.
   const usernames = {}; // Map of peer IDs to usernames.
 
-  // API URL for advertising discussions (replace with your actual endpoint).
-  const API_URL = 'https://datastore.downes.ca/api/discussions';
+  // API URL for advertising discussions.
+  const API_URL = 'https://discussions.mooc.ca/api/discussions';
 
   // Initialize DOM elements.
   const usernameInput = document.getElementById('usernameInput');
@@ -379,10 +379,12 @@ function advertiseDiscussion() {
   console.log(`Advertising discussion: ${discussionName} (ID: ${peerId})`);
 
   // Post discussion details to the external API endpoint.
+  const _advertiseToken = getSiteSpecificCookie(flaskSiteUrl, 'access_token');
   fetch(API_URL, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + _advertiseToken,
     },
     body: JSON.stringify({ name: discussionName, peerId })
   })
@@ -420,10 +422,12 @@ function startHeartbeat() {
   stopHeartbeat();
 
   heartbeatInterval = setInterval(() => {
+    const _heartbeatToken = getSiteSpecificCookie(flaskSiteUrl, 'access_token');
     fetch(API_URL, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + _heartbeatToken,
       },
       body: JSON.stringify({ name: activeDiscussionName, peerId: peer.id })
     })
@@ -457,27 +461,38 @@ function stopHeartbeat() {
  * Fetches available discussions from the server and populates the discussion list.
  */
 function refreshDiscussions() {
+  const _refreshToken = getSiteSpecificCookie(flaskSiteUrl, 'access_token');
   fetch(API_URL, {
     method: 'GET',
     headers: {
-      'Content-Type': 'application/json'
-    }
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + _refreshToken,
+    },
   })
-  .then((response) => response.json())
-  .then((discussions) => {
+  .then((response) => {
     const discussionList = document.getElementById('discussion-list');
-    discussionList.innerHTML = ''; // Clear previous list.
-    discussionList.style.margin = '5px'; // Optional styling.
+    discussionList.innerHTML = '';
+    discussionList.style.margin = '5px';
+    if (response.status === 401) {
+      const msg = document.createElement('p');
+      msg.textContent = 'Please log in to view or join discussions.';
+      discussionList.appendChild(msg);
+      return null;
+    }
+    return response.json();
+  })
+  .then((discussions) => {
+    if (!discussions) return;
+    const discussionList = document.getElementById('discussion-list');
 
     if (discussions.length === 0) {
-      // If no discussions, add a note.
       const noDiscussionsMessage = document.createElement('p');
       noDiscussionsMessage.textContent = 'No discussions available. Why not create one yourself?';
       discussionList.appendChild(noDiscussionsMessage);
     } else {
       discussions.forEach((discussion) => {
         const li = document.createElement('li');
-        li.style.listStyleType = 'none'; // Remove bullet point.
+        li.style.listStyleType = 'none';
         const button = document.createElement('button');
         button.textContent = `Join ${discussion.name}`;
         button.onclick = () => connectToPeer(discussion.peerId, discussion.name);
@@ -488,7 +503,6 @@ function refreshDiscussions() {
   })
   .catch((error) => {
     console.error('Error fetching discussions:', error);
-    alert('Failed to fetch discussions.');
   });
 }
 
@@ -505,10 +519,12 @@ function endDiscussion() {
     return;
   }
 
+  const _endToken = getSiteSpecificCookie(flaskSiteUrl, 'access_token');
   fetch(API_URL, {
     method: 'DELETE',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + _endToken,
     },
     body: JSON.stringify({ name: discussionName })
   })

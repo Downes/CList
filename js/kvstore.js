@@ -99,7 +99,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Login is required
 function loginRequired(msg) {
-    toggleFormDisplay('loginButton','left',true);
+    openLeftPane();
+    loginButton.style.display="inline-block";
     const registerButton = document.getElementById("registerButton");
     if (registerButton) registerButton.style.display="inline-block";
     accountButton.style.display="none";
@@ -121,11 +122,17 @@ function loginNotRequired() {
 
 // Opens 'Manage Accounts' window in left column interface
 function playAccounts() {
-    openLeftPane();
-    const leftContent = document.getElementById('left-content');
-    let accountsDiv = document.getElementById('accounts-section');
-    accountsDiv.style.display = 'block'; // Make the reader visible
-    leftContent.prepend(accountsDiv); // Move the div to the top
+    openLeftInterface(kvstoreAccountsPanel());
+}
+
+// Returns the Manage Accounts panel element (created on demand)
+function kvstoreAccountsPanel() {
+    const div = document.createElement('div');
+    div.innerHTML = `
+        <h2>Manage Accounts</h2>
+        <iframe src="flasker.html" style="width:100%; height:600px; border:none;"></iframe>
+    `;
+    return div;
 }
 
         // Function to toggle the account selection section
@@ -193,6 +200,7 @@ function playAccounts() {
         function openAuthModal(mode) {
             document.getElementById('authModalTitle').textContent = mode === 'login' ? 'Login' : 'Register';
             document.getElementById('authSubmitBtn').textContent  = mode === 'login' ? 'Login' : 'Register';
+            document.getElementById('authSubmitBtn').disabled = false;
             document.getElementById('authConfirmWrap').style.display = mode === 'register' ? 'block' : 'none';
             document.getElementById('authUsername').value  = '';
             document.getElementById('authPassword').value  = '';

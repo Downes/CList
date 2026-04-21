@@ -20,20 +20,16 @@ let pds = null; // Personal data Server location
 (function () {
     const blueskyHandler = {
         initialize: async(instance, accessToken) => {
-
             createBlueskySession(instance, accessToken);
-
-            blueskyForms();
-
-        },        
+        },
         feedFunctions: {
-            'Post': toggleFormDisplay.bind(null, 'blueSkyStatusFormDiv','left'),
-            'Timeline': fetchBlueskyTimeline.bind(null, 'home'),
-            'Favorites': fetchBlueskyFavorites.bind(null,'favorites'),
-            'Pinned': selectBlueskyFeed.bind(null,'pinned'),
-            'Recommended': selectBlueskyFeed.bind(null,'recommended'),
+            'Post':        () => openLeftInterface(blueskyPostForm()),
+            'Timeline':    fetchBlueskyTimeline.bind(null, 'home'),
+            'Favorites':   fetchBlueskyFavorites.bind(null,'favorites'),
+            'Pinned':      async () => openLeftInterface(await blueskySelectForm('pinned')),
+            'Recommended': async () => openLeftInterface(await blueskySelectForm('recommended')),
             'What\'s Hot': fetchBlueskyWhatsHotFeed.bind(null,'hot'),
-            'Search': selectBlueskyFeed.bind(null,'search'),
+            'Search':      () => openLeftInterface(blueskySearchForm()),
         }
     };
     // Ensure readerHandlers exists
@@ -56,13 +52,13 @@ window.feedFunctions = window.feedFunctions || {};
 
 // Define MastodonFunctions
 window.BlueskyFunctions = {
-        'Post': toggleFormDisplay.bind(null, 'blueSkyStatusFormDiv','left'),
-        'Timeline': fetchBlueskyTimeline.bind(null, 'home'),
-        'Favorites': fetchBlueskyFavorites.bind(null,'favorites'),
-        'Pinned': selectBlueskyFeed.bind(null,'pinned'),
-        'Recommended': selectBlueskyFeed.bind(null,'recommended'),
-        'What\'s Hot': fetchBlueskyWhatsHotFeed.bind(null,'hot'),
-        'Search': selectBlueskyFeed.bind(null,'search'),
+    'Post':        () => openLeftInterface(blueskyPostForm()),
+    'Timeline':    fetchBlueskyTimeline.bind(null, 'home'),
+    'Favorites':   fetchBlueskyFavorites.bind(null,'favorites'),
+    'Pinned':      async () => openLeftInterface(await blueskySelectForm('pinned')),
+    'Recommended': async () => openLeftInterface(await blueskySelectForm('recommended')),
+    'What\'s Hot': fetchBlueskyWhatsHotFeed.bind(null,'hot'),
+    'Search':      () => openLeftInterface(blueskySearchForm()),
 };
 
 // Add MastodonFunctions to feedFunctions
@@ -156,68 +152,49 @@ async function createBlueskySession() {
 
 
 
-function blueskyForms() {
+// Returns a Bluesky post/reply form element
+function blueskyPostForm() {
+    const div = document.createElement('div');
+    div.innerHTML = `
+        <textarea id="blueskyPostContent" placeholder="Write something..." rows="4" style="width: 100%;"></textarea>
+        <button onclick="submitBlueskyPostFromForm('blueskyPostContent')">Post</button>
+        <div id="blueskyPostResponse" class="reply-response"></div>
+    `;
+    return div;
+}
 
-    let divId = 'blueSkyStatusFormDiv';
-    let div = document.getElementById(divId);
-    if (!div) {
+// Returns a Bluesky search form element
+function blueskySearchForm() {
+    const div = document.createElement('div');
+    div.innerHTML = `
+        <label for="queryInput">Query:</label>
+        <input type="text" id="queryInput" placeholder="Enter search query" />
+        <label for="sortSelect">Sort by:</label>
+        <select id="sortSelect">
+            <option value="top">Top</option>
+            <option value="latest">Latest</option>
+        </select>
+        <button onclick="executeBlueskySearch()">Search</button>
+    `;
+    return div;
+}
 
-        // Post Status
-        pdiv = document.createElement('div');
-        pdiv.id = divId;
-        pdiv.style.display = 'none';
-        pdiv.innerHTML = `
-            <textarea id="blueskyPostContent" placeholder="Write something..." rows="4" style="width: 100%;"></textarea>
-            <button onclick="submitBlueskyPostFromForm('blueskyPostContent')">Post</button>
-            <div id="blueskyPostResponse" class="reply-response"></div>
-        `;
-        // Append the div to the left content container
-        const leftContent = document.getElementById('left-content');
-        if (leftContent) { leftContent.prepend(pdiv); } 
-        else { console.error("Element with ID 'left-content' not found.");   }
-
-        // Pinned
-        pndiv = document.createElement('blueskyPinnedDiv');
-        pndiv.id = divId;
-        pndiv.style.display = 'none';
-        pndiv.innerHTML = `
-            <select id="blueskyPinnedSelect">
-                <option value="" disabled selected>Select Feed</option>
-            </select>
-        `;
-        leftContent.prepend(pndiv);  
-
-        // Recommended
-        rdiv = document.createElement('blueskyRecommendedDiv');
-        rdiv.id = divId;
-        rdiv.style.display = 'none';
-        rdiv.innerHTML = `
-            <select id="blueskyRecommendedSelect">
-                <option value="" disabled selected>Select Feed</option>
-            </select>
-        `;
-        leftContent.prepend(rdiv); 
-
-        sdiv = document.createElement('blueskyRecommendedDiv');
-        sdiv.id = divId;
-        sdiv.style.display = 'none';
-        sdiv.innerHTML = `
-            <label for="queryInput">Query:</label>
-            <input type="text" id="queryInput" placeholder="Enter search query" />
-
-            <label for="sortSelect">Sort by:</label>
-            <select id="sortSelect">
-                <option value="top">Top</option>
-                <option value="latest">Latest</option>
-            </select>
-
-            <button onclick="executeBlueskySearch()">Search</button>
-            `;
-        leftContent.prepend(sdiv);
-
-    }
-
-
+// Fetches pinned or recommended feeds and returns a populated <select> element
+async function blueskySelectForm(type) {
+    const feeds = type === 'pinned' ? await fetchPinnedFeeds() : await fetchRecommendedFeeds();
+    const select = document.createElement('select');
+    select.id = type === 'pinned' ? 'blueskyPinnedSelect' : 'blueskyRecommendedSelect';
+    select.innerHTML = '<option value="" disabled selected>Select Feed</option>';
+    feeds.forEach(feed => {
+        const option = document.createElement('option');
+        option.value = feed.atUri;
+        option.textContent = feed.title;
+        select.appendChild(option);
+    });
+    select.onchange = function() {
+        fetchBlueskyFeed(this.options[this.selectedIndex].textContent, this.value, 20);
+    };
+    return select;
 }
 
 
@@ -249,8 +226,7 @@ function blueskyForms() {
                     atUri: feed.uri   // Adjust based on actual feed properties
                 }));
 
-                // Populate the dropdown with suggested feeds
-                populateFeedDropdown(suggestedFeeds,'blueskyRecommendedSelect','blueskyRecommendedDiv');
+                return suggestedFeeds;
 
 
 
@@ -313,8 +289,7 @@ const pds = 'https://puffball.us-east.host.bsky.network';
                     };
                 })
             );
-            // Populate the dropdown with pinned feeds
-            populateFeedDropdown(pinnedFeeds,'blueskyPinnedSelect','blueskyPinnedDiv');
+            return pinnedFeeds;
 
         //    console.log('Profilr Data:', JSON.stringify(data, null, 2));
 

@@ -11,12 +11,17 @@
         const urlParams = new URLSearchParams(window.location.search);
         const state = urlParams.get('state');
 
-        if (state==='Reddit') {
+        if (state === 'Reddit') {
 
+            // Reddit OAuth — not yet implemented
+
+        } else if (state === 'Mastodon') {
+
+            window.onload = handleMastodonCallback;
 
         } else {
 
-            // Set cookies and update localStorage on page load
+            // Default: kvstore login redirect
             window.onload = setLoginCookiesAndUpdateLocalStorage;
 
         }
@@ -74,6 +79,66 @@
             } else {
                 console.error('Missing login data in query parameters.');
             }
+        }
+
+        async function handleMastodonCallback() {
+            const code = urlParams.get('code');
+            if (!code) {
+                document.body.innerHTML = '<h1>Authorization failed</h1><p>No code received from Mastodon. Please try again.</p>';
+                return;
+            }
+
+            const clientId     = sessionStorage.getItem('mastodon_oauth_client_id');
+            const clientSecret = sessionStorage.getItem('mastodon_oauth_client_secret');
+            const instanceUrl  = sessionStorage.getItem('mastodon_oauth_instance');
+            const username     = sessionStorage.getItem('mastodon_oauth_username');
+            const title        = sessionStorage.getItem('mastodon_oauth_title');
+            const permissions  = sessionStorage.getItem('mastodon_oauth_permissions');
+            const redirectUri  = sessionStorage.getItem('mastodon_oauth_redirect_uri');
+
+            if (!clientId || !instanceUrl) {
+                document.body.innerHTML = '<h1>Authorization failed</h1><p>OAuth session data missing. Please try again.</p>';
+                return;
+            }
+
+            // Exchange authorization code for access token
+            let tokenData;
+            try {
+                const response = await fetch(`${instanceUrl}/oauth/token`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        client_id:     clientId,
+                        client_secret: clientSecret,
+                        redirect_uri:  redirectUri,
+                        grant_type:    'authorization_code',
+                        code:          code,
+                        scope:         'read write'
+                    })
+                });
+                if (!response.ok) throw new Error(response.statusText);
+                tokenData = await response.json();
+            } catch (e) {
+                document.body.innerHTML = `<h1>Authorization failed</h1><p>Could not exchange code for token: ${e.message}</p>`;
+                return;
+            }
+
+            // Store result for index.html to pick up and save to kvstore
+            localStorage.setItem('mastodon_auth_result', JSON.stringify({
+                username:    username,
+                instanceUrl: instanceUrl,
+                accessToken: tokenData.access_token,
+                title:       title || username,
+                permissions: permissions || 'rw'
+            }));
+
+            // Clean up sessionStorage
+            ['mastodon_oauth_client_id', 'mastodon_oauth_client_secret', 'mastodon_oauth_instance',
+             'mastodon_oauth_username',  'mastodon_oauth_title',          'mastodon_oauth_permissions',
+             'mastodon_oauth_redirect_uri'].forEach(k => sessionStorage.removeItem(k));
+
+            // Return to main app
+            window.location.href = '/';
         }
 
         async function getAccessToken(tokenUrl,authCode) {
