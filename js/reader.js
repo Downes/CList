@@ -227,23 +227,22 @@ async function switchReaderAccount(key) {
     accessToken = accountData.id;
     const instanceType = accountData.type;
     console.log("baseURL "+baseURL+" accessRoken "+accessToken+" and Loading feed type "+accountData.type);
+    setupFeedButtons(instanceType);  // Different feed buttons for different services
+    document.getElementById('feed-container').innerHTML = '';   // Empty feed container
+
     switch (instanceType) {
         // case 'Mastodon': await initializeMasto(baseURL, accessToken); break;
         case 'Mastodon': await initializeReader('Mastodon',baseURL, accessToken); break;
         case 'Bluesky': await initializeReader('Bluesky',instance, accessToken); break;
-        case 'OPML': await initializeOPML(baseURL, accessToken); break;
+        case 'OPML': await initializeOPML(instance, accessToken); break;
         // Additional cases can be easily added here
         default: console.log("Unsupported instance type:", instanceType);
     }
-    // Hide the account selection section
     // Clear status after some time
-    setTimeout(() => { 
-        document.getElementById('account-status').innerHTML = ''; 
+    setTimeout(() => {
+        document.getElementById('account-status').innerHTML = '';
         document.getElementById('account-status').style.display = 'none';
     }, 5000);
-
-    setupFeedButtons(instanceType);  // Different feed buttons for different services
-    document.getElementById('feed-container').innerHTML = '';   // Empty feed container
 
     const selectedAccountDiv = document.getElementById('selectedAccount');
     if (selectedAccountDiv) {

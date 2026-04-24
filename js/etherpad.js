@@ -8,6 +8,18 @@
 //
 //  This software carries NO WARRANTY OF ANY KIND.
 //  This software is provided "AS IS," and you, its user, assume all risks when using it.
+
+window.accountSchemas = window.accountSchemas || {};
+window.accountSchemas['Etherpad'] = {
+    type: 'Etherpad',
+    instanceFromKey: true,
+    kvKey: { label: 'Etherpad API URL', placeholder: 'https://etherpad.example.com/api/1.2.15' },
+    fields: [
+        { key: 'title',       label: 'Title',           editable: true, inputType: 'text', placeholder: 'My Etherpad',                                default: '' },
+        { key: 'permissions', label: 'Permissions',     editable: true, inputType: 'text', placeholder: 'e',                                          default: 'e' },
+        { key: 'id',          label: 'Proxy Server URL',editable: true, inputType: 'text', placeholder: 'https://www.downes.ca/cgi-bin/proxyp.cgi',   default: '' },
+    ]
+};
 // 
 
 

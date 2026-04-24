@@ -9,6 +9,18 @@
 //  This software carries NO WARRANTY OF ANY KIND.
 //  This software is provided "AS IS," and you, its user, assume all risks when using it.
 
+window.accountSchemas = window.accountSchemas || {};
+window.accountSchemas['Bluesky'] = {
+    type: 'Bluesky',
+    instanceFromKey: true,
+    kvKey: { label: 'Username', placeholder: 'you.bsky.social' },
+    fields: [
+        { key: 'title',       label: 'Title',        editable: true,  inputType: 'text',     placeholder: 'My Bluesky', default: '' },
+        { key: 'permissions', label: 'Permissions',  editable: true,  inputType: 'text',     placeholder: 'rw',         default: 'rw' },
+        { key: 'id',          label: 'App Password', editable: true,  inputType: 'password', placeholder: '',           default: '' },
+    ]
+};
+
 
 let accessToken = null; // Global variable for access token
 let did = null; // Global variable to store the DID
@@ -436,7 +448,12 @@ const whatsHotFeedUri = 'at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.gen
                 });
 
                 if (!response.ok) {
-                    throw new Error(`Failed to fetch feed: ${response.statusText}`);
+                    const errBody = await response.json().catch(() => ({}));
+                    const errMsg = errBody.message || errBody.error || response.status;
+                    if (atUri === 'favorites' && response.status === 400) {
+                        throw new Error(`Likes feed unavailable (HTTP 400: ${errMsg}). Your liked posts may need to be set to public in Bluesky Settings → Privacy.`);
+                    }
+                    throw new Error(`Failed to fetch feed: ${errMsg}`);
                 }
 
                 const data = await response.json();
@@ -471,6 +488,8 @@ const whatsHotFeedUri = 'at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.gen
 
             } catch (error) {
                 console.error("Error fetching feed:", error);
+                const feedContainer = document.getElementById('feed-container');
+                if (feedContainer) feedContainer.innerHTML = `<p class="feed-status-message">${error.message}</p>`;
             }
         }
 

@@ -8,7 +8,18 @@
 //
 //  This software carries NO WARRANTY OF ANY KIND.
 //  This software is provided "AS IS," and you, its user, assume all risks when using it.
-// 
+//
+
+window.accountSchemas = window.accountSchemas || {};
+window.accountSchemas['Proxyp'] = {
+    type: 'Proxyp',
+    instanceFromKey: true,
+    kvKey: { label: 'Proxy URL', placeholder: 'https://proxyp.mooc.ca' },
+    fields: [
+        { key: 'title',       label: 'Title',       editable: true, inputType: 'text', placeholder: 'My Proxy', default: '' },
+        { key: 'permissions', label: 'Permissions', editable: true, inputType: 'text', placeholder: 'p',        default: 'p' },
+    ]
+};
 
 
 // Date: 2024-01-04
@@ -129,7 +140,6 @@ function playAccounts() {
 function kvstoreAccountsPanel() {
     const div = document.createElement('div');
     div.innerHTML = `
-        <h2>Manage Accounts</h2>
         <iframe src="flasker.html" style="width:100%; height:600px; border:none;"></iframe>
     `;
     return div;

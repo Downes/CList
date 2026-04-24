@@ -8,6 +8,18 @@
 //
 //  This software carries NO WARRANTY OF ANY KIND.
 //  This software is provided "AS IS," and you, its user, assume all risks when using it.
+
+window.accountSchemas = window.accountSchemas || {};
+window.accountSchemas['OPML'] = {
+    type: 'OPML',
+    instanceFromKey: true,
+    kvKey: { label: 'OPML URL', placeholder: 'https://example.com/feeds.opml' },
+    fields: [
+        { key: 'title',       label: 'Title',       editable: true, inputType: 'text', placeholder: 'My OPML', default: '' },
+        { key: 'permissions', label: 'Permissions', editable: true, inputType: 'text', placeholder: 'r',       default: 'r' },
+        { key: 'id',          label: 'OPML URL',    editable: true, inputType: 'text', placeholder: 'https://example.com/feeds.opml', default: '' },
+    ]
+};
 // 
 
 
@@ -84,15 +96,16 @@ window.feedFunctions['OPML'] = window.OPMLFunctions;
 
 // Function to initialize the Mastodon client with a specific account
 async function initializeOPML(baseURL, accessToken, nextCursor) {
-    if (!accessToken || !baseURL) {
-        console.error('Error: Access token or baseURL is missing');
+    if (!baseURL) {
+        console.error('Error: OPML file URL is missing');
         return;
     }
+    // opmlServer is always the shared opml2json service; accessToken is not used here
 
     try {
         console.log('Attempting to initialize OPML client for', baseURL);
 
-        opmlServer = accessToken;
+        opmlServer = 'https://opml2json.downes.ca';
         opmlFile = baseURL;
         cursor = nextCursor;
 
@@ -116,14 +129,26 @@ async function initializeOPML(baseURL, accessToken, nextCursor) {
 
 async function fetchAndDisplayOPMLData(cursor) {
 
-    //const opmlServer = document.getElementById('accessToken').value;
-    //const opmlFile = document.getElementById('baseURL').value;
-    let OPMLitems = []; // Declare OPMLitems in the broader function scope
+    let OPMLitems = [];
+    let OPMLtitle = null;
+
+    const feedContainer = document.getElementById('feed-container');
+
+    if (!opmlServer || !opmlFile) {
+        if (feedContainer) feedContainer.innerHTML = `<p class="feed-status-message">No OPML account selected. Please select an account first.</p>`;
+        return;
+    }
+
+    // Show elapsed-time loading indicator
+    let elapsed = 0;
+    if (feedContainer) feedContainer.innerHTML = `<p class="feed-status-message">Loading OPML feed… <span id="opml-timer">0</span>s</p>`;
+    const timerInterval = setInterval(() => {
+        elapsed++;
+        const timerEl = document.getElementById('opml-timer');
+        if (timerEl) timerEl.textContent = elapsed;
+    }, 1000);
 
     try {
-        // Clear previous error messages
-       // errorDiv.innerHTML = '';
-
         // Construct the request payload
         const formData = new FormData();
         formData.append('url', opmlFile);
@@ -132,7 +157,7 @@ async function fetchAndDisplayOPMLData(cursor) {
         }
 
         // Send the POST request to the server
-        const requestURL =  opmlServer+"/upload_opml";   
+        const requestURL =  opmlServer+"/upload_opml";
 
         const response = await fetch(requestURL, {
             method: 'POST',
@@ -141,7 +166,9 @@ async function fetchAndDisplayOPMLData(cursor) {
 
         // Check if the response is OK
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            let serverMsg = '';
+            try { const errData = await response.json(); serverMsg = errData.error || ''; } catch(e) {}
+            throw new Error(serverMsg || `HTTP error! status: ${response.status}`);
         }
 
         // Parse the JSON response
@@ -160,22 +187,21 @@ async function fetchAndDisplayOPMLData(cursor) {
         // console.log(OPMLitems);
         // Display the items
         if (OPMLitems.length === 0) {
-            alert("No items to display");
-            // contentDiv.innerHTML += '<p>No more items to display.</p>';
-           // loadMoreButton.style.display = 'none';
+            clearInterval(timerInterval);
+            if (feedContainer) feedContainer.innerHTML = `<p class="feed-status-message">No items to display.</p>`;
             return;
         }
     } catch (error) {
+        clearInterval(timerInterval);
         const accountStatusDiv = document.getElementById('account-status');
-        accountStatusDiv.innerHTML = `<p>Error fetching OPML: ${error.message}</p>`;
+        if (accountStatusDiv) accountStatusDiv.innerHTML = `<p>Error fetching OPML: ${error.message}</p>`;
         console.error('Error initializing OPML client:', error);
+        return;
     }
 
-    const feedContainer = document.getElementById('feed-container');
-    if (OPMLtitle != null) {                                        // First page will have a title, but not subsequent pages
-        feedContainer.innerHTML = '';                         // Clear previous content
-        feedContainer.appendChild(createFeedHeader(OPMLtitle));   // Header
-    }
+    clearInterval(timerInterval);
+    feedContainer.innerHTML = '';
+    feedContainer.appendChild(createFeedHeader(OPMLtitle || 'OPML Feed'));
 
     // Display the Harvested Posts
     //for (const item of OPMLitems) {
@@ -229,7 +255,8 @@ async function fetchAndDisplayOPMLData(cursor) {
     });
 
     // Fill the audio list
-    document.getElementById('audio-list').innerHTML += generatePlaylistHTML();
+    const audioList = document.getElementById('audio-list');
+    if (audioList) audioList.innerHTML += generatePlaylistHTML();
 
 }
 
@@ -239,12 +266,14 @@ async function fetchAndDisplayOPMLData(cursor) {
 const player = document.getElementById('myAudioPlayer');
 let currentAudioIndex = 0;      // Sets it once
 function playAudio(index) {
-    // If we specify an index, play that index
     currentAudioIndex = index;
-
-    // Set the source and play
     player.src = audioFiles[currentAudioIndex].src;
     player.play();
+
+    // Highlight the active playlist item
+    document.querySelectorAll('#audio-list p').forEach((p, i) => {
+        p.classList.toggle('audio-playing', i === index);
+    });
     const audioSection = document.getElementById('audio-section');
     
     // Make the player visible if it's hidden
@@ -261,12 +290,16 @@ function playAudio(index) {
 player.addEventListener('ended', () => {
     currentAudioIndex++;
     if (currentAudioIndex < audioFiles.length) {
-        player.src = audioFiles[currentAudioIndex];
+        player.src = audioFiles[currentAudioIndex].src;
         player.play();
+        document.querySelectorAll('#audio-list p').forEach((p, i) => {
+            p.classList.toggle('audio-playing', i === currentAudioIndex);
+        });
     } else {
+        document.querySelectorAll('#audio-list p').forEach(p => p.classList.remove('audio-playing'));
         console.log("Playlist ended");
     }
-    });
+});
 
 
 

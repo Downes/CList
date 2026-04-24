@@ -147,6 +147,7 @@
                 <button id="registerButton" onclick="redirectToKVRegister()">Register</button>
                 <button id="logoutButton" onclick="KVlogout(flaskSiteUrl);">Logout</button>
                 <button id="accountButton" onclick="playAccounts();">Accounts</button>
+                <button id="audioButton" style="display:none;" onclick="toggleDiv('audio-section');">Audio</button>
             </div>
             <button id="left-close-button" onclick="closeLeftPane()">X</button>
         </div>
@@ -155,12 +156,32 @@
             <div id="identityDiv">Please login to Identity Server</div>
             <div id="selectedAccount"></div>
         </div>
+
+        <!-- Audio player — overlays left-content, toggled by opml.js -->
+        <div id="audio-section" style="display: none;">
+            <div id="audio-header">
+                <h2>Audio</h2>
+                <button
+                    id="audio-left-close-button"
+                    onclick="document.getElementById('audio-section').style.display='none'; document.getElementById('audioButton').style.display='inline-block';">
+                    &times;
+                </button>
+            </div>
+            <audio
+                id="myAudioPlayer"
+                controls>
+                Your browser does not support the audio element.
+            </audio>
+            <div id="audio-list">
+                <!-- Playlist will be dynamically inserted here -->
+            </div>
+        </div>
+
         <div id="left-content" class="content">
 
             <div id="response"></div>
             <!-- List to display fetched key-value pairs -->
             <div id="kvList"></div>
-
 
             <!-- Chat Section -->
             <div id="chat-section" style="display: none;">
@@ -180,13 +201,11 @@
                     <button id="chat-advanced-button" onclick="toggleDiv('chat-advanced')">Advanced</button>
                 </div>
                 <div id="discussionListDiv">
-
                     <ul id="discussion-list"></ul>
                 </div>
                 <div id="end-discussion-div" style="display: none;">
                     <button id="endDiscussionButton" onClick="endDiscussion()">Leave Discussion</button>
                 </div>
-
                 <div id="chat-messages"></div>
                 <input type="text" id="messageInput" placeholder="Type your message">
                 <button id="sendButton">Send</button>
@@ -195,27 +214,6 @@
                     <label for="peerIdInput" class="visually-hidden">Connect to Peer ID:</label>
                     <input type="text" id="peerIdInput" placeholder="Connect to Peer ID:">
                     <button id="connectButton">Connect</button>
-
-                </div>
-            </div>
-
-            <!--               Audio             -->
-            <div id="audio-section" style="display: none;">
-                <div id="audio-header">
-                    <h2>Audio</h2>
-                    <button
-                        id="audio-left-close-button"
-                        onclick="document.getElementById('audio-section').style.display='none';">
-                        &times;
-                    </button>
-                </div>
-                <audio
-                    id="myAudioPlayer"
-                    controls>
-                    Your browser does not support the audio element.
-                </audio>
-                <div id="audio-list">
-                    <!-- Playlist will be dynamically inserted here -->
                 </div>
             </div>
 

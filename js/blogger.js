@@ -9,6 +9,18 @@
 //  This software carries NO WARRANTY OF ANY KIND.
 //  This software is provided "AS IS," and you, its user, assume all risks when using it.
 
+window.accountSchemas = window.accountSchemas || {};
+window.accountSchemas['Blogger'] = {
+    type: 'Blogger',
+    instanceFromKey: true,
+    kvKey: { label: 'Blog ID', placeholder: '1234567890' },
+    fields: [
+        { key: 'title',       label: 'Blog Title', editable: true, inputType: 'text', placeholder: 'My Blog',                                      default: '' },
+        { key: 'permissions', label: 'Permissions',editable: true, inputType: 'text', placeholder: 'w',                                            default: 'w' },
+        { key: 'id',          label: 'Client ID',  editable: true, inputType: 'text', placeholder: '123456.apps.googleusercontent.com',            default: '' },
+    ]
+};
+
 // Publish a post to a Blogger account
 // publishBloggerPost(accountData.instance, accountData.id, responseDiv, writeColumnTitle,writeColumnContent);
 

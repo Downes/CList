@@ -11,6 +11,15 @@
 // 
 
 
+let translationEnabled = localStorage.getItem('translationEnabled') === 'true';
+
+function toggleTranslation() {
+    translationEnabled = !translationEnabled;
+    localStorage.setItem('translationEnabled', translationEnabled);
+    const btn = document.getElementById('translation-toggle-btn');
+    if (btn) btn.textContent = 'Translate: ' + (translationEnabled ? 'ON' : 'OFF');
+}
+
 async function handleTranslation() {
     const inputText = document.getElementById('inputText').value;
     const translatedText = await processTranslation(inputText);
@@ -75,7 +84,7 @@ async function translateToEnglish(inputText, sourceLang) {
                 q: inputText,
                 source: sourceLang,
                 target: 'en',
-                format: 'text'
+                format: 'html'
             })
         }
     );
@@ -88,6 +97,8 @@ async function translateToEnglish(inputText, sourceLang) {
 
 // Updated processTranslation function with a timeout
 async function processTranslationWithTimeout(inputText) {
+
+    if (!translationEnabled) return inputText;
 
     // Make sure we have a translation account defined
     // and just return original text if we haven't

@@ -8,6 +8,18 @@
 //
 //  This software carries NO WARRANTY OF ANY KIND.
 //  This software is provided "AS IS," and you, its user, assume all risks when using it.
+
+window.accountSchemas = window.accountSchemas || {};
+window.accountSchemas['WordPress'] = {
+    type: 'WordPress',
+    instanceFromKey: true,
+    kvKey: { label: 'Username', placeholder: 'you@your-wordpress.site' },
+    fields: [
+        { key: 'title',       label: 'Blog Title',  editable: true, inputType: 'text',     placeholder: 'My Blog', default: '' },
+        { key: 'permissions', label: 'Permissions', editable: true, inputType: 'text',     placeholder: 'w',       default: 'w' },
+        { key: 'id',          label: 'API Key',     editable: true, inputType: 'password', placeholder: '',        default: '' },
+    ]
+};
 // 
 
 

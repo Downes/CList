@@ -1,4 +1,1 @@
-  #kvList button {
-    display: block; /* Makes each button appear on a new line */
-    margin-bottom: 10px; /* Optional: Adds some space between buttons */
-  }
+/* kvlist.css — account list in flasker.html uses .account-list / .account-button from interface.css */

@@ -168,30 +168,37 @@ document.addEventListener("mouseup", () => {
 // Set up the feed menus differently for different services
 
 
-    function createFeedHeader(type) {
+    function createFeedHeader(type, typevalue) {
 
         // Map feed types to their titles
         const titles = {
             home: "Home Feed",
             local: "Local Feed",
             bookmarks: "Bookmarks",
-            hashtags: "Hashtag Feed",
+            hashtag: "Hashtag Feed",
             user: "User Feed"
         };
-    
+
         // Create the container div
         const feedHeaderDiv = document.createElement("div");
         feedHeaderDiv.className = "feed-header";
 
-    
-        // Add the title based on type
+
         const title = titles[type] || type;
         const heading = document.createElement("h2");
         heading.textContent = title;
-    
+
+        // Optional description — show specific value for hashtag and user feeds
+        let description_text = `Viewing ${title.toLowerCase()}.`;
+        if (type === 'hashtag' && typevalue) {
+            description_text = `Viewing hashtag feed for #${typevalue}.`;
+        } else if ((type === 'user' || type === 'username') && typevalue) {
+            description_text = `Viewing posts by ${typevalue}.`;
+        }
+
         // Optional description
         const description = document.createElement("p");
-        description.textContent = `Viewing ${title.toLowerCase()}.`;
+        description.textContent = description_text;
 
         // Append heading and description to the div
         feedHeaderDiv.appendChild(heading);
@@ -249,9 +256,16 @@ document.addEventListener("mouseup", () => {
         for (const [feedType, feedAction] of Object.entries(feedFunctions)) {
             const button = document.createElement('button');
             button.textContent = feedType;
-            button.onclick = feedAction; // Attach the feed function as the button's click handler
-            buttonsContainer.appendChild(button); // Add the button to the container
+            button.onclick = feedAction;
+            buttonsContainer.appendChild(button);
         }
+
+        // Translation toggle — persists across account switches
+        const translateBtn = document.createElement('button');
+        translateBtn.id = 'translation-toggle-btn';
+        translateBtn.textContent = 'Translate: ' + (translationEnabled ? 'ON' : 'OFF');
+        translateBtn.onclick = toggleTranslation;
+        buttonsContainer.appendChild(translateBtn);
 
     }
 

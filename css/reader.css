@@ -114,6 +114,10 @@
             background-color: #efede9;
         }
 
+        .status-actions button.action-active {
+            color: rgb(220, 130, 20);
+        }
+
         /* Style for the clist action buttons */
         .clist-actions {
             display: flex;
@@ -171,14 +175,27 @@
         }
         
         #feed-menu {
-            height: 41px;               /* Fixed height for the menu */
-            padding: 10px;padding: 5px 10px;    /* 5px top & bottom, 10px left & right */            flex-shrink: 0;             /* Prevent shrinking */
+            min-height: 41px;           /* Grows to fit wrapped buttons */
+            padding: 5px 10px;
+            flex-shrink: 0;
             border-bottom: 1px solid lightgray;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            align-items: center;
         }
         
         #feed-container {
             flex-grow: 1;               /* Take remaining space */
             overflow-y: scroll;         /* Always show vertical scrollbar */
+        }
+
+        .feed-status-message {
+            margin: 10px;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            color: #555;
         }
 
         .feed-header {
@@ -210,7 +227,8 @@
         /*  Audio List (From feed) */
 
         #audio-section audio {
-            background-color: var(--highlight-color); /* Your desired background color */
+            background-color: var(--highlight-color);
+            margin: 0 10px 0 0;
         }
 
         /* Input fields */
@@ -268,15 +286,22 @@
             border-radius: 4px;          /* Rounded corners */
         }
 
-        #audio-list p, #audio-list a {
-            width: 100%;                /* Full width */
-            padding: 2px;              /* Padding inside the input */
-            margin:  0;              /* Margin between elements */
-            box-sizing: border-box;      /* Ensures padding doesn’t affect width */
-            margin-top: 1px;    /* Light border */
-            background-color: var(--highlight-color);  /* Green background */
+        #audio-list p {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+            padding: 10px;
+            margin: 0 10px 10px 0;
+        }
+
+        #audio-list p.audio-playing {
+            background-color: #e8e8e8;
+            border-color: #bbb;
+        }
+
+        #audio-list a {
             text-decoration: none;
-            color: white;               /* White text */
+            color: inherit;
         }
 
         /* Pads (Basically a clone of audio */

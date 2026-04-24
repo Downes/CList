@@ -8,6 +8,19 @@
 //
 //  This software carries NO WARRANTY OF ANY KIND.
 //  This software is provided "AS IS," and you, its user, assume all risks when using it.
+
+window.accountSchemas = window.accountSchemas || {};
+window.accountSchemas['Mastodon'] = {
+    type: 'Mastodon',
+    instanceFromKey: true,
+    kvKey: { label: 'Username', placeholder: 'you@mastodon.social' },
+    fields: [
+        { key: 'title',       label: 'Title',        editable: true,  inputType: 'text',     placeholder: 'My Mastodon', default: '' },
+        { key: 'permissions', label: 'Permissions',  editable: true,  inputType: 'text',     placeholder: 'rw',          default: 'rw' },
+        { key: 'id',          label: 'Access Token',   editable: false, inputType: 'oauth', placeholder: '',            default: '' },
+        { key: 'maxlength',   label: 'Maximum Length', editable: true,  inputType: 'text',  placeholder: '500',         default: '500' },
+    ]
+};
 // 
 
 
@@ -144,6 +157,7 @@ function mastodonStatusForm() {
             <br><br>
             <button type="submit">Post Status</button>
         </form>
+        <div id="response" style="margin-top:10px;"></div>
     `;
     return div;
 }
@@ -256,7 +270,7 @@ console.log("baseURL "+baseURL+" accessRoken "+accessToken+" and Loading feed ty
 
     if (!accessToken || !baseURL) {
         console.error('Error: Access token or baseURL is missing');
-        feedContainer.innerHTML = `<p>Error: Feed client not initialized. Please select an account using the Find button.</p>`;
+        feedContainer.innerHTML = `<p class="feed-status-message">Error: Feed client not initialized. Please select an account using the Find button.</p>`;
         return;
     }
 
@@ -268,12 +282,12 @@ console.log("baseURL "+baseURL+" accessRoken "+accessToken+" and Loading feed ty
         if (pageUrl) {
             url = pageUrl;  // Use next page URL if provided
             page++;
-            data = await getMastodonFeed(url,type);
+            data = await getMastodonFeed(url,type,feedContainer);
         } else if (type === 'thread') { // Build data array from ancestors and descendants
             feedContainer.innerHTML = '';  // Clear feed when loading the first page
             statusID = typevalue;   // From the 'thread' button
             url = `${baseURL}/api/v1/statuses/${statusID}/context`;
-            threadData = await getMastodonFeed(url,type);
+            threadData = await getMastodonFeed(url,type,feedContainer);
             data = await constructThreadData(threadData, statusID, baseURL, accessToken)
                 .then(result => { 
                     console.log('Final Thread Data:', result); 
@@ -295,31 +309,32 @@ console.log("baseURL "+baseURL+" accessRoken "+accessToken+" and Loading feed ty
             } else if (type === 'list'){  // List ID is pre-defined in id='mastodonList'
                 const Mastodonlistid = document.getElementById('mastodonList').value.trim();  
                 url = `${baseURL}/api/v1/timelines/list/${Mastodonlistid}`;
-            } else if (type === 'hashtag') { // Hashtag value is pre-defined in id='hashtag'
-                const hashtag = document.getElementById('mastodon-hashtag').value.trim();  
-                if (!hashtag) { feedContainer.innerHTML = `<p>Please enter a hashtag.</p>`; return; }
-                url = `${baseURL}/api/v1/timelines/tag/${encodeURIComponent(hashtag)}`;
+            } else if (type === 'hashtag') { // Hashtag value from typevalue or form element
+                typevalue = typevalue || document.getElementById('mastodon-hashtag').value.trim();
+                if (!typevalue) { feedContainer.innerHTML = `<p class="feed-status-message">Please enter a hashtag.</p>`; return; }
+                url = `${baseURL}/api/v1/timelines/tag/${encodeURIComponent(typevalue)}`;
             } else if (type === 'user' || type === 'username') {
                 // Username in 'typevalue' or from form element
-                username = typevalue || document.getElementById('mastodon-user').value.trim();
-                if (!username) { feedContainer.innerHTML = `<p>Please enter a username.</p>`; return; }
-                account = await getMastodonUser(username,baseURL);
+                typevalue = typevalue || document.getElementById('mastodon-user').value.trim();
+                if (!typevalue) { feedContainer.innerHTML = `<p class="feed-status-message">Please enter a username.</p>`; return; }
+                account = await getMastodonUser(typevalue,baseURL,feedContainer);
                 if (!account) { return; }
                 url = `${baseURL}/api/v1/accounts/${account.id}/statuses`;
             } else {
                 throw new Error('Unknown type');
             }
             // alert("Getting feed type "+type+" from "+url);
-            data = await getMastodonFeed(url,type);
+            data = await getMastodonFeed(url,type,feedContainer);
         }
         
 
     } catch (error) {
         console.error(`Error fetching ${type}:`, error);
-        feedContainer.innerHTML = `<p>Error loading ${type}: ${error.message}</p>`;
+        feedContainer.innerHTML = `<p class="feed-status-message">Error loading ${type}: ${error.message}</p>`;
+        return;
     }
 
-    displayMastodonFeed(data,type,page,nextPageUrl,feedContainer);
+    if (data) { displayMastodonFeed(data,type,page,nextPageUrl,feedContainer,typevalue); }
 
 }
 
@@ -328,7 +343,7 @@ console.log("baseURL "+baseURL+" accessRoken "+accessToken+" and Loading feed ty
 // Given a Mastodon API 'GET' url for feed type 'type'
 // Retrieve the feed data
 // baseURL and accessToken are global variables
-async function getMastodonFeed (url,type) {
+async function getMastodonFeed (url,type,feedContainer) {
 
     // const accessToken = document.getElementById('accessToken').value;
     // const baseURL = document.getElementById('baseURL').value;
@@ -339,17 +354,21 @@ async function getMastodonFeed (url,type) {
         }
     });
 
-    const data = await response.json();
-    // Display content in console
-     console.log(data);
+    if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`getMastodonFeed HTTP ${response.status} for ${url}:`, errorText);
+        throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+    }
 
+    const data = await response.json();
+    console.log(`getMastodonFeed (${type}):`, data);
 
     // Extract next page URL from link header
     const linkHeader = response.headers.get('link');
     nextPageUrl = linkHeader ? linkHeader.match(/<([^>]+)>;\s*rel="next"/)?.[1] : null;
 
-    if (data.length === 0) {
-        feedContainer.innerHTML = `<p>No content available in ${type}.</p>`;
+    if (!Array.isArray(data) || data.length === 0) {
+        feedContainer.innerHTML = `<p class="feed-status-message">No content available in ${type}. (This instance may have disabled this timeline.)</p>`;
         return;
     }
 
@@ -360,9 +379,9 @@ async function getMastodonFeed (url,type) {
 // Given a feed defined by 'data' consisting of a number of individual 'status' items
 // Display each status and then add a 'Next Page' button
 
-function displayMastodonFeed(data,type,page,nextPageUrl,feedContainer) {
+function displayMastodonFeed(data,type,page,nextPageUrl,feedContainer,typevalue) {
 
-    if (page ===1) { feedContainer.appendChild(createFeedHeader(type)); }  // Header
+    if (page ===1) { feedContainer.appendChild(createFeedHeader(type,typevalue)); }  // Header
 
     const summary = document.createElement("div");      // Summary container, if desired
     summary.id = "feed-summary";
@@ -407,7 +426,7 @@ function displayMastodonFeed(data,type,page,nextPageUrl,feedContainer) {
 
 
 //  Function to Get User Data
-async function getMastodonUser(username,baseURL) {
+async function getMastodonUser(username,baseURL,feedContainer) {
 
     
     // Verify and convert username to canonical format @user and @instance.name
@@ -416,7 +435,7 @@ async function getMastodonUser(username,baseURL) {
 
     // Return if we don't have a good username
     if (!usernamePart) {
-        feedContainer.innerHTML = `<p>Please enter a valid username (e.g., @username@instancename.social) instead of ${username}.</p>`;
+        feedContainer.innerHTML = `<p class="feed-status-message">Please enter a valid username (e.g., @username@instancename.social) instead of ${username}.</p>`;
         return;
     }
 
@@ -432,9 +451,9 @@ async function getMastodonUser(username,baseURL) {
     });
 
     // Make sure we got a valid response
-    if (!accountResponse.ok) { feedContainer.innerHTML = `<p>User not found.</p>`; return; }
+    if (!accountResponse.ok) { feedContainer.innerHTML = `<p class="feed-status-message">User not found.</p>`; return; }
     const account = await accountResponse.json();
-    if (!account || !account.id) { feedContainer.innerHTML = `<p>User not found.</p>`; return; }
+    if (!account || !account.id) { feedContainer.innerHTML = `<p class="feed-status-message">User not found.</p>`; return; }
 
     return account;
 
@@ -507,7 +526,18 @@ async function displayMastodonPost(status,statusBox,reblogger) {
         `;
         statusContent.appendChild(statusSpecific);
 
-
+        // Rewire hashtag links to load the hashtag feed internally
+        statusSpecific.querySelectorAll('a.mention.hashtag').forEach(link => {
+            const tag = link.getAttribute('href')?.split('/tags/')[1];
+            if (tag) {
+                link.setAttribute('href', '#');
+                link.removeAttribute('target');
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    loadMastodonFeed('hashtag', null, tag);
+                });
+            }
+        });
 
         // Images & media
         const images = getMastodonImageAttachments(status);
@@ -554,12 +584,12 @@ async function displayMastodonPost(status,statusBox,reblogger) {
         const actionButtons = document.createElement('div');
         actionButtons.classList.add('status-actions');
         actionButtons.innerHTML = `
-            <button class="material-icons md-18 md-light" onClick="handleMastodonAction('${status.id}', 'reply',this.parentElement)">reply</button>
-            <button class="material-icons md-18 md-light" onClick="handleMastodonAction('${status.id}', 'boost')">autorenew</button>
-            <button class="material-icons md-18 md-light" onClick="handleMastodonAction('${status.id}', 'favorite')">star</button>
-            <button class="material-icons md-18 md-light" onClick="handleMastodonAction('${status.id}', 'bookmark')">bookmarks</button>
+            <button class="material-icons md-18 md-light" onClick="handleMastodonAction('${status.id}', 'reply', this.parentElement)">reply</button>
+            <button class="material-icons md-18 md-light${status.reblogged ? ' action-active' : ''}" onClick="handleMastodonAction('${status.id}', 'boost', this)">autorenew</button>
+            <button class="material-icons md-18 md-light${status.favourited ? ' action-active' : ''}" onClick="handleMastodonAction('${status.id}', 'favorite', this)">star</button>
+            <button class="material-icons md-18 md-light${status.bookmarked ? ' action-active' : ''}" onClick="handleMastodonAction('${status.id}', 'bookmark', this)">bookmarks</button>
             ${threadsButton}
-            <button class="material-icons md-18 md-light" onClick="window.open('${status.url}', '_blank', 'width=800,height=600,scrollbars=yes')">launch</button> 
+            <button class="material-icons md-18 md-light" onClick="window.open('${status.url}', '_blank', 'width=800,height=600,scrollbars=yes')">launch</button>
         `;
         statusContent.appendChild(actionButtons);
 
@@ -604,7 +634,7 @@ async function displayMastodonPost(status,statusBox,reblogger) {
     
     // Function to perform status actions
     // Access token and base URL are global variables
-    async function handleMastodonAction(statusId,actionType) {
+    async function handleMastodonAction(statusId,actionType,extraParam) {
         //const accessToken = document.getElementById('accessToken').value;
         //const baseURL = document.getElementById('baseURL').value;
 
@@ -614,17 +644,22 @@ async function displayMastodonPost(status,statusBox,reblogger) {
         }
 
         let url;
-        let actionSuccessMessage;
 
         if (actionType === 'bookmark') {
-            url = `${baseURL}/api/v1/statuses/${statusId}/bookmark`;
-            await postMastodonAction(url,actionType);
+            const active = extraParam?.classList.contains('action-active');
+            url = `${baseURL}/api/v1/statuses/${statusId}/${active ? 'unbookmark' : 'bookmark'}`;
+            const ok = await postMastodonAction(url, active ? 'unbookmark' : 'bookmark');
+            if (ok && extraParam) extraParam.classList.toggle('action-active');
         } else if (actionType === 'boost') {
-            url = `${baseURL}/api/v1/statuses/${statusId}/reblog`;
-            await postMastodonAction(url,actionType);
+            const active = extraParam?.classList.contains('action-active');
+            url = `${baseURL}/api/v1/statuses/${statusId}/${active ? 'unreblog' : 'reblog'}`;
+            const ok = await postMastodonAction(url, active ? 'unreblog' : 'boost');
+            if (ok && extraParam) extraParam.classList.toggle('action-active');
         } else if (actionType === 'favorite') {
-            url = `${baseURL}/api/v1/statuses/${statusId}/favourite`;
-            await postMastodonAction(url,actionType);
+            const active = extraParam?.classList.contains('action-active');
+            url = `${baseURL}/api/v1/statuses/${statusId}/${active ? 'unfavourite' : 'favourite'}`;
+            const ok = await postMastodonAction(url, active ? 'unfavourite' : 'favorite');
+            if (ok && extraParam) extraParam.classList.toggle('action-active');
         } else if (actionType === 'thread') {
             await loadMastodonFeed(actionType,null,statusId);
         } else if (actionType === 'reply') {
@@ -662,16 +697,17 @@ async function displayMastodonPost(status,statusBox,reblogger) {
             });
 
             if (response.ok) {
-                //alert(actionSuccessMessage);
-                showStatusMessage(action+" successful"); 
-                console.log('Response Data:', responseData); // Log it to the console
+                showStatusMessage(action+" successful");
+                return true;
             } else {
-                alert(`Failed to ${actionType} status. Please try again.`);
+                alert(`Failed to ${action} status. Please try again.`);
+                return false;
             }
 
         } catch (error) {
             console.error(`Error ${action}ing status:`, error);
-            alert(`An error occurred while ${actionType}ing the status.`);
+            alert(`An error occurred while ${action}ing the status.`);
+            return false;
         }
 
     }
@@ -749,18 +785,18 @@ async function displayMastodonPost(status,statusBox,reblogger) {
                 throw new Error(`Error 11 posting status (Response): ${response.statusText}`);
             }
 
-            const responseData = await response.json();
+            await response.json();
 
             // Clear the status input field, if it was used
             const statusElement = document.getElementById('status');
             if (statusElement) { statusElement.value = '';  } 
             else { console.log('Status element is not defined.'); }
 
-            responseDiv.innerHTML = `<p>Status posted successfully! ID: ${responseData.id}</p>`;
-            alert(`<p>Status posted successfully! ID: ${responseData.id}</p>`);
+            responseDiv.innerHTML = `<p>Status posted successfully!</p>`;
+            setTimeout(() => { responseDiv.innerHTML = ''; }, 4000);
         } catch (error) {
-            responseDiv.innerHTML = `<p>Error 12 posting status (Error message): ${error.message}</p>`;
-            alert(`<p>Error 10 posting status: ${error.message}</p>`);
+            responseDiv.innerHTML = `<p>Error posting status: ${error.message}</p>`;
+            setTimeout(() => { responseDiv.innerHTML = ''; }, 4000);
         }
     };
 

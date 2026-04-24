@@ -10,63 +10,130 @@
        </script> <!-- Global variable to store accounts, filled by kvstore.js -->
     <script>
 
-        let currentMode = 'add';  // Track whether we're adding or updating
+        let currentMode = 'add';
+        let currentSchema = null;
+
+        // Build form fields dynamically from schema into #form-fields.
+        // mode: 'create' (all fields editable) or 'edit' (respects field.editable)
+        // data: object of existing values; use '_key' for the kvstore key
+        function buildFormFields(schema, mode, data) {
+            const container = document.getElementById('form-fields');
+            container.innerHTML = '';
+            currentSchema = schema;
+
+            // kvKey field — editable on create, display-only on edit
+            container.appendChild(makeFieldRow(
+                { key: '_key', label: schema.kvKey.label, inputType: 'text',
+                  placeholder: schema.kvKey.placeholder, editable: false, default: '' },
+                mode,
+                data['_key'] || ''
+            ));
+
+            // Schema-defined fields
+            for (const field of schema.fields) {
+                const value = (data[field.key] != null) ? data[field.key] : (field.default || '');
+                container.appendChild(makeFieldRow(field, mode, value));
+            }
+        }
+
+        // Render a single label+input row. editable:false fields show as text in edit mode.
+        function makeFieldRow(field, mode, value) {
+            const wrapper = document.createElement('div');
+
+            const label = document.createElement('label');
+            label.textContent = field.label;
+            wrapper.appendChild(label);
+
+            const isEditable = (mode === 'create') || field.editable;
+
+            if (field.inputType === 'oauth') {
+                const display = document.createElement('div');
+                display.className = 'field-display';
+                display.textContent = value ? '(token stored)' : '(no token)';
+                wrapper.appendChild(display);
+                const hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.id = field.key + 'Input';
+                hidden.value = value || '';
+                wrapper.appendChild(hidden);
+                if (mode === 'edit') {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'kv-action-btn kv-save-btn';
+                    btn.textContent = 'Re-authorize';
+                    btn.style.marginTop = '4px';
+                    btn.onclick = () => {
+                        const keyEl   = document.getElementById('_keyInput');
+                        const titleEl = document.getElementById('titleInput');
+                        const permEl  = document.getElementById('permissionsInput');
+                        window.top.mastodonOAuthStart(
+                            titleEl ? titleEl.value : (keyEl ? keyEl.value : ''),
+                            keyEl   ? keyEl.value   : '',
+                            permEl  ? permEl.value  : 'rw'
+                        );
+                    };
+                    wrapper.appendChild(btn);
+                }
+            } else if (isEditable) {
+                const input = document.createElement('input');
+                input.type = field.inputType === 'password' ? 'password' : 'text';
+                input.id = field.key + 'Input';
+                input.placeholder = field.placeholder || '';
+                input.value = value || '';
+                wrapper.appendChild(input);
+            } else {
+                const display = document.createElement('div');
+                display.className = 'field-display';
+                display.textContent = value || '';
+                wrapper.appendChild(display);
+                const hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.id = field.key + 'Input';
+                hidden.value = value || '';
+                wrapper.appendChild(hidden);
+            }
+
+            return wrapper;
+        }
 
         async function addOrUpdateKeyValue() {
-            const token = getSiteSpecificCookie(flaskSiteUrl,'access_token');  // Retrieve the token for the specific Flask site
-            const key = document.getElementById("keyInput").value.trim();
-            const title = document.getElementById("titleInput").value.trim();
-            const keyLabel = document.querySelector('label[for="keyInput"]').textContent;
-            if (!key) { alert(`Please enter a value for "${keyLabel}".`); return; }
-            if (!title) { alert('Please enter a Title.'); return; }
-            const instanceData = {
-                permissions: document.getElementById("permissionsInput").value,
-                type: document.getElementById("instanceType").value,
-                id: document.getElementById("idInput").value,
-                title: title
-            };
-            const jsonString = JSON.stringify(instanceData);
+            if (!currentSchema) { alert('No account type selected.'); return; }
+            const token = getSiteSpecificCookie(flaskSiteUrl, 'access_token');
 
-                // ===========================
-                //  ENCRYPT LOCALLY (Web Crypto)
-                // ===========================
+            const keyEl = document.getElementById('_keyInput');
+            const key = keyEl ? keyEl.value.trim() : '';
+            if (!key) { alert('Please enter a value for "' + currentSchema.kvKey.label + '".'); return; }
+
+            // Build instanceData from schema
+            const instanceData = { type: currentSchema.type };
+            if (currentSchema.instanceFromKey) instanceData.instance = key;
+            for (const field of currentSchema.fields) {
+                const el = document.getElementById(field.key + 'Input');
+                instanceData[field.key] = el ? el.value : (field.default || '');
+            }
+            if (!instanceData.title) { alert('Please enter a Title.'); return; }
+
             let encryptedValue;
             try {
                 const encKey = await window.parent.getEncKey(flaskSiteUrl);
                 if (!encKey) throw new Error('Encryption key not found — please log in again.');
-                encryptedValue = await encryptWithKey(encKey, jsonString);
+                encryptedValue = await encryptWithKey(encKey, JSON.stringify(instanceData));
             } catch (err) {
                 console.error('Encryption error:', err);
                 alert('Failed to encrypt data');
                 return;
             }
 
-            // Data key is defined by 'key', which in the form is 'keyInput'
-            // If we change the key (ie., we're creating a new username) we're creating a new account
-            // (or possibly over-writing one with the same key; I don't care either way).
-            // So - if there is an account in 'accounts' with this key, we keep the currentMode as 'update'
-            // Otherwise, we switch to 'add'
             const matchingAccount = accounts.find(account => account.key === key);
-            if (matchingAccount) { currentMode = "update"; }
-            else { currentMode = "add"; }
-console.log("Current mode is:"+currentMode);
+            const endpoint = matchingAccount ? 'update_kv/' : 'add_kv/';
 
-            // Perform the add or update action
-            const endpoint = currentMode === 'add' ? 'add_kv/' : 'update_kv/';
-            const actionUrl = `${flaskSiteUrl}/${endpoint}`;
-console.log("Fetch "+key+" = "+encryptedValue);
-            fetch(actionUrl, {
+            fetch(`${flaskSiteUrl}/${endpoint}`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': 'Bearer '+token  // Include the token in the Authorization header
-                },
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
                 body: JSON.stringify({ key: key, value: encryptedValue })
             })
             .then(response => response.json())
-            .then(data => {
-                document.getElementById("addKvForm").reset();
-
+            .then(() => {
                 (async () => {
                     try {
                         accounts = await window.parent.getAccounts(flaskSiteUrl);
@@ -78,35 +145,24 @@ console.log("Fetch "+key+" = "+encryptedValue);
                         getSite(flaskSiteUrl);
                     }
                 })();
-
             })
-            .catch(error => alert('Error processing key-value pair: ' + error));
+            .catch(error => alert('Error saving account: ' + error));
         }
 
-        
         async function setFormValues(targetKey) {
-
-            // Assumes 'accounts' have already been retrieved by getAccounts()
             const matchingAccount = accounts.find(account => account.key === targetKey);
-            let valueData;
-            if (matchingAccount) {
-                valueData = JSON.parse(matchingAccount.value);
-            } else {
-                alert("Can't find an account called "+targetKey);
-                return;
-            }
+            if (!matchingAccount) { alert("Can't find account: " + targetKey); return; }
+            const valueData = JSON.parse(matchingAccount.value);
 
-            document.getElementById("keyInput").value = targetKey;
-            document.getElementById("permissionsInput").value = valueData.permissions;
-            document.getElementById("instanceType").value = valueData.type;
-            document.getElementById("idInput").value = valueData.id;
-            document.getElementById("titleInput").value = valueData.title;
+            const schema = window.parent.accountSchemas && window.parent.accountSchemas[valueData.type];
+            if (!schema) { alert('No schema for account type: ' + (valueData.type || 'unknown')); return; }
+
+            buildFormFields(schema, 'edit', { _key: targetKey, ...valueData });
 
             currentMode = 'update';
-            document.getElementById("submitBtn").textContent = 'Update Account';
-            document.getElementById("deleteBtn").style.display = 'inline';
+            document.getElementById('submitBtn').textContent = 'Update Account';
+            document.getElementById('deleteBtn').style.display = 'inline';
             formDirty = false;
-  
         }
 
         let formDirty = false;
@@ -116,7 +172,7 @@ console.log("Fetch "+key+" = "+encryptedValue);
         async function tryCloseForm() {
             if (!formDirty) { closeForm(); return true; }
             if (confirm('You have unsaved changes. Save them?')) {
-                await addOrUpdateKeyValue(); // closes form on success
+                await addOrUpdateKeyValue();
             } else if (confirm('Discard changes and close?')) {
                 closeForm();
                 return true;
@@ -124,15 +180,18 @@ console.log("Fetch "+key+" = "+encryptedValue);
             return false;
         }
 
-        // Force-close the form without checking for unsaved changes.
         function closeForm() {
             const form = document.getElementById('sharedForm');
             form.style.display = 'none';
             form.dataset.openFor = '';
             formDirty = false;
+            // Return form to its home position so getSite() rebuilding #kvList doesn't destroy it
+            const header = document.getElementById('add-account-header');
+            if (header && header.parentNode) {
+                header.parentNode.insertBefore(form, header);
+            }
         }
 
-        // Open shared form inline below the clicked account item for editing.
         async function openEdit(key, item) {
             const form = document.getElementById('sharedForm');
             if (form.dataset.openFor === key && form.style.display !== 'none') {
@@ -140,15 +199,15 @@ console.log("Fetch "+key+" = "+encryptedValue);
             }
             if (form.style.display !== 'none' && formDirty) {
                 const closed = await tryCloseForm();
-                if (!closed) return; // user chose to stay
+                if (!closed) return;
             }
             item.parentNode.insertBefore(form, item.nextSibling);
             form.dataset.openFor = key;
             form.style.display = 'block';
+            form.scrollIntoView({ behavior: 'smooth', block: 'start' });
             setFormValues(key);
         }
 
-        // Open the account-type picker to start adding a new account.
         async function openAdd(btn) {
             if (document.getElementById('sharedForm').style.display !== 'none' && formDirty) {
                 const closed = await tryCloseForm();
@@ -192,18 +251,26 @@ console.log("Fetch "+key+" = "+encryptedValue);
                         <button class="kv-action-btn kv-save-btn" onclick="submitMastodonUsername()">Authorize with Mastodon</button>
                         <button class="kv-action-btn kv-cancel-btn" onclick="showTypePicker()">Back</button>
                     </div>`;
-            } else {
-                // For all other types, use the existing form pre-set to the chosen type.
-                cancelAdd();
-                resetForm();
-                document.getElementById('instanceType').value = type;
-                updateFormFields();
-                const form = document.getElementById('sharedForm');
-                const header = document.getElementById('add-account-header');
-                header.parentNode.insertBefore(form, header.nextSibling);
-                form.dataset.openFor = '__add__';
-                form.style.display = 'block';
+                return;
             }
+
+            const schema = window.parent.accountSchemas && window.parent.accountSchemas[type];
+            if (!schema) { alert('No schema for account type: ' + type); return; }
+
+            cancelAdd();
+            buildFormFields(schema, 'create', {});
+
+            const form = document.getElementById('sharedForm');
+            const header = document.getElementById('add-account-header');
+            header.parentNode.insertBefore(form, header.nextSibling);
+            form.dataset.openFor = '__add__';
+            form.style.display = 'block';
+            form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+            currentMode = 'add';
+            document.getElementById('submitBtn').textContent = 'Add Account';
+            document.getElementById('deleteBtn').style.display = 'none';
+            formDirty = false;
         }
 
         function cancelAdd() {
@@ -221,18 +288,38 @@ console.log("Fetch "+key+" = "+encryptedValue);
         }
 
         function resetForm() {
-            document.getElementById("addKvForm").reset();
             currentMode = 'add';
-            document.getElementById("submitBtn").textContent = 'Add Account';
-            document.getElementById("deleteBtn").style.display = 'none';
-            updateFormFields();
+            currentSchema = null;
             formDirty = false;
         }
+
+        // Permissions:
+        // r  read    w  write    e  edit
+        // s  summarize    t  translate    g  generate    p  proxy
        
+
+        function accountIcon(type) {
+            if (type === 'Mastodon') {
+                const span = document.createElement('span');
+                span.className = 'account-icon-img';
+                span.setAttribute('aria-label', 'Mastodon');
+                return span;
+            }
+            const materialIcons = {
+                'Bluesky':   'cloud',
+                'OPML':      'rss_feed',
+                'WordPress': 'article',
+                'Blogger':   'article',
+            };
+            const span = document.createElement('span');
+            span.className = 'material-icons';
+            span.textContent = materialIcons[type] || 'account_circle';
+            return span;
+        }
 
         async function getSite(flaskSiteUrl) {
             const token = getSiteSpecificCookie(flaskSiteUrl,'access_token');  // Retrieve the token for the specific Flask site
-            
+
             try {
                 const response = await fetch(`${flaskSiteUrl}/get_kvs/`, {
                     method: 'GET',
@@ -240,11 +327,18 @@ console.log("Fetch "+key+" = "+encryptedValue);
                         'Authorization': 'Bearer ' + token
                     }
                 });
-                
+
                 const data = await response.json();
                 const kvList = document.getElementById("kvList");
                 kvList.innerHTML = '';  // Clear previous entries
-                
+
+                const accountList = document.createElement('div');
+                accountList.className = 'account-list';
+                const tip = document.createElement('div');
+                tip.className = 'account-list-tip';
+                tip.textContent = 'Select an account to manage';
+                accountList.appendChild(tip);
+
                 for (const kv of data) {
                     let parsedValue = null;
                     try {
@@ -254,16 +348,20 @@ console.log("Fetch "+key+" = "+encryptedValue);
                     } catch (error) {
                         console.error(`Error parsing kv.value for key: ${kv.key} ${kv.value}`, error);
                     }
-                    
+
                     const item = document.createElement('div');
-                    item.className = 'kv-item';
+                    item.className = 'account-list-item';
                     const button = document.createElement('button');
-                    button.className = 'kv-name-btn';
-                    button.textContent = (parsedValue?.title || kv.key) + (parsedValue?.type ? ' (' + parsedValue.type + ')' : '');
+                    button.className = 'account-button';
+                    button.appendChild(accountIcon(parsedValue?.type || ''));
+                    const name = document.createElement('span');
+                    name.textContent = parsedValue?.title || kv.key;
+                    button.appendChild(name);
                     button.onclick = () => openEdit(kv.key, item);
                     item.appendChild(button);
-                    kvList.appendChild(item);
+                    accountList.appendChild(item);
                 }
+                kvList.appendChild(accountList);
             } catch (error) {
                 console.error('Error fetching key-value pairs: ' + error);
             }
@@ -271,8 +369,10 @@ console.log("Fetch "+key+" = "+encryptedValue);
 
         
         async function deleteKeyValue() {
-            const key = document.getElementById("keyInput").value;
-            const title = document.getElementById("titleInput").value || key;
+            const keyEl = document.getElementById('_keyInput');
+            const key = keyEl ? keyEl.value : '';
+            const titleEl = document.getElementById('titleInput');
+            const title = (titleEl ? titleEl.value : '') || key;
             if (!confirm(`Delete "${title}"? This cannot be undone.`)) return;
             const token = getSiteSpecificCookie(flaskSiteUrl,'access_token');
 
@@ -567,6 +667,8 @@ console.log("Fetch "+key+" = "+encryptedValue);
 
     </script>
 
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link rel="stylesheet" href="css/interface.css">
     <link rel="stylesheet" href="css/reader.css">
     <link rel="stylesheet" href="css/kvlist.css">
@@ -591,21 +693,14 @@ console.log("Fetch "+key+" = "+encryptedValue);
                 box-sizing: border-box; /* Include padding in the width */
             }
 
-            /* Tooltip container */
-            .tooltip {
-                position: absolute;
-                background: #888;
-                color: #fff;
-                padding: 3px 8px;
-                margin-top:10px;
-                font-size: 0.6rem;
-                border-radius: 1px;
-                visibility: hidden; /* Hidden by default */
-                opacity: 0;
-                transform: translateY(10px);
-                transform: translateX(-30px);
-                transition: visibility 0s, opacity 0.3s, transform 0.3s;
-                z-index: 1000;
+
+            /* Edit card */
+            #sharedForm {
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                padding: 10px;
+                margin-top: 6px;
+                background: #fafafa;
             }
 
             /* Form */
@@ -624,25 +719,26 @@ console.log("Fetch "+key+" = "+encryptedValue);
                 color: #555; /* Lighter text color */
             }
 
-            /* Form inputs, selects, and buttons */
-            .kvcontainer input,
-            .kvcontainer select,
-            .kvcontainer button {
-                display: block;
-                margin-top: 2px; /* Reduce space above inputs */
-                margin-bottom: 0.5rem;
-                padding: 0.2rem;
-                width: 100%; /* Full width of the container */
+            .field-display {
                 font-size: 0.8rem;
-                box-sizing: border-box; /* Prevent padding from breaking layout */
+                color: #444;
+                padding: 0.15rem 0;
+                margin-bottom: 0.4rem;
             }
 
-            .kvcontainer input:hover + .tooltip,
-            .kvcontainer select:hover + .tooltip {
-                visibility: visible; /* Make tooltip visible */
-                opacity: 1;          /* Fully opaque */
-                transform: translateY(-15px); /* Position above the input field */
+            /* Form inputs — scoped to the form, not the account list */
+            #addKvForm input,
+            .kv-name-btn,
+            #add-account-header button {
+                display: block;
+                margin-top: 2px;
+                margin-bottom: 0.5rem;
+                padding: 0.2rem;
+                width: 100%;
+                font-size: 0.8rem;
+                box-sizing: border-box;
             }
+
 
             #kvList { margin-top: 0.5rem; }
 
@@ -661,17 +757,17 @@ console.log("Fetch "+key+" = "+encryptedValue);
             .kv-action-buttons {
                 display: flex;
                 flex-wrap: wrap;
-                gap: 0.4rem;
+                gap: 0.3rem;
                 margin-top: 0.5rem;
             }
             .kv-action-btn {
                 display: inline-block;
                 width: auto;
                 flex: 0 0 auto;
-                padding: 0.3rem 0.9rem;
+                padding: 0.15rem 0.5rem;
                 border-radius: 3px;
                 cursor: pointer;
-                font-size: 0.8rem;
+                font-size: 0.75rem;
                 margin: 0;
             }
             .kv-save-btn   { background: var(--highlight-color); color: #fff; border: 1px solid var(--highlight-color); }
@@ -687,49 +783,8 @@ console.log("Fetch "+key+" = "+encryptedValue);
         <div id="add-flow" style="display:none;"></div>
 
         <div id="sharedForm" style="display:none">
-        <form id="addKvForm" onsubmit="addOrUpdateKeyValue(); return false;" aria-labelledby="form-title">
-            <label for="instanceType">Instance Type</label>
-            <select id="instanceType" required onchange="updateFormFields();" aria-describedby="instanceType-tooltip">
-                <option value="" disabled selected>Select Instance Type</option>
-                <option value="Mastodon">Mastodon</option>
-                <option value="Bluesky">Bluesky</option>
-                <option value="WordPress">WordPress</option>
-                <option value="OPML">OPML</option>
-                <option value="Blogger">Blogger</option>
-                <option value="Etherpad">Etherpad</option>
-                <option value="AI">AI</option>
-                <option value="Proxyp">Proxyp</option>
-            </select>
-            <span id="instanceType-tooltip" class="tooltip">Choose the platform type (e.g., Mastodon, Bluesky).</span>
-    
-            <label for="titleInput">Title</label>
-            <input type="text" id="titleInput" placeholder="Title" required aria-describedby="title-tooltip">
-            <span id="title-tooltip" class="tooltip">Enter a descriptive title for the account.</span>
-    
-            <label for="keyInput">Username</label>
-            <input type="text" id="keyInput" placeholder="username@instance.social" required aria-describedby="keyInput-tooltip">
-            <span id="keyInput-tooltip" class="tooltip">Provide the username in the format: username@instance.social.</span>
-    
-            <label for="permissionsInput">Permissions</label>
-            <input type="text" id="permissionsInput" placeholder="Permissions" required aria-describedby="permissionsInput-tooltip">
-            <span id="permissionsInput-tooltip" class="tooltip">Specify the account permissions.</span>
-    
-            <div id="idInputRow">
-            <label for="idInput">Access Code</label>
-            <input type="password" id="idInput" placeholder="Access Code" required aria-describedby="idInput-tooltip">
-            <span id="idInput-tooltip" class="tooltip">Enter the account's access code securely.</span>
-            </div>
-
-            <div id="mastodon-oauth-row" style="display:none;">
-                <p style="font-size:0.75rem;color:#666;margin:0 0 4px;">Enter your username above, then click to authorize.</p>
-                <button type="button" class="kv-action-btn kv-save-btn"
-                        onclick="window.top.mastodonOAuthStart(
-                            document.getElementById('titleInput').value,
-                            document.getElementById('keyInput').value,
-                            document.getElementById('permissionsInput').value
-                        )">Authorize with Mastodon</button>
-            </div>
-    
+        <form id="addKvForm" onsubmit="addOrUpdateKeyValue(); return false;">
+            <div id="form-fields"></div>
             <div class="kv-action-buttons">
                 <button type="button" id="submitBtn"  class="kv-action-btn kv-save-btn"   onclick="addOrUpdateKeyValue()">Save</button>
                 <button type="button" id="deleteBtn"  class="kv-action-btn kv-delete-btn" onclick="deleteKeyValue()" style="display:none">Delete</button>

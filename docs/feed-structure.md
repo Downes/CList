@@ -50,6 +50,55 @@ Login/logout/accounts buttons live in `#left-command` (above `#left-content`) an
 
 ---
 
+## Account status bar (`#current-status`)
+
+Sits between `#left-command` and `#left-content` in `#left-pane`. Always visible when the pane is open. Contains two equal-width halves:
+
+```
+#current-status
+  ├── #identityDiv      — login identity (e.g. "Identity: stephen")
+  └── #selectedAccount  — currently active read account: icon + title
+                          updated by switchReaderAccount() in reader.js
+                          empty until an account is selected
+```
+
+`#selectedAccount` is populated by `switchReaderAccount(key)` using `accountIcon(type)` + `accountData.title`.
+
+---
+
+## Account list buttons — `makeAccountList()` / `.account-button`
+
+**`makeAccountList(tip, accounts, filterFn, onClickFn)`** — defined in `reader.js`. Returns a `div.account-list` containing a tip line and one `.account-button` per matching account. Used wherever a list of accounts needs to be presented for selection.
+
+| Parameter | Purpose |
+|-----------|---------|
+| `tip` | Instruction string shown above the list (e.g. `'Select an account to read'`) |
+| `accounts` | The global `accounts` array |
+| `filterFn(parsedValue)` | Return `true` to include the account (e.g. `v => v.permissions.includes('r')`) |
+| `onClickFn(key, parsedValue)` | Called when a button is clicked |
+
+Each `.account-button` is a full-width flex button: service icon on the left, account title on the right.
+
+**`accountIcon(type)`** — also in `reader.js`. Returns a DOM element sized to 18×18px:
+
+| Type | Element | Source |
+|------|---------|--------|
+| `Mastodon` | `<span class="account-icon-img">` | CSS mask over `assets/icons/mastodon.svg` |
+| `Bluesky` | `<span class="material-icons">cloud</span>` | Material Icons |
+| `OPML` | `<span class="material-icons">rss_feed</span>` | Material Icons |
+| `WordPress` / `Blogger` | `<span class="material-icons">article</span>` | Material Icons |
+| _(default)_ | `<span class="material-icons">account_circle</span>` | Material Icons |
+
+The `.account-icon-img` span uses a CSS mask (`mask: url('../assets/icons/mastodon.svg')`) with `background-color: #888` so it renders in the same gray as Material Icons — no tinting filter needed.
+
+**Current callers of `makeAccountList`:**
+
+| Caller | Tip | Filter | On click |
+|--------|-----|--------|----------|
+| `populateReadAccountList()` in `reader.js` | `'Select an account to read'` | `permissions.includes('r')` | `switchReaderAccount(key)` |
+
+---
+
 ## `#feed-container` Structure
 
 All feed display functions (Mastodon `displayMastodonFeed`, Bluesky `displayBlueskyPosts`, RSS `makeListing`) build the same DOM shape inside `#feed-container`:
@@ -64,13 +113,95 @@ All feed display functions (Mastodon `displayMastodonFeed`, Bluesky `displayBlue
         │     ├── div#[item-id]          — author + translated text; carries .reference object
         │     ├── div.status-images-container  (optional)
         │     │     └── div.image-item × N
-        │     └── div.status-actions     — platform action buttons (varies by service)
-        │                                  Mastodon: reply, boost, favorite, bookmark, thread, launch
-        │                                  Bluesky:  reply, favorite, repost, thread, launch
-        │                                  RSS:      service-specific via readerHandlers[service].statusActions()
+        │     └── div.status-actions     — platform action buttons (see "post action buttons" section below)
         └── div.clist-actions      — always: arrow_right → loadContentToTinyMCE(itemID)
   └── [pagination button]          — "Load Next Page" / "Load More" when cursor exists
 ```
+
+## `div.status-actions` — post action buttons
+
+Every rendered item has a `div.status-actions` containing buttons that allow the user to act on the post. The available actions are defined by the service's `.js` file and vary per platform. The `div.clist-actions` (arrow_right) is always present separately and is not part of this set.
+
+### Button markup standard
+
+Each button uses Material Icons:
+
+```html
+<button class="material-icons md-18 md-light [action-active]"
+        onClick="handleServiceAction('itemId', 'actionType', this)">
+  icon_name
+</button>
+```
+
+The third argument (`this`) passes the button element to the handler so it can update visual state on success.
+
+### Active state — `action-active`
+
+Toggle actions (boost, bookmark, favourite) have two states:
+
+| State | CSS class | Colour |
+|-------|-----------|--------|
+| inactive | `material-icons md-18 md-light` | blue |
+| active | `material-icons md-18 md-light action-active` | orange |
+
+The initial state is set from the API response when the item is rendered (e.g. `status.bookmarked`, `status.reblogged`, `status.favourited`). When the action succeeds, the handler toggles `action-active` on the button element.
+
+Clicking an active button calls the reverse API endpoint (e.g. `unbookmark`, `unreblog`, `unfavourite`) and removes the class on success.
+
+### Handler pattern
+
+```js
+// In handleServiceAction:
+const active = extraParam?.classList.contains('action-active');
+url = `${baseURL}/api/v1/statuses/${id}/${active ? 'unbookmark' : 'bookmark'}`;
+const ok = await postServiceAction(url, active ? 'unbookmark' : 'bookmark');
+if (ok && extraParam) extraParam.classList.toggle('action-active');
+
+// postServiceAction returns true on HTTP success, false on error.
+```
+
+### Actions by service
+
+| Service | Actions |
+|---------|---------|
+| Mastodon | reply, boost *(toggle)*, favourite *(toggle)*, bookmark *(toggle)*, thread, launch |
+| Bluesky | reply, favourite *(toggle)*, repost *(toggle)*, thread, launch |
+| RSS/OPML | defined via `readerHandlers[service].statusActions()` |
+
+New services should define their actions in the same `readerHandlers['Type']` registration block as `feedFunctions`, and follow the toggle pattern above for any reversible actions.
+
+---
+
+## `div.clist-actions` — CList item actions
+
+Every rendered item has a `div.clist-actions` positioned to the right of `div.status-content` inside `div.status-box`. These are CList's own actions on an item, distinct from the platform's social actions in `div.status-actions`.
+
+### Current standard action
+
+All services currently provide exactly one clist action per item:
+
+| Button | Icon | Action |
+|--------|------|--------|
+| Load to write pane | `arrow_right` | `loadContentToTinyMCE(itemID)` |
+
+This loads the item's text into the TinyMCE editor in the write pane, wiring it to the publish/compose flow via the `.reference` object.
+
+### Button markup standard
+
+```html
+<button class="material-icons md-18 md-light"
+        onClick="loadContentToTinyMCE('itemId')">
+  arrow_right
+</button>
+```
+
+### Notes
+
+- `div.clist-actions` is **stripped automatically** before content is sent to the editor (`summarize.js`, `tinymce.js` both call `querySelectorAll('.clist-actions').forEach(el => el.remove())`).
+- The feed header (`div.feed-header`) uses a `p.clist-actions` (not a div) for thread-level actions (summarise + load whole thread). This is a header-level variant, not a per-item action.
+- New per-item clist actions should be added here and applied consistently across all service files.
+
+---
 
 ## The `.reference` object
 

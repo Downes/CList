@@ -9,6 +9,19 @@
 //  This software carries NO WARRANTY OF ANY KIND.
 //  This software is provided "AS IS," and you, its user, assume all risks when using it.
 
+window.accountSchemas = window.accountSchemas || {};
+window.accountSchemas['AI'] = {
+    type: 'AI',
+    instanceFromKey: false,
+    kvKey: { label: 'Project', placeholder: 'project ID or name' },
+    fields: [
+        { key: 'title',       label: 'Title',       editable: true, inputType: 'text',     placeholder: 'My AI Service',            default: '' },
+        { key: 'instance',    label: 'API URL',     editable: true, inputType: 'text',     placeholder: 'https://api.openai.com/v1', default: '' },
+        { key: 'permissions', label: 'Permissions', editable: true, inputType: 'text',     placeholder: 'g',                        default: '' },
+        { key: 'id',          label: 'API Key',     editable: true, inputType: 'password', placeholder: '',                         default: '' },
+    ]
+};
+
 async function generateTemplateFromChatGPT() {
   
   // Get user input
