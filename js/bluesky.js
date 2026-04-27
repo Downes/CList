@@ -175,6 +175,17 @@ function blueskyPostForm() {
     return div;
 }
 
+// Returns a Bluesky reply form element for use with openLeftInterface
+function blueskyReplyForm(parentUri, parentCid, rootUri, rootCid) {
+    const div = document.createElement('div');
+    div.innerHTML = `
+        <textarea id="blueskyReplyContent" placeholder="Write your reply..." rows="4" style="width: 100%;"></textarea>
+        <button onclick="submitBlueskyPostFromForm('blueskyReplyContent','blueskyReplyResponse','${parentUri}','${parentCid}','${rootUri}','${rootCid}')">Submit Reply</button>
+        <div id="blueskyReplyResponse" class="reply-response"></div>
+    `;
+    return div;
+}
+
 // Returns a Bluesky search form element
 function blueskySearchForm() {
     const div = document.createElement('div');
@@ -557,6 +568,7 @@ const whatsHotFeedUri = 'at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.gen
 
                 // Create the post-specific content div
                 const statusSpecific = document.createElement('div');
+                statusSpecific.classList.add('statusSpecific');
                 statusSpecific.id = `${postId}`;
                 statusSpecific.innerHTML = `
                 <p><a href="#" onclick="loadMastodonFeed('user',null,'@${authorName}'); return false;" title='View User Thread'>${authorName}</a> (@${authorName}) wrote: 
@@ -593,84 +605,35 @@ const whatsHotFeedUri = 'at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.gen
                     id: statusSpecific.id,
                 };
 
-                // Create the action buttons div below the status
-                const blueskyActionButtons = document.createElement('div');
-                blueskyActionButtons.classList.add('status-actions');
-                
-                // Create the reply button
-                const replyButton = document.createElement('button');
-                replyButton.setAttribute('class', 'material-icons md-18 md-light');
-                replyButton.innerText = "reply";
-                replyButton.onclick = () => {
-                    replyForm.style.display = replyForm.style.display === 'none' ? 'block' : 'none';
-                };
-                blueskyActionButtons.appendChild(replyButton);
+                // Determine initial like/repost state from API viewer object
+                const isLiked    = !!(post.viewer && post.viewer.like);
+                const isReposted = !!(post.viewer && post.viewer.repost);
+                const likeUri    = post.viewer?.like   || ‘’;
+                const repostUri  = post.viewer?.repost || ‘’;
 
-                // Create the favorite button
-                const favoriteButton = document.createElement('button');
-                favoriteButton.setAttribute('class', 'material-icons md-18 md-light');
-                favoriteButton.innerText = "favorite";
-                favoriteButton.onclick = () => {
-                    handleBlueskyAction(post.uri, post.cid, postId, 'favorite');
-                };
-                blueskyActionButtons.appendChild(favoriteButton);
+                // Determine thread URI if this post is part of one
+                const inThread = (post.record.reply && post.record.reply.root && post.record.reply.root.uri) || post.replyCount > 0;
+                const threadUri = inThread
+                    ? (post.record.reply?.root?.uri || post.uri)
+                    : null;
 
-                // Create the repost button
-                const repostButton = document.createElement('button');
-                repostButton.setAttribute('class', 'material-icons md-18 md-light');
-                repostButton.innerText = "autorenew";
-                repostButton.onclick = () => {
-                    handleBlueskyAction(post.uri, post.cid, postId, 'repost');
-                };
-                blueskyActionButtons.appendChild(repostButton);
+                // Reply URIs for reply form
+                const parentUri  = post.uri;
+                const parentCid  = post.cid;
+                const rootUri    = post.record.reply?.root?.uri  || post.uri;
+                const rootCid    = post.record.reply?.root?.cid  || post.cid;
 
-                // Check if the post is part of a thread and add "Thread" button if so
-                if ((post.record.reply && post.record.reply.root && post.record.reply.root.uri) || post.replyCount > 0) {
-
-                    // Determine the URI for the thread
-                    const threadUri = post.record.reply && post.record.reply.root && post.record.reply.root.uri 
-                    ? post.record.reply.root.uri 
-                    : post.uri; // Use the post's own URI if it’s the root
-
-                    // Create the thread button
-                    const threadButton = document.createElement('button');
-                    threadButton.setAttribute('class', 'material-icons md-18 md-light');
-                    threadButton.innerText = "dynamic_feed";
-                    threadButton.onclick = () => {
-                        displayThread(threadUri);
-                    };
-                    blueskyActionButtons.appendChild(threadButton);                 
-
-                }
-
-
-                // Create the launch button (opens the post in a new window)
-                const launchButton = document.createElement('button');
-                launchButton.setAttribute('class', 'material-icons md-18 md-light');
-                launchButton.innerText = "launch";
-                launchButton.onclick = () => {
-                    window.open(postUrl, '_blank', 'width=800,height=600,scrollbars=yes');
-                };
-                blueskyActionButtons.appendChild(launchButton);
-
-
-                statusContent.appendChild(blueskyActionButtons);
-
-                // Response to actions
-                
-                const blueskyReplyForm = document.createElement('div');
-                blueskyReplyForm.id = 'blueskyPostResponse';
-
-                // Create the reply form
-                const replyForm = document.createElement('div');
-                replyForm.style.display = 'none'; // Hidden by default
-                replyForm.classList.add('reply-form');
-                replyForm.innerHTML = `
-                    <textarea id="replyContent-${postId}" placeholder="Type your reply here"></textarea>
-                    <button onclick="submitBlueskyPostFromForm('replyContent-${postId}','replyResponse-${postId}','${post.uri}', '${post.cid}', '${post.record.reply ? post.record.reply.root.uri : post.uri}', '${post.record.reply ? post.record.reply.root.cid : post.cid}')">Submit Reply</button>
-                    <div id="replyResponse-${postId}" class="reply-response"></div>
+                // Build action buttons as innerHTML string (matches Mastodon pattern)
+                const blueskyActionButtons = document.createElement(‘div’);
+                blueskyActionButtons.classList.add(‘status-actions’);
+                blueskyActionButtons.innerHTML = `
+                    <button class="material-icons md-18 md-light" onclick="openLeftInterface(blueskyReplyForm(‘${parentUri}’,’${parentCid}’,’${rootUri}’,’${rootCid}’))">reply</button>
+                    <button class="material-icons md-18 md-light${isLiked ? ‘ action-active’ : ‘’}" data-record-uri="${likeUri}" onclick="handleBlueskyAction(‘${post.uri}’,’${post.cid}’,’${postId}’,’favorite’,this)">favorite</button>
+                    <button class="material-icons md-18 md-light${isReposted ? ‘ action-active’ : ‘’}" data-record-uri="${repostUri}" onclick="handleBlueskyAction(‘${post.uri}’,’${post.cid}’,’${postId}’,’repost’,this)">autorenew</button>
+                    ${inThread ? `<button class="material-icons md-18 md-light" onclick="displayThread(‘${threadUri}’)">dynamic_feed</button>` : ‘’}
+                    <button class="material-icons md-18 md-light" onclick="window.open(‘${postUrl}’,’_blank’,’width=800,height=600,scrollbars=yes’)">launch</button>
                 `;
-                statusContent.appendChild(replyForm);
+                statusContent.appendChild(blueskyActionButtons);
 
                 // Create the clist buttons div to the right of the status
                 const clistButtons = document.createElement('div');
@@ -730,69 +693,44 @@ const whatsHotFeedUri = 'at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.gen
     
 
 
-        // Function to favorite or repost a post
-        async function handleBlueskyAction(uri, cid, postId, action) {
+        // Toggle like or repost on a Bluesky post.
+        // button.dataset.recordUri holds the AT URI of the existing record (if active).
+        async function handleBlueskyAction(uri, cid, postId, action, button) {
             const { accessToken, did } = await createBlueskySession();
-            const responseElement = document.getElementById(`replyResponse-${postId}`) || document.getElementById('blueskyPostResponse');
+            const isActive = button && button.classList.contains('action-active');
+            const collectionMap = { favorite: 'app.bsky.feed.like', repost: 'app.bsky.feed.repost' };
+            const collection = collectionMap[action];
 
             try {
-                const { accessToken } = await createBlueskySession();
-
-                const actionMap = {
-                    favorite: {
-                        "$type": "app.bsky.feed.like",
-                        collection: "app.bsky.feed.like"
-                    },
-                    repost: {
-                        "$type": "app.bsky.feed.repost",
-                        collection: "app.bsky.feed.repost"
-                    }
-                };
-
-                if (!actionMap[action]) {
-                    throw new Error('Invalid action specified. Use "favorite" or "repost".');
+                if (isActive) {
+                    // Remove existing record (unlike / unrepost)
+                    const recordUri = button.dataset.recordUri;
+                    const rkey = recordUri.split('/').pop();
+                    const response = await fetch('https://bsky.social/xrpc/com.atproto.repo.deleteRecord', {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ repo: did, collection, rkey }),
+                    });
+                    if (!response.ok) throw new Error((await response.json()).message);
+                    if (button) { button.classList.remove('action-active'); button.dataset.recordUri = ''; }
+                } else {
+                    // Create new record (like / repost)
+                    const record = {
+                        '$type': `app.bsky.feed.${action === 'favorite' ? 'like' : 'repost'}`,
+                        createdAt: new Date().toISOString(),
+                        subject: { uri, cid }
+                    };
+                    const response = await fetch('https://bsky.social/xrpc/com.atproto.repo.createRecord', {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ collection, repo: did, record }),
+                    });
+                    if (!response.ok) throw new Error((await response.json()).message);
+                    const result = await response.json();
+                    if (button) { button.classList.add('action-active'); button.dataset.recordUri = result.uri; }
                 }
-
-                const record = {
-                    "$type": actionMap[action].$type,
-                    createdAt: new Date().toISOString(),
-                    subject: {
-                        uri: uri,
-                        py_type: 'com.atproto.repo.strongRef',
-                        cid: cid
-                    }
-                };
-
-                const response = await fetch('https://bsky.social/xrpc/com.atproto.repo.createRecord', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${accessToken}`,
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        collection: actionMap[action].collection,
-                        repo: did,
-                        record: record
-                    }),
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(`Error performing action: ${errorData.message || JSON.stringify(errorData)}`);
-                }
-
-                // Confirm the action
-                responseElement.innerHTML = action === 'favorite' 
-                    ? 'Post added to favorites!' 
-                    : 'Post reposted successfully!';
-                alert("Completed adding "+action);
-                setTimeout(() => {
-                    responseElement.innerHTML = '';
-                }, 3000);
-                
             } catch (error) {
-                console.error('Error:', error);
-                responseElement.innerText = `Failed to perform action (${action}). Check console for details.`;
+                console.error(`Bluesky ${action} failed:`, error);
             }
         }
 

@@ -78,8 +78,7 @@ async function duckduckgoSearch(q) {
                 // It's a subgroup
                 item.Topics.forEach((subItem) => {
                     const { title, description } = getDDGTitleAndDescription(subItem.FirstURL,subItem.Result);
-                    // makeListing(service,url,title,desc,feed,author,date,full_content) 
-                    listing = makeListing('duckduckgo',subItem.FirstURL,title,description,data.AbstractSource,'',dateString,subItem.AbstractText);
+                    listing = makeListing({ service: 'duckduckgo', url: subItem.FirstURL, title, desc: description, feed: data.AbstractSource, date: dateString, full_content: subItem.AbstractText });
                 });
 
             } else if (item.Text) {
@@ -87,8 +86,7 @@ async function duckduckgoSearch(q) {
 
                 const { title, description } = getDDGTitleAndDescription(item.FirstURL,item.Result);
 
-                // makeListing(service,url,title,desc,feed,author,date,full_content) 
-                listing = makeListing('duckduckgo',item.FirstURL,title,description,data.AbstractSource,'',dateString,item.AbstractText);
+                listing = makeListing({ service: 'duckduckgo', url: item.FirstURL, title, desc: description, feed: data.AbstractSource, date: dateString, full_content: item.AbstractText });
             }
             feedContainer.appendChild(listing);
         });
@@ -111,8 +109,7 @@ async function duckduckgoSearch(q) {
             feedContainer.appendChild(createFeedHeader(ddgHeading));   // Header
         }
         console.log("ddg-abstract:", ddgAbstract);
-        // makeListing(service,url,title,desc,feed,author,date,full_content) 
-        listing = makeListing('duckduckgo',data.AbstractURL,ddgHeading,ddgAbstract,data.AbstractSource,'',dateString,data.AbstractSource,data.AbstractText); 
+        listing = makeListing({ service: 'duckduckgo', url: data.AbstractURL, title: ddgHeading, desc: ddgAbstract, feed: data.AbstractSource, date: dateString, full_content: data.AbstractText });
         feedContainer.appendChild(listing);
 
     }

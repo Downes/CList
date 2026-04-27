@@ -519,6 +519,7 @@ async function displayMastodonPost(status,statusBox,reblogger) {
 
         // Create the post-specific content div
         const statusSpecific = document.createElement('div');
+        statusSpecific.classList.add('statusSpecific');
         statusSpecific.id = `${status.id}`;
         statusSpecific.innerHTML = `
             <p><a href="#" onclick="loadMastodonFeed('user',null,'@${status.account.acct}'); return false;" title='View User Thread';>${status.account.display_name}</a> (@${status.account.acct}) wrote: 
@@ -586,7 +587,7 @@ async function displayMastodonPost(status,statusBox,reblogger) {
         actionButtons.innerHTML = `
             <button class="material-icons md-18 md-light" onClick="handleMastodonAction('${status.id}', 'reply', this.parentElement)">reply</button>
             <button class="material-icons md-18 md-light${status.reblogged ? ' action-active' : ''}" onClick="handleMastodonAction('${status.id}', 'boost', this)">autorenew</button>
-            <button class="material-icons md-18 md-light${status.favourited ? ' action-active' : ''}" onClick="handleMastodonAction('${status.id}', 'favorite', this)">star</button>
+            <button class="material-icons md-18 md-light${status.favourited ? ' action-active' : ''}" onClick="handleMastodonAction('${status.id}', 'favorite', this)">favorite</button>
             <button class="material-icons md-18 md-light${status.bookmarked ? ' action-active' : ''}" onClick="handleMastodonAction('${status.id}', 'bookmark', this)">bookmarks</button>
             ${threadsButton}
             <button class="material-icons md-18 md-light" onClick="window.open('${status.url}', '_blank', 'width=800,height=600,scrollbars=yes')">launch</button>
@@ -597,8 +598,7 @@ async function displayMastodonPost(status,statusBox,reblogger) {
         const clistButtons = document.createElement('div');
         clistButtons.classList.add('clist-actions');
         clistButtons.innerHTML = `
-            <button class="material-icons md-18 md-light" onClick="handleMastodonAction('${status.id}', 'load',this.parentElement.parentElement)">arrow_right</button>
-            
+            <button class="material-icons md-18 md-light" onClick="loadContentToTinyMCE('${status.id}')">arrow_right</button>
         `;
 
         // Append content and actions to the status box

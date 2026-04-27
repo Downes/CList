@@ -101,30 +101,44 @@ The `.account-icon-img` span uses a CSS mask (`mask: url('../assets/icons/mastod
 
 ## `#feed-container` Structure
 
-All feed display functions (Mastodon `displayMastodonFeed`, Bluesky `displayBlueskyPosts`, RSS `makeListing`) build the same DOM shape inside `#feed-container`:
+All feed display functions build the same DOM shape inside `#feed-container`:
 
 ```
 #feed-container
-  ├── [feed header]                — createFeedHeader(type), first page only
+  ├── div.feed-header              — createFeedHeader(type, typevalue), first page only
   ├── #feed-summary                — empty div, reserved for optional summary text
   └── div.status-box               — one per item
         ├── div.status-content
         │     ├── div.reblog-info        (optional — Mastodon reblogs only)
-        │     ├── div#[item-id]          — author + translated text; carries .reference object
+        │     ├── div#[item-id]          — author + summary/content; carries .reference object
         │     ├── div.status-images-container  (optional)
         │     │     └── div.image-item × N
-        │     └── div.status-actions     — platform action buttons (see "post action buttons" section below)
-        └── div.clist-actions      — always: arrow_right → loadContentToTinyMCE(itemID)
+        │     └── div.status-actions     — platform action buttons (see below)
+        └── div.clist-actions      — always: arrow_right → loads item to write pane
   └── [pagination button]          — "Load Next Page" / "Load More" when cursor exists
 ```
 
+### Two rendering approaches
+
+Services render items in one of two ways:
+
+**Direct DOM** (Mastodon, Bluesky) — each service builds its own DOM elements via `createElement` / `innerHTML` directly inside its display function.
+
+**`makeListing()`** (OPML, OASIS, DuckDuckGo, Google) — services populate a standard item object and pass it to `makeListing()` in `reader.js`, which builds the `div.status-box` and calls `readerHandlers[service].statusActions()` to get the action buttons as an HTML string.
+
+**Future recommendations (deferred):**
+
+1. **Move Mastodon and Bluesky action buttons into `readerHandlers[service].statusActions()`** — the same interface the search services use. This gives a single place to look up what actions a service supports without requiring a full `makeListing()` migration. Do this when already touching those files for another reason.
+
+2. **Migrate Mastodon and Bluesky to `makeListing()`** — the right trigger is adding a cross-service feature that needs to work on every item regardless of service (e.g. CList-level bookmarks, save to reading list). At that point the item object format will need standardizing anyway, and the migration earns its keep. Not worth doing as pure cleanup.
+
+---
+
 ## `div.status-actions` — post action buttons
 
-Every rendered item has a `div.status-actions` containing buttons that allow the user to act on the post. The available actions are defined by the service's `.js` file and vary per platform. The `div.clist-actions` (arrow_right) is always present separately and is not part of this set.
+Every rendered item has a `div.status-actions` containing buttons for acting on the post. Actions vary by service. The `div.clist-actions` (`arrow_right`) is always present separately and is not part of this set.
 
 ### Button markup standard
-
-Each button uses Material Icons:
 
 ```html
 <button class="material-icons md-18 md-light [action-active]"
@@ -133,7 +147,7 @@ Each button uses Material Icons:
 </button>
 ```
 
-The third argument (`this`) passes the button element to the handler so it can update visual state on success.
+The third argument (`this`) passes the button element so the handler can update visual state on success.
 
 ### Active state — `action-active`
 
@@ -141,34 +155,41 @@ Toggle actions (boost, bookmark, favourite) have two states:
 
 | State | CSS class | Colour |
 |-------|-----------|--------|
-| inactive | `material-icons md-18 md-light` | blue |
+| inactive | `material-icons md-18 md-light` | default |
 | active | `material-icons md-18 md-light action-active` | orange |
 
-The initial state is set from the API response when the item is rendered (e.g. `status.bookmarked`, `status.reblogged`, `status.favourited`). When the action succeeds, the handler toggles `action-active` on the button element.
+The initial state is set from the API response when the item is first rendered (e.g. `status.bookmarked`, `status.reblogged`, `status.favourited` for Mastodon). Clicking a toggle action calls the reverse endpoint on success (e.g. `unbookmark`, `unreblog`, `unfavourite`) and removes `action-active`.
 
-Clicking an active button calls the reverse API endpoint (e.g. `unbookmark`, `unreblog`, `unfavourite`) and removes the class on success.
-
-### Handler pattern
+### Handler pattern (Mastodon reference implementation)
 
 ```js
-// In handleServiceAction:
 const active = extraParam?.classList.contains('action-active');
 url = `${baseURL}/api/v1/statuses/${id}/${active ? 'unbookmark' : 'bookmark'}`;
-const ok = await postServiceAction(url, active ? 'unbookmark' : 'bookmark');
+const ok = await postMastodonAction(url, active ? 'unbookmark' : 'bookmark');
 if (ok && extraParam) extraParam.classList.toggle('action-active');
-
-// postServiceAction returns true on HTTP success, false on error.
+// postMastodonAction returns true on HTTP success, false on error.
 ```
 
-### Actions by service
+### Full actions table — all services
 
-| Service | Actions |
-|---------|---------|
-| Mastodon | reply, boost *(toggle)*, favourite *(toggle)*, bookmark *(toggle)*, thread, launch |
-| Bluesky | reply, favourite *(toggle)*, repost *(toggle)*, thread, launch |
-| RSS/OPML | defined via `readerHandlers[service].statusActions()` |
+| Action | Icon | Mastodon | Bluesky | OPML | OASIS | DuckDuckGo | Google |
+|--------|------|----------|---------|------|-------|------------|--------|
+| reply | `reply` | ✓ (left pane) | ✓ (inline form) | — | — | — | — |
+| boost / repost | `autorenew` | ✓ toggle | ✓ no toggle | — | — | — | — |
+| like / favourite | `star` / `favorite` | ✓ toggle (`star`) | ✓ no toggle (`favorite`) | — | — | — | — |
+| bookmark | `bookmarks` | ✓ toggle | — | stub | — | — | — |
+| view thread | `dynamic_feed` | conditional | conditional | — | — | — | — |
+| expand content | `zoom_out_map` | — | — | conditional | conditional | — | — |
+| play audio | (custom) | — | — | conditional | — | — | — |
+| launch in window | `launch` | ✓ | ✓ | conditional | ✓ | ✓ | ✓ |
 
-New services should define their actions in the same `readerHandlers['Type']` registration block as `feedFunctions`, and follow the toggle pattern above for any reversible actions.
+**Notes:**
+- *toggle* = supports `action-active` visual state and calls reverse endpoint on second click
+- *no toggle* = action fires but button state is not updated (Bluesky limitation — no initial state from API)
+- *conditional* = only shown when item has relevant content (thread replies, full content, audio enclosure, link)
+- *stub* = wired to an unimplemented `Action()` function; does nothing (OPML bookmark)
+- `zoom_out_map` is a content-display control, not a platform action — it lives in `status-actions` for services using `makeListing()` but could reasonably be moved elsewhere
+- Mastodon `reply` uses `openLeftInterface`; Bluesky `reply` toggles an inline form per item
 
 ---
 
@@ -219,12 +240,8 @@ statusSpecific.reference = {
 }
 ```
 
-## Known inconsistencies (as of 2026-04-21)
+## Known inconsistencies (as of 2026-04-27)
 
-- RSS `makeListing` adds class `statusSpecific` to `div#[item-id]`; Mastodon/Bluesky don't
-- Bluesky builds `status-actions` buttons individually in JS; Mastodon uses innerHTML strings
-- Bluesky appends an inline `replyForm` div inside `status-content` per item; Mastodon uses `openLeftInterface` for replies
+All previously identified inconsistencies have been resolved. The remaining structural gap is that Mastodon and Bluesky still build their feed items directly via DOM/innerHTML rather than going through `makeListing()`. This is a larger refactor deferred for a future session.
 
-**Why:** The goal is full standardization so all services render identically. Inconsistencies are legacy and should be resolved when refactoring individual service files.
-
-**How to apply:** When adding a new service or display function, follow the structure above exactly. The `div.clist-actions` with `arrow_right` and `.reference` object are mandatory — they wire the item into the write/publish flow.
+**When adding a new service:** follow the `makeListing()` + `readerHandlers` pattern. The `div.clist-actions` with `arrow_right` calling `loadContentToTinyMCE(itemID)` and the `.reference` object on `div#[item-id]` are mandatory — they wire each item into the write/publish flow.

@@ -59,9 +59,6 @@ let cursor;
             // Play audio
             if (item.audioIcon && item.audioIcon != '') { opmlstatusActions +=  `${item.audioIcon}`; }
 
-            // Bookmark (needs to be finished)
-            opmlstatusActions += `<button class="material-icons md-18 md-light" onClick="Action('${opmlID}', 'bookmark')">bookmarks</button>`;
-
             // Open link in a new window
             if (item.link) { opmlstatusActions += `<button class="material-icons md-18 md-light" onClick="window.open('${item.link}', '_blank', 'width=800,height=600,scrollbars=yes')">launch</button>`; }
 
