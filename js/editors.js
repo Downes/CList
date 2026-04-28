@@ -13,51 +13,50 @@
 
 
 // Name of the current editor
+let currentEditor = 'texteditor'; // Default editor is TinyMCE
 
-let currentEditor = 'texteditor'; // Default editor is TinyMCE 
+// Content waiting to be loaded into the next editor that is initialized.
+// Shape: { type: string, value: string } — set by switchToEditor() when carrying content, consumed by loadPredefinedContent().
+let pendingContent = null;
 // 
 // Define handlers for each editor
 //
-// Definition:
-// 
-//      Editors are defined as objects with methods for initializing the editor, 
-//      getting content from the editor, and loading content into the editor.
-//      Each editor has its own Javascript file (except text, which is below)
-//      
-//      The editorHandlers object is a dictionary of editor objects, keyed by the editor name.
-//      Each editor object has the following methods:
-//          - initialize: Initializes the editor
-//          - getContent: Gets the content from the editor
-//          - loadContent: Loads content into the editor
-//      
-//      The editorHandlers object is used to call the appropriate methods for the current editor.  
-//      The current editor is set by the user and is used to determine which editor to use.
-//      
-//      Add an editor to the editorHandlers object as follows:
-//          (function () {
-//              const etherpadHandler = {
-//                   initialize: async (content) => {    // Initialize the editor                   
-//                      currentEditor = 'etherpad';      // Required for the editor to work
-//                   },
-//                   getContent: () => {                 // Get the content from the editor 
-//                   },
-//                   loadContent: (content) => {          // Load content into the editor       
-//                   }
-//               };
-//               editorHandlers['etherpad'] = etherpadHandler;
-//           })();
-// 
-//      The editorHandlers object is used to call the appropriate methods for the current editor.
-//      Usage:
+// Each handler object has the following fields:
 //
-//      const handler = editorHandlers[currentEditor];
-//      if (handler && typeof handler.getContent === 'function') {
-//         const content = handler.getContent();
-//      }
+//   label         {string}   Human-readable name shown in the editor picker UI.
+//   icon          {string}   Material Icons name shown beside the label (e.g. 'edit').
+//   contentTypes  {string[]} MIME types this editor prefers (e.g. ['text/html']).
+//                            Empty array means the editor accepts any content type.
+//   requiresAccount {bool}   true if this editor needs a kvstore account with permission 'e'
+//                            and a matching type field (e.g. Etherpad). false for built-ins.
+//   initialize()             Set currentEditor, create/show DOM, call loadPredefinedContent().
+//   getContent()             Return current editor content as a string.
+//   loadContent({type,value}, itemId?)
+//                            Insert/append content at cursor. type is a MIME type string.
 //
+// To add a new editor, create a new JS file and register its handler:
+//
+//   (function () {
+//       editorHandlers['myeditor'] = {
+//           label: 'My Editor',
+//           contentTypes: ['text/html'],
+//           requiresAccount: false,
+//           initialize: () => { currentEditor = 'myeditor'; /* … */ loadPredefinedContent('myeditor'); },
+//           getContent: () => { /* return content string */ },
+//           loadContent: ({ type, value }, itemId) => { /* insert value into editor */ }
+//       };
+//   })();
+//
+// Usage:
+//   const handler = editorHandlers[currentEditor];
+//   if (handler?.getContent) content = handler.getContent();
 
 const editorHandlers = {
     texteditor: {
+        label: 'Text',
+        icon: 'notes',
+        contentTypes: ['text/plain'],
+        requiresAccount: false,
         initialize: () => {
 
             currentEditor = 'texteditor';
@@ -87,10 +86,17 @@ const editorHandlers = {
                 writePaneContent.parentNode.insertBefore(textEditorReferences, writePaneContent.nextSibling);
             }
             
-            loadPredefinedContent('texteditor');
+            // Wire up auto-save once (guard against re-wiring on subsequent initialize calls)
+            if (!textEditorDiv.dataset.draftWired) {
+                const ta = document.getElementById('text-column');
+                ta.addEventListener('input', debounce(() => saveDraft('texteditor', ta.value), 1000));
+                textEditorDiv.dataset.draftWired = '1';
+            }
 
-            // Initialize the text editor
-            // This is a placeholder function
+            const hasPending = !!pendingContent;
+            loadPredefinedContent('texteditor');
+            if (!hasPending) offerDraftRestore('texteditor', 'text/plain');
+
             console.log("Text editor initialized");
         },
         getContent: () => {
@@ -101,13 +107,9 @@ const editorHandlers = {
             }
             return textarea.value.trim();
         },
-        loadContent: (itemContent, itemId) => {
-            // Load content into the textarea
-
-            // Remove HTML from content
-            // (This is optional and we could change this)
-            itemContent = cleanHTMLContent(itemContent);
-
+        loadContent: ({ type, value }, itemId) => {
+            // Strip HTML tags when receiving HTML content — the text editor works in plain text
+            const itemContent = (type === 'text/html') ? cleanHTMLContent(value) : value;
 
             const textarea = document.getElementById('text-column');
             if (textarea) {
@@ -136,14 +138,20 @@ const editorHandlers = {
         }
     },   
     quill: {
+        label: 'Quill (HTML)',
+        icon: 'edit',
+        contentTypes: ['text/html'],
+        requiresAccount: false,
         getContent: () => {
-            // Retrieve content for Quill
-            return quillEditor.root.innerHTML; // Example for Quill
+            return quillEditor.root.innerHTML;
         }
     },
     ckeditor: {
+        label: 'CKEditor',
+        icon: 'edit',
+        contentTypes: ['text/html'],
+        requiresAccount: false,
         getContent: () => {
-            // Retrieve content for CKEditor
             return CKEDITOR.instances['editor-id'].getData();
         }
     }
@@ -158,52 +166,30 @@ const editorHandlers = {
 
 async function playEditors() {
 
-    // Display a confirmation dialog to the user
-    const userConfirmed = confirm("Loading will erase contents in the selected editor. Do you want to continue?");
-    
-    // Proceed only if the user clicks "OK"
-    if (!userConfirmed) {
-        console.log("User canceled the operation.");
-        return; // Exit the function if the user cancels
-    }
-
-    // Check if 'write-load' exists and throw an error if it doesn't
     const writeLoadDiv = document.getElementById('write-load');
     if (!writeLoadDiv) {
-        alert('Error: write-load not found');
-        console.error("Error: can't find an div named write-load. It should be created in index.html and it's where we stash the content to be pre-loaded into the editor.");
+        console.error("Error: write-load div not found");
         return;
     }
-    // Make the 'write-load' div invisible
+
+    // Rebuild the panel for content loading
+    writeLoadDiv.innerHTML = `
+        <div id="write-load-header" class="flex-container">
+            <h2>Load Content</h2>
+            <button id="write-load-close-button" onclick="closeWriteLoadPane()">X</button>
+        </div>
+        <div id="write-load-content"></div>`;
+
     writeLoadDiv.style.display = 'block';
+    document.getElementById('write-pane-content').style.display = 'none';
 
-    // Ensure 'write-load-heading' exists as a child of 'write-load'
-    let writeLoadHeading = document.getElementById('write-load-header');
-    if (!writeLoadHeading) {
-        writeLoadHeading = document.createElement('div');
-        writeLoadHeading.id = 'write-load-heading';
-        writeLoadDiv.appendChild(writeLoadHeading);
-        console.log("write-load-heading created");
-    }
-    writeLoadHeading.innerHTML = '<h2>Load Content</h2>';
+    const writeLoadContent = document.getElementById('write-load-content');
 
-    // Ensure 'write-load-content' exists as a child of 'write-load'
-    let writeLoadContent = document.getElementById('write-load-content');
-    if (!writeLoadContent) {
-        writeLoadContent = document.createElement('div');
-        writeLoadContent.id = 'write-load-content';
-        writeLoadDiv.appendChild(writeLoadContent);
-        console.log("write-load-content created");
-    }
-    writeLoadContent.innerHTML = ''; // Clear any existing content
-
-    // Create buttons for the options
     const options = [
-        { text: "Load blank editor", action: "loadBlank" },
-        { text: "Load from file system", action: "loadFile" },
+        { text: "Load blank", action: "loadBlank" },
+        { text: "Load from file", action: "loadFile" },
         { text: "Load template", action: "loadTemplate" },
-        { text: "Generate new template", action: "generateTemplate" },
-        { text: "Load Etherpad", action: "loadEtherpad" },
+        { text: "Generate template", action: "generateTemplate" },
     ];
 
     const userChoice = await new Promise(resolve => {
@@ -216,77 +202,156 @@ async function playEditors() {
         });
     });
 
-    // Process the user's selection
     let content = null;
-    console.log(`User choice: ${userChoice}`);
 
     switch (userChoice) {
         case "loadBlank":
-            console.log("Loading blank editor...");
-            content = {};
-            content.type='text';
-            content.value = '';
+            content = { type: 'text/plain', value: '' };
+            clearDraft(currentEditor);
             break;
         case "loadFile":
-            console.log("Loading from file system...");
-            content = await loadFile(); // Properly await loadFile
-            if (!content) {
-                console.error("Error: Content not loaded properly");
-                return; // Exit if content is invalid
-            }
-            console.log("Content loaded successfully:", content);
+            content = await loadFile();
+            if (!content) { alternateDivs('write-load', 'write-pane-content'); return; }
             break;
         case "loadTemplate":
-            console.log("Loading template...");
-            content = await loadTemplate(); // Add function to return content
+            content = await loadTemplate();
             break;
         case "generateTemplate":
-            console.log("Generating new template...");
             content = await generateTemplateContent();
-            console.log(`Content loaded: ${content.type}`);
-            console.log(`Content value: ${content.value}`);
             break;
-        case "loadEtherpad":
-            console.log("Loading Etherpad...");
-            toggleDiv('write-load');
-            //toggleDiv('write-title');   // we'll leave this for now until we can reliably always open it when needed
-            content = initializeEditor('etherpad'); 
-            return;   // No content to process if we're just opening an existing etherpad
         default:
             console.error("Unknown selection");
             break;
     }
 
-    // Ensure content is ready before proceeding
     if (!content || content.value === undefined || content.type === undefined) {
-        console.error("Error: Content not loaded properly");
-        return; // Exit if content is invalid
+        console.error("Content not loaded properly");
+        alternateDivs('write-load', 'write-pane-content');
+        return;
     }
 
-    console.log(`Content loaded: ${content.type}`);
-    console.log(`Content value: ${content.value}`);
-
-    // Proceed to the next step with the loaded content
-    console.log("Moving on to the next step");
-    if (writeLoadDiv) {     
-        await populateEditorAccountList(content);
-        writeLoadDiv.style.display = 'block';
-    } else {    // If 'write-load' doesn't exist, alert the user     
-        console.error("Error: can't find an item named write-load");
+    // Warn if the content type is lossy for the current editor (e.g. HTML into plain-text editor)
+    const handler = editorHandlers[currentEditor];
+    if (handler && content.type === 'text/html'
+            && handler.contentTypes.includes('text/plain')
+            && !handler.contentTypes.includes('text/html')) {
+        if (!confirm('The loaded content is HTML but the current editor is plain text. HTML tags will be stripped. Continue?')) {
+            alternateDivs('write-load', 'write-pane-content');
+            return;
+        }
     }
 
-    // Check if 'write-pane-content' exists and set its display to 'none'
-    const writePaneContentDiv = document.getElementById('write-pane-content');
-    if (writePaneContentDiv) {
-       writePaneContentDiv.style.display = 'none';
-    } else {    // If 'write-pane-content' doesn't exist, alert the user        
-        alert('playEditors error: write-pane-content not found');
-        console.error("Error: can't find an div named write-pane-content. It should be created in index.html and it's where we display the editor.");
-    }
-    console.log("playEditors completed");
-
+    loadContent(content);
+    alternateDivs('write-load', 'write-pane-content');
 }
 
+
+// Close the write-load panel and return to the editor
+function closeWriteLoadPane() {
+    alternateDivs('write-load', 'write-pane-content');
+}
+
+
+function makeEditorButton(label, icon, onClick) {
+    const btn = document.createElement('button');
+    btn.className = 'account-button';
+    const iconEl = document.createElement('span');
+    iconEl.className = 'material-icons';
+    iconEl.textContent = icon || 'edit';
+    const nameEl = document.createElement('span');
+    nameEl.textContent = label;
+    btn.appendChild(iconEl);
+    btn.appendChild(nameEl);
+    btn.addEventListener('click', async () => onClick());
+    return btn;
+}
+
+// Rebuild the editor list in the right pane.
+// carriedContent — { type, value } to pass into the new editor, or null.
+async function populateEditorList(carriedContent) {
+    const builtInOptions = document.getElementById('editor-switch-options');
+    builtInOptions.innerHTML = '';
+    Object.entries(editorHandlers).forEach(([key, handler]) => {
+        if (handler.requiresAccount || typeof handler.initialize !== 'function') return;
+        if (key === currentEditor) return;
+        builtInOptions.appendChild(makeEditorButton(handler.label || key, handler.icon, () => switchToEditor(key, carriedContent)));
+    });
+
+    const accountList = document.getElementById('editor-switch-account-options');
+    accountList.innerHTML = '';
+    if (!Array.isArray(accounts) || accounts.length === 0) {
+        try { accounts = await getAccounts(flaskSiteUrl); } catch(e) {}
+    }
+    accounts.forEach(account => {
+        const parsedValue = JSON.parse(account.value);
+        if (!parsedValue.permissions.includes('e')) return;
+        const editorType = parsedValue.type?.toLowerCase();
+        const handler = editorHandlers[editorType];
+        if (!handler || !handler.requiresAccount) return;
+        if (editorType === currentEditor) return;
+        accountList.appendChild(makeEditorButton(`${parsedValue.title} (${handler.label})`, handler.icon, () => switchToEditor(editorType, carriedContent)));
+    });
+}
+
+// Open the editor switcher in the right pane
+async function playEditorSwitch() {
+    let carriedContent = null;
+    const currentHandler = editorHandlers[currentEditor];
+    if (currentHandler?.getContent) {
+        try {
+            const raw = await currentHandler.getContent();
+            const currentType = currentHandler.contentTypes[0] || 'text/plain';
+            if (typeof raw === 'string' && raw.trim()) carriedContent = { type: currentType, value: raw };
+        } catch(e) {
+            console.warn('Could not read content from current editor:', e);
+        }
+    }
+
+    await populateEditorList(carriedContent);
+    openRightInterface('editor-list');
+}
+
+
+// Switch to a different editor, optionally carrying content over
+async function switchToEditor(editorType, carriedContent) {
+    const handler = editorHandlers[editorType];
+
+    // Warn when switching from HTML content to a plain-text editor (lossy)
+    if (carriedContent && carriedContent.type === 'text/html'
+            && handler.contentTypes.includes('text/plain')
+            && !handler.contentTypes.includes('text/html')) {
+        if (!confirm(`Switching to ${handler.label} will strip HTML formatting. Continue?`)) return;
+    }
+
+    if (carriedContent) pendingContent = carriedContent;
+
+    await initializeEditor(editorType);
+    closeRightPane();
+    updateEditorIndicator();
+    await populateEditorList(null);
+}
+
+
+// Update the editor indicator button label to match the current editor
+function updateEditorIndicator() {
+    const handler = editorHandlers[currentEditor];
+    const label = handler?.label || currentEditor;
+    const btn = document.getElementById('editor-indicator');
+    if (btn) btn.textContent = label + ' ▾';
+    const status = document.getElementById('editor-status');
+    if (status) status.textContent = 'editor: ' + label;
+}
+
+
+// Load a saved template — not yet implemented.
+// Future: let user pick from templates stored in kvstore or the file system.
+async function loadTemplate() {
+    const writeLoadContent = document.getElementById('write-load-content');
+    if (writeLoadContent) {
+        writeLoadContent.innerHTML = '<p>Template loading is not yet implemented.</p>';
+    }
+    return null;
+}
 
 // Generate a template. Assumes the existence of a generative AI account (type 'g')
 
@@ -354,7 +419,7 @@ async function generateTemplateContent() {
             document.getElementById('loading-indicator').style.display = 'none';
             // Resolve the promise with the generated template
             resolve({
-                type: outputFormat,
+                type: outputFormat === 'html' ? 'text/html' : 'text/plain',
                 value: extractedContent
             });
         });
@@ -391,39 +456,38 @@ async function populateEditorAccountList(content) {
     // Make the 'write-load' div visible
     writeLoadDiv.style.display = 'block';
 
-    // Set up the default editors
+    // Stash content so initializeEditor → loadPredefinedContent can pick it up
+    pendingContent = content;
+    console.log('Content stashed in pendingContent', content.type);
+
+    // Build the picker shell
     writeLoadDiv.innerHTML = `
-        <div id="loadedContent" stype="display:none;"></div>
         <div id="write-load-header" class="flex-container">
             <h2>Load an Editor</h2>
             <button id="write-load-close-button" onclick="closeWriteLoadPane()">X</button>
         </div>
         <div id="write-load-content">
-            <div id="write-load-instructions">
-                <p>Choose an editor</p>
-            </div>
-            <div id="write-load-options"> <!-- Default Editors-->
-                <button class="save-button" onclick="loadOpml()">OPML</button>
-                <button class="save-button" onclick="initializeEditor('tinymce');alternateDivs('write-load','write-pane-content');">HTML</button>
-                <!-- <button class="save-button" onclick="loadMd()">Markdown</button> -->
-                <button class="save-button" onclick="initializeEditor('texteditor');alternateDivs('write-load','write-pane-content');">Text</button>
-            </div>
-            <div id="more-write-load-options"> <!-- Additional Editors-->
-                <!-- Additional Editors will be added here dynamically --></div>
+            <div id="write-load-instructions"><p>Choose an editor</p></div>
+            <div id="write-load-options"></div>
+            <div id="more-write-load-options"></div>
         </div>`;
 
-    // Stash the loaded content into the div
-    // It will be found and loaded by initializeEditor();
-    document.getElementById('loadedContent').textContent = content.value;
-    console.log('Content stashed in loadedContent');
+    // Built-in editors: any handler with requiresAccount=false and an initialize method
+    const builtInOptions = document.getElementById('write-load-options');
+    Object.entries(editorHandlers).forEach(([key, handler]) => {
+        if (handler.requiresAccount || typeof handler.initialize !== 'function') return;
+        const btn = document.createElement('button');
+        btn.className = 'save-button';
+        btn.textContent = handler.label || key;
+        btn.addEventListener('click', () => {
+            initializeEditor(key);
+            alternateDivs('write-load', 'write-pane-content');
+        });
+        builtInOptions.appendChild(btn);
+    });
 
+    // Account-backed editors: accounts with permission 'e' whose type maps to a registered handler
     const accountList = document.getElementById('more-write-load-options');
-    if (!accountList) {  // I know, I just created it, but just in case of future edits...
-        alert('populateAccountList error: '+destination+' not found');
-        console.error("Error: can't find an item named "+destination);
-        return;
-    }
-    accountList.innerHTML = '';                             // Clear previous options
     if (!Array.isArray(accounts)) {
         throw new Error('Error: Accounts array not found; maybe you need to log in.');
     }
@@ -439,17 +503,25 @@ async function populateEditorAccountList(content) {
         }
     }
 
-    accounts.forEach(account => {                           // Load the options stored in the KVstore
+    accounts.forEach(account => {
         const parsedValue = JSON.parse(account.value);
-        if (parsedValue.permissions.includes('e')) {  // Check if 'permissions' contains 'e' for 'edit'
-            const accountItem = document.createElement('button');   // Set the class
-            accountItem.className = 'save-button';                  //  Set the class and onclick attribute
+        if (!parsedValue.permissions.includes('e')) return;
 
-            // This is specifically for etherpad and I will need to change this when I add additional editors
-            accountItem.setAttribute('onclick', "initializeEditor('etherpad');alternateDivs('write-load','write-pane-content');");
-            accountItem.innerHTML = parsedValue.title;       // Set the innerHTML
-            accountList.appendChild(accountItem);             // Append to a parent element 
+        const editorType = parsedValue.type?.toLowerCase();
+        const handler = editorHandlers[editorType];
+        if (!handler || !handler.requiresAccount) {
+            console.warn(`No account-backed editor handler found for type '${parsedValue.type}' — skipping`);
+            return;
         }
+
+        const accountItem = document.createElement('button');
+        accountItem.className = 'save-button';
+        accountItem.textContent = `${parsedValue.title} (${handler.label})`;
+        accountItem.addEventListener('click', () => {
+            initializeEditor(editorType);
+            alternateDivs('write-load', 'write-pane-content');
+        });
+        accountList.appendChild(accountItem);
     });
 }
 
@@ -473,6 +545,7 @@ async function initializeEditor(editorType) {
         try {
             // Await editor initialization if it's asynchronous
             await editorHandlers[editorType].initialize();
+            updateEditorIndicator();
         } catch (error) {
             console.error(`Error initializing editor of type '${editorType}':`, error);
             alert(`Failed to initialize editor. Please consult the console for details.`);
@@ -486,15 +559,14 @@ async function initializeEditor(editorType) {
 
 async function loadPredefinedContent(editorType) {
 
-    // Find any predefined content (which will have been stashed in the loadedContent div)
-    const loadedContentDiv = document.getElementById('loadedContent');
-    if (!loadedContentDiv || !loadedContentDiv.textContent.trim()) {
-        console.log('No content found in loadedContent');
-        return; // Exit the function if no content is found
-    }   
-    const content = loadedContentDiv.textContent.trim();
+    if (!pendingContent || !pendingContent.value) {
+        console.log('No pending content to load');
+        return;
+    }
 
-    // Load the content into the editor
+    const content = pendingContent;
+    pendingContent = null; // consume it — one editor gets it
+
     if (typeof editorHandlers[editorType].loadContent === 'function') {
         editorHandlers[editorType].loadContent(content);
     } else {
@@ -502,6 +574,26 @@ async function loadPredefinedContent(editorType) {
     }
 }
 
+
+// Draft auto-save helpers — keyed by editor name in localStorage
+
+function saveDraft(editorKey, value) {
+    if (value && value.trim()) sessionStorage.setItem('clist_draft_' + editorKey, value);
+}
+
+function clearDraft(editorKey) {
+    sessionStorage.removeItem('clist_draft_' + editorKey);
+}
+
+function offerDraftRestore(editorKey, contentType) {
+    const draft = sessionStorage.getItem('clist_draft_' + editorKey);
+    if (!draft) return;
+    if (confirm('A draft was saved from your last session. Restore it?')) {
+        loadContent({ type: contentType, value: draft });
+    } else {
+        clearDraft(editorKey);
+    }
+}
 
 // Close all editors
 function closeAllEditors() {
@@ -511,13 +603,35 @@ function closeAllEditors() {
     });
 }
 
-// Load content into the editor
-function loadContent(itemContent, itemId) {
+// Load content into the active editor.
+// content must be { type: string, value: string } — e.g. { type: 'text/html', value: '<p>…</p>' }
+function loadContent(content, itemId) {
     const handler = editorHandlers[currentEditor];
     if (handler && typeof handler.loadContent === 'function') {
-        handler.loadContent(itemContent, itemId);
+        handler.loadContent(content, itemId);
     } else {
         console.error(`No handler defined for editor: ${currentEditor}`);
     }
 }
 
+// Load a feed item into the active editor by its DOM id.
+// Called by the arrow_right clist-action button on every feed item.
+function loadContentToEditor(itemId) {
+    let item_content;
+    if (itemId === 'thread' || itemId === 'feed-container') {
+        const feedContainer = document.getElementById('feed-container');
+        const tempContainer = feedContainer.cloneNode(true);
+        const feedHeader = tempContainer.querySelector('.feed-header');
+        if (feedHeader) feedHeader.remove();
+        tempContainer.querySelectorAll('.status-actions').forEach(el => el.remove());
+        tempContainer.querySelectorAll('.clist-actions').forEach(el => el.remove());
+        tempContainer.querySelectorAll('.material-icons').forEach(el => el.remove());
+        item_content = tempContainer.innerHTML;
+    } else {
+        item_content = document.getElementById(itemId).innerHTML;
+    }
+    loadContent({ type: 'text/html', value: item_content }, itemId);
+}
+
+// Set the indicator label once all scripts have loaded
+document.addEventListener('DOMContentLoaded', () => { updateEditorIndicator(); });

@@ -238,7 +238,7 @@ async function fetchAndDisplayOPMLData(cursor) {
         
         // If we have one or more audio files, set the audioIcon
         if (audioFiles.length > 0) {
-            // currentAudio is set to the last added audio file’s index
+            // currentAudio is set to the last added audio file's index
             currentAudio = audioCount - 1;
             audioIcon = `<button class="material-icons md-18 md-light" onClick="playAudio(${currentAudio});">play_arrow</button>`;
         //    alert("Audio?"+audioIcon);

@@ -22,7 +22,7 @@ let myUsername = ''; // Global username (updated via setUsername())
 /**
  * playChat()
  *
- * Called when the user clicks “Chat.” It makes the chat section visible,
+ * Called when the user clicks "Chat." It makes the chat section visible,
  * opens the left pane, initializes the P2P system (if not already initialized),
  * and then sets the username.
  */
@@ -95,7 +95,7 @@ function playChat() {
         // Handle incoming data.
         if (data.type === 'message') {
             const sender = usernames[conn.peer] || conn.peer;
-            // Sanitize the incoming message without adding the sender’s name
+            // Sanitize the incoming message without adding the sender's name
             let sanitizedMsg = sanitizeHTML(data.message);
             sanitizedMsg = chatOptions(sanitizedMsg, sender); // Process incoming message
             console.log(sanitizedMsg);
@@ -275,7 +275,7 @@ function connectToPeer(peerId, discussionName) {
   conn.on('data', (data) => {
     if (data.type === 'message') {
         const sender = usernames[conn.peer] || conn.peer;
-        // Sanitize the incoming message without adding the sender’s name
+        // Sanitize the incoming message without adding the sender's name
         let sanitizedMsg = sanitizeHTML(data.message);
         sanitizedMsg = chatOptions(sanitizedMsg, sender); // Process incoming message
         console.log(sanitizedMsg);

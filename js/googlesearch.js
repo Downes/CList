@@ -171,8 +171,8 @@ async function googleSearch(query,type,start) {
 }
 
 /**
- * Attempt to extract an author from the item’s pagemap, if present.
- * Note: This is not an official or standardized approach; it’s heuristic-based
+ * Attempt to extract an author from the item's pagemap, if present.
+ * Note: This is not an official or standardized approach; it's heuristic-based
  * because different pages provide different metadata fields for authors.
  */
 function extractAuthorFromGoogle(item) {
@@ -228,7 +228,7 @@ function extractAuthorFromGoogle(item) {
       }
     }
   
-    // 3. Add any other fallback logic here, e.g. checking “pagemap.review” or custom fields
+    // 3. Add any other fallback logic here, e.g. checking "pagemap.review" or custom fields
   
     return "";
   }

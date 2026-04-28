@@ -131,7 +131,7 @@ console.log(htmlString);
   
       // AUTHOR
       // Author line often looks like: <b>Author</b>: Name<br/>
-      // We can match it with a small regex on the entire element’s HTML:
+      // We can match it with a small regex on the entire element's HTML:
       const authorMatch = resultEl.innerHTML.match(/<b>Author<\/b>:\s?(.*?)<br\/>/);
       item.author = authorMatch ? authorMatch[1].trim() : '';
   
@@ -148,7 +148,7 @@ console.log(htmlString);
   
       // DESCRIPTION
       // Descriptions usually appear inside the associated "Detailed Item View" modal (class="modal-body").
-      // We'll look for the modal tied to this row (it’s usually right next to it).
+      // We'll look for the modal tied to this row (it's usually right next to it).
       // But to simplify, we can also just do a regex on resultEl's HTML (if it includes the modal):
       const descMatch = resultEl.innerHTML.match(/<strong>Description<br><\/strong>(.*?)<\/div>/);
       item.description = descMatch

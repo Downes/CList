@@ -51,6 +51,7 @@
                     <button id="openFindButton" class="left" onclick="playFind();">Find</button>
                     <button id="openChatButton" class="left" onclick="playChat();">Chat</button>
                     </div>
+                    <button class="pane-snap-btn" onclick="snapPanes('left')" title="Collapse/expand panes"><span class="material-icons">arrow_left</span></button>
                 </div>
                 <div id="feed-section">
                     <!-- Dynamic buttons will be inserted here -->
@@ -70,14 +71,15 @@
             <div id="write-pane">
                 <div id="right-main-command" class="command">
                     <div>
-
+                        <button class="pane-snap-btn" onclick="snapPanes('right')" title="Collapse/expand panes"><span class="material-icons">arrow_right</span></button>
                     </div>
                     <div>
-                        <!--button id="load-button" class="right" onclick="loadFile();">Load</button>--> 
-                       <button id="load-button" class="right" onclick="playEditors();">Load</button> 
+                        <!--button id="load-button" class="right" onclick="loadFile();">Load</button>-->
+                       <button id="load-button" class="right" onclick="playEditors();">Load</button>
                          <button id="save-button" class="right" onclick="playSave()">Save</button>
                          <button id="save-button" class="right" onclick="playPost()">Post</button>
                          <button id="references-button" class="right" onclick="alternateDivs(currentEditor + '-references','write-pane-content')">Refs</button>
+                         <button id="editor-indicator" onclick="playEditorSwitch()" title="Switch editor">Text &#9662;</button>
                     </div>
                 </div>
                     <!-- Place to store Loaded file input while it is processed-->
@@ -87,7 +89,7 @@
                         style="display: none;" 
                         onchange="handleFileFallback(event)" 
                     />
-                <div id="writeReferences"></div>        
+                <div id="writeReferences"></div>
                 <div id="write-load">
                     <div id="write-load-header" class="flex-container">
                         <h2>Load an Editor</h2>
@@ -97,14 +99,8 @@
                         <div id="write-load-instructions">
                             <p>Choose an editor</p>
                         </div>
-                        <div id="write-load-options"> <!-- Default Editors-->
-                            <!-- button class="save-button" onclick="loadOpml()">OPML</button> -->
-                            <button class="save-button" onclick="initializeEditor('tinymce');alternateDivs('write-load','write-pane-content');">HTML</button>
-                            <!-- <button class="save-button" onclick="loadMd()">Markdown</button> -->
-                            <button class="save-button" onclick="initializeEditor('texteditor');alternateDivs('write-load','write-pane-content');">Text</button>
-                        </div>
-                        <div id="more-write-load-options"> <!-- Additional Editors-->
-                            <!-- Additional Editors will be added here dynamically --></div>
+                        <div id="write-load-options"></div>
+                        <div id="more-write-load-options"></div>
 
 
                     </div>
@@ -152,8 +148,8 @@
             <button id="left-close-button" onclick="closeLeftPane()">X</button>
         </div>
         <!-- Current login identity and selected read account -->
-        <div id="current-status">
-            <div id="identityDiv">Please login to Identity Server</div>
+        <div id="current-status" class="pane-status">
+            <div id="identityDiv" class="pane-status-item">Please login to Identity Server</div>
             <div id="selectedAccount"></div>
         </div>
 
@@ -224,7 +220,15 @@
         <div id="right-command" class="command">
             <button id="right-close-button" onclick="closeRightPane()">X</button>
         </div>
+        <div id="right-status" class="pane-status">
+            <div id="editor-status" class="pane-status-item">editor: Text</div>
+        </div>
         <div id="right-content" class="pane content">
+            <div id="editor-list" class="account-list">
+                <div class="list-tip">Select an editor to use</div>
+                <div id="editor-switch-options"></div>
+                <div id="editor-switch-account-options"></div>
+            </div>
             <div id="save-instructions" style="display: none;">
                 
                 <div id="save-header">
@@ -241,8 +245,8 @@
             <div id="post-instructions"  style="display: none;">
                 <div id="post-header">
                     <h2>Post Content</h2>
-                    <button 
-                        id="post-right-close-button" 
+                    <button
+                        id="post-right-close-button"
                         onclick="document.getElementById('post-instructions').style.display='none';">
                         &times;
                     </button>

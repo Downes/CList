@@ -598,7 +598,7 @@ async function displayMastodonPost(status,statusBox,reblogger) {
         const clistButtons = document.createElement('div');
         clistButtons.classList.add('clist-actions');
         clistButtons.innerHTML = `
-            <button class="material-icons md-18 md-light" onClick="loadContentToTinyMCE('${status.id}')">arrow_right</button>
+            <button class="material-icons md-18 md-light" onClick="loadContentToEditor('${status.id}')">arrow_right</button>
         `;
 
         // Append content and actions to the status box
@@ -666,7 +666,7 @@ async function displayMastodonPost(status,statusBox,reblogger) {
             openLeftInterface(mastodonStatusForm());
             document.getElementById('statusIDInput').value = statusId;
         } else if (actionType === 'load') {
-            loadContentToTinyMCE(statusId);
+            loadContentToEditor(statusId);
             actionSuccessMessage = 'Loaded item to write pane.';
         } else if (actionType === 'summarize') {
             alert('summarize'); return;

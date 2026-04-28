@@ -72,7 +72,7 @@ async function duckduckgoSearch(q) {
         //   "Text": "Topic Title - short description"
         // }
         //
-        // Others might be sub-group items with a "Topics" array. We’ll handle both cases:
+        // Others might be sub-group items with a "Topics" array. We'll handle both cases:
 
             if (item.Topics && Array.isArray(item.Topics)) {
                 // It's a subgroup

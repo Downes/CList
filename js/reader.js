@@ -95,7 +95,7 @@ function makeAccountList(tip, accounts, filterFn, onClickFn) {
     container.className = 'account-list';
 
     const tipDiv = document.createElement('div');
-    tipDiv.className = 'account-list-tip';
+    tipDiv.className = 'list-tip';
     tipDiv.textContent = tip;
     container.appendChild(tipDiv);
 
@@ -411,7 +411,7 @@ function makeListing(
     const clistActions = document.createElement('div');
     clistActions.classList.add('clist-actions'); // Add a class for styling
     clistActions.innerHTML = `
-      <button class="material-icons md-18 md-light" onClick="loadContentToTinyMCE('${itemID}');">
+      <button class="material-icons md-18 md-light" onClick="loadContentToEditor('${itemID}');">
         arrow_right
       </button>
     `;

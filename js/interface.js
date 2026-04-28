@@ -164,6 +164,32 @@ document.addEventListener("mouseup", () => {
     document.body.style.cursor = ""; // Reset cursor
 });
 
+// Snap the read/write pane split to a preset position.
+// direction='left'  → collapse read pane (or equalize if read is already large)
+// direction='right' → collapse write pane / maximize read (or equalize if write is already large)
+function snapPanes(direction) {
+    const mainContentRect = mainContent.getBoundingClientRect();
+    const readPaneRect = readPane.getBoundingClientRect();
+    const ratio = readPaneRect.width / mainContentRect.width;
+
+    if (direction === 'left') {
+        if (ratio > 0.65) {
+            readPane.style.flex = '0.5';
+            writePane.style.flex = '0.5';
+        } else {
+            readPane.style.flex = '0';
+            writePane.style.flex = '1';
+        }
+    } else {
+        if (ratio < 0.35) {
+            readPane.style.flex = '0.5';
+            writePane.style.flex = '0.5';
+        } else {
+            readPane.style.flex = '1';
+            writePane.style.flex = '0';
+        }
+    }
+}
 
 // Set up the feed menus differently for different services
 
@@ -218,7 +244,7 @@ document.addEventListener("mouseup", () => {
             actions.className = "clist-actions";
             actions.innerHTML = `
                 <button class="material-icons md-18 md-light" onClick="handleSummarize('feed-container','feed-summary','thread')">play_for_work</button>
-                <button class="material-icons md-18 md-light" onClick="loadContentToTinyMCE('feed-container')">arrow_right</button>
+                <button class="material-icons md-18 md-light" onClick="loadContentToEditor('feed-container')">arrow_right</button>
                 `;
             feedHeaderDiv.appendChild(actions);
         }
@@ -287,6 +313,14 @@ document.addEventListener("mouseup", () => {
         }
 
         leftContent.appendChild(panel);
+    }
+
+    function openRightInterface(panelId) {
+        openRightPane();
+        const rightContent = document.getElementById('right-content');
+        Array.from(rightContent.children).forEach(child => { child.style.display = 'none'; });
+        const panel = document.getElementById(panelId);
+        if (panel) panel.style.display = 'block';
     }
 
     function toggleFormDisplay(formId,column,on) {

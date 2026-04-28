@@ -29,6 +29,10 @@ const etherpadBaseUrl = 'https://etherpad.cloudron.downes.ca/api/1.2.15';
 (function () {
 
     const etherpadHandler = {
+        label: 'Etherpad',
+        icon: 'group',
+        contentTypes: ['text/html', 'text/plain'],
+        requiresAccount: true,
         initialize: async (content) => {
 
             currentEditor = 'etherpad';
@@ -98,15 +102,16 @@ const etherpadBaseUrl = 'https://etherpad.cloudron.downes.ca/api/1.2.15';
             return response.html;
         },
         
-        loadContent: async (itemContent, itemId) => {
-            
+        loadContent: async ({ type, value }, itemId) => {
+            const itemContent = value;
+
             // Ensure padName and authorID are available
             if (!padName || !authorID) {
                 alert('Pad or author information is missing. Please select or create a pad.');
                 return;
             }
 
-            // Etherpad doesn's support appendHTML as an API method, so we extract
+            // Etherpad doesn't support appendHTML as an API method, so we extract
             // the current HTML content, append new content, and set the HTML content
             try {
 

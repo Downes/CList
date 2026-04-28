@@ -203,7 +203,7 @@ All services currently provide exactly one clist action per item:
 
 | Button | Icon | Action |
 |--------|------|--------|
-| Load to write pane | `arrow_right` | `loadContentToTinyMCE(itemID)` |
+| Load to write pane | `arrow_right` | `loadContentToEditor(itemID)` |
 
 This loads the item's text into the TinyMCE editor in the write pane, wiring it to the publish/compose flow via the `.reference` object.
 
@@ -211,7 +211,7 @@ This loads the item's text into the TinyMCE editor in the write pane, wiring it 
 
 ```html
 <button class="material-icons md-18 md-light"
-        onClick="loadContentToTinyMCE('itemId')">
+        onClick="loadContentToEditor('itemId')">
   arrow_right
 </button>
 ```
@@ -236,7 +236,7 @@ statusSpecific.reference = {
     title,         // service name or post title
     feed,          // feed/source name (RSS) or acct (Mastodon)
     created_at,    // ISO timestamp
-    id             // unique item ID (used for DOM id and loadContentToTinyMCE)
+    id             // unique item ID (used for DOM id and loadContentToEditor)
 }
 ```
 
@@ -244,4 +244,4 @@ statusSpecific.reference = {
 
 All previously identified inconsistencies have been resolved. The remaining structural gap is that Mastodon and Bluesky still build their feed items directly via DOM/innerHTML rather than going through `makeListing()`. This is a larger refactor deferred for a future session.
 
-**When adding a new service:** follow the `makeListing()` + `readerHandlers` pattern. The `div.clist-actions` with `arrow_right` calling `loadContentToTinyMCE(itemID)` and the `.reference` object on `div#[item-id]` are mandatory — they wire each item into the write/publish flow.
+**When adding a new service:** follow the `makeListing()` + `readerHandlers` pattern. The `div.clist-actions` with `arrow_right` calling `loadContentToEditor(itemID)` and the `.reference` object on `div#[item-id]` are mandatory — they wire each item into the write/publish flow.

@@ -13,10 +13,15 @@
 // // TinyMCE Editor Handlers
 
 let TinyMCE_Intialized = false;
+let pendingTinymceDraftOffer = false;
 
 (function () {
 
     const tinymceHandler = {
+        label: 'HTML (TinyMCE)',
+        icon: 'web',
+        contentTypes: ['text/html'],
+        requiresAccount: false,
         initialize: () => {
             currentEditor = 'tinymce';
             //closeAllEditors();
@@ -79,6 +84,7 @@ let TinyMCE_Intialized = false;
 
             // Initialize the tinymce editor
             // This is a placeholder function
+            pendingTinymceDraftOffer = !pendingContent;
             loadPredefinedContent('tinymce');
             TinyMCE_Intialized = true;
             console.log("TinyMCE editor initialized");
@@ -87,8 +93,9 @@ let TinyMCE_Intialized = false;
             // Retrieve content for TinyMCE  - locatioon defined in tinymceConfig.selector
             return tinymce.get('write-column').getContent();
         },
-        loadContent: (itemContent, itemId) => {
+        loadContent: ({ type, value }, itemId) => {
             // Load content into the TinyMCE editor
+            const itemContent = value;
             const textarea = document.getElementById('write-column');
             if (textarea) {
                 textarea.value += itemContent;
@@ -129,36 +136,6 @@ let TinyMCE_Intialized = false;
 })();
 
 
-
-
-// Functions to work with TinyMCE as the editing window
-// Expects a div identified by 'itemID' containing content to be loaded
-
-function loadContentToTinyMCE (itemId) {
-
-    let item_content;
-
-    // Define the content we're loading
-    if (itemId === 'thread' || itemId === 'feed-container') {    // Load the whole thread and clone it
-        const feedContainer = document.getElementById("feed-container");
-        const tempContainer = feedContainer.cloneNode(true);
-        const feedHeader = tempContainer.querySelector(".feed-header");
-        if (feedHeader) {  feedHeader.remove(); } // Remove the feedHeader div and all the action buttons
-        tempContainer.querySelectorAll(".status-actions").forEach(element => element.remove());
-        tempContainer.querySelectorAll(".clist-actions").forEach(element => element.remove());
-        tempContainer.querySelectorAll(".material-icons").forEach(element => element.remove());
-        item_content = tempContainer.innerHTML;
-    } else {
-        item_content = document.getElementById(`${itemId}`).innerHTML;
-    }
-
-    // Load content to the editor
-
-    loadContent(item_content, itemId);
-
-   
-
-}
 
 function createReference(statusID, editorDiv) {
 
@@ -255,14 +232,19 @@ tinymceConfig = {
         });
 
         editor.on('change', function () {
-            console.log('Editor was changed');
             var content = editor.getContent();
-
-            var decodedContent = decodeHTMLEntities(content); // Ensure this function is defined elsewhere
+            var decodedContent = decodeHTMLEntities(content);
             document.getElementById('write-column').value = decodedContent;
-            var tempo = document.getElementById('write-column').value;
-            console.log(tempo);
         });
+
+        const debouncedSave = debounce(() => saveDraft('tinymce', editor.getContent()), 1000);
+        editor.on('input change', debouncedSave);
+    },
+    init_instance_callback: function (editor) {
+        if (pendingTinymceDraftOffer) {
+            pendingTinymceDraftOffer = false;
+            offerDraftRestore('tinymce', 'text/html');
+        }
     },
     content_style: `
         body {

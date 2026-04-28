@@ -279,3 +279,13 @@ function callIfAvailable(functionName, ...args) {
         return null;
     }
 }
+
+// Returns a version of fn that waits until `delay` ms of silence before firing.
+// Repeated calls within the delay window reset the timer.
+function debounce(fn, delay) {
+    let timer;
+    return (...args) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn(...args), delay);
+    };
+}

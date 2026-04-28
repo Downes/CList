@@ -341,7 +341,7 @@ const pds = 'https://puffball.us-east.host.bsky.network';
                 // Hide the dropdown after selection (optional)
                 document.getElementById(div).style.display = 'none';
 
-                // Call fetchBlueskyFeed with the selected feed’s title and AT URI
+                // Call fetchBlueskyFeed with the selected feed's title and AT URI
                 fetchBlueskyFeed(selectedTitle, selectedUri, 20);
             };
 
@@ -608,8 +608,8 @@ const whatsHotFeedUri = 'at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.gen
                 // Determine initial like/repost state from API viewer object
                 const isLiked    = !!(post.viewer && post.viewer.like);
                 const isReposted = !!(post.viewer && post.viewer.repost);
-                const likeUri    = post.viewer?.like   || ‘’;
-                const repostUri  = post.viewer?.repost || ‘’;
+                const likeUri    = post.viewer?.like   || '';
+                const repostUri  = post.viewer?.repost || '';
 
                 // Determine thread URI if this post is part of one
                 const inThread = (post.record.reply && post.record.reply.root && post.record.reply.root.uri) || post.replyCount > 0;
@@ -624,14 +624,14 @@ const whatsHotFeedUri = 'at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.gen
                 const rootCid    = post.record.reply?.root?.cid  || post.cid;
 
                 // Build action buttons as innerHTML string (matches Mastodon pattern)
-                const blueskyActionButtons = document.createElement(‘div’);
-                blueskyActionButtons.classList.add(‘status-actions’);
+                const blueskyActionButtons = document.createElement('div');
+                blueskyActionButtons.classList.add('status-actions');
                 blueskyActionButtons.innerHTML = `
-                    <button class="material-icons md-18 md-light" onclick="openLeftInterface(blueskyReplyForm(‘${parentUri}’,’${parentCid}’,’${rootUri}’,’${rootCid}’))">reply</button>
-                    <button class="material-icons md-18 md-light${isLiked ? ‘ action-active’ : ‘’}" data-record-uri="${likeUri}" onclick="handleBlueskyAction(‘${post.uri}’,’${post.cid}’,’${postId}’,’favorite’,this)">favorite</button>
-                    <button class="material-icons md-18 md-light${isReposted ? ‘ action-active’ : ‘’}" data-record-uri="${repostUri}" onclick="handleBlueskyAction(‘${post.uri}’,’${post.cid}’,’${postId}’,’repost’,this)">autorenew</button>
-                    ${inThread ? `<button class="material-icons md-18 md-light" onclick="displayThread(‘${threadUri}’)">dynamic_feed</button>` : ‘’}
-                    <button class="material-icons md-18 md-light" onclick="window.open(‘${postUrl}’,’_blank’,’width=800,height=600,scrollbars=yes’)">launch</button>
+                    <button class="material-icons md-18 md-light" onclick="openLeftInterface(blueskyReplyForm('${parentUri}','${parentCid}','${rootUri}','${rootCid}'))">reply</button>
+                    <button class="material-icons md-18 md-light${isLiked ? ' action-active' : ''}" data-record-uri="${likeUri}" onclick="handleBlueskyAction('${post.uri}','${post.cid}','${postId}','favorite',this)">favorite</button>
+                    <button class="material-icons md-18 md-light${isReposted ? ' action-active' : ''}" data-record-uri="${repostUri}" onclick="handleBlueskyAction('${post.uri}','${post.cid}','${postId}','repost',this)">autorenew</button>
+                    ${inThread ? `<button class="material-icons md-18 md-light" onclick="displayThread('${threadUri}')">dynamic_feed</button>` : ''}
+                    <button class="material-icons md-18 md-light" onclick="window.open('${postUrl}','_blank','width=800,height=600,scrollbars=yes')">launch</button>
                 `;
                 statusContent.appendChild(blueskyActionButtons);
 
@@ -639,7 +639,7 @@ const whatsHotFeedUri = 'at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.gen
                 const clistButtons = document.createElement('div');
                 clistButtons.classList.add('clist-actions');
                 clistButtons.innerHTML = `
-                    <button class="material-icons md-18 md-light" onClick="loadContentToTinyMCE('${postId}');">arrow_right</button>
+                    <button class="material-icons md-18 md-light" onClick="loadContentToEditor('${postId}');">arrow_right</button>
                     
                 `;
                 statusBox.appendChild(clistButtons);
@@ -655,7 +655,7 @@ const whatsHotFeedUri = 'at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.gen
                 existingButton.remove();
             }
 
-            // If there’s a cursor, create the "Load More" button
+            // If there's a cursor, create the "Load More" button
             if (cursor && cursor != 1) {
                 const loadMoreButton = document.createElement('button');
                 loadMoreButton.id = 'loadMoreButton';

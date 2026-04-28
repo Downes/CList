@@ -29,7 +29,7 @@ async function playPost() {
     }
 
     populatePostOptions(accounts); // Populate UI with options to save
-    toggleDiv('post-instructions','right',true);
+    openRightInterface('post-instructions');
 
 }
 
@@ -51,7 +51,7 @@ async function playSave() {
     }
 
     populateSaveOptions(accounts); // Populate UI with options to save
-    toggleDiv('save-instructions','right',true);
+    openRightInterface('save-instructions');
 
 }
 
