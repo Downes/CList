@@ -33,10 +33,8 @@ async function summarizeText(textToSummarize, type) {
     });
 
 
-    // Check for required values and handle errors
     if (!apiKey || !url) {
-        alert("Both apiKey and url are required to continue.");
-        throw new Error("Missing required values: apiKey or url.");
+        throw new Error("No AI account found. Add an account with permission 'z' to use summarization.");
     }
 
 
@@ -61,27 +59,21 @@ async function summarizeText(textToSummarize, type) {
         temperature: 0.3
     };
 
-    try {
-        const response = await fetch(url, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${apiKey}`
-            },
-            body: JSON.stringify(requestBody)
-        });
+    const response = await fetch(url, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${apiKey}`
+        },
+        body: JSON.stringify(requestBody)
+    });
 
-        if (!response.ok) {
-            alert(`Error: ${response.status} ${response.statusText}`);
-            throw new Error(`Error: ${response.status} ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        return data.choices[0]?.message?.content || "No summary available.";
-    } catch (error) {
-        console.error("Failed to summarize text:", error.message);
-        return "Error summarizing text. Please try again.";
+    if (!response.ok) {
+        throw new Error(`AI service returned ${response.status} ${response.statusText}.`);
     }
+
+    const data = await response.json();
+    return data.choices[0]?.message?.content || "No summary available.";
 }
 
 async function handleSummarize(input,output,type) {
@@ -91,34 +83,31 @@ async function handleSummarize(input,output,type) {
 
     inputText = getInputText(input);
 
-    // Disable button while processing
-    //summarizeBtn.disabled = true;
     summaryText.textContent = "Summarizing... Please wait.";
+    summaryText.className = "";
 
-    const summary = await summarizeText(inputText, type);
+    let summary;
+    try {
+        summary = await summarizeText(inputText, type);
+    } catch (error) {
+        console.error("Failed to summarize:", error.message);
+        summaryText.className = "error-message";
+        summaryText.textContent = `Could not summarize: ${error.message} (Note: direct browser calls to OpenAI are blocked by CORS — a server-side proxy is required.)`;
+        return;
+    }
 
-    // Clear previous content S
     summaryText.textContent = "";
-
-    // Add class "status-box" to summaryText
     summaryText.className = "status-box";
 
-    // Create the child div with class "status-content"
     const statusContent = document.createElement("div");
     statusContent.className = "status-content";
     statusContent.textContent = summary;
     statusContent.id = "summary";
 
-    // Create the child div with class "clist-actions"
     const clistActions = document.createElement("div");
     clistActions.className = "clist-actions";
-
-    // Add a button inside "clist-actions"
     clistActions.innerHTML = `<button class="material-icons md-18 md-light" onClick="handleMastodonAction('summary', 'load',this.parentElement.parentElement)">arrow_right</button>`;
 
-
-
-    // Append the two child divs to summaryText
     summaryText.appendChild(statusContent);
     summaryText.appendChild(clistActions);
 

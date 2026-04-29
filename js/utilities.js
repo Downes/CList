@@ -270,6 +270,20 @@ function showStatusMessage(message) {
 
 
 
+// Render a structured error message into a container element.
+// title:      short service name, e.g. "Bluesky error"
+// message:    the error text (from caught exception or HTTP status)
+// actionHtml: optional HTML string with remediation advice / links
+function showServiceError(container, title, message, actionHtml = '') {
+    const msg = document.createElement('div');
+    msg.className = 'error-message';
+    msg.innerHTML = `<p><strong>${title}:</strong> ${message}</p>`
+        + (actionHtml ? `<p>${actionHtml}</p>` : '');
+    if (typeof container === 'string') container = document.getElementById(container);
+    if (container) container.appendChild(msg);
+}
+
+
 function callIfAvailable(functionName, ...args) {
     if (typeof window[functionName] === "function") {
         // Call the function with the provided arguments

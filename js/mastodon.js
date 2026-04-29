@@ -282,7 +282,8 @@ console.log("baseURL "+baseURL+" accessRoken "+accessToken+" and Loading feed ty
 
     if (!accessToken || !baseURL) {
         console.error('Error: Access token or baseURL is missing');
-        feedContainer.innerHTML = `<p class="feed-status-message">Error: Feed client not initialized. Please select an account using the Find button.</p>`;
+        showServiceError(feedContainer, 'Mastodon error', 'Feed client not initialized.',
+            'Select a Mastodon account using the <strong>Find</strong> button.');
         return;
     }
 
@@ -342,7 +343,9 @@ console.log("baseURL "+baseURL+" accessRoken "+accessToken+" and Loading feed ty
 
     } catch (error) {
         console.error(`Error fetching ${type}:`, error);
-        feedContainer.innerHTML = `<p class="feed-status-message">Error loading ${type}: ${error.message}</p>`;
+        feedContainer.innerHTML = '';
+        showServiceError(feedContainer, `Mastodon error loading ${type}`, error.message,
+            'Check your Mastodon account credentials under <strong>Accounts</strong>, or try again.');
         return;
     }
 
@@ -379,7 +382,7 @@ async function getMastodonFeed (url,type,feedContainer) {
     const linkHeader = response.headers.get('link');
     nextPageUrl = linkHeader ? linkHeader.match(/<([^>]+)>;\s*rel="next"/)?.[1] : null;
 
-    if (!Array.isArray(data) || data.length === 0) {
+    if (Array.isArray(data) && data.length === 0) {
         feedContainer.innerHTML = `<p class="feed-status-message">No content available in ${type}. (This instance may have disabled this timeline.)</p>`;
         return;
     }
@@ -430,7 +433,7 @@ function displayMastodonFeed(data,type,page,nextPageUrl,feedContainer,typevalue)
     }
 
     // Push Next Page button to the Bottom
-    feedContainer.appendChild(nextPageButton);
+    if (nextPageButton) feedContainer.appendChild(nextPageButton);
 
 
 }
@@ -651,7 +654,7 @@ async function displayMastodonPost(status,statusBox,reblogger) {
         //const baseURL = document.getElementById('baseURL').value;
 
         if (!accessToken || !baseURL) {
-            alert('Error: Mastodon client not initialized. Please refresh the page.');
+            showStatusMessage('Mastodon not initialized — select an account first.');
             return;
         }
 
@@ -681,11 +684,11 @@ async function displayMastodonPost(status,statusBox,reblogger) {
             loadContentToEditor(statusId);
             actionSuccessMessage = 'Loaded item to write pane.';
         } else if (actionType === 'summarize') {
-            alert('summarize'); return;
-            actionSuccessMessage = 'Loaded item to write pane.';
+            showStatusMessage('Summarize action not yet implemented here.');
+            return;
         } else {
             console.error("Tried to perform action "+actionType+" but that's an invalid action");
-            alert("Tried to perform action "+actionType+" but that's an invalid action");
+            showStatusMessage(`Unknown action: ${actionType}`);
         }
         
 
@@ -712,13 +715,13 @@ async function displayMastodonPost(status,statusBox,reblogger) {
                 showStatusMessage(action+" successful");
                 return true;
             } else {
-                alert(`Failed to ${action} status. Please try again.`);
+                showStatusMessage(`Failed to ${action} — server returned ${response.status}.`);
                 return false;
             }
 
         } catch (error) {
             console.error(`Error ${action}ing status:`, error);
-            alert(`An error occurred while ${action}ing the status.`);
+            showStatusMessage(`Failed to ${action}: ${error.message}`);
             return false;
         }
 
@@ -737,13 +740,7 @@ async function displayMastodonPost(status,statusBox,reblogger) {
         const statusText = document.getElementById('status').value;
 
         if (!accessToken || !baseURL) {
-            alert('Error: Mastodon client not initialized. Please refresh the page.');
-            return;
-        }
-
-        if (!baseURL || !accessToken) {
-            console.error('Error: Missing baseURL or accessToken');
-            responseDiv.innerHTML = `<p>Error: Mastodon client not initialized.</p>`;
+            responseDiv.innerHTML = `<p class="error-message">Mastodon not initialized — select an account first.</p>`;
             return;
         }
 
@@ -757,7 +754,7 @@ async function displayMastodonPost(status,statusBox,reblogger) {
     async function postMastodonStatus(accessToken,baseURL,responseDiv,statusText,replyToId) {
 
         if (statusText === '') {
-            alert('Please enter a status');
+            responseDiv.innerHTML = `<p class="error-message">Please enter a status before posting.</p>`;
             return;
         }
 
@@ -847,7 +844,7 @@ async function displayMastodonPost(status,statusBox,reblogger) {
 async function mastodonOAuthStart(title, username, permissions) {
     const parts = username.split('@').filter(Boolean);
     if (parts.length < 2) {
-        alert('Please enter your Mastodon username as user@instance.social');
+        showStatusMessage('Please enter your Mastodon username as user@instance.social');
         return;
     }
     const instanceUrl = 'https://' + parts[parts.length - 1];
@@ -868,7 +865,7 @@ async function mastodonOAuthStart(title, username, permissions) {
         if (!response.ok) throw new Error(response.statusText);
         appData = await response.json();
     } catch (e) {
-        alert('Could not register with Mastodon instance ' + instanceUrl + ': ' + e.message);
+        showStatusMessage('Could not register with Mastodon instance ' + instanceUrl + ': ' + e.message);
         return;
     }
 

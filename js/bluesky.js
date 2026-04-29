@@ -106,7 +106,7 @@ async function createBlueskySession() {
                 // Fetch the accounts from the KVstore
                 accounts = await getAccounts(flaskSiteUrl); 
             } catch (error) {
-                alert('Error getting Editor accounts: ' + error.message);
+                throw new Error('Could not load accounts: ' + error.message);
             }
         }
 
@@ -128,8 +128,7 @@ async function createBlueskySession() {
     
         // Check for required values and handle errors
         if (!appPassword || !handle) {
-            alert("ApiKey and url are both required to continue.");
-            throw new Error("Missing required values: apiKey or url.");
+            throw new Error('No Bluesky account found. Open Accounts and add a Bluesky account (instance URL must include "bsky").');
         }
 
     }
@@ -265,6 +264,7 @@ async function blueskySelectForm(type) {
 
             } catch (error) {
                 console.error("Error fetching user feeds:", error);
+                throw error;
             }
         }
 
@@ -397,7 +397,8 @@ const pds = 'https://puffball.us-east.host.bsky.network';
                 await displayBlueskyPosts(data.posts.map(post => ({ post })), 'Search', null); // Display with title
             } catch (error) {
                 console.error('Error:', error);
-                document.getElementById('feed-container').innerText = 'Failed to load search results. Please check console for details.';
+                showServiceError('feed-container', 'Bluesky search error', error.message,
+                    'Check your Bluesky account credentials under <strong>Accounts</strong>.');
             }
         }
 
@@ -431,6 +432,8 @@ const whatsHotFeedUri = 'at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.gen
         await fetchBlueskyFeed("What's Hot",whatsHotFeedUri); // Call the generic function with the constructed URI
     } catch (error) {
         console.error('Error fetching "What\'s Hot" feed:', error);
+        showServiceError('feed-container', 'Bluesky error', error.message,
+            'Check your Bluesky account credentials under <strong>Accounts</strong>.');
     }
 }
 
@@ -509,8 +512,8 @@ const whatsHotFeedUri = 'at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.gen
 
             } catch (error) {
                 console.error("Error fetching feed:", error);
-                const feedContainer = document.getElementById('feed-container');
-                if (feedContainer) feedContainer.innerHTML = `<p class="feed-status-message">${error.message}</p>`;
+                showServiceError('feed-container', 'Bluesky error', error.message,
+                    'Check your Bluesky account credentials under <strong>Accounts</strong>.');
             }
         }
 
@@ -898,6 +901,13 @@ async function submitBlueskyPost(content,responseDiv,replyContentId = null,paren
         
     } catch (error) {
         console.error("Failed to submit post:", error.message);
+        const resultEl = document.getElementById(responseDiv);
+        if (resultEl) {
+            const errP = document.createElement('p');
+            errP.className = 'error-message';
+            errP.textContent = `Failed to post: ${error.message}`;
+            resultEl.appendChild(errP);
+        }
     }
 }
             

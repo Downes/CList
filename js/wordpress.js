@@ -71,7 +71,7 @@ async function publishPost(instance,username,password,title,content) {
       }
     } catch (error) {
       console.error('Failed to publish Wordpress post:', error);
-      alert('Failed to publish the Wordpress post');
+      showStatusMessage(`WordPress publish failed: ${error.message}`);
       return null; // Return null on failure
     }
   }

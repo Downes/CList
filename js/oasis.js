@@ -94,6 +94,8 @@ async function oasisSearch(query,start) {
 
     } catch (error) {
         console.error("Failed to fetch from Oasis Search API:", error);
+        showServiceError(feedContainer, 'Oasis Search error', error.message,
+            'Could not reach Oasis Search. Check your network connection or try again later.');
     }
 
 
