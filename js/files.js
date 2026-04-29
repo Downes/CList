@@ -231,6 +231,16 @@ function packageStatus(charlimit, input, publishedURL) {
 
 
 
+(function () {
+    window.loadHandlers = window.loadHandlers || [];
+    window.loadHandlers.push({
+        label: 'Load from file',
+        icon:  'upload_file',
+        load:  async () => await loadFile()
+    });
+})();
+
+
 async function saveContent() {
 
     content = await packagePost(); // Package the post content

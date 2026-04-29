@@ -4,6 +4,8 @@
 
 (function () {
     const ddgHandler = {
+        label: 'DuckDuckGo',
+        logoSrc: 'assets/icons/duckduckgo.svg',
         statusActions: (item,itemID,itemLink) => {
             return `
             <button class="material-icons md-18 md-light" onClick="window.open('${itemLink}', '_blank', 'width=800,height=600,scrollbars=yes')">launch</button>`;

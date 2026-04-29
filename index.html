@@ -75,7 +75,7 @@
                     </div>
                     <div>
                         <!--button id="load-button" class="right" onclick="loadFile();">Load</button>-->
-                       <button id="load-button" class="right" onclick="playEditors();">Load</button>
+                       <button id="load-button" class="right" onclick="playLoad();">Load</button>
                          <button id="save-button" class="right" onclick="playSave()">Save</button>
                          <button id="save-button" class="right" onclick="playPost()">Post</button>
                          <button id="references-button" class="right" onclick="alternateDivs(currentEditor + '-references','write-pane-content')">Refs</button>
@@ -108,9 +108,7 @@
                 </div>       
 
 
-                <div id="write-title" contenteditable="true">
-                    Title (Optional)
-                </div>
+                <div id="write-title" contenteditable="true"></div>
 
                 <div id="write-pane-content">
                    
@@ -230,30 +228,15 @@
                 <div id="editor-switch-account-options"></div>
             </div>
             <div id="save-instructions" style="display: none;">
-                
-                <div id="save-header">
-                    <h2>Save Content</h2>
-                    <button 
-                        id="save-right-close-button" 
-                        onclick="document.getElementById('save-instructions').style.display='none';">
-                        &times;
-                    </button>
-                </div>
                 <div id="save-options"></div>
-                <div id="save-result">saveResult</div>
+                <div id="save-result"></div>
             </div>
-            <div id="post-instructions"  style="display: none;">
-                <div id="post-header">
-                    <h2>Post Content</h2>
-                    <button
-                        id="post-right-close-button"
-                        onclick="document.getElementById('post-instructions').style.display='none';">
-                        &times;
-                    </button>
-                </div>
-                <p class="save-instructions">Click on accounts to select then click 'Save'. Contents of the 'Write' panel will be posted on the selected accounts</p>
+            <div id="post-instructions" style="display: none;">
                 <div id="post-options"></div>
-                <div id="post-result">saveResult</div>
+                <div id="post-result"></div>
+            </div>
+            <div id="load-instructions" style="display: none;">
+                <div id="load-options"></div>
             </div>
 
 

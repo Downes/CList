@@ -3,6 +3,8 @@
 
 (function () {
     const oasisHandler = {
+        label: 'OASIS OERs',
+        icon: 'school',
         statusActions: (item,itemID,itemLink) => {
             oasisStatusActions = `<button class="material-icons md-18 md-light" onClick="window.open('${itemLink}', '_blank', 'width=800,height=600,scrollbars=yes')">launch</button>`;
 

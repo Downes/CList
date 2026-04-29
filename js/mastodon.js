@@ -63,8 +63,20 @@ window.accountSchemas['Mastodon'] = {
             
               // Add the handler
               window.readerHandlers['Mastodon'] = mastodonHandler;
-              
+
            })();
+
+(function () {
+    window.publishHandlers = window.publishHandlers || {};
+    window.publishHandlers['Mastodon'] = {
+        publish: async (accountData, title, content) => {
+            const responseDiv = document.getElementById('post-result');
+            const cleanContent = removeHtml(content);
+            await postMastodonStatus(accountData.id, extractBaseUrl(accountData.instance), responseDiv, cleanContent);
+            return null;
+        }
+    };
+})();
 
 
 // Mastodon Feed Functions

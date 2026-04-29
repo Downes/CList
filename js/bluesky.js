@@ -53,6 +53,16 @@ let pds = null; // Personal data Server location
     window.readerHandlers['Bluesky'] = blueskyHandler;
  })();
 
+(function () {
+    window.publishHandlers = window.publishHandlers || {};
+    window.publishHandlers['Bluesky'] = {
+        publish: async (accountData, title, content) => {
+            await submitBlueskyPost(content, 'post-result', null, null, null, null, null);
+            return null;
+        }
+    };
+})();
+
 
 
 // -----------------------------------------------------

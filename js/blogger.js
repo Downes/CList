@@ -21,6 +21,22 @@ window.accountSchemas['Blogger'] = {
     ]
 };
 
+(function () {
+    window.publishHandlers = window.publishHandlers || {};
+    window.publishHandlers['Blogger'] = {
+        publish: async (accountData, title, content) => {
+            const responseDiv = document.getElementById('post-result');
+            return await publishBloggerPost(
+                accountData.instance,
+                accountData.id,
+                responseDiv,
+                removeHtml(title),
+                content
+            );
+        }
+    };
+})();
+
 // Publish a post to a Blogger account
 // publishBloggerPost(accountData.instance, accountData.id, responseDiv, writeColumnTitle,writeColumnContent);
 

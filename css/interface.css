@@ -140,11 +140,18 @@
       border: 1px solid #ccc;
       background-color: #ffffff;
       padding: 10px;
+      margin-top: 3px;
       margin-left: 10px;
       margin-right: 10px;
       height: 41px;
       min-height: 25px;
       border-radius: 5px;
+    }
+
+    #write-title:empty::before {
+      content: 'Title (Optional)';
+      color: #aaa;
+      pointer-events: none;
     }
 
     #write-column {
@@ -531,18 +538,9 @@
     gap: 10px;  /* Add space between each button */
   }
 
-  #save-instructions {
-    display: flex;
-    flex-direction: column;
-    padding: 5px 10px; 
-    gap: 10px;  /* Add space between each button */
-  }
-
+  #save-instructions,
   #post-instructions {
-    display: flex;
-    flex-direction: column;
-    padding: 5px 10px; 
-    gap: 10px;  /* Add space between each button */
+    display: block;
   }
 
   #nextPageButton, #loadMoreButton {
@@ -573,6 +571,23 @@
     background-color: #739c7c;  /* Change color when the mouse is down (pressed) */
     transition: background-color 0.01s;  /* Quick transition when active */
 }
+
+  /* Find panel search input */
+  .find-input {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 9px 10px;
+    border: none;
+    border-bottom: 1px solid #ddd;
+    font-size: 14px;
+    outline: none;
+    background: #fafafa;
+  }
+  .find-input:focus {
+    background: #fff;
+    border-bottom-color: var(--highlight-color);
+  }
 
   /* Account list tip + buttons */
   .list-tip {
@@ -612,6 +627,29 @@
     background-color: #888;
     -webkit-mask: url('../assets/icons/mastodon.svg') no-repeat center / contain;
     mask: url('../assets/icons/mastodon.svg') no-repeat center / contain;
+  }
+
+  /* Generic masked SVG icon — mask URL set via inline style */
+  .service-icon-img {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    background-color: #888;
+  }
+
+  .account-button.selected {
+    background-color: var(--highlight-color);
+    color: white;
+  }
+
+  .account-button.selected .material-icons {
+    color: white;
+  }
+
+  .account-button.selected .account-icon-img,
+  .account-button.selected .service-icon-img {
+    background-color: white;
   }
 
   .account-button:hover {

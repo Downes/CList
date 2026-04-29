@@ -4,6 +4,8 @@
 
 (function () {
     const googHandler = {
+        label: 'Google',
+        logoSrc: 'assets/icons/google.svg',
         statusActions: (item,itemID,itemLink) => {
             return  `<button class="material-icons md-18 md-light" onClick="window.open('${itemLink}', '_blank', 'width=800,height=600,scrollbars=yes')">launch</button>`;;
         },
@@ -96,7 +98,7 @@ async function googleSearch(query,type,start) {
         
         // Handle potential errors from the API
         if (data.error) {
-            console.error("Google Search API Error: ", data.error);
+            showGoogleSearchError(feedContainer, data.error);
             return;
         }
 
@@ -166,8 +168,21 @@ async function googleSearch(query,type,start) {
         
         
     } catch (error) {
-        console.error("Failed to fetch from Google Search API:", error);
+        showGoogleSearchError(feedContainer, { message: error.message });
     }
+}
+
+function showGoogleSearchError(feedContainer, apiError) {
+    const msg = document.createElement('div');
+    msg.className = 'feed-status-message';
+    msg.innerHTML = `
+        <p><strong>Google Search error:</strong> ${apiError.message || 'Unknown error'}${apiError.code ? ` (${apiError.code})` : ''}</p>
+        <p>Your Google Search account credentials may be missing, expired, or invalid.
+        Open <strong>Accounts</strong> and re-enter your API key and Search Engine ID for the Google Search account.</p>
+        <p><a href="https://programmablesearchengine.google.com/" target="_blank">Set up a Programmable Search Engine</a> &nbsp;|&nbsp;
+        <a href="https://developers.google.com/custom-search/v1/introduction" target="_blank">API key instructions</a></p>
+    `;
+    feedContainer.appendChild(msg);
 }
 
 /**

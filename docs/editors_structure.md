@@ -70,6 +70,44 @@ If `pendingContent` is `null` when `initialize()` runs, the editor starts empty 
 
 ---
 
+## Content loading — `loadHandlers`
+
+The Load button opens a right-pane list built from the `loadHandlers` registry — an **ordered array** of loader objects defined in `editors.js` and extended by service files.
+
+### Registering a loader
+
+Add an entry by pushing to `window.loadHandlers` from any `.js` file:
+
+```javascript
+(function () {
+    window.loadHandlers = window.loadHandlers || [];
+    window.loadHandlers.push({
+        label: 'My Source',
+        icon:  'source',            // Material Icons name, or set logoSrc for a masked SVG
+        load:  async () => {
+            // fetch or generate content…
+            return { type: 'text/html', value: '<p>…</p>' }; // or null to cancel
+        }
+    });
+})();
+```
+
+Entries appear in registration order. Built-in loaders are registered in this order:
+`editors.js` → "Load blank", "Load template" · `files.js` → "Load from file" · `chatgpt.js` → "Generate template"
+
+### Automatic editor selection
+
+After a loader returns content, `populateLoadOptions()` checks whether the current editor's `contentTypes` covers the returned `content.type`. If not, it searches `editorHandlers` for the first non-account editor that does and calls `switchToEditor()` automatically — no confirmation needed for a lossless switch.
+
+This means:
+- Loading or generating an **HTML** file/template auto-switches to TinyMCE (or whichever HTML editor is registered first)
+- Loading a **plain-text** file/template auto-switches to the plain-text editor
+- `loadFile()` benefits from this too: loading an `.html` file picks TinyMCE; loading a `.txt` file picks the text editor
+
+If no suitable editor is found (e.g. an unrecognised MIME type), the user is warned that HTML tags will be stripped and asked to confirm before loading into the current editor.
+
+---
+
 ## Draft auto-save — local editors only
 
 Local editors (those where `requiresAccount: false` and content is held in the browser) should auto-save their content to `sessionStorage` so a page reload doesn't lose work. Service-backed editors (e.g. Etherpad) manage their own persistence server-side and do not need this.
@@ -136,7 +174,7 @@ These are handled by `editors.js` and do not need to be implemented per editor:
 | **Editor switcher UI** | `populateEditorList()` builds the right-pane list from `editorHandlers` automatically. Runs on page load and after every `switchToEditor()` call. New editors appear immediately. |
 | **Content carry-over on switch** | `switchToEditor(editorType, carriedContent)` captures content from the current editor, warns if the conversion is lossy (HTML → plain text strips tags), stashes it in `pendingContent`, then calls `initializeEditor()`. |
 | **Indicator button** | `updateEditorIndicator()` is called by `initializeEditor()` after every successful init. It reads `handler.label` and updates both the command-bar button and the `#editor-status` div in the right pane. |
-| **Load blank clears draft** | `playEditors()` calls `clearDraft(currentEditor)` when the user picks "Load blank". |
+| **Load blank clears draft** | The "Load blank" entry in `loadHandlers` calls `clearDraft(currentEditor)` before returning empty content. |
 | **Account-backed editor listing** | Editors with `requiresAccount: true` appear in the switcher only when the user has a kvstore account with permission `'e'` and a matching `type` field. No extra code needed. |
 
 ---

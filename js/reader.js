@@ -105,7 +105,8 @@ function makeAccountList(tip, accounts, filterFn, onClickFn) {
 
         const btn = document.createElement('button');
         btn.className = 'account-button';
-        btn.onclick = () => onClickFn(account.key, parsedValue);
+        btn.setAttribute('data-key', account.key);
+        btn.onclick = () => onClickFn(account.key, parsedValue, btn);
 
         const name = document.createElement('span');
         name.textContent = parsedValue.title;
@@ -121,9 +122,9 @@ function makeAccountList(tip, accounts, filterFn, onClickFn) {
 
 
 function finderString() {
-    const findTextarea = document.getElementById('find-textarea');
-    const searchString = findTextarea.value;
-    if (!searchString) { alert("Please enter a search value in the form"); return;}
+    const findInput = document.getElementById('find-input');
+    const searchString = findInput ? findInput.value.trim() : '';
+    if (!searchString) { alert("Please enter a search term"); return; }
     return searchString;
 }
 
@@ -186,18 +187,49 @@ function playFind() {
 function findPanel() {
     const div = document.createElement('div');
     div.id = 'find-section';
-    div.innerHTML = `
-        <div id="find-form">
-            <textarea id="find-textarea" placeholder="Find what?"></textarea>
-        </div>
-        <div id="find-account-div">Find where?</div>
-        <div id="find-account-list"></div>
-        <button class="save-button" onClick="readerHandlers['duckduckgo'].search();">Duck Duck Go</button>
-        <button class="save-button" onClick="readerHandlers['google'].search();">Google</button>
-        <button class="save-button" onClick="readerHandlers['oasis'].search();">OASIS OERs</button>
-        <div id="find-account-status"></div>
-        <div id="selectedFindAccountUrl"></div>
-    `;
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.id = 'find-input';
+    input.className = 'find-input';
+    input.placeholder = 'Search term…';
+    div.appendChild(input);
+
+    const list = document.createElement('div');
+    list.className = 'account-list';
+
+    const tip = document.createElement('div');
+    tip.className = 'list-tip';
+    tip.textContent = 'Enter search term and select service';
+    list.appendChild(tip);
+
+    Object.entries(readerHandlers).forEach(([key, handler]) => {
+        if (typeof handler.search !== 'function') return;
+        const btn = document.createElement('button');
+        btn.className = 'account-button';
+        btn.addEventListener('click', () => handler.search());
+
+        let iconEl;
+        if (handler.logoSrc) {
+            iconEl = document.createElement('span');
+            iconEl.className = 'service-icon-img';
+            iconEl.style.webkitMask = `url('${handler.logoSrc}') no-repeat center / contain`;
+            iconEl.style.mask = `url('${handler.logoSrc}') no-repeat center / contain`;
+        } else {
+            iconEl = document.createElement('span');
+            iconEl.className = 'material-icons';
+            iconEl.textContent = handler.icon || 'search';
+        }
+
+        const nameEl = document.createElement('span');
+        nameEl.textContent = handler.label || key;
+
+        btn.appendChild(iconEl);
+        btn.appendChild(nameEl);
+        list.appendChild(btn);
+    });
+
+    div.appendChild(list);
     return div;
 }
 

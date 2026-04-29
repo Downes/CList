@@ -20,7 +20,21 @@ window.accountSchemas['WordPress'] = {
         { key: 'id',          label: 'API Key',     editable: true, inputType: 'password', placeholder: '',        default: '' },
     ]
 };
-// 
+
+(function () {
+    window.publishHandlers = window.publishHandlers || {};
+    window.publishHandlers['WordPress'] = {
+        publish: async (accountData, title, content) => {
+            return await publishPost(
+                extractBaseUrl(accountData.instance),
+                extractAccountName(accountData.instance),
+                accountData.id,
+                removeHtml(title),
+                content
+            );
+        }
+    };
+})();
 
 
 async function publishPost(instance,username,password,title,content) {

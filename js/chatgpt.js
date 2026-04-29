@@ -22,29 +22,6 @@ window.accountSchemas['AI'] = {
     ]
 };
 
-async function generateTemplateFromChatGPT() {
-  
-  // Get user input
-  let templateType = document.getElementById("customTemplateType").value.trim();
-  let outputFormat = document.getElementById("outputFormat").value;
-  if (!templateType) { templateType = document.getElementById("templateType").value; }
-  if (!templateType || !outputFormat) { 
-    alert("Error generating template; see console.");
-    console.error("template type or output format not defined.");
-    return;
-  }
-
-  try {
-    // Make a single API call to generate the template
-    const template = await generateNewTemplateFromChatGPT(templateType, outputFormat);
-    return template;
-  } catch (error) {
-    // Handle errors
-    templateDiv.innerHTML = "<p style='color:red;'>Error generating template. Please try again.</p>";
-    console.error("Error generating template:", error);
-  } 
-
-}
 
 async function generateNewTemplateFromChatGPT(templateType, outputFormat) {
 
@@ -127,3 +104,87 @@ async function generateNewTemplateFromChatGPT(templateType, outputFormat) {
 
   return fullTemplate;
 }
+
+
+// Generate a template using ChatGPT. Shows a form in #load-options and resolves
+// with the generated content once the user submits.
+async function generateTemplateContent() {
+    const formDiv = document.createElement('div');
+    formDiv.id = 'generate-template-form';
+    formDiv.innerHTML = `
+        <div style="padding: 10px;">
+            <label for="templateType">Choose a template type:</label><br>
+            <select id="templateType">
+                <option value="business letter">Business Letter</option>
+                <option value="case study">Case Study</option>
+                <option value="lab report">Lab Report</option>
+                <option value="resume">Resume</option>
+                <option value="newsletter">Newsletter</option>
+            </select><br><br>
+            <label for="customTemplateType">Or enter your own template type:</label><br>
+            <input type="text" id="customTemplateType" placeholder="e.g., marketing proposal"><br><br>
+            <label for="outputFormat">Choose output format:</label><br>
+            <select id="outputFormat">
+                <option value="text">Text</option>
+                <option value="html">HTML</option>
+            </select><br><br>
+            <button id="generateTemplateButton" class="final-save-button">Generate Template</button>
+        </div>
+    `;
+
+    const optionsDiv = document.getElementById('load-options');
+    if (optionsDiv) {
+        optionsDiv.innerHTML = '';
+        optionsDiv.appendChild(formDiv);
+    }
+
+    return new Promise(resolve => {
+        const button = document.getElementById('generateTemplateButton');
+        button.addEventListener('click', async event => {
+            event.preventDefault();
+            button.disabled = true;
+
+            const templateType = document.getElementById('templateType').value;
+            const customTemplateType = document.getElementById('customTemplateType').value.trim();
+            const outputFormat = document.getElementById('outputFormat').value;
+            const finalTemplateType = customTemplateType || templateType;
+
+            // Clear any previous error
+            formDiv.querySelectorAll('.template-error').forEach(el => el.remove());
+
+            showLoader();
+            try {
+                const template = await generateNewTemplateFromChatGPT(finalTemplateType, outputFormat);
+                const extractedContent = extractCodeContent(template);
+                document.getElementById('loading-indicator').style.display = 'none';
+                if (formDiv.parentNode) formDiv.parentNode.removeChild(formDiv);
+                resolve({
+                    type: outputFormat === 'html' ? 'text/html' : 'text/plain',
+                    value: extractedContent
+                });
+            } catch (error) {
+                document.getElementById('loading-indicator').style.display = 'none';
+                const msg = document.createElement('p');
+                msg.className = 'template-error feed-status-message';
+                msg.textContent = `Could not generate template: ${error.message}`;
+                formDiv.appendChild(msg);
+                button.disabled = false;
+            }
+        });
+    });
+}
+
+function extractCodeContent(template) {
+    const regex = /```(?:\w*\n)?([\s\S]*?)```/;
+    const match = template.match(regex);
+    return match && match[1] ? match[1].trim() : template;
+}
+
+(function () {
+    window.loadHandlers = window.loadHandlers || [];
+    window.loadHandlers.push({
+        label: 'Generate template',
+        icon:  'auto_awesome',
+        load:  async () => await generateTemplateContent()
+    });
+})();

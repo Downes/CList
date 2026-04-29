@@ -162,88 +162,128 @@ const editorHandlers = {
 // Common Editor Functions
 
 
-// Set up editor selection window (write-load)
+//
+// Define handlers for each content loader
+//
+//      The loadHandlers registry is an ordered array of loader objects displayed
+//      in the right-pane Load list. Each loader must have:
+//
+//          label  {string}   Display name shown in the list
+//          icon   {string}   Material Icons name (or logoSrc for a masked SVG)
+//          load   async () => { type, value } | null
+//
+//      load() returns { type: 'text/plain'|'text/html', value: string }, or null
+//      if loading was cancelled. Register a loader from any service .js file:
+//
+//          (function () {
+//              window.loadHandlers = window.loadHandlers || [];
+//              window.loadHandlers.push({
+//                  label: 'My Source',
+//                  icon:  'source',
+//                  load:  async () => { return { type, value }; }
+//              });
+//          })();
+//
 
-async function playEditors() {
+window.loadHandlers = window.loadHandlers || [];
 
-    const writeLoadDiv = document.getElementById('write-load');
-    if (!writeLoadDiv) {
-        console.error("Error: write-load div not found");
-        return;
-    }
+// Open the right-pane load list
+async function playLoad() {
+    populateLoadOptions();
+    openRightInterface('load-instructions');
+}
 
-    // Rebuild the panel for content loading
-    writeLoadDiv.innerHTML = `
-        <div id="write-load-header" class="flex-container">
-            <h2>Load Content</h2>
-            <button id="write-load-close-button" onclick="closeWriteLoadPane()">X</button>
-        </div>
-        <div id="write-load-content"></div>`;
+// Build the load list from the loadHandlers registry
+function populateLoadOptions() {
+    const optionsDiv = document.getElementById('load-options');
+    optionsDiv.innerHTML = '';
 
-    writeLoadDiv.style.display = 'block';
-    document.getElementById('write-pane-content').style.display = 'none';
+    const list = document.createElement('div');
+    list.className = 'account-list';
 
-    const writeLoadContent = document.getElementById('write-load-content');
+    const tip = document.createElement('div');
+    tip.className = 'list-tip';
+    tip.textContent = 'Select a source to load from';
+    list.appendChild(tip);
 
-    const options = [
-        { text: "Load blank", action: "loadBlank" },
-        { text: "Load from file", action: "loadFile" },
-        { text: "Load template", action: "loadTemplate" },
-        { text: "Generate template", action: "generateTemplate" },
-    ];
+    loadHandlers.forEach(handler => {
+        const btn = document.createElement('button');
+        btn.className = 'account-button';
 
-    const userChoice = await new Promise(resolve => {
-        options.forEach(option => {
-            const button = document.createElement('button');
-            button.className = 'save-button';
-            button.innerText = option.text;
-            button.addEventListener('click', () => resolve(option.action));
-            writeLoadContent.appendChild(button);
+        const iconEl = document.createElement('span');
+        if (handler.logoSrc) {
+            iconEl.className = 'service-icon-img';
+            iconEl.style.webkitMask = `url('${handler.logoSrc}') no-repeat center / contain`;
+            iconEl.style.mask = `url('${handler.logoSrc}') no-repeat center / contain`;
+        } else {
+            iconEl.className = 'material-icons';
+            iconEl.textContent = handler.icon || 'upload';
+        }
+
+        const nameEl = document.createElement('span');
+        nameEl.textContent = handler.label;
+
+        btn.appendChild(iconEl);
+        btn.appendChild(nameEl);
+
+        btn.addEventListener('click', async () => {
+            const content = await handler.load();
+            if (!content || content.value === undefined || content.type === undefined) return;
+
+            const editorHandler = editorHandlers[currentEditor];
+            const currentHandlesType = !editorHandler.contentTypes.length
+                || editorHandler.contentTypes.includes(content.type);
+
+            if (!currentHandlesType) {
+                // Find a non-account editor that handles this content type
+                const suitableKey = Object.keys(editorHandlers).find(key => {
+                    const h = editorHandlers[key];
+                    return !h.requiresAccount
+                        && (!h.contentTypes.length || h.contentTypes.includes(content.type));
+                });
+                if (suitableKey) {
+                    await switchToEditor(suitableKey, content); // loads content + closes right pane
+                    return;
+                }
+                // No suitable editor — warn that HTML will be stripped
+                if (!confirm('The loaded content is HTML but the current editor is plain text. HTML tags will be stripped. Continue?')) {
+                    return;
+                }
+            }
+
+            loadContent(content);
+            closeRightPane();
         });
+
+        list.appendChild(btn);
     });
 
-    let content = null;
-
-    switch (userChoice) {
-        case "loadBlank":
-            content = { type: 'text/plain', value: '' };
-            clearDraft(currentEditor);
-            break;
-        case "loadFile":
-            content = await loadFile();
-            if (!content) { alternateDivs('write-load', 'write-pane-content'); return; }
-            break;
-        case "loadTemplate":
-            content = await loadTemplate();
-            break;
-        case "generateTemplate":
-            content = await generateTemplateContent();
-            break;
-        default:
-            console.error("Unknown selection");
-            break;
-    }
-
-    if (!content || content.value === undefined || content.type === undefined) {
-        console.error("Content not loaded properly");
-        alternateDivs('write-load', 'write-pane-content');
-        return;
-    }
-
-    // Warn if the content type is lossy for the current editor (e.g. HTML into plain-text editor)
-    const handler = editorHandlers[currentEditor];
-    if (handler && content.type === 'text/html'
-            && handler.contentTypes.includes('text/plain')
-            && !handler.contentTypes.includes('text/html')) {
-        if (!confirm('The loaded content is HTML but the current editor is plain text. HTML tags will be stripped. Continue?')) {
-            alternateDivs('write-load', 'write-pane-content');
-            return;
-        }
-    }
-
-    loadContent(content);
-    alternateDivs('write-load', 'write-pane-content');
+    optionsDiv.appendChild(list);
 }
+
+// Register built-in load handlers
+(function () {
+    window.loadHandlers = window.loadHandlers || [];
+
+    window.loadHandlers.push({
+        label: 'Load blank',
+        icon:  'note_add',
+        load:  async () => {
+            clearDraft(currentEditor);
+            return { type: 'text/plain', value: '' };
+        }
+    });
+
+    window.loadHandlers.push({
+        label: 'Load template',
+        icon:  'folder_open',
+        load:  async () => {
+            const optionsDiv = document.getElementById('load-options');
+            if (optionsDiv) optionsDiv.innerHTML = '<p class="list-tip">Template loading is not yet implemented.</p>';
+            return null;
+        }
+    });
+})();
 
 
 // Close the write-load panel and return to the editor
@@ -343,104 +383,6 @@ function updateEditorIndicator() {
 }
 
 
-// Load a saved template — not yet implemented.
-// Future: let user pick from templates stored in kvstore or the file system.
-async function loadTemplate() {
-    const writeLoadContent = document.getElementById('write-load-content');
-    if (writeLoadContent) {
-        writeLoadContent.innerHTML = '<p>Template loading is not yet implemented.</p>';
-    }
-    return null;
-}
-
-// Generate a template. Assumes the existence of a generative AI account (type 'g')
-
-async function generateTemplateContent() {
-    // Create a form dynamically with the provided text
-    const formDiv = document.createElement('div');
-    formDiv.id = 'generate-template-form';
-    formDiv.innerHTML = `
-        <div>
-            <label for="templateType">Choose a template type:</label>
-            <select id="templateType">
-                <option value="business letter">Business Letter</option>
-                <option value="case study">Case Study</option>
-                <option value="lab report">Lab Report</option>
-                <option value="resume">Resume</option>
-                <option value="newsletter">Newsletter</option>
-            </select>
-            <br>
-            <label for="customTemplateType">Or enter your own template type:</label>
-            <input type="text" id="customTemplateType" placeholder="e.g., marketing proposal">
-            <br>
-            <label for="outputFormat">Choose output format:</label>
-            <select id="outputFormat">
-                <option value="text">Text</option>
-                <option value="html">HTML</option>
-            </select>
-            <br>
-            <button id="generateTemplateButton">Generate Template</button>
-        </div>
-    `;
-
-    // Clear existing content in 'write-load-content' and append the form
-    const writeLoadContent = document.getElementById('write-load-content');
-    if (writeLoadContent) {
-        writeLoadContent.innerHTML = ''; // Clear any existing content
-        writeLoadContent.appendChild(formDiv);
-    }
-
-    // Wait for form submission and handle user input
-    return new Promise(resolve => {
-        const generateButton = document.getElementById('generateTemplateButton');
-        generateButton.addEventListener('click', async event => {
-            event.preventDefault(); // Prevent any default button behavior
-
-            // Collect user inputs
-            const templateType = document.getElementById('templateType').value;
-            const customTemplateType = document.getElementById('customTemplateType').value.trim();
-            const outputFormat = document.getElementById('outputFormat').value;
-
-            // Determine the final template type
-            const finalTemplateType = customTemplateType || templateType;
-
-            // Show loading indicator
-            showLoader();
-
-            // Call generateTemplate with user inputs
-            const template = await generateTemplateFromChatGPT(finalTemplateType, outputFormat);
-            const extractedContent = extractCodeContent(template);
-
-            // Remove the form from the page so the generated template is not appended anywhere
-            if (formDiv.parentNode) {
-                formDiv.parentNode.removeChild(formDiv);
-            }
-
-            document.getElementById('loading-indicator').style.display = 'none';
-            // Resolve the promise with the generated template
-            resolve({
-                type: outputFormat === 'html' ? 'text/html' : 'text/plain',
-                value: extractedContent
-            });
-        });
-    });
-}
-
-function extractCodeContent(template) {
-    // This regex will capture text between the first pair of triple backticks.
-    // It optionally allows a language identifier after the opening backticks.
-    const regex = /```(?:\w*\n)?([\s\S]*?)```/;
-    const match = template.match(regex);
-    
-    if (match && match[1]) {
-      // Return the content between the triple backticks, trimming any extra whitespace.
-      return match[1].trim();
-    }
-    
-    // If no triple backticks are found, return the original content.
-    return template;
-  }
-  
 
 // Function to initialize an editor by type
 
