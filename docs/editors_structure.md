@@ -108,6 +108,34 @@ If no suitable editor is found (e.g. an unrecognised MIME type), the user is war
 
 ---
 
+## Save destinations — `saveHandlers`
+
+The Save button opens a right-pane list built from the `saveHandlers` registry — an **ordered array** of saver objects defined in `publish.js` and extended by service files.
+
+### Registering a saver
+
+Add an entry by pushing to `window.saveHandlers` from any `.js` file:
+
+```javascript
+(function () {
+    window.saveHandlers = window.saveHandlers || [];
+    window.saveHandlers.push({
+        label: 'Save to My Service',
+        icon:  'cloud_upload',            // Material Icons name, or set logoSrc for a masked SVG
+        save:  async () => {
+            // fetch content via packagePost(), push to service, etc.
+        }
+    });
+})();
+```
+
+Entries appear in registration order. The built-in saver is registered in `files.js`:
+`files.js` → "Save to local file"
+
+Account-backed savers (e.g. Google Drive, Dropbox) register here too; their `save()` function handles any account lookup internally.
+
+---
+
 ## Draft auto-save — local editors only
 
 Local editors (those where `requiresAccount: false` and content is held in the browser) should auto-save their content to `sessionStorage` so a page reload doesn't lose work. Service-backed editors (e.g. Etherpad) manage their own persistence server-side and do not need this.

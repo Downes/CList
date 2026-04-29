@@ -240,6 +240,15 @@ function packageStatus(charlimit, input, publishedURL) {
     });
 })();
 
+(function () {
+    window.saveHandlers = window.saveHandlers || [];
+    window.saveHandlers.push({
+        label: 'Save to local file',
+        icon:  'save',
+        save:  async () => await saveContent()
+    });
+})();
+
 
 async function saveContent() {
 
@@ -270,9 +279,6 @@ async function saveContent() {
 }
 
 function fallbackDownload(fileContent) {
-    // Display fallback message
-    document.getElementById('fallbackMessage').style.display = 'block';
-
     // Prompt user for a filename
     const fileName = prompt("Enter a file name:", "content.txt");
     if (!fileName) return; // Exit if the user cancels or doesn't provide a name

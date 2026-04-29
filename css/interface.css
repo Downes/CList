@@ -433,6 +433,10 @@
     left: 0;
   }
 
+  #right-pane {
+    border-left: 1px solid #ccc;
+  }
+
   #audio-section {
     position: absolute;
     top: 82px;                /* below left-command (41px) + current-status (41px) */

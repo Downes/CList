@@ -36,12 +36,11 @@ The right half of `#main-content`. Contains the active editor.
 | Element | Role |
 |---------|------|
 | `#right-main-command` (`.command`) | Command bar: Load, Save, Post, Refs, editor-indicator |
-| `#write-load` | "Load" panel — content source picker (blank / file / template / generate) |
 | `#write-title` | Editable title field (above the editor) |
 | `#write-pane-content` | The active editor lives here; only one editor div is visible at a time |
 | `#<editor>-references` | Per-editor reference list, rendered below `#write-pane-content` |
 
-Options for the write pane open in **`#right-pane`**, which slides in from the right edge. Its panels (`#editor-list`, `#save-instructions`, `#post-instructions`) are pre-declared children of `#right-content` and shown/hidden via `openRightInterface(panelId)`.
+Options for the write pane open in **`#right-pane`**, which slides in from the right edge and is separated from the write pane by a `border-left: 1px solid #ccc`. Its panels (`#editor-list`, `#load-instructions`, `#save-instructions`, `#post-instructions`) are pre-declared children of `#right-content` and shown/hidden via `openRightInterface(panelId)`.
 
 ### Status pane — `#statusPane`
 
@@ -187,8 +186,9 @@ Use this when the panel content is built dynamically each time it opens.
 Hides all children of `#right-content`, then shows the child with the given `id`. Panels must be pre-declared in `index.html` as children of `#right-content`.
 
 ```javascript
-openRightInterface('editor-list');   // shows #editor-list, hides all others
-openRightInterface('save-instructions');
+openRightInterface('editor-list');       // shows #editor-list, hides all others
+openRightInterface('load-instructions'); // shows #load-instructions
+openRightInterface('save-instructions'); // shows #save-instructions
 ```
 
 Pre-declaring panels in HTML lets `populateEditorList()` and similar functions update their contents independently of the open/close cycle.

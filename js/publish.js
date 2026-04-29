@@ -41,6 +41,30 @@
 
 window.publishHandlers = window.publishHandlers || {};
 
+//
+// Define handlers for each save destination
+//
+//      The saveHandlers registry is an ordered array of saver objects displayed
+//      in the right-pane Save list. Each saver must have:
+//
+//          label  {string}   Display name shown in the list
+//          icon   {string}   Material Icons name (or logoSrc for a masked SVG)
+//          save   async () => void
+//
+//      Register a saver from any service .js file:
+//
+//          (function () {
+//              window.saveHandlers = window.saveHandlers || [];
+//              window.saveHandlers.push({
+//                  label: 'Save to My Service',
+//                  icon:  'cloud_upload',
+//                  save:  async () => { /* save logic here */ }
+//              });
+//          })();
+//
+
+window.saveHandlers = window.saveHandlers || [];
+
 async function playPost() {
 
     if (!Array.isArray(accounts)) {
@@ -64,25 +88,8 @@ async function playPost() {
 }
 
 async function playSave() {
-
-    if (!Array.isArray(accounts)) {
-        throw new Error('Error: Accounts array not found; maybe you need to log in.');
-    }
-
-    // If neceeary, fetch the accounts from the KVstore
-    if (accounts.length === 0) {
-        try {
-            // Fetch the accounts from the KVstore
-            accounts = await getAccounts(flaskSiteUrl); 
-
-        } catch (error) {
-            alert('Error getting Editor accounts: ' + error.message);
-        }
-    }
-
-    populateSaveOptions(accounts); // Populate UI with options to save
+    populateSaveOptions();
     openRightInterface('save-instructions');
-
 }
 
 
@@ -113,35 +120,47 @@ function populatePostOptions(accounts) {
     };
 }
 
-function populateSaveOptions(accounts) {
-
+function populateSaveOptions() {
     const saveOptionsDiv = document.getElementById('save-options');
-    saveOptionsDiv.innerHTML = '';                         // Clear previous options
+    saveOptionsDiv.innerHTML = '';
 
-    // Add the account buttons
-    const saveButtons = document.createElement('div'); // Create a button
-    saveButtons.id = "save-buttons";
+    const list = document.createElement('div');
+    list.className = 'account-list';
 
-    saveButtons.innerHTML = `<button class="save-button" onclick="saveContent();">Save as local</button>
-     <p id="fallbackMessage" style="display: none;"><!-- Called by files.js -->
-        The File System Access API is not supported in this browser. A file download will be used instead.
-     </p>`;
+    const tip = document.createElement('div');
+    tip.className = 'list-tip';
+    tip.textContent = 'Select a destination to save to';
+    list.appendChild(tip);
 
-     accounts.forEach(account => {                           // Load the options stored in the KVstore
-       
-        const parsedValue = JSON.parse(account.value);
-        if (parsedValue.permissions.includes('s')) {  // Check if 'permissions' contains 's'
+    saveHandlers.forEach(handler => {
+        const btn = document.createElement('button');
+        btn.className = 'account-button';
 
-            const saveOption = document.createElement('button'); // Create a buttonn
-            saveOption.classList.add('save-button');  // Add a class for consistent styling
-            saveButtons.appendChild(saveOption);  // Append the option if condition is met
+        const iconEl = document.createElement('span');
+        if (handler.logoSrc) {
+            iconEl.className = 'service-icon-img';
+            iconEl.style.webkitMask = `url('${handler.logoSrc}') no-repeat center / contain`;
+            iconEl.style.mask = `url('${handler.logoSrc}') no-repeat center / contain`;
+        } else {
+            iconEl.className = 'material-icons';
+            iconEl.textContent = handler.icon || 'save';
         }
-     });
 
-    
-     if (saveButtons instanceof HTMLElement) { saveOptionsDiv.appendChild(saveButtons); }
+        const nameEl = document.createElement('span');
+        nameEl.textContent = handler.label;
 
+        btn.appendChild(iconEl);
+        btn.appendChild(nameEl);
 
+        btn.addEventListener('click', async () => {
+            await handler.save();
+            closeRightPane();
+        });
+
+        list.appendChild(btn);
+    });
+
+    saveOptionsDiv.appendChild(list);
 }
 
 
