@@ -45,6 +45,25 @@ Use this for:
 - Form validation (empty field, bad format)
 - Background operation feedback (account saved, name set)
 
+### `parseAccountValue(account)` — `utilities.js`
+
+Safely parses a stored account's JSON value. Returns the parsed object, or `null` if the value is missing or corrupt. Always use this instead of bare `JSON.parse(account.value)`.
+
+```javascript
+const parsedValue = parseAccountValue(account);
+if (!parsedValue) return;           // skip corrupt entry in a loop
+```
+
+```javascript
+const accountData = parseAccountValue(selectedAccount);
+if (!accountData) {                 // single-account context
+    showStatusMessage('Could not read account data — it may be corrupt.');
+    return;
+}
+```
+
+On parse failure it logs `console.error` with the account key, so corrupt entries are traceable without throwing.
+
 ---
 
 ## CSS classes
