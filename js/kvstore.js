@@ -450,7 +450,7 @@ function kvstoreAccountsPanel() {
                         acceptLogin();
                     } catch (error) {
                         console.error('Error fetching accounts:', error);
-                        alert('Error fetching accounts: ' + error);
+                        showStatusMessage('Error fetching accounts: ' + error.message);
                     }
                 }, 500); // Adjust delay time if needed (500ms should be sufficient)
 

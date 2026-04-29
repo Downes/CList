@@ -365,14 +365,14 @@ function advertiseDiscussion() {
   const discussionName = discussionNameInput.value.trim();
 
   if (!peer || !peer.id) {
-    alert('Peer ID is not available yet. Please wait for the Peer connection to establish.');
+    showStatusMessage('Peer ID not available yet — please wait for the connection to establish.');
     return;
   }
 
   const peerId = peer.id;
 
   if (!discussionName) {
-    alert('Please enter a discussion name.');
+    showStatusMessage('Please enter a discussion name.');
     return;
   }
 
@@ -404,7 +404,7 @@ function advertiseDiscussion() {
   })
   .catch((error) => {
     console.error('Error advertising discussion:', error.message);
-    alert(`Error: ${error.message}`);
+    showStatusMessage('Error advertising discussion: ' + error.message);
   });
 }
 
@@ -437,7 +437,6 @@ function startHeartbeat() {
       });
     })
     .catch((error) => {
-      alert(`Error sending heartbeat: ${error.message}`);
       console.error('Error sending heartbeat:', error);
     });
   }, 60000); // Every 60 seconds.
@@ -515,7 +514,7 @@ function endDiscussion() {
   // Use the active discussion name or the name from the input field.
   const discussionName = activeDiscussionName || document.getElementById('discussionNameInput').value.trim();
   if (!discussionName) {
-    alert('Error: No discussion name found.');
+    showStatusMessage('No discussion name found.');
     return;
   }
 
@@ -552,7 +551,7 @@ function endDiscussion() {
   })
   .catch((error) => {
     console.error('Error ending discussion:', error);
-    alert('Failed to end discussion.');
+    showStatusMessage('Failed to end discussion: ' + error.message);
   });
 }
 

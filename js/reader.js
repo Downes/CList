@@ -124,7 +124,7 @@ function makeAccountList(tip, accounts, filterFn, onClickFn) {
 function finderString() {
     const findInput = document.getElementById('find-input');
     const searchString = findInput ? findInput.value.trim() : '';
-    if (!searchString) { alert("Please enter a search term"); return; }
+    if (!searchString) { showStatusMessage('Please enter a search term.'); return; }
     return searchString;
 }
 
@@ -160,7 +160,7 @@ async function playRead() {
         }
         populateReadAccountList(accounts);
     } catch (error) {
-        alert('Error in playRead: ' + error.message);
+        showStatusMessage('Error in playRead: ' + error.message);
     }
 }
 

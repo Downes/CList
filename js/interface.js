@@ -44,7 +44,6 @@ document.addEventListener("DOMContentLoaded", function () {
     const missingElements = elementIds.filter(id => !document.getElementById(id));
 
     if (missingElements.length > 0) {
-        alert('The following elements are missing:', missingElements);
         console.warn('The following elements are missing:', missingElements);
     } else {
         console.log('All elements were found successfully.');
@@ -260,17 +259,13 @@ function snapPanes(direction) {
         const buttonsContainer = document.getElementById('feed-menu');
         if (!buttonsContainer) {
             console.error('Error: The element with ID "feed-menu" does not exist, so there is no place to put the feed buttons.');
-            alert("Error loading feed; please see the console.");
+            showStatusMessage('Error loading feed — feed menu element not found.');
             return;
         }
         buttonsContainer.innerHTML = ''; // Removes all child elements     
 
         // Access feed functions for the given instance type
         const handler = readerHandlers[instanceType];
-        if (!handler) {alert('no handler for '+instanceType);}
-        if (!handler.feedFunctions) {alert('no functions');}
-        if (Object.keys(handler.feedFunctions).length === 0) {alert('length = 0');}
-
         if (!handler || !handler.feedFunctions || Object.keys(handler.feedFunctions).length === 0) {
             console.error(`No feed functions defined for instance type: ${instanceType}`);
             return;

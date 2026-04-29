@@ -34,7 +34,7 @@ async function generateNewTemplateFromChatGPT(templateType, outputFormat) {
             accounts = await getAccounts(flaskSiteUrl); 
 
         } catch (error) {
-            alert('Error getting Editor accounts: ' + error.message);
+            showStatusMessage('Error getting Editor accounts: ' + error.message);
         }
     }
     
@@ -57,8 +57,7 @@ async function generateNewTemplateFromChatGPT(templateType, outputFormat) {
 
     // Check for required values and handle errors
     if (!API_KEY || !API_URL) {
-        alert("ApiKey and url are both required to continue.");
-        throw new Error("Missing required values: apiKey or url.");
+        throw new Error('No ChatGPT account found. Open Accounts and add an account with permission "g".');
     }
 
 

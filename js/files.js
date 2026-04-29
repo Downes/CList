@@ -149,7 +149,7 @@ async function packagePost() {
     // Get title
 
     const titleValue = document.getElementById('write-title').innerText;
-    if (!titleValue) { alert("Please enter a title for the post"); return; }
+    if (!titleValue) { showStatusMessage('Please enter a title for the post.'); return; }
 
     // Get editor content
     const handler = editorHandlers[currentEditor];
@@ -158,7 +158,7 @@ async function packagePost() {
         contentValue = await handler.getContent(); // Assign value to the variable
     } else {
         console.error("Unable to initialize content editor handler for write");
-        alert("Write error, please consult the console for details");
+        showStatusMessage('Write error — could not read editor content.');
     }
 
 
@@ -268,7 +268,7 @@ async function saveContent() {
             const writableStream = await fileHandle.createWritable();
             await writableStream.write(fileContent);
             await writableStream.close();
-            alert("File saved successfully!");
+            showStatusMessage('File saved successfully.');
         } catch (err) {
             console.error("Save failed:", err);
         }
@@ -293,6 +293,6 @@ function fallbackDownload(fileContent) {
     a.click();
 
     URL.revokeObjectURL(url); // Clean up
-    alert("File downloaded. Check your default download folder.");
+    showStatusMessage('File downloaded — check your downloads folder.');
 }
 

@@ -78,7 +78,7 @@ async function playPost() {
             accounts = await getAccounts(flaskSiteUrl); 
 
         } catch (error) {
-            alert('Error getting Editor accounts: ' + error.message);
+            showStatusMessage('Error getting accounts: ' + error.message);
         }
     }
 

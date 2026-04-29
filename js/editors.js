@@ -320,7 +320,7 @@ async function populateEditorList(carriedContent) {
     const accountList = document.getElementById('editor-switch-account-options');
     accountList.innerHTML = '';
     if (!Array.isArray(accounts) || accounts.length === 0) {
-        try { accounts = await getAccounts(flaskSiteUrl); } catch(e) {}
+        try { accounts = await getAccounts(flaskSiteUrl); } catch(e) { showStatusMessage('Could not load accounts: ' + e.message); }
     }
     accounts.forEach(account => {
         const parsedValue = parseAccountValue(account);
@@ -391,8 +391,7 @@ async function populateEditorAccountList(content) {
     // Check if 'write-load' exists and throw an error if it doesn't
     const writeLoadDiv = document.getElementById('write-load');
     if (!writeLoadDiv) {
-        alert('Error: write-load not found');
-        console.error("Error: can't find an div named write-load. It should be created in index.html and it's where we stash the content to be pre-loaded into the editor.");
+        console.error("Error: can't find a div named write-load. It should be created in index.html and it's where we stash the content to be pre-loaded into the editor.");
         return;
     }
     // Make the 'write-load' div visible
@@ -478,7 +477,7 @@ async function initializeEditor(editorType) {
         });
     } else {   
         console.error("Write pane content not found. Obviously a major programming error.");
-        alert("Write pane content not found. Please consult the console for details.");
+        showStatusMessage('Write pane not found — please reload the page.');
         return;
     }
 
@@ -490,7 +489,7 @@ async function initializeEditor(editorType) {
             updateEditorIndicator();
         } catch (error) {
             console.error(`Error initializing editor of type '${editorType}':`, error);
-            alert(`Failed to initialize editor. Please consult the console for details.`);
+            showStatusMessage(`Failed to initialize editor: ${error.message}`);
             return;
         }
     } else {

@@ -45,7 +45,7 @@ async function googleSearch(query,type,start) {
             accounts = await getAccounts(flaskSiteUrl); 
 
         } catch (error) {
-            alert('Error getting Editor accounts: ' + error.message);
+            showStatusMessage('Error getting accounts: ' + error.message);
         }
     }
     
@@ -68,8 +68,7 @@ async function googleSearch(query,type,start) {
 
     // Check for required values and handle errors
     if (!API_KEY || !SEARCH_ENGINE_ID) {
-        alert("ApiKey and url are both required to continue.");
-        throw new Error("Missing required values: apiKey or url.");
+        throw new Error('No Google Search account found. Open Accounts and add a Google Search account.');
     }
 
 

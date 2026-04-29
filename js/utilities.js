@@ -42,7 +42,7 @@ function getCookie(name) {
 // Site Specific Cookies
 
 function deriveSiteIdentifier(flaskSiteUrl) {
-    if (!flaskSiteUrl) { alert('No flaskSiteUrl provided'); console.error("No flask site URL provided."); } //
+    if (!flaskSiteUrl) { console.error("No flask site URL provided."); }
     return new URL(flaskSiteUrl).hostname.replace(/\./g, '_');
 }
 

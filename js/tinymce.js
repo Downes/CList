@@ -55,13 +55,13 @@ let pendingTinymceDraftOffer = false;
                 console.log("Editor element found:", editorElement);
             } else {
                 console.error("Editor element not found for selector '#write-column'.");
-                alert("Editor element not found for selector '#write-column'.");
+                showStatusMessage("Editor element not found — please reload the page.");
             }
 
             // Check whether the TinyMCE editor is loaded; if it is, don't load it again
             if (typeof tinymce === 'undefined') {
                 console.error('TinyMCE is not loaded.');
-                alert('TinyMCE is not loaded.');
+                showStatusMessage('TinyMCE failed to load — check your network connection.');
             } else {
                 console.log('TinyMCE is loaded; initializing now:', tinymce);
                 tinymce.init(window.tinymceConfig);
