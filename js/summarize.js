@@ -21,7 +21,8 @@ async function summarizeText(textToSummarize, type) {
     let url = null;
 
      accounts.forEach(account => {                           // Check the accounts
-        const parsedValue = JSON.parse(account.value);
+        const parsedValue = parseAccountValue(account);
+        if (!parsedValue) return;
         console.log("checking account: ", parsedValue);
         if (parsedValue.permissions.includes('z')) {  // Check if 'permissions' contains 'z'
             console.log("FOUND account: ", parsedValue);

@@ -100,8 +100,8 @@ function makeAccountList(tip, accounts, filterFn, onClickFn) {
     container.appendChild(tipDiv);
 
     accounts.forEach(account => {
-        const parsedValue = JSON.parse(account.value);
-        if (!filterFn(parsedValue)) return;
+        const parsedValue = parseAccountValue(account);
+        if (!parsedValue || !filterFn(parsedValue)) return;
 
         const btn = document.createElement('button');
         btn.className = 'account-button';
@@ -253,7 +253,8 @@ function populateReadAccountList(accounts) {
 async function switchReaderAccount(key) {
 
     const selectedAccount = accounts.find(acc => acc.key === key);
-    const accountData = JSON.parse(selectedAccount.value);
+    const accountData = parseAccountValue(selectedAccount);
+    if (!accountData) { showStatusMessage('Could not read account data — it may be corrupt.'); return; }
     const instance = accountData.instance;
     baseURL = extractBaseUrl(accountData.instance);
     accessToken = accountData.id;

@@ -31,15 +31,15 @@ function getTranslationAccount() {
     // Find the account with permission 't'
     // Assumes accounts array loaded with getAccounts()
     const targetAccount = accounts.find(account => {
-        const parsedValue = JSON.parse(account.value);
-        return parsedValue.permissions.includes('t');
+        const parsedValue = parseAccountValue(account);
+        return parsedValue && parsedValue.permissions.includes('t');
     });
-    
+
     // Extract the key and id
     let TranslationProjectId = null;
-    let TranslationApiKey = null; 
+    let TranslationApiKey = null;
     if (targetAccount) {
-        const parsedValue = JSON.parse(targetAccount.value);
+        const parsedValue = parseAccountValue(targetAccount);
         TranslationProjectId = targetAccount.key;
         TranslationApiKey = parsedValue.id;  // Unfortunate mixing of variable names, oh well
     }
@@ -134,6 +134,7 @@ async function processTranslation(inputText) {
         return translatedText;
     } catch (error) {
         console.error('Error during translation:', error);
+        return inputText;
     }
 }
 

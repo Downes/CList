@@ -303,3 +303,22 @@ function debounce(fn, delay) {
         timer = setTimeout(() => fn(...args), delay);
     };
 }
+
+
+// Parse a stored account's JSON value safely.
+// Returns the parsed object, or null if the value is missing or corrupt.
+function parseAccountValue(account) {
+    try {
+        return JSON.parse(account.value);
+    } catch (e) {
+        console.error(`Corrupt account data for key "${account.key || '?'}":`, e);
+        return null;
+    }
+}
+
+
+// Last-resort handler for any promise rejection that escapes local error handling.
+window.addEventListener('unhandledrejection', function (event) {
+    console.error('Unhandled promise rejection:', event.reason);
+    showStatusMessage('An unexpected error occurred. See console for details.');
+});

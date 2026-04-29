@@ -114,7 +114,8 @@ async function createBlueskySession() {
 
         // Check for existing login data in accounts
         accounts.forEach(account => {                           // Check the accounts
-            const parsedValue = JSON.parse(account.value);
+            const parsedValue = parseAccountValue(account);
+            if (!parsedValue) return;
             console.log("checking account: ", parsedValue);
             if (parsedValue.instance.includes('bsky')) {  // Check if 'key' contains 'bluesky'
                 console.log("FOUND account: ", parsedValue);

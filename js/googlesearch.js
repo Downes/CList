@@ -53,7 +53,8 @@ async function googleSearch(query,type,start) {
     let SEARCH_ENGINE_ID = null;
 
      accounts.forEach(account => {                           // Check the accounts
-        const parsedValue = JSON.parse(account.value);
+        const parsedValue = parseAccountValue(account);
+        if (!parsedValue) return;
         console.log("checking account: ", parsedValue);
         if (parsedValue.title.includes('Google Search')) {  // Check if 'permissions' contains 'g'
             console.log("FOUND account: ", parsedValue);

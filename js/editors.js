@@ -323,8 +323,8 @@ async function populateEditorList(carriedContent) {
         try { accounts = await getAccounts(flaskSiteUrl); } catch(e) {}
     }
     accounts.forEach(account => {
-        const parsedValue = JSON.parse(account.value);
-        if (!parsedValue.permissions.includes('e')) return;
+        const parsedValue = parseAccountValue(account);
+        if (!parsedValue || !parsedValue.permissions.includes('e')) return;
         const editorType = parsedValue.type?.toLowerCase();
         const handler = editorHandlers[editorType];
         if (!handler || !handler.requiresAccount) return;
@@ -441,13 +441,13 @@ async function populateEditorAccountList(content) {
             accounts = await getAccounts(flaskSiteUrl); 
 
         } catch (error) {
-            alert('Error getting Editor accounts: ' + error.message);
+            showStatusMessage('Error getting Editor accounts: ' + error.message);
         }
     }
 
     accounts.forEach(account => {
-        const parsedValue = JSON.parse(account.value);
-        if (!parsedValue.permissions.includes('e')) return;
+        const parsedValue = parseAccountValue(account);
+        if (!parsedValue || !parsedValue.permissions.includes('e')) return;
 
         const editorType = parsedValue.type?.toLowerCase();
         const handler = editorHandlers[editorType];

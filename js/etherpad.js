@@ -175,7 +175,9 @@ async function callEtherpadApi(endpoint, params) {
     let etherpadId;
     if (etherpadAccountObj) {
         // Parse the account data once more to extract instance and id.
-        ({ instance: etherpadBaseUrl, id: etherpadId }  = JSON.parse(etherpadAccountObj.value));
+        const etherpadData = parseAccountValue(etherpadAccountObj);
+        if (!etherpadData) { showStatusMessage('Could not read Etherpad account data — it may be corrupt.'); return; }
+        ({ instance: etherpadBaseUrl, id: etherpadId } = etherpadData);
         console.log('Etherpad instance:', etherpadBaseUrl);
         console.log('Etherpad id:', etherpadId);
     } else {

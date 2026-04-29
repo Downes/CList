@@ -42,7 +42,8 @@ async function generateNewTemplateFromChatGPT(templateType, outputFormat) {
     let API_URL = null;
 
      accounts.forEach(account => {                           // Check the accounts
-        const parsedValue = JSON.parse(account.value);
+        const parsedValue = parseAccountValue(account);
+        if (!parsedValue) return;
         console.log("checking account: ", parsedValue);
         if (parsedValue.permissions.includes('g')) {  // Check if 'permissions' contains 'g'
             console.log("FOUND account: ", parsedValue);

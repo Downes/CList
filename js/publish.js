@@ -181,7 +181,8 @@ async function postAll() {
             const key = btn.getAttribute('data-key');
             const account = allAccounts.find(acc => acc.key === key);
             if (!account) return null;
-            const accountData = JSON.parse(account.value);
+            const accountData = parseAccountValue(account);
+            if (!accountData) return null;
             const parts = accountData.permissions.split(' ');
             const charLimit = (parts.length > 1 && !isNaN(parseInt(parts[1], 10)))
                 ? parseInt(parts[1], 10)
@@ -197,7 +198,8 @@ async function postAll() {
         const account = allAccounts.find(acc => acc.key === selected.key);
         if (!account) continue;
 
-        const accountData = JSON.parse(account.value);
+        const accountData = parseAccountValue(account);
+        if (!accountData) continue;
         const charLimit = selected.charLimit;
         const handler = publishHandlers[accountData.type];
         if (!handler || typeof handler.publish !== 'function') {
