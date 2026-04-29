@@ -216,7 +216,7 @@ async function setUserName() {
     const newUserName = userNameInput.value.trim();
 
     if (!newUserName) {
-        alert('Please enter a valid name.');
+        showStatusMessage('Please enter a valid name.');
         return;
     }
 
@@ -227,11 +227,11 @@ async function setUserName() {
         // Retrieve the associated authorID
         authorID = await getAuthorId(etherpadUsername);
 
-        alert(`Your name has been set to: ${newUserName}. You can now create or edit pads.`);
+        showStatusMessage(`Name set to: ${newUserName}`);
         console.log(`Updated author ID for ${newUserName}: ${authorID}`);
     } catch (error) {
         console.error('Error setting user name:', error);
-        alert('Error setting your name. Please check the console for more details.');
+        showStatusMessage('Error setting name: ' + error.message);
     }
 
     // Clear input field
@@ -455,11 +455,11 @@ async function handleExtractContent() {
             const textArea = document.getElementById('extractedContent');
             textArea.value = content;
         } else {
-            alert('Failed to extract content. Please try again.');
+            showStatusMessage('Failed to extract content. Please try again.');
         }
     } catch (error) {
         console.error('Error extracting content:', error);
-        alert('An error occurred while extracting the content. Check the console for more details.');
+        showStatusMessage('Error extracting content: ' + error.message);
     }
 }
 

@@ -245,7 +245,7 @@ function showPostMessage(div, text) {
 async function postContentByType(accountData, title, content) {
     const handler = publishHandlers[accountData.type];
     if (!handler || typeof handler.publish !== 'function') {
-        alert('No publish handler registered for account type: ' + accountData.type);
+        showStatusMessage('No publish handler registered for account type: ' + accountData.type);
         return null;
     }
     return await handler.publish(accountData, title, content);

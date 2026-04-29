@@ -921,11 +921,11 @@ function selectBlueskyFeed(listType) {
 
         if (listType === 'pinned') {
             if (window.getComputedStyle(blueskyPinnedDiv).display !== 'block') {
-                fetchPinnedFeeds(); }  // Don't fetch when we're closing an open div
+                fetchPinnedFeeds().catch(err => showStatusMessage('Could not load pinned feeds: ' + err.message)); }
             toggleFormDisplay('blueskyPinnedDiv','left');
         } else if (listType === 'recommended') {
             if (window.getComputedStyle(blueskyRecommendedDiv).display !== 'block') {
-                fetchRecommendedFeeds(); }  // Don't fetch when we're closing an open div
+                fetchRecommendedFeeds().catch(err => showStatusMessage('Could not load recommended feeds: ' + err.message)); }
             toggleFormDisplay('blueskyRecommendedDiv','left');
         } else if (listType === 'search') {
             toggleFormDisplay('blueskySearchDiv','left');

@@ -196,6 +196,7 @@ async function loadMastodonLists(type) {
         openLeftInterface(createMastodonListDropdown(lists));
     } catch (error) {
         console.error('Error loading lists:', error);
+        showStatusMessage('Could not load Mastodon lists: ' + error.message);
     }
 }
 
@@ -919,11 +920,15 @@ async function saveMastodonAccount(title, username, accessToken, permissions) {
 
     if (!response.ok) { showStatusMessage('Failed to save Mastodon account to kvstore.'); return; }
 
-    accounts = await getAccounts(flaskSiteUrl);
-    if (accounts) {
-        await playRead();
-        populateReadAccountList(accounts);
+    try {
+        accounts = await getAccounts(flaskSiteUrl);
+        if (accounts) {
+            await playRead();
+            populateReadAccountList(accounts);
+        }
+        showStatusMessage('Mastodon account authorized and saved.');
+    } catch (error) {
+        showStatusMessage('Account saved — but could not refresh feed. Try reloading: ' + error.message);
     }
-    showStatusMessage('Mastodon account authorized and saved.');
     playAccounts();
 }
