@@ -38,6 +38,36 @@ docs/               — architecture documentation
 - `editors.js` — TinyMCE and plain-text editor management
 - `dynamicp2p.js` — PeerJS-based chat
 
+## Error Handling
+
+Full reference: `docs/error-handling.md`. These rules apply to all new and modified JS code.
+
+**Never use `alert()`, `confirm()` (for errors), or `prompt()`** — use the helpers below instead.
+
+### Helpers (all in `utilities.js`)
+
+- **`showServiceError(container, title, message, actionHtml?)`** — persistent red `error-message` div
+  appended to a feed container. Use for hard failures: feed loads, API errors, missing credentials.
+  `container` can be a DOM element or an ID string.
+- **`showStatusMessage(text)`** — transient message in `#statusPane`, auto-hides after 3 s.
+  Use for action feedback, validation, and background operation results.
+- **`parseAccountValue(account)`** — safe `JSON.parse(account.value)`. Returns `null` on failure
+  (logs `console.error`). **Always use this instead of bare `JSON.parse(account.value)`.**
+
+### Rules
+
+1. Every `async` call must be in a `try/catch` **or** have a `.catch()` if called without `await`.
+2. Every `catch` block must produce visible feedback — never just `console.error` alone.
+3. `parseAccountValue()` in a loop: guard with `if (!parsedValue) return;` to skip corrupt entries.
+4. `parseAccountValue()` for a single account: guard with `if (!accountData) { showStatusMessage(...); return; }`.
+5. Session/credential setup functions should `throw` on failure — let the feed-loading caller display the error via `showServiceError`.
+6. Keep `console.error()` alongside any UI message — don't remove it.
+
+### CSS classes (`reader.css`)
+
+- `.error-message` — red, for hard failures requiring user action
+- `.feed-status-message` — neutral grey, for soft/informational states ("No posts found")
+
 ## Cautions
 
 - `interface.js` must load last (depends on all other scripts)
