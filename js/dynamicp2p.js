@@ -13,11 +13,22 @@
 let heartbeatInterval; // Stores the heartbeat interval ID (keeps discussions active)
 let p2pInitialized = false; // Flag to ensure the P2P system is initialized only once
 
+// TODO (federation): make this user-selectable from kvstore account settings.
+const API_URL = 'https://discussions.mooc.ca/api/discussions';
+
 // These globals will be set when initializeP2PSystem() is called.
-let peer, connections, knownPeers, processedPeerLists, usernames, API_URL;
+let peer, connections, knownPeers, processedPeerLists, usernames;
 let usernameInput, setUsernameButton, peerIdInput, connectButton, messageInput, sendButton;
 let activeDiscussionName = null; // Tracks the currently advertised discussion name
 let myUsername = ''; // Global username (updated via setUsername())
+
+// DID identity state — null if user has no DID
+let myDid          = null; // full did:web URL, e.g. did:web:kvstore.mooc.ca:users:alice
+let myDidKey       = null; // did:key derived from Ed25519 public key
+let myPublicKeyJwk = null; // Ed25519 public key JWK (from DID document)
+let myIdentityKey  = null; // Ed25519 CryptoKey for signing (private, decrypted from kvstore)
+let peerDids          = {}; // peerId → did:key
+let peerPublicKeyJwks = {}; // peerId → publicKeyJwk (for signature verification)
 
 /**
  * playChat()
@@ -27,11 +38,9 @@ let myUsername = ''; // Global username (updated via setUsername())
  * and then sets the username.
  */
 function playChat() {
-  // Open chat window: make sure the chat section is visible.
-  const chatSection = document.getElementById('chat-section');
-  if (chatSection.style.display === "none") {
-    chatSection.style.display = "block";
-  }
+  // #chat-section is a sibling of #left-content (not inside it), so it is never
+  // cleared by openLeftInterface(). Show it directly, the same way audio-section works.
+  document.getElementById('chat-section').style.display = 'block';
 
   // Open the left pane so the reader knows where the player is.
   openLeftPane();
@@ -45,7 +54,6 @@ function playChat() {
     knownPeers = initObj.knownPeers;
     processedPeerLists = initObj.processedPeerLists;
     usernames = initObj.usernames;
-    API_URL = initObj.API_URL;
     usernameInput = initObj.usernameInput;
     setUsernameButton = initObj.setUsernameButton;
     peerIdInput = initObj.peerIdInput;
@@ -55,11 +63,25 @@ function playChat() {
 
     p2pInitialized = true; // Mark as initialized.
 
+    // Reveal the Chat button in the left-pane command bar (mirrors audioButton).
+    document.getElementById('chatButton').style.display = 'inline-block';
+
+    // Load DID identity once — falls back gracefully if absent.
+    initializeDid().catch(err => console.error('DID initialization failed:', err));
+
     // Attach DOM event listeners for sending messages and manual connection.
-    sendButton.addEventListener('click', () => {
+    const _doSend = () => {
       const message = messageInput.value.trim();
-      if (message) sendMessage(message);
+      if (!message) return;
       messageInput.value = '';
+      sendMessage(message).catch(err => {
+        console.error('sendMessage failed:', err);
+        showStatusMessage('Failed to send message — check your connection and try again.');
+      });
+    };
+    sendButton.addEventListener('click', _doSend);
+    messageInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); _doSend(); }
     });
 
     connectButton.addEventListener('click', () => {
@@ -87,19 +109,31 @@ function playChat() {
     // Handle incoming connections.
     peer.on('connection', (conn) => {
       connections[conn.peer] = conn;
-      knownPeers.add(conn.peer);
       usernames[conn.peer] = "Anonymous"; // Default username for new peers.
-      // appendMessage(`Connected to: ${conn.peer}`);
 
-      conn.on('data', (data) => {
-        // Handle incoming data.
+      // Wait for the data channel to open before sending — PeerJS does not guarantee
+      // the channel is ready when peer.on('connection') fires.
+      conn.on('open', () => {
+        knownPeers.add(conn.peer);
+        conn.send({ type: 'username-update', username: myUsername, did: myDidKey, didWeb: myDid, publicKeyJwk: myPublicKeyJwk });
+        propagatePeerList(conn.peer);
+      });
+
+      conn.on('data', async (data) => {
         if (data.type === 'message') {
             const sender = usernames[conn.peer] || conn.peer;
-            // Sanitize the incoming message without adding the sender's name
             let sanitizedMsg = sanitizeHTML(data.message);
-            sanitizedMsg = chatOptions(sanitizedMsg, sender); // Process incoming message
-            console.log(sanitizedMsg);
-            appendMessage(`${sender}: ${sanitizedMsg}`);        
+            sanitizedMsg = chatOptions(sanitizedMsg, sender);
+            let verifiedMark = '';
+            if (data.signature) {
+              const verified = await verifySignature(data.message, data.signature, conn.peer);
+              if (verified === true) verifiedMark = ' ✓';
+              else if (verified === false) {
+                console.warn('Signature verification FAILED for', sender, conn.peer);
+                verifiedMark = ' ⚠';
+              }
+            }
+            appendMessage(`${sender}${verifiedMark}: ${sanitizedMsg}`);
         } else if (data.type === 'peer-list' && !processedPeerLists.has(data.id)) {
           processedPeerLists.add(data.id);
           data.peers.forEach((peerId) => {
@@ -111,10 +145,17 @@ function playChat() {
           propagatePeerList(conn.peer);
         } else if (data.type === 'username-update') {
           usernames[conn.peer] = data.username;
-          appendMessage(`${data.username} has joined the discussion`);
+          if (data.did) peerDids[conn.peer] = data.did;
+          if (data.publicKeyJwk) peerPublicKeyJwks[conn.peer] = data.publicKeyJwk;
+          if (data.didWeb && data.username) {
+            const didUsername = data.didWeb.split(':').pop();
+            if (didUsername !== data.username)
+              console.warn(`Peer identity mismatch: claimed "${data.username}" but DID says "${didUsername}"`);
+          }
+          const joinLabel = data.did ? `${data.username} (DID)` : data.username;
+          appendMessage(`${joinLabel} has joined the discussion`);
         } else if (data.type === 'request-username') {
-            // When a peer requests your username, send it immediately.
-            conn.send({ type: 'username-update', username: myUsername });
+            conn.send({ type: 'username-update', username: myUsername, did: myDidKey, didWeb: myDid, publicKeyJwk: myPublicKeyJwk });
         }
       });
 
@@ -123,18 +164,34 @@ function playChat() {
         delete connections[conn.peer];
         knownPeers.delete(conn.peer);
         delete usernames[conn.peer];
+        delete peerDids[conn.peer];
+        delete peerPublicKeyJwks[conn.peer];
         propagatePeerList();
       });
 
-      // Send the initial username update and propagate the peer list.
-      conn.send({ type: 'username-update', username: myUsername });
-      propagatePeerList(conn.peer);
+      conn.on('error', (err) => {
+        console.error('Inbound connection error:', conn.peer, err);
+        appendMessage(`Connection error with ${usernames[conn.peer] || conn.peer}: ${err.message} — they may have lost their connection. Try rejoining the discussion.`);
+      });
     });
 
-    // Handle PeerJS errors.
+    // Handle PeerJS errors — different types need different responses.
     peer.on('error', (err) => {
-      appendMessage(`Error: ${err.message}`);
-      // console.error('PeerJS Error:', err);
+      console.error('PeerJS error:', err.type, err);
+      switch (err.type) {
+        case 'disconnected':
+          appendMessage('Lost connection to signaling server — reconnecting…');
+          peer.reconnect();
+          break;
+        case 'peer-unavailable':
+          appendMessage('That peer is no longer available — they may have left the discussion.');
+          break;
+        case 'browser-incompatible':
+          showStatusMessage('Your browser does not support WebRTC. Try a modern browser such as Chrome or Firefox.');
+          break;
+        default:
+          appendMessage(`Connection error (${err.type}): ${err.message}`);
+      }
     });
   }
 
@@ -142,6 +199,7 @@ function playChat() {
   let usernameCookie = getSiteSpecificCookie(flaskSiteUrl, 'username');
   if (!usernameCookie) { usernameCookie = 'Anonymous'; }
   setUsername(usernameCookie);
+
 }
 
 /**
@@ -160,9 +218,6 @@ function initializeP2PSystem() {
   const processedPeerLists = new Set(); // Track processed peer list messages.
   const usernames = {}; // Map of peer IDs to usernames.
 
-  // API URL for advertising discussions.
-  const API_URL = 'https://discussions.mooc.ca/api/discussions';
-
   // Initialize DOM elements.
   const usernameInput = document.getElementById('usernameInput');
   const setUsernameButton = document.getElementById('setUsernameButton');
@@ -177,7 +232,6 @@ function initializeP2PSystem() {
     knownPeers,
     processedPeerLists,
     usernames,
-    API_URL,
     usernameInput,
     setUsernameButton,
     peerIdInput,
@@ -185,6 +239,31 @@ function initializeP2PSystem() {
     messageInput,
     sendButton,
   };
+}
+
+/**
+ * initializeDid()
+ *
+ * Fetches the logged-in user's DID document from kvstore. If found, populates
+ * myDid and myDidKey so they are included in connection handshakes. If the user
+ * has no DID the globals stay null and everything works without DID features.
+ */
+async function initializeDid() {
+  const user = getSiteSpecificCookie(flaskSiteUrl, 'username');
+  if (!user) return;
+  try {
+    const res = await fetch(`${flaskSiteUrl}/users/${user}/did.json`);
+    if (!res.ok) return;
+    const doc = await res.json();
+    myDid          = doc.id ?? null;
+    myDidKey       = doc.alsoKnownAs?.find(a => a.startsWith('did:key:')) ?? null;
+    myPublicKeyJwk = doc.verificationMethod?.[0]?.publicKeyJwk ?? null;
+    myIdentityKey  = await loadIdentityKey();
+    if (myIdentityKey) console.log('DID identity ready — message signing enabled.');
+  } catch (err) {
+    console.error('initializeDid failed:', err);
+    /* no DID — graceful fallback */
+  }
 }
 
 /**
@@ -215,7 +294,7 @@ function setUsername(newUsername) {
     // (At this point, connections is defined because the P2P system is already initialized.)
     Object.values(connections).forEach((conn) => {
       if (conn.open) {
-        conn.send({ type: 'username-update', username: myUsername });
+        conn.send({ type: 'username-update', username: myUsername, did: myDidKey, didWeb: myDid, publicKeyJwk: myPublicKeyJwk });
       }
     });
   } else {
@@ -229,6 +308,7 @@ function setUsername(newUsername) {
  * Sends the current list of known peers to all connected peers.
  */
 function propagatePeerList(senderId = null) {
+  if (processedPeerLists.size > 500) processedPeerLists.clear();
   const peerList = Array.from(knownPeers);
   const messageId = `peer-list-${Date.now()}`;
   processedPeerLists.add(messageId);
@@ -249,8 +329,7 @@ function connectToPeer(peerId, discussionName) {
   // alert('Connecting to peer: ' + peerId + ' Discussion Name: ' + discussionName);
   if (connections[peerId]) return;
 
-  //appendMessage(`Attempting to connect to: ${peerId}`);
-  appendMessage(`Discussion Name: ${discussionName}`);
+  if (discussionName) appendMessage(`Joining: ${discussionName}`);
   const conn = peer.connect(peerId);
   connections[peerId] = conn;
   if (discussionName) { activeDiscussionName = discussionName; }  // Set the active discussion name
@@ -261,7 +340,7 @@ function connectToPeer(peerId, discussionName) {
     usernames[peerId] = "Anonymous"; // Default until updated
     
     // Send your own username to the remote peer.
-    conn.send({ type: 'username-update', username: myUsername });
+    conn.send({ type: 'username-update', username: myUsername, did: myDidKey, didWeb: myDid, publicKeyJwk: myPublicKeyJwk });
     // Request the remote peer's username.
     conn.send({ type: 'request-username' });
     
@@ -272,14 +351,21 @@ function connectToPeer(peerId, discussionName) {
   });
   
 
-  conn.on('data', (data) => {
+  conn.on('data', async (data) => {
     if (data.type === 'message') {
         const sender = usernames[conn.peer] || conn.peer;
-        // Sanitize the incoming message without adding the sender's name
         let sanitizedMsg = sanitizeHTML(data.message);
-        sanitizedMsg = chatOptions(sanitizedMsg, sender); // Process incoming message
-        console.log(sanitizedMsg);
-        appendMessage(`${sender}: ${sanitizedMsg}`);
+        sanitizedMsg = chatOptions(sanitizedMsg, sender);
+        let verifiedMark = '';
+        if (data.signature) {
+          const verified = await verifySignature(data.message, data.signature, conn.peer);
+          if (verified === true) verifiedMark = ' ✓';
+          else if (verified === false) {
+            console.warn('Signature verification FAILED for', sender, conn.peer);
+            verifiedMark = ' ⚠';
+          }
+        }
+        appendMessage(`${sender}${verifiedMark}: ${sanitizedMsg}`);
     } else if (data.type === 'peer-list' && !processedPeerLists.has(data.id)) {
       processedPeerLists.add(data.id);
       data.peers.forEach((peerId) => {
@@ -291,10 +377,17 @@ function connectToPeer(peerId, discussionName) {
       propagatePeerList(conn.peer);
     } else if (data.type === 'username-update') {
       usernames[conn.peer] = data.username;
-      appendMessage(`${data.username} has joined the discussion`);
+      if (data.did) peerDids[conn.peer] = data.did;
+      if (data.publicKeyJwk) peerPublicKeyJwks[conn.peer] = data.publicKeyJwk;
+      if (data.didWeb && data.username) {
+        const didUsername = data.didWeb.split(':').pop();
+        if (didUsername !== data.username)
+          console.warn(`Peer identity mismatch: claimed "${data.username}" but DID says "${didUsername}"`);
+      }
+      const joinLabel = data.did ? `${data.username} (DID)` : data.username;
+      appendMessage(`${joinLabel} has joined the discussion`);
     } else if (data.type === 'request-username') {
-        // When a peer requests your username, send it immediately.
-        conn.send({ type: 'username-update', username: myUsername });
+        conn.send({ type: 'username-update', username: myUsername, did: myDidKey, didWeb: myDid, publicKeyJwk: myPublicKeyJwk });
     }
   });
 
@@ -303,14 +396,16 @@ function connectToPeer(peerId, discussionName) {
     delete connections[peerId];
     knownPeers.delete(peerId);
     delete usernames[peerId];
+    delete peerDids[peerId];
+    delete peerPublicKeyJwks[peerId];
     propagatePeerList();
   });
 
-  // Move the chat-section to the top of the left pane.
-  const leftContent = document.getElementById('left-content');
-  if (leftContent) {
-    leftContent.prepend(document.getElementById('chat-section'));
-  }
+  conn.on('error', (err) => {
+    console.error('Outbound connection error:', peerId, err);
+    appendMessage(`Connection error with ${usernames[peerId] || peerId}: ${err.message} — they may have lost their connection. Try rejoining the discussion.`);
+  });
+
 }
 
 /**
@@ -318,12 +413,13 @@ function connectToPeer(peerId, discussionName) {
  *
  * Sends a message to all connected peers.
  */
-function sendMessage(message) {
+async function sendMessage(message) {
   const sanitizedMessage = sanitizeHTML(`You (${myUsername}): ${message}`);
   appendMessage(sanitizedMessage, true); // Display locally
+  const signature = await signMessage(message); // null until Layer 2
   Object.values(connections).forEach((conn) => {
     if (conn.open) {
-      conn.send({ type: 'message', message }); // Send raw message
+      conn.send({ type: 'message', message, did: myDidKey, signature }); // Send raw message
     }
   });
 }
@@ -432,12 +528,16 @@ function startHeartbeat() {
       body: JSON.stringify({ name: activeDiscussionName, peerId: peer.id })
     })
     .then((response) => {
-      return response.text().then((text) => {
-        return { status: response.status, body: text };
-      });
+      if (response.status === 401) {
+        console.warn('Heartbeat: session expired — discussion may expire soon.');
+        showStatusMessage('Your session has expired. Log in again to keep the discussion alive.');
+        stopHeartbeat();
+      } else if (!response.ok) {
+        console.warn('Heartbeat: server returned', response.status);
+      }
     })
     .catch((error) => {
-      console.error('Error sending heartbeat:', error);
+      console.error('Heartbeat failed — discussion may expire if this continues:', error);
     });
   }, 60000); // Every 60 seconds.
 }
@@ -502,6 +602,12 @@ function refreshDiscussions() {
   })
   .catch((error) => {
     console.error('Error fetching discussions:', error);
+    const discussionList = document.getElementById('discussion-list');
+    if (discussionList) {
+      const msg = document.createElement('p');
+      msg.textContent = 'Could not load discussions — check your connection and try again.';
+      discussionList.appendChild(msg);
+    }
   });
 }
 
@@ -536,9 +642,11 @@ function endDiscussion() {
           conn.close();
         }
       });
-      connections = {}; // Clear the connections object.
-      knownPeers.clear(); // Clear the known peers list.
-      usernames = {}; // Clear stored usernames.
+      // Clear in-place — do not reassign globals; pending close handlers still reference them.
+      Object.keys(connections).forEach(k => delete connections[k]);
+      Object.keys(usernames).forEach(k => delete usernames[k]);
+      Object.keys(peerDids).forEach(k => delete peerDids[k]);
+      knownPeers.clear();
       console.log('Discussion ended successfully!');
       appendMessage(`Ended discussion: ${discussionName}`);
       activeDiscussionName = null; // Clear the active discussion name.
@@ -584,4 +692,66 @@ function findEtherpadLink(content, sender) {
     }
   }
   return content;
+}
+
+// ── DID signing: key loading, signing, and verification ──────────────────────
+//
+// loadIdentityKey()  — fetches and decrypts _did_identity_key from kvstore
+// signMessage()      — signs outgoing messages with the Ed25519 private key
+// verifySignature()  — verifies a signature against the sender's stored publicKeyJwk
+//
+// All three return null gracefully if no DID is present, keeping chat functional
+// for users who have not generated an identity key.
+
+async function loadIdentityKey() {
+  const token  = getSiteSpecificCookie(flaskSiteUrl, 'access_token');
+  const encKey = await getEncKey(flaskSiteUrl);
+  if (!token || !encKey) return null;
+  try {
+    const res = await fetch(`${flaskSiteUrl}/get_kvs/`, {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (!res.ok) return null;
+    const kvs   = await res.json();
+    const entry = kvs.find(kv => kv.key === '_did_identity_key');
+    if (!entry) return null;
+    return await decryptIdentityPrivateKey(entry.value, encKey);
+  } catch (err) {
+    console.error('loadIdentityKey failed:', err);
+    return null;
+  }
+}
+
+async function signMessage(message) {
+  if (!myIdentityKey) return null;
+  try {
+    const msgBytes = new TextEncoder().encode(message);
+    const sigBytes = await crypto.subtle.sign('Ed25519', myIdentityKey, msgBytes);
+    return btoa(String.fromCharCode(...new Uint8Array(sigBytes)))
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  } catch (err) {
+    console.error('signMessage failed:', err);
+    return null;
+  }
+}
+
+// peerId is used to look up the stored publicKeyJwk for that peer.
+// Returns true (valid), false (invalid — treat as suspicious), or null (can't verify).
+async function verifySignature(message, signature, peerId) {
+  const jwk = peerPublicKeyJwks[peerId];
+  if (!jwk || !signature) return null;
+  try {
+    const publicKey = await crypto.subtle.importKey(
+      'jwk', jwk, { name: 'Ed25519' }, false, ['verify']
+    );
+    const sigBytes = Uint8Array.from(
+      atob(signature.replace(/-/g, '+').replace(/_/g, '/')),
+      c => c.charCodeAt(0)
+    );
+    const msgBytes = new TextEncoder().encode(message);
+    return await crypto.subtle.verify('Ed25519', publicKey, sigBytes, msgBytes);
+  } catch (err) {
+    console.error('verifySignature failed:', err);
+    return null;
+  }
 }

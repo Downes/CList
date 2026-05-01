@@ -26,6 +26,8 @@ const writePane = document.getElementById("write-pane");
 
 
 let isDragging = false;
+let isLeftPaneOpen  = false;
+let isRightPaneOpen = false;
 
 // Make sure we have a full interface defined
 document.addEventListener("DOMContentLoaded", function () {
@@ -63,17 +65,26 @@ function openLeftPane() {
     const leftPane = document.getElementById('left-pane');
     const mainWindow = document.getElementById('main-window');
 
-    // Calculate the new left border position
     const paneWidth = isMobile ? '100vw' : '300px';
 
-    // Expand the left pane
-    leftPane.style.width = paneWidth;
+    if (!isLeftPaneOpen) {
+        // Starting from closed: add wrap class only after the width transition completes,
+        // so buttons don't stack during the 0→300px animation.
+        leftPane.style.width = paneWidth;
 
-    // Apply transform to shift the main window
-    mainWindow.style.left = paneWidth; // Shift only the right border
+        const onTransitionEnd = (e) => {
+            if (e.propertyName === 'width') {
+                leftPane.classList.add('pane-open');
+                leftPane.removeEventListener('transitionend', onTransitionEnd);
+            }
+        };
+        leftPane.addEventListener('transitionend', onTransitionEnd);
+    }
+
+    mainWindow.style.left = paneWidth;
     isLeftPaneOpen = true;
     currentPane = 'left-pane';
-    return leftPane;        
+    return leftPane;
 }
 
 
@@ -103,11 +114,9 @@ function closeLeftPane() {
     const leftPane = document.getElementById('left-pane');
     const mainWindow = document.getElementById('main-window');
 
-    // Reset the left pane width and visibility
-    leftPane.style.width = '0'; // Collapse the left pane
-
-    // Reset the left border of the main window
-    mainWindow.style.left = '0'; // Move the left border back to the starting position
+    leftPane.classList.remove('pane-open'); // disable wrap before collapsing
+    leftPane.style.width = '0';
+    mainWindow.style.left = '0';
     currentPane = 'read-pane';
     isLeftPaneOpen = false;
 }
@@ -294,6 +303,9 @@ function snapPanes(direction) {
     // content may be a DOM Element or an HTML string.
     function openLeftInterface(content) {
         openLeftPane();
+        // Hide overlay sections that float above left-content (audio, chat).
+        document.getElementById('audio-section').style.display = 'none';
+        document.getElementById('chat-section').style.display  = 'none';
         const leftContent = document.getElementById('left-content');
         leftContent.innerHTML = '';
 

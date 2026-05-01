@@ -8,13 +8,55 @@ Shared CSS classes and JS helpers used across the left and right panes. When add
 
 CList is a two-pane application. The centre of the screen is split horizontally between a **read pane** (left) and a **write pane** (right), separated by a draggable `#divider`. Each pane has a matching **options pane** that slides in from the edge of the screen.
 
+### Full div tree
+
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│  #left-pane (slides in)  │  #main-content  │  #right-pane (slides in)  │
-│                          │                 │                           │
-│  Login / accounts /      │  #read-pane  │  #write-pane  │  Editor switch /  │
-│  feed options            │  (feed reader)  │  (editor)    │  save / post      │
-└──────────────────────────────────────────────────────────────────┘
+body
+├── #main-container
+│   └── #main-window
+│       └── #main-content
+│           ├── #read-pane
+│           │   ├── #left-main-command  (.command)
+│           │   │   └── [Read / Find / Chat buttons, pane-snap button]
+│           │   └── #feed-section
+│           │       ├── #feed-menu
+│           │       └── #feed-container
+│           ├── #divider  (draggable border)
+│           └── #write-pane
+│               ├── #right-main-command  (.command)
+│               │   └── [Load / Save / Post / Refs / editor-indicator buttons]
+│               ├── #fileInput  (hidden file input)
+│               ├── #writeReferences
+│               ├── #write-load  (editor picker overlay)
+│               ├── #write-title  (contenteditable)
+│               ├── #write-pane-content
+│               │   └── #textEditorDiv  (+ other editor divs added dynamically)
+│               └── #texteditor-references  (+ other reference divs added dynamically)
+├── #left-pane  (slides in from left edge)
+│   ├── #left-command  (.pane .command)
+│   │   ├── .command-left-buttons
+│   │   │   └── [Login / Register / Logout / Accounts / Me / Audio / Chat buttons]
+│   │   └── [X close button]
+│   ├── #current-status  (.pane-status)
+│   │   ├── #identityDiv  (.pane-status-item)
+│   │   └── #selectedAccount
+│   └── #left-pane-body  (fills remaining height; position:relative anchor for overlays)
+│       ├── #audio-section  (position:absolute overlay, hidden by default)
+│       ├── #chat-section   (position:absolute overlay, hidden by default)
+│       └── #left-content   (scrollable body, replaced by openLeftInterface())
+│           └── #left-interface  (injected dynamically by openLeftInterface())
+├── #right-pane  (slides in from right edge)
+│   ├── #right-command  (.command)
+│   ├── #right-status  (.pane-status)
+│   │   └── #editor-status  (.pane-status-item)
+│   └── #right-content  (.pane)
+│       ├── #editor-list
+│       ├── #save-instructions
+│       ├── #post-instructions
+│       └── #load-instructions
+├── #statusPane  (floating, bottom of screen)
+├── #loading-indicator
+└── #authModal  (fixed-position login/register modal)
 ```
 
 ### Read pane — `#read-pane`
@@ -27,7 +69,9 @@ The left half of `#main-content`. Displays the feed reader.
 | `#feed-menu` | Dynamically populated feed-source buttons |
 | `#feed-container` | Feed item list |
 
-Options for the read pane open in **`#left-pane`**, which slides in from the left edge. Its command bar (`#left-command`) holds Login / Register / Logout / Accounts. Its scrollable body (`#left-content`) is replaced each time via `openLeftInterface()` with the relevant list (accounts to read from, search results, etc.).
+Options for the read pane open in **`#left-pane`**, which slides in from the left edge. Its command bar (`#left-command`) holds Login / Register / Logout / Accounts / Me, plus Audio and Chat buttons that appear when those features are activated.
+
+The pane body (`#left-pane-body`) fills the space below the command bar and status bar. It acts as a positioning context for two overlay sections (`#audio-section`, `#chat-section`) and the main scrollable body (`#left-content`), which is replaced each time via `openLeftInterface()`.
 
 ### Write pane — `#write-pane`
 
@@ -40,7 +84,7 @@ The right half of `#main-content`. Contains the active editor.
 | `#write-pane-content` | The active editor lives here; only one editor div is visible at a time |
 | `#<editor>-references` | Per-editor reference list, rendered below `#write-pane-content` |
 
-Options for the write pane open in **`#right-pane`**, which slides in from the right edge and is separated from the write pane by a `border-left: 1px solid #ccc`. Its panels (`#editor-list`, `#load-instructions`, `#save-instructions`, `#post-instructions`) are pre-declared children of `#right-content` and shown/hidden via `openRightInterface(panelId)`.
+Options for the write pane open in **`#right-pane`**, which slides in from the right edge. Its panels (`#editor-list`, `#load-instructions`, `#save-instructions`, `#post-instructions`) are pre-declared children of `#right-content` and shown/hidden via `openRightInterface(panelId)`.
 
 ### Status pane — `#statusPane`
 
@@ -55,15 +99,19 @@ All four command bars (`#left-command`, `#left-main-command`, `#right-command`, 
 ```css
 .command {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
-    height: 41px;
+    min-height: 41px;
     box-sizing: border-box;
-    padding: 0 10px;
+    padding: 4px 10px;
     background: #ddd;
     border-bottom: 1px solid #ccc;
 }
 ```
+
+`min-height` (not `height`) allows the bar to grow if its button group wraps to a second row. `align-items: flex-start` keeps the close button anchored at the top when the bar grows.
+
+Buttons inside `.command-left-buttons` use `flex-wrap: wrap` so they reflow rather than overflow. Note: `#left-command` also carries the `.pane` class (which sets `flex: 1`); this is overridden by an `#left-command { flex: 0 0 auto }` rule so the command bar sizes from content rather than filling available height.
 
 Use `class="command"` — do not add ID-specific height or padding overrides.
 

@@ -280,19 +280,28 @@
 
   .command {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
-    height: 41px;
+    min-height: 41px;
     box-sizing: border-box;
-    padding: 0 10px;
+    padding: 4px 10px;
     background: #ddd;
     border-bottom: 1px solid #ccc;
   }
 
   .command .command-left-buttons {
-    display: flex;                /* Group left buttons */
-    gap: 10px;                    /* Add space between buttons */
-}
+    display: flex;
+    flex-wrap: nowrap;   /* wrapping enabled only once pane is fully open */
+    align-items: center;
+    gap: 6px;
+    padding: 2px 0;
+    overflow: hidden;
+  }
+
+  #left-pane.pane-open .command-left-buttons {
+    flex-wrap: wrap;
+    overflow: visible;
+  }
 
   .icon-btn {
     background: none;
@@ -431,6 +440,18 @@
   
   #left-pane {
     left: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #left-command {
+    flex: 0 0 auto; /* override .pane{flex:1} — size from content, never grow */
+  }
+
+  #left-pane-body {
+    position: relative;
+    flex: 1;
+    overflow: hidden;
   }
 
   #right-pane {
@@ -439,7 +460,7 @@
 
   #audio-section {
     position: absolute;
-    top: 82px;                /* below left-command (41px) + current-status (41px) */
+    top: 0;
     left: 0;
     right: 0;
     bottom: 0;
@@ -485,10 +506,25 @@
     font-size: 1em;
   }
 
+  #chat-section {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 5;
+    background: #fafafa;
+    overflow-y: auto;
+    padding: 10px;
+    padding-left: 14px;
+    margin-left: 4px;
+    border-top: 1px solid #ddd;
+  }
+
   #left-content,
   #right-content {
     padding: 5px 10px;
-    max-height: calc(100% - 81px);
+    max-height: 100%;
     height: 100%;
     overflow: auto;
     scrollbar-width: thin;

@@ -143,6 +143,7 @@
                 <button id="accountButton" onclick="playAccounts();">Accounts</button>
                 <button id="meButton" onclick="playMe();">Me</button>
                 <button id="audioButton" style="display:none;" onclick="toggleDiv('audio-section');">Audio</button>
+                <button id="chatButton"  style="display:none;" onclick="toggleDiv('chat-section');">Chat</button>
             </div>
             <button id="left-close-button" onclick="closeLeftPane()">X</button>
         </div>
@@ -151,6 +152,8 @@
             <div id="identityDiv" class="pane-status-item">Please login to Identity Server</div>
             <div id="selectedAccount"></div>
         </div>
+
+        <div id="left-pane-body">
 
         <!-- Audio player — overlays left-content, toggled by opml.js -->
         <div id="audio-section" style="display: none;">
@@ -172,47 +175,49 @@
             </div>
         </div>
 
+        <!-- Chat — sibling of left-content so openLeftInterface() cannot clear it -->
+        <div id="chat-section" style="display: none;">
+            <div id="chat-header">
+                <h2>Chat</h2>
+                <button
+                    id="chat-left-close-button"
+                    onclick="document.getElementById('chat-section').style.display='none';">
+                    &times;
+                </button>
+            </div>
+            <div id="discussion-button-div">
+                <label for="discussionNameInput" class="visually-hidden">Discussion Name:</label>
+                <input type="text" id="discussionNameInput" placeholder="Enter discussion name">
+                <button id="advertiseDiscussionButton" onClick="advertiseDiscussion()">Create</button>
+                <button id="refreshDiscussionsButton" onClick="refreshDiscussions()">Join</button>
+                <button id="chat-advanced-button" onclick="toggleDiv('chat-advanced')">Advanced</button>
+            </div>
+            <div id="discussionListDiv">
+                <ul id="discussion-list"></ul>
+            </div>
+            <div id="end-discussion-div" style="display: none;">
+                <button id="endDiscussionButton" onClick="endDiscussion()">Leave Discussion</button>
+            </div>
+            <div id="chat-messages"></div>
+            <input type="text" id="messageInput" placeholder="Type your message">
+            <button id="sendButton">Send</button>
+            <div id="chat-advanced" style="display:none;margin-top:10px;">
+                PeerID: <span id="my-peer-id"></span><br>
+                <label for="peerIdInput" class="visually-hidden">Connect to Peer ID:</label>
+                <input type="text" id="peerIdInput" placeholder="Connect to Peer ID:">
+                <button id="connectButton">Connect</button>
+            </div>
+        </div>
+
         <div id="left-content" class="content">
 
             <div id="response"></div>
             <!-- List to display fetched key-value pairs -->
             <div id="kvList"></div>
 
-            <!-- Chat Section -->
-            <div id="chat-section" style="display: none;">
-                <div id="chat-header">
-                    <h2>Chat</h2>
-                    <button
-                        id="chat-left-close-button"
-                        onclick="document.getElementById('chat-section').style.display='none';">
-                        &times;
-                    </button>
-                </div>
-                <div id="discussion-button-div">
-                    <label for="discussionNameInput" class="visually-hidden">Discussion Name:</label>
-                    <input type="text" id="discussionNameInput" placeholder="Enter discussion name">
-                    <button id="advertiseDiscussionButton" onClick="advertiseDiscussion()">Create</button>
-                    <button id="refreshDiscussionsButton" onClick="refreshDiscussions()">Join</button>
-                    <button id="chat-advanced-button" onclick="toggleDiv('chat-advanced')">Advanced</button>
-                </div>
-                <div id="discussionListDiv">
-                    <ul id="discussion-list"></ul>
-                </div>
-                <div id="end-discussion-div" style="display: none;">
-                    <button id="endDiscussionButton" onClick="endDiscussion()">Leave Discussion</button>
-                </div>
-                <div id="chat-messages"></div>
-                <input type="text" id="messageInput" placeholder="Type your message">
-                <button id="sendButton">Send</button>
-                <div id="chat-advanced" style="display:none;margin-top:10px;">
-                    PeerID: <span id="my-peer-id"></span><br>
-                    <label for="peerIdInput" class="visually-hidden">Connect to Peer ID:</label>
-                    <input type="text" id="peerIdInput" placeholder="Connect to Peer ID:">
-                    <button id="connectButton">Connect</button>
-                </div>
-            </div>
-
         </div> <!-- /left-content -->
+
+        </div> <!-- /left-pane-body -->
     </div> <!-- /left-pane -->
 
     <div id="right-pane">
