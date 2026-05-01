@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Me</title>
+    <script>
+        let username;
+        let flaskSiteUrl = 'https://kvstore.mooc.ca';
+    </script>
+    <link rel="stylesheet" href="css/interface.css">
+    <link rel="stylesheet" href="css/reader.css">
+    <link rel="stylesheet" href="css/kvlist.css">
+    <style>
+        body { display: block; } /* override interface.css flex centering */
+    </style>
+</head>
+<body>
+<div class="kvcontainer">
+
+    <div class="me-section" id="public-accounts-section" style="display:none;">
+        <h3>Public Accounts</h3>
+        <p>Checked accounts are listed in your public DID document and discoverable by others. Click 'Update DID' to register your list in your DID document.</p>
+        <div id="account-list" class="me-status">Loading…</div>
+        <div class="kv-action-buttons">
+            <button class="kv-action-btn kv-save-btn" onclick="updateDid()">Update DID</button>
+        </div>
+    </div>
+
+    <div class="me-section">
+        <h3>Decentralized Identity (DID)</h3>
+        <details class="did-help">
+            <summary>What is this?</summary>
+            <p>A DID (Decentralized Identifier) is a unique address for your online identity that you control — not a platform. It links your accounts (Mastodon, Bluesky, WordPress) into a single verifiable identity, published at a public URL others can check. Generating a key creates a cryptographic keypair: the private key stays encrypted in your account here; the public key is published so others can confirm content or connections really come from you.</p>
+        </details>
+        <div id="did-status" class="me-status">Checking…</div>
+        <div class="kv-action-buttons">
+            <button class="kv-action-btn kv-save-btn" id="did-btn" onclick="generateAndRegisterDid()">Generate Identity Key</button>
+        </div>
+        <details class="did-help" id="did-regen-help" style="display:none;">
+            <summary>What does regenerating do?</summary>
+            <p>Regenerating creates a brand-new keypair, replacing your old one. Your DID address stays the same and your linked accounts are preserved, but your public key changes. Anyone who cached your old key will need to re-fetch your DID document. Do this only if you suspect your private key has been compromised.</p>
+        </details>
+        <details class="did-help did-remove" id="did-remove-help" style="display:none;">
+            <summary>Remove DID…</summary>
+            <p>This will permanently delete your identity key and remove your DID document from its public URL. Anyone who has linked to your DID will get a 404. You can generate a new DID at any time, but it will have a new key and a fresh identity. If you do, anyone who linked to your DID will get your new public key automatically the next time they resolve it — DID resolution always fetches fresh from the URL.</p>
+            <div class="kv-action-buttons">
+                <button class="kv-action-btn kv-delete-btn" onclick="removeDid()">Yes, remove my DID</button>
+            </div>
+        </details>
+    </div>
+
+</div>
+
+<script src="js/utilities.js"></script>
+<script src="js/crypto_utils.js"></script>
+<script>
+
+    async function loadAccounts() {
+        const listEl = document.getElementById('account-list');
+        const token  = getSiteSpecificCookie(flaskSiteUrl, 'access_token');
+        username     = getSiteSpecificCookie(flaskSiteUrl, 'username');
+        if (!token || !username) {
+            listEl.textContent = 'Not logged in — please log in first.';
+            return;
+        }
+
+        let kvs;
+        try {
+            const res = await fetch(`${flaskSiteUrl}/get_kvs/`, {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (!res.ok) throw new Error(`Server returned ${res.status}`);
+            kvs = await res.json();
+        } catch (err) {
+            console.error('loadAccounts fetch failed:', err);
+            listEl.textContent = `Could not load accounts (${err.message}). Check your connection or log in again.`;
+            return;
+        }
+
+        const encKey = await window.parent.getEncKey(flaskSiteUrl);
+        if (!encKey) {
+            listEl.textContent = 'Encryption key not available — please log in again.';
+            return;
+        }
+
+        const PUBLIC_TYPES = new Set(['Mastodon', 'Bluesky', 'WordPress', 'Blogger']);
+
+        const rows = [];
+        for (const kv of kvs.filter(k => !k.key.startsWith('_'))) {
+            try {
+                const plain = await decryptWithKey(encKey, kv.value);
+                const data  = JSON.parse(plain);
+                if (PUBLIC_TYPES.has(data.type)) rows.push({ key: kv.key, data });
+            } catch (err) { console.error(`Decryption failed for account "${kv.key}" — skipping.`, err); }
+        }
+
+        if (rows.length === 0) {
+            listEl.textContent = 'No social or blog accounts found. Add Mastodon, Bluesky, WordPress, or Blogger accounts via the Accounts panel.';
+            return;
+        }
+
+        listEl.innerHTML = rows.map(({ key, data }) => `
+            <div class="account-row">
+                <input type="checkbox" id="pub_${CSS.escape(key)}" data-key="${key}" ${data.public ? 'checked' : ''}>
+                <label for="pub_${CSS.escape(key)}">
+                    <strong>${data.title || key}</strong>
+                    <span class="account-type">${data.type || ''}</span>
+                </label>
+            </div>
+        `).join('');
+    }
+
+    async function updateDid() {
+        const statusEl = document.getElementById('did-status');
+        const token    = getSiteSpecificCookie(flaskSiteUrl, 'access_token');
+        username       = getSiteSpecificCookie(flaskSiteUrl, 'username');
+        if (!token || !username) {
+            statusEl.textContent = 'Not logged in — please log in first.';
+            return;
+        }
+
+        let existingProfile;
+        try {
+            const res = await fetch(`${flaskSiteUrl}/users/${username}/did.json`);
+            if (!res.ok) throw new Error('no profile');
+            existingProfile = await res.json();
+        } catch {
+            statusEl.textContent = 'No DID registered yet — generate an identity key first.';
+            return;
+        }
+
+        const encKey = await window.parent.getEncKey(flaskSiteUrl);
+        const checkboxes = document.querySelectorAll('#account-list input[type="checkbox"]');
+        const services   = [];
+        const alsoKnownAs = existingProfile.alsoKnownAs
+            ? existingProfile.alsoKnownAs.filter(a => !a.startsWith('did:key:'))
+            : [];
+
+        let kvs = [];
+        try {
+            const res = await fetch(`${flaskSiteUrl}/get_kvs/`, {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (!res.ok) throw new Error(`Server returned ${res.status}`);
+            kvs = await res.json();
+        } catch (err) {
+            console.error('updateDid fetch failed:', err);
+            statusEl.textContent = `Could not load accounts (${err.message}). Try again or log in again.`;
+            return;
+        }
+
+        const typeMap = {
+            Mastodon:  'SocialWebAccount',
+            WordPress: 'Blog',
+            Blogger:   'Blog',
+            Etherpad:  'CollaborationService',
+            OPML:      'FeedList',
+            AI:        'AIService',
+            Proxyp:    'ProxyService',
+        };
+
+        for (const cb of checkboxes) {
+            const key      = cb.dataset.key;
+            const isPublic = cb.checked;
+            const kv       = kvs.find(k => k.key === key);
+            if (!kv) continue;
+
+            let data;
+            try {
+                data = JSON.parse(await decryptWithKey(encKey, kv.value));
+            } catch { continue; }
+
+            data.public = isPublic;
+            const encrypted = await encryptWithKey(encKey, JSON.stringify(data));
+            await fetch(`${flaskSiteUrl}/update_kv/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                body: JSON.stringify({ key, value: encrypted })
+            });
+
+            if (!isPublic) continue;
+
+            if (data.type === 'Bluesky') {
+                const handle = `at://${data.instance || key}`;
+                if (!alsoKnownAs.includes(handle)) alsoKnownAs.push(handle);
+                continue;
+            }
+
+            services.push({
+                id: `${existingProfile.id}#${key.replace(/[^a-zA-Z0-9]/g, '-')}`,
+                type: typeMap[data.type] || 'Service',
+                serviceEndpoint: data.instance || key,
+            });
+        }
+
+        const publicKeyJwk = existingProfile.verificationMethod?.[0]?.publicKeyJwk;
+        const didKey = existingProfile.alsoKnownAs?.find(a => a.startsWith('did:key:'));
+        if (!publicKeyJwk || !didKey) {
+            statusEl.textContent = 'DID key not found — please regenerate your identity key.';
+            return;
+        }
+
+        try {
+            const res = await fetch(`${flaskSiteUrl}/auth/did`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                body: JSON.stringify({ publicKeyJwk, didKey, service: services, alsoKnownAs })
+            });
+            const result = await res.json();
+            if (!res.ok) throw new Error(result.error || res.status);
+            statusEl.textContent = 'DID updated successfully.';
+        } catch (err) {
+            console.error('updateDid PUT failed:', err);
+            statusEl.textContent = `DID update failed: ${err.message}. Try logging out and back in.`;
+        }
+    }
+
+    async function generateAndRegisterDid() {
+        const statusEl = document.getElementById('did-status');
+        try {
+            const token  = getSiteSpecificCookie(flaskSiteUrl, 'access_token');
+            const encKey = await window.parent.getEncKey(flaskSiteUrl);
+            if (!token || !encKey) {
+                statusEl.textContent = 'Not logged in — please log in to your identity server before generating a DID.';
+                return;
+            }
+
+            statusEl.textContent = 'Generating key pair…';
+            const { keyPair, publicKeyJwk, didKey } = await generateIdentityKeyPair();
+
+            statusEl.textContent = 'Storing private key…';
+            const encryptedPrivKey = await encryptIdentityPrivateKey(keyPair.privateKey, encKey);
+            const storeRes = await fetch(`${flaskSiteUrl}/add_kv/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                body: JSON.stringify({ key: '_did_identity_key', value: encryptedPrivKey })
+            });
+            if (!storeRes.ok && storeRes.status !== 409) {
+                throw new Error(`Could not store private key (server returned ${storeRes.status}). Your session may have expired — try logging out and back in.`);
+            }
+            if (storeRes.status === 409) {
+                const updateRes = await fetch(`${flaskSiteUrl}/update_kv/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                    body: JSON.stringify({ key: '_did_identity_key', value: encryptedPrivKey })
+                });
+                if (!updateRes.ok) throw new Error(`Could not update private key (server returned ${updateRes.status}). Your session may have expired — try logging out and back in.`);
+            }
+
+            // Preserve existing services and alsoKnownAs (minus old did:key) across key rotation
+            let existingServices = [];
+            let existingAlsoKnownAs = [];
+            try {
+                const existingRes = await fetch(`${flaskSiteUrl}/users/${username}/did.json`);
+                if (existingRes.ok) {
+                    const existingDoc = await existingRes.json();
+                    existingServices = (existingDoc.service || []).filter(s => s.type !== 'KVStore');
+                    existingAlsoKnownAs = (existingDoc.alsoKnownAs || []).filter(a => !a.startsWith('did:key:'));
+                }
+            } catch { /* first-time generation — no existing doc */ }
+
+            statusEl.textContent = 'Registering DID…';
+            const res = await fetch(`${flaskSiteUrl}/auth/did`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                body: JSON.stringify({ publicKeyJwk, didKey, service: existingServices, alsoKnownAs: existingAlsoKnownAs })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(`DID registration failed (${data.error || res.status}). Check that you are logged in to the correct identity server.`);
+
+            statusEl.innerHTML = `<strong>DID registered.</strong><br>did:key: <code>${data.didKey}</code>`;
+            setDidState(true);
+            loadAccounts();
+        } catch (err) {
+            console.error('generateAndRegisterDid failed:', err);
+            statusEl.textContent = err.message || 'An unexpected error occurred. See browser console for details.';
+        }
+    }
+
+    async function removeDid() {
+        const statusEl = document.getElementById('did-status');
+        const token = getSiteSpecificCookie(flaskSiteUrl, 'access_token');
+        if (!token) {
+            statusEl.textContent = 'Not logged in — please log in first.';
+            return;
+        }
+        try {
+            await fetch(`${flaskSiteUrl}/delete_kv/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                body: JSON.stringify({ key: '_did_identity_key' })
+            });
+            const res = await fetch(`${flaskSiteUrl}/auth/did`, {
+                method: 'DELETE',
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.error || `Server returned ${res.status}`);
+            }
+            statusEl.textContent = 'No DID registered yet.';
+            setDidState(false);
+        } catch (err) {
+            console.error('removeDid failed:', err);
+            statusEl.textContent = `Could not remove DID: ${err.message}. Try logging out and back in.`;
+        }
+    }
+
+    function setDidState(active) {
+        ['public-accounts-section', 'did-regen-help', 'did-remove-help'].forEach(id =>
+            document.getElementById(id).style.display = active ? '' : 'none'
+        );
+        document.getElementById('did-btn').textContent = active ? 'Regenerate Key' : 'Generate Identity Key';
+        if (!active) document.getElementById('did-remove-help').removeAttribute('open');
+    }
+
+    async function checkExistingDid() {
+        const token = getSiteSpecificCookie(flaskSiteUrl, 'access_token');
+        username    = getSiteSpecificCookie(flaskSiteUrl, 'username');
+        if (!token || !username) {
+            document.getElementById('did-status').textContent = 'Not logged in.';
+            return;
+        }
+        const res = await fetch(`${flaskSiteUrl}/users/${username}/did.json`);
+        if (res.ok) {
+            const doc = await res.json();
+            const didUrl = `${flaskSiteUrl}/users/${username}/did.json`;
+            document.getElementById('did-status').innerHTML =
+                `DID: <code>${doc.id}</code><br>also known as: <code>${doc.alsoKnownAs[0]}</code><br><a href="${didUrl}" target="_blank">View DID document</a>`;
+            setDidState(true);
+        } else {
+            document.getElementById('did-status').textContent = 'No DID registered yet.';
+            setDidState(false);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => { checkExistingDid(); loadAccounts(); }, 300);
+    });
+
+</script>
+</body>
+</html>

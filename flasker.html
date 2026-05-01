@@ -120,7 +120,7 @@
                 encryptedValue = await encryptWithKey(encKey, JSON.stringify(instanceData));
             } catch (err) {
                 console.error('Encryption error:', err);
-                alert('Failed to encrypt data');
+                window.parent.showStatusMessage('Could not save account — encryption failed. ' + err.message);
                 return;
             }
 
@@ -339,20 +339,20 @@
                 tip.textContent = 'Select an account to manage';
                 accountList.appendChild(tip);
 
-                for (const kv of data) {
+                for (const kv of data.filter(k => !k.key.startsWith('_'))) {
                     let parsedValue = null;
                     try {
                         const encKey = await window.parent.getEncKey(flaskSiteUrl);
                         const decryptedString = await decryptWithKey(encKey, kv.value);
                         parsedValue = decryptedString ? JSON.parse(decryptedString) : null;
                     } catch (error) {
-                        console.error(`Error parsing kv.value for key: ${kv.key} ${kv.value}`, error);
+                        console.error(`Decryption failed for key "${kv.key}" — entry may be unreadable or from a different key.`, error);
                     }
 
                     const item = document.createElement('div');
                     item.className = 'account-list-item';
                     const button = document.createElement('button');
-                    button.className = 'account-button';
+                    button.className = 'account-button' + (parsedValue ? '' : ' account-button--unreadable');
                     button.appendChild(accountIcon(parsedValue?.type || ''));
                     const name = document.createElement('span');
                     name.textContent = parsedValue?.title || kv.key;
@@ -363,7 +363,9 @@
                 }
                 kvList.appendChild(accountList);
             } catch (error) {
-                console.error('Error fetching key-value pairs: ' + error);
+                console.error('Error fetching account list:', error);
+                const kvList = document.getElementById('kvList');
+                if (kvList) kvList.innerHTML = `<p class="list-tip" style="color:#c44;">Could not load accounts — ${error.message}. Try logging out and back in.</p>`;
             }
         }
 
@@ -682,18 +684,6 @@
                 display: block; /* override interface.css flex centering */
             }
 
-            /* Style for the main container */
-            .kvcontainer {
-                max-width: 400px;
-                width: 100%;
-                max-height: 100%;
-                margin: 0 auto;
-                padding: 0px;
-                overflow-y: scroll;
-                box-sizing: border-box; /* Include padding in the width */
-            }
-
-
             /* Edit card */
             #sharedForm {
                 border: 1px solid #ddd;
@@ -704,31 +694,21 @@
             }
 
             /* Form */
-            #addKvForm {
-                width: 100%;
-            }
+            #addKvForm { width: 100%; }
 
             /* Labels */
             #addKvForm label {
-                margin-bottom: 0; /* Reduce spacing between label and element */
+                margin-bottom: 0;
                 display: block;
-                font-variant: small-caps; /* Keep small caps */
-                font-weight: 400; /* Lighter font weight */
-                font-size: 0.8rem; /* Slightly smaller font size */
-                line-height: 0.8rem; /* Slightly smaller font size */
-                color: #555; /* Lighter text color */
-            }
-
-            .field-display {
+                font-variant: small-caps;
+                font-weight: 400;
                 font-size: 0.8rem;
-                color: #444;
-                padding: 0.15rem 0;
-                margin-bottom: 0.4rem;
+                line-height: 0.8rem;
+                color: #555;
             }
 
-            /* Form inputs — scoped to the form, not the account list */
+            /* Form inputs */
             #addKvForm input,
-            .kv-name-btn,
             #add-account-header button {
                 display: block;
                 margin-top: 2px;
@@ -739,41 +719,7 @@
                 box-sizing: border-box;
             }
 
-
             #kvList { margin-top: 0.5rem; }
-
-            /* Account name buttons in the list */
-            .kv-name-btn {
-                text-align: left;
-                background: #777;
-                color: #fff;
-                border: 1px solid #777;
-                border-radius: 3px;
-                cursor: pointer;
-            }
-            .kv-name-btn:hover { background: #555; border-color: #555; }
-
-            /* Action buttons (Save / Delete / Cancel) */
-            .kv-action-buttons {
-                display: flex;
-                flex-wrap: wrap;
-                gap: 0.3rem;
-                margin-top: 0.5rem;
-            }
-            .kv-action-btn {
-                display: inline-block;
-                width: auto;
-                flex: 0 0 auto;
-                padding: 0.15rem 0.5rem;
-                border-radius: 3px;
-                cursor: pointer;
-                font-size: 0.75rem;
-                margin: 0;
-            }
-            .kv-save-btn   { background: var(--highlight-color); color: #fff; border: 1px solid var(--highlight-color); }
-            .kv-delete-btn { background: #c44; color: #fff; border: 1px solid #c44; }
-            .kv-cancel-btn { background: #888; color: #fff; border: 1px solid #888; }
-
         </style>
     
 </head>
@@ -796,9 +742,10 @@
         <div id="add-account-header">
             <button onclick="openAdd(this)">+ Add New Account</button>
         </div>
+
     </div>
 
-    <script src="js/crypto_utils.js" defer></script>
+<script src="js/crypto_utils.js"></script>
 </body>
 </html>
 

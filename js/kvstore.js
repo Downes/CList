@@ -145,6 +145,19 @@ function kvstoreAccountsPanel() {
     return div;
 }
 
+function playMe() {
+    openLeftInterface(kvstoreMePanel());
+}
+
+// Returns the Me panel element (DID management and public identity settings)
+function kvstoreMePanel() {
+    const div = document.createElement('div');
+    div.innerHTML = `
+        <iframe src="me.html" style="width:100%; height:600px; border:none;"></iframe>
+    `;
+    return div;
+}
+
         // Function to toggle the account selection section
         function toggleAccountSection(open) {
             const accountSection = document.getElementById('accountSection');
@@ -244,6 +257,7 @@ function kvstoreAccountsPanel() {
             if (mode === 'register') {
                 const p2 = document.getElementById('authConfirm').value;
                 if (p !== p2) { errDiv.textContent = 'Passwords do not match.'; errDiv.style.display = 'block'; return; }
+                if (!/^[a-z0-9][a-z0-9._-]{2,31}$/.test(u)) { errDiv.textContent = 'Username must be 3–32 characters, start with a letter or digit, and contain only letters, digits, dots, hyphens, and underscores.'; errDiv.style.display = 'block'; return; }
             }
 
             document.getElementById('authSubmitBtn').disabled = true;
@@ -381,7 +395,10 @@ function kvstoreAccountsPanel() {
                     return;
                 }
 
-                const accounts = await Promise.all(data.map(async kv => {
+                const accounts = await Promise.all(
+                    data
+                        .filter(kv => !kv.key.startsWith('_'))  // exclude system keys
+                        .map(async kv => {
 
                     try {
                         // ===========================
@@ -397,7 +414,8 @@ function kvstoreAccountsPanel() {
                                 id: accountData.id || '',
                                 permissions: accountData.permissions || '',
                                 type: accountData.type || '',
-                                title: accountData.title || ''
+                                title: accountData.title || '',
+                                public: accountData.public || false
                             })
                         };
                     } catch (error) {
@@ -409,7 +427,8 @@ function kvstoreAccountsPanel() {
                                 id: 'bad',
                                 permissions: 'bad',
                                 type: 'bad',
-                                title: 'bad'
+                                title: 'bad',
+                                public: false
                             })
                         };
                     }

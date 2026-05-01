@@ -907,7 +907,14 @@ async function saveMastodonAccount(title, username, accessToken, permissions) {
     if (!encKey) { showStatusMessage('Encryption key missing — please log in again.'); return; }
 
     const instanceData = { type: 'Mastodon', id: accessToken, title: title, permissions: permissions || 'rw' };
-    const encryptedValue = await encryptWithKey(encKey, JSON.stringify(instanceData));
+    let encryptedValue;
+    try {
+        encryptedValue = await encryptWithKey(encKey, JSON.stringify(instanceData));
+    } catch (err) {
+        console.error('Failed to encrypt Mastodon account data:', err);
+        showStatusMessage('Could not save Mastodon account — encryption failed. Try logging in again.');
+        return;
+    }
 
     const existing = Array.isArray(accounts) && accounts.find(a => a.key === username);
     const endpoint = existing ? 'update_kv/' : 'add_kv/';

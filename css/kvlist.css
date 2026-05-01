@@ -1,1 +1,126 @@
-/* kvlist.css — account list in flasker.html uses .account-list / .account-button from interface.css */
+/* kvlist.css — shared styles for flasker.html and me.html */
+
+.kvcontainer {
+    max-width: 400px;
+    width: 100%;
+    max-height: 100%;
+    margin: 0 auto;
+    padding: 0;
+    overflow-y: scroll;
+    box-sizing: border-box;
+}
+
+.field-display {
+    font-size: 0.8rem;
+    color: #444;
+    padding: 0.15rem 0;
+    margin-bottom: 0.4rem;
+}
+
+/* Account name buttons in the list */
+.kv-name-btn {
+    display: block;
+    margin-top: 2px;
+    margin-bottom: 0.5rem;
+    padding: 0.2rem;
+    width: 100%;
+    font-size: 0.8rem;
+    box-sizing: border-box;
+    text-align: left;
+    background: #777;
+    color: #fff;
+    border: 1px solid #777;
+    border-radius: 3px;
+    cursor: pointer;
+}
+.kv-name-btn:hover { background: #555; border-color: #555; }
+
+/* Action buttons (Save / Delete / Cancel) */
+.kv-action-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-top: 0.5rem;
+}
+.kv-action-btn {
+    display: inline-block;
+    width: auto;
+    flex: 0 0 auto;
+    padding: 0.15rem 0.5rem;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    margin: 0;
+    border: none;
+}
+.kv-save-btn   { background: var(--highlight-color); color: #fff; border: 1px solid var(--highlight-color); }
+.kv-delete-btn { background: #c44; color: #fff; border: 1px solid #c44; }
+.kv-cancel-btn { background: #888; color: #fff; border: 1px solid #888; }
+
+/* Expandable help blurbs (me.html) */
+.did-help {
+    margin: 0.4rem 0;
+    font-size: 0.78rem;
+}
+.did-help summary {
+    color: var(--highlight-color);
+    cursor: pointer;
+    list-style: none;
+    display: inline;
+}
+.did-help summary::-webkit-details-marker { display: none; }
+.did-remove summary { color: #c44; }
+.did-help p {
+    margin: 0.4rem 0 0;
+    color: #555;
+    line-height: 1.5;
+    padding: 0.4rem 0.6rem;
+    background: #f5f5f5;
+    border-left: 2px solid #ddd;
+    border-radius: 2px;
+}
+
+/* Account row with public checkbox (me.html) */
+.account-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.3rem;
+    font-size: 0.82rem;
+}
+.account-row label {
+    flex: 1;
+    cursor: pointer;
+}
+.account-row input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+    cursor: pointer;
+}
+.account-type {
+    color: #888;
+    font-size: 0.75rem;
+    min-width: 4rem;
+}
+
+/* Section dividers (me.html) */
+.me-section {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #ddd;
+}
+.me-section h3 {
+    font-size: 0.95rem;
+    margin: 0 0 0.5rem;
+}
+.me-section p {
+    font-size: 0.8rem;
+    color: #666;
+    margin: 0 0 0.5rem;
+}
+.me-status {
+    font-size: 0.82rem;
+    color: #555;
+    margin-bottom: 0.5rem;
+    min-height: 1.2em;
+}

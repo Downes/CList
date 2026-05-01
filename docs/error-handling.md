@@ -127,6 +127,40 @@ if (statusText === '') {
 }
 ```
 
+### Decryption / encryption failures
+
+`decryptWithKey` and `encryptWithKey` (from `crypto_utils.js`) are async and can throw — always wrap them.
+
+**In a loop** (building an account list): catch, log, and continue. Do not surface per-entry errors in the UI — they produce noise when the list is large.
+
+```javascript
+try {
+    const decryptedString = await decryptWithKey(encKey, kv.value);
+    parsedValue = decryptedString ? JSON.parse(decryptedString) : null;
+} catch (err) {
+    console.error(`Decryption failed for key "${kv.key}" — entry may be unreadable or from a different key.`, err);
+}
+```
+
+If `parsedValue` is `null` after the loop iteration, render the entry with a fallback label and an `account-button--unreadable` class so it's visually distinguishable but not blocking.
+
+**In a save operation**: catch and show `showStatusMessage` — the user must know the save failed.
+
+```javascript
+let encryptedValue;
+try {
+    encryptedValue = await encryptWithKey(encKey, JSON.stringify(data));
+} catch (err) {
+    console.error('Encryption failed:', err);
+    showStatusMessage('Could not save — encryption failed. ' + err.message);
+    return;
+}
+```
+
+**Common root cause**: `crypto_utils.js` not loaded in the page. If every entry fails to decrypt, check that `<script src="js/crypto_utils.js"></script>` is present.
+
+---
+
 ### Fire-and-forget async calls
 
 Any `async` function called without `await` **must** have a `.catch()` — otherwise a rejection becomes unhandled and silent:

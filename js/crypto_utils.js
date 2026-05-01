@@ -209,3 +209,42 @@ async function decryptWithKey(cryptoKey, combinedBase64) {
   );
   return new TextDecoder().decode(decryptedBuffer);
 }
+
+
+// =============================================================================
+//  ED25519 IDENTITY KEY — DID generation and storage
+// =============================================================================
+
+function _base58btcEncode(bytes) {
+    const ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+    let n = BigInt('0x' + Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join(''));
+    const result = [];
+    while (n > 0n) {
+        const rem = n % 58n;
+        n = n / 58n;
+        result.push(ALPHABET[Number(rem)]);
+    }
+    for (const byte of bytes) {
+        if (byte === 0) result.push(ALPHABET[0]);
+        else break;
+    }
+    return result.reverse().join('');
+}
+
+async function generateIdentityKeyPair() {
+    const keyPair = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
+    const publicKeyJwk = await crypto.subtle.exportKey('jwk', keyPair.publicKey);
+    const xBytes = Uint8Array.from(atob(publicKeyJwk.x.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+    const didKey = 'did:key:z' + _base58btcEncode(new Uint8Array([0xED, 0x01, ...xBytes]));
+    return { keyPair, publicKeyJwk, didKey };
+}
+
+async function encryptIdentityPrivateKey(privateKey, encKey) {
+    const privateJwk = await crypto.subtle.exportKey('jwk', privateKey);
+    return encryptWithKey(encKey, JSON.stringify(privateJwk));
+}
+
+async function decryptIdentityPrivateKey(encryptedBase64, encKey) {
+    const jwkStr = await decryptWithKey(encKey, encryptedBase64);
+    return crypto.subtle.importKey('jwk', JSON.parse(jwkStr), { name: 'Ed25519' }, true, ['sign']);
+}
