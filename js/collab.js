@@ -146,6 +146,35 @@ window.accountSchemas['Collab'] = {
         return wsUrl.replace(/^wss?:\/\//, 'https://').replace(/\/$/, '')
     }
 
+    // Return true if str looks like a collab share URL (contains /doc/ path).
+    function isCollabUrl(str) {
+        try { return new URL(str).pathname.startsWith('/doc/') } catch { return false }
+    }
+
+    // Parse a collab share URL and open the document in the collab editor.
+    // Works for both /doc/{id}/edit and /doc/{id}/read forms.
+    async function openCollabUrl(href) {
+        try {
+            const url    = new URL(href)
+            const segs   = url.pathname.slice(5).split('/').filter(Boolean).map(decodeURIComponent)
+            const last   = segs[segs.length - 1]
+            const mode   = (last === 'edit' || last === 'read') ? last : 'edit'
+            const docId  = (last === 'edit' || last === 'read') ? segs.slice(0, -1).join('/') : segs.join('/')
+            if (!docId) return
+            const wsUrl  = url.origin.replace(/^https:\/\//, 'wss://').replace(/^http:\/\//, 'ws://')
+            if (typeof initializeEditor === 'function' && currentEditor !== 'collab') {
+                await initializeEditor('collab')
+            }
+            setDocTitle(localPartOf(docId))
+            currentDocTitle = ''
+            await connectToDoc(docId, mode, wsUrl)
+        } catch (e) {
+            console.error('openCollabUrl failed:', e)
+            showStatusMessage('Could not open collab link: ' + e.message)
+        }
+    }
+    window.openCollabUrl = openCollabUrl
+
     // Set the document title in both the collab input and the CList write-title field.
     function setDocTitle(value) {
         const input = document.getElementById('collab-doc-id')
@@ -707,6 +736,14 @@ window.accountSchemas['Collab'] = {
                         input.value = writeTitle.textContent.trim()
                         scheduleDupCheck()
                     })
+                    // If the user pastes a collab share URL into the title field, open it directly
+                    writeTitle.addEventListener('paste', (e) => {
+                        const text = e.clipboardData.getData('text').trim()
+                        if (isCollabUrl(text)) {
+                            e.preventDefault()
+                            openCollabUrl(text)
+                        }
+                    })
                 }
 
                 input.addEventListener('keydown', async (e) => {
@@ -775,6 +812,16 @@ window.accountSchemas['Collab'] = {
     } else {
         console.error('editorHandlers is not defined — collab.js must load after editors.js')
     }
+
+    // Intercept clicks on collab share links anywhere in the feed or chat.
+    document.addEventListener('click', (e) => {
+        const a = e.target.closest('a[href]')
+        if (!a) return
+        if (isCollabUrl(a.href)) {
+            e.preventDefault()
+            openCollabUrl(a.href)
+        }
+    })
 
     // Called by chat invite cards — switches to Collab editor and connects.
     window.openCollabInvite = async function(invite) {

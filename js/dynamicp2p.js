@@ -218,21 +218,21 @@ function playChat() {
  */
 function initializeP2PSystem() {
   // Initialize PeerJS.
-  const peer = new Peer();
+  peer = new Peer();
 
   // Initialize variables and objects.
-  const connections = {};
-  const knownPeers = new Set();
-  const processedPeerLists = new Set(); // Track processed peer list messages.
-  const usernames = {}; // Map of peer IDs to usernames.
+  connections = {};
+  knownPeers = new Set();
+  processedPeerLists = new Set(); // Track processed peer list messages.
+  usernames = {}; // Map of peer IDs to usernames.
 
   // Initialize DOM elements.
-  const usernameInput = document.getElementById('usernameInput');
-  const setUsernameButton = document.getElementById('setUsernameButton');
-  const peerIdInput = document.getElementById('peerIdInput');
-  const connectButton = document.getElementById('connectButton');
-  const messageInput = document.getElementById('messageInput');
-  const sendButton = document.getElementById('sendButton');
+  usernameInput = document.getElementById('usernameInput');
+  setUsernameButton = document.getElementById('setUsernameButton');
+  peerIdInput = document.getElementById('peerIdInput');
+  connectButton = document.getElementById('connectButton');
+  messageInput = document.getElementById('messageInput');
+  sendButton = document.getElementById('sendButton');
 
   return {
     peer,
