@@ -614,7 +614,8 @@ async function displayMastodonPost(status,statusBox,reblogger) {
         const clistButtons = document.createElement('div');
         clistButtons.classList.add('clist-actions');
         clistButtons.innerHTML = `
-            <button class="material-icons md-18 md-light" onClick="loadContentToEditor('${status.id}')">arrow_right</button>
+            <button class="material-icons md-18 md-light" onclick="loadContentToEditor('${status.id}')" title="Load in editor">arrow_right</button>
+            <button class="clist-action-btn" onclick="shareToChat('${status.id}')" title="Share to chat"><span class="material-icons md-18 md-light">chat_bubble_outline</span></button>
         `;
 
         // Append content and actions to the status box

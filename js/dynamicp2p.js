@@ -20,6 +20,7 @@ const API_URL = 'https://discussions.mooc.ca/api/discussions';
 let peer, connections, knownPeers, processedPeerLists, usernames;
 let usernameInput, setUsernameButton, peerIdInput, connectButton, messageInput, sendButton;
 let activeDiscussionName = null; // Tracks the currently advertised discussion name
+let pendingShare = null;         // itemID to share once peer.id is ready
 let myUsername = ''; // Global username (updated via setUsername())
 
 // DID identity state — null if user has no DID
@@ -98,11 +99,15 @@ function playChat() {
       const myPeerIdDiv = document.getElementById('my-peer-id');
       if (myPeerIdDiv) { myPeerIdDiv.textContent = id; }
       knownPeers.add(id); // Add self to known peers.
-      // If myUsername has been set, propagate it; otherwise, use default.
       if (myUsername && myUsername.trim()) {
         setUsername(myUsername);
       } else {
         setUsername('Anon');
+      }
+      // Execute any share that was triggered before the peer ID was ready.
+      if (pendingShare) {
+        _executeShareToChat(pendingShare);
+        pendingShare = null;
       }
     });
 
@@ -156,6 +161,9 @@ function playChat() {
           appendMessage(`${joinLabel} has joined the discussion`);
         } else if (data.type === 'request-username') {
             conn.send({ type: 'username-update', username: myUsername, did: myDidKey, didWeb: myDid, publicKeyJwk: myPublicKeyJwk });
+        } else if (data.type === 'collab-invite') {
+            const sender = usernames[conn.peer] || conn.peer;
+            appendCollabInviteCard(data, sender);
         }
       });
 
@@ -409,10 +417,112 @@ function connectToPeer(peerId, discussionName) {
 }
 
 /**
+ * shareToChat(itemID)
+ *
+ * Opens chat if needed, creates a discussion named after the item, and shares
+ * the item link as the opening message. If peer.id is not yet assigned (PeerJS
+ * handshake still in flight), stores the itemID in pendingShare and lets
+ * peer.on('open') complete the action.
+ */
+function shareToChat(itemID) {
+  const el = document.getElementById(itemID);
+  if (!el || !el.reference) {
+    showStatusMessage('Could not find item to share.');
+    return;
+  }
+  if (!p2pInitialized) {
+    playChat();
+    pendingShare = itemID;
+    return;
+  }
+  if (!peer || !peer.id) {
+    pendingShare = itemID;
+    return;
+  }
+  _executeShareToChat(itemID);
+}
+
+// Returns a human-readable discussion title from a feed item reference.
+// Falls back to author_name for social posts whose title field is just the platform name.
+function _shareTitleFromReference(ref) {
+  if (ref.title && ref.title !== 'Mastodon' && ref.title !== 'Bluesky') {
+    return ref.title.length > 60 ? ref.title.slice(0, 57) + '…' : ref.title;
+  }
+  return ref.author_name ? ref.author_name + "'s post" : 'Discussion';
+}
+
+// Creates a discussion named after the item (if none active) and sends text + link.
+function _executeShareToChat(itemID) {
+  const el = document.getElementById(itemID);
+  if (!el || !el.reference) { showStatusMessage('Could not find item to share.'); return; }
+  const ref = el.reference;
+
+  if (!activeDiscussionName) {
+    const nameInput = document.getElementById('discussionNameInput');
+    if (nameInput) nameInput.value = _shareTitleFromReference(ref);
+    advertiseDiscussion();
+  }
+
+  // Extract plain text from the rendered element, collapse whitespace, truncate to 500 chars.
+  const rawText = el.textContent.replace(/\s+/g, ' ').trim();
+  const excerpt = rawText.length > 500 ? rawText.slice(0, 497) + '…' : rawText;
+
+  const displayText = (ref.title && ref.title !== 'Mastodon' && ref.title !== 'Bluesky')
+    ? ref.title : (ref.author_name || ref.url || itemID);
+  const link = ref.url
+    ? `<a href="${ref.url}" target="_blank" rel="noopener noreferrer">${displayText}</a>`
+    : displayText;
+
+  const message = excerpt ? `${excerpt}<br><br>${link}` : link;
+  sendMessage(message).catch(err => {
+    console.error('shareToChat failed:', err);
+    showStatusMessage('Failed to share to chat.');
+  });
+}
+
+/**
  * sendMessage(message)
  *
  * Sends a message to all connected peers.
  */
+/**
+ * Send a collab document invite to all connected peers.
+ * Returns true if at least one connection was open, false if no peers are connected.
+ */
+window.sendCollabInvite = function(invite) {
+  if (!connections || Object.keys(connections).length === 0) return false;
+  let sent = false;
+  Object.values(connections).forEach(conn => {
+    if (conn.open) { conn.send({ type: 'collab-invite', ...invite }); sent = true; }
+  });
+  if (sent) appendCollabInviteCard(invite, `You (${myUsername})`);
+  return sent;
+};
+
+/**
+ * Render a collab invite as a card in the chat panel.
+ */
+function appendCollabInviteCard(invite, sender) {
+  const wrapper = document.createElement('div');
+  wrapper.style.textAlign = 'left';
+  const card = document.createElement('div');
+  card.style.cssText = 'display:inline-block;border:1px solid #ccc;border-radius:6px;padding:8px 12px;margin:4px 0;background:#f9f9f9;max-width:320px';
+  const modeLabel = invite.mode === 'read' ? 'view' : 'co-edit';
+  const docLabel  = sanitizeHTML(invite.title || invite.docId || 'a document');
+  const senderLabel = sanitizeHTML(sender);
+  card.innerHTML = `<strong>${senderLabel}</strong> invites you to ${modeLabel} <em>${docLabel}</em>`;
+  const btn = document.createElement('button');
+  btn.textContent = 'Open in Collab';
+  btn.style.cssText = 'display:block;margin-top:6px;padding:3px 10px;cursor:pointer';
+  btn.addEventListener('click', () => {
+    if (typeof window.openCollabInvite === 'function') window.openCollabInvite(invite);
+    else showStatusMessage('Collab editor not available.');
+  });
+  card.appendChild(btn);
+  wrapper.appendChild(card);
+  document.getElementById('chat-messages').appendChild(wrapper);
+}
+
 async function sendMessage(message) {
   const sanitizedMessage = sanitizeHTML(`You (${myUsername}): ${message}`);
   appendMessage(sanitizedMessage, true); // Display locally
@@ -430,7 +540,7 @@ async function sendMessage(message) {
  * Sanitizes input to allow only a specific set of tags (i, b, em, a).
  */
 function sanitizeHTML(input) {
-  const allowedTags = ['i', 'b', 'em', 'a'];
+  const allowedTags = ['i', 'b', 'em', 'a', 'br'];
   const parser = new DOMParser();
   const doc = parser.parseFromString(input, 'text/html');
   const elements = doc.body.querySelectorAll('*');

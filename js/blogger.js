@@ -26,11 +26,13 @@ window.accountSchemas['Blogger'] = {
     window.publishHandlers['Blogger'] = {
         publish: async (accountData, title, content) => {
             const responseDiv = document.getElementById('post-result');
+            const plainTitle = removeHtml(title).trim()
+                || content.replace(/<[^>]+>/g, '').trim().substring(0, 70).replace(/\s\S*$/, '') + '…';
             return await publishBloggerPost(
                 accountData.instance,
                 accountData.id,
                 responseDiv,
-                removeHtml(title),
+                plainTitle,
                 content
             );
         }
@@ -43,7 +45,7 @@ window.accountSchemas['Blogger'] = {
 async function publishBloggerPost(blogid, clientid, responseDiv, bloggerTitle, bloggerContent) {
 
   // Get content and title 
-  if (!bloggerTitle || !bloggerContent) { throw new Error(`${!bloggerTitle ? "bloggerTitle" : "bloggerContent"} does not exist`);  }
+  if (!bloggerContent) { throw new Error('bloggerContent does not exist'); }
 
     const Blogger_SCOPES = 'https://www.googleapis.com/auth/blogger';
     let Blogger_tokenClient;

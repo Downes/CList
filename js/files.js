@@ -149,7 +149,6 @@ async function packagePost() {
     // Get title
 
     const titleValue = document.getElementById('write-title').innerText;
-    if (!titleValue) { showStatusMessage('Please enter a title for the post.'); return; }
 
     // Get editor content
     const handler = editorHandlers[currentEditor];

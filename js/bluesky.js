@@ -653,8 +653,8 @@ const whatsHotFeedUri = 'at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.gen
                 const clistButtons = document.createElement('div');
                 clistButtons.classList.add('clist-actions');
                 clistButtons.innerHTML = `
-                    <button class="material-icons md-18 md-light" onClick="loadContentToEditor('${postId}');">arrow_right</button>
-                    
+                    <button class="material-icons md-18 md-light" onclick="loadContentToEditor('${postId}');" title="Load in editor">arrow_right</button>
+                    <button class="clist-action-btn" onclick="shareToChat('${postId}');" title="Share to chat"><span class="material-icons md-18 md-light">chat_bubble_outline</span></button>
                 `;
                 statusBox.appendChild(clistButtons);
 

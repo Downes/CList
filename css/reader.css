@@ -121,10 +121,10 @@
         /* Style for the clist action buttons */
         .clist-actions {
             display: flex;
-            flex-direction: row;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
-            gap: 8px; /* Adds space between icons */
+            gap: 4px;
         }
 
         .clist-actions button {

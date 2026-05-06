@@ -444,9 +444,8 @@ function makeListing(
     const clistActions = document.createElement('div');
     clistActions.classList.add('clist-actions'); // Add a class for styling
     clistActions.innerHTML = `
-      <button class="material-icons md-18 md-light" onClick="loadContentToEditor('${itemID}');">
-        arrow_right
-      </button>
+      <button class="material-icons md-18 md-light" onclick="loadContentToEditor('${itemID}');" title="Load in editor">arrow_right</button>
+      <button class="clist-action-btn" onclick="shareToChat('${itemID}');" title="Share to chat"><span class="material-icons md-18 md-light">chat_bubble_outline</span></button>
     `;
   
     // Assemble

@@ -92,12 +92,17 @@ function ucfirst(input) {
 
 
 function removeHtml(content) {
-    let cleanedContent;
-
     const tempDiv = document.createElement("div");
     tempDiv.innerHTML = content;
-    cleanedContent = tempDiv.textContent || tempDiv.innerText || "";  // Extract only the text
-    return cleanedContent;
+    // Preserve URLs from anchor tags: replace <a href="url">text</a> with "text url"
+    // so text-only services receive the actual link rather than just the label.
+    tempDiv.querySelectorAll('a[href]').forEach(a => {
+        const href = a.getAttribute('href') || '';
+        const text = a.textContent.trim();
+        const replacement = (text && text !== href) ? `${text} ${href}` : href;
+        a.replaceWith(replacement);
+    });
+    return tempDiv.textContent || tempDiv.innerText || "";
 }
 
 function processHtml(input) {

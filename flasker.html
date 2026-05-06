@@ -229,6 +229,7 @@
                     <button class="kv-name-btn" style="margin:3px;width:auto;" onclick="selectAccountType('OPML')">OPML</button>
                     <button class="kv-name-btn" style="margin:3px;width:auto;" onclick="selectAccountType('Blogger')">Blogger</button>
                     <button class="kv-name-btn" style="margin:3px;width:auto;" onclick="selectAccountType('Etherpad')">Etherpad</button>
+                    <button class="kv-name-btn" style="margin:3px;width:auto;" onclick="selectAccountType('Collab')">Collab</button>
                     <button class="kv-name-btn" style="margin:3px;width:auto;" onclick="selectAccountType('AI')">AI</button>
                     <button class="kv-name-btn" style="margin:3px;width:auto;" onclick="selectAccountType('Proxyp')">Proxyp</button>
                 </div>
@@ -254,6 +255,23 @@
                 return;
             }
 
+            if (type === 'Collab') {
+                const flow = document.getElementById('add-flow');
+                flow.innerHTML = `
+                    <h3 style="margin:0 0 8px;">Add Collab Server</h3>
+                    <label style="font-variant:small-caps;font-size:0.8rem;color:#555;">WebSocket URL</label>
+                    <input type="text" id="collab-ws-input"
+                           placeholder="wss://collab.mooc.ca"
+                           value="wss://collab.mooc.ca"
+                           style="display:block;width:100%;box-sizing:border-box;padding:0.2rem;font-size:0.8rem;margin:2px 0 8px;">
+                    <div id="collab-register-status" style="font-size:0.8rem;color:#555;margin-bottom:8px;min-height:1.2em;"></div>
+                    <div class="kv-action-buttons">
+                        <button class="kv-action-btn kv-save-btn" onclick="connectCollab()">Connect &amp; Register</button>
+                        <button class="kv-action-btn kv-cancel-btn" onclick="showTypePicker()">Back</button>
+                    </div>`;
+                return;
+            }
+
             const schema = window.parent.accountSchemas && window.parent.accountSchemas[type];
             if (!schema) { alert('No schema for account type: ' + type); return; }
 
@@ -271,6 +289,65 @@
             document.getElementById('submitBtn').textContent = 'Add Account';
             document.getElementById('deleteBtn').style.display = 'none';
             formDirty = false;
+        }
+
+        async function connectCollab() {
+            const wsUrl = (document.getElementById('collab-ws-input').value || '').trim();
+            const statusEl = document.getElementById('collab-register-status');
+            if (!wsUrl) { statusEl.textContent = 'Please enter a WebSocket URL.'; return; }
+
+            const token = getSiteSpecificCookie(flaskSiteUrl, 'access_token');
+            if (!token) { statusEl.textContent = 'Please log in before adding a Collab account.'; return; }
+
+            const base = wsUrl.replace(/^wss?:\/\//, 'https://').replace(/\/$/, '');
+            const parentUsername = window.parent.username;
+            const kvDomain = flaskSiteUrl.replace(/^https?:\/\//, '');
+            const did = (parentUsername && parentUsername !== 'none')
+                ? `did:web:${kvDomain}:users:${parentUsername}`
+                : null;
+
+            statusEl.textContent = 'Connecting…';
+            try {
+                const resp = await fetch(`${base}/api/register`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ did })
+                });
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({}));
+                    statusEl.textContent = 'Connection failed: ' + (err.error || resp.status);
+                    return;
+                }
+                const data = await resp.json();
+                statusEl.textContent = `Connected as ${data.username}${data.did ? ' · DID registered' : ''} — saving…`;
+
+                // Build and encrypt the account record
+                const instanceData = {
+                    type: 'Collab',
+                    instance: wsUrl,
+                    title: base.replace('https://', ''),
+                    permissions: 'e'
+                };
+                const encKey = await window.parent.getEncKey(flaskSiteUrl);
+                if (!encKey) throw new Error('Encryption key not found — please log in again.');
+                const encryptedValue = await encryptWithKey(encKey, JSON.stringify(instanceData));
+
+                const matchingAccount = accounts.find(a => a.key === wsUrl);
+                const endpoint = matchingAccount ? 'update_kv/' : 'add_kv/';
+                const saveResp = await fetch(`${flaskSiteUrl}/${endpoint}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                    body: JSON.stringify({ key: wsUrl, value: encryptedValue })
+                });
+                if (!saveResp.ok) throw new Error('Account save failed: ' + saveResp.status);
+
+                accounts = await window.parent.getAccounts(flaskSiteUrl);
+                statusEl.textContent = `✓ Registered as ${data.username} on ${base.replace('https://', '')}`;
+                setTimeout(() => { cancelAdd(); getSite(flaskSiteUrl); }, 1200);
+            } catch (e) {
+                console.error('Collab registration error:', e);
+                statusEl.textContent = 'Error: ' + e.message;
+            }
         }
 
         function cancelAdd() {

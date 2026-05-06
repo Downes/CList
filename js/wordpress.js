@@ -25,11 +25,13 @@ window.accountSchemas['WordPress'] = {
     window.publishHandlers = window.publishHandlers || {};
     window.publishHandlers['WordPress'] = {
         publish: async (accountData, title, content) => {
+            const plainTitle = removeHtml(title).trim()
+                || content.replace(/<[^>]+>/g, '').trim().substring(0, 70).replace(/\s\S*$/, '') + '…';
             return await publishPost(
                 extractBaseUrl(accountData.instance),
                 extractAccountName(accountData.instance),
                 accountData.id,
-                removeHtml(title),
+                plainTitle,
                 content
             );
         }

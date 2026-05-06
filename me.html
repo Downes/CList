@@ -271,6 +271,9 @@
             statusEl.innerHTML = `<strong>DID registered.</strong><br>did:key: <code>${data.didKey}</code>`;
             setDidState(true);
             loadAccounts();
+            if (window.parent && window.parent.refreshCollabRegistrations) {
+                window.parent.refreshCollabRegistrations().catch(() => {});
+            }
         } catch (err) {
             console.error('generateAndRegisterDid failed:', err);
             statusEl.textContent = err.message || 'An unexpected error occurred. See browser console for details.';

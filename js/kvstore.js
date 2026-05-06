@@ -269,6 +269,7 @@ function kvstoreMePanel() {
                 updateIdentityDiv();
                 acceptLogin();
                 accounts = await getAccounts(flaskSiteUrl);
+                if (mode === 'register') autoRegisterCollab().catch(e => console.warn('Collab auto-registration failed:', e));
                 if (accounts) {
                     await playRead();
                     populateReadAccountList(accounts);
@@ -498,6 +499,64 @@ function kvstoreMePanel() {
                accountButton.style.display="block";
             }
         }
+
+        // Silently register the current user on the default collab server and save
+        // a Collab account to kvstore if one doesn't already exist.
+        async function autoRegisterCollab() {
+            const COLLAB_DEFAULT = 'wss://collab.mooc.ca';
+            const base = 'https://collab.mooc.ca';
+            const token = getSiteSpecificCookie(flaskSiteUrl, 'access_token');
+            if (!token) return;
+
+            const resp = await fetch(`${base}/api/register`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+            });
+            if (!resp.ok) throw new Error(`Collab registration failed (${resp.status})`);
+
+            // Don't add a duplicate account entry
+            const existing = (accounts || []).find(a => {
+                const v = parseAccountValue(a);
+                return v && v.type === 'Collab' && v.instance === COLLAB_DEFAULT;
+            });
+            if (existing) return;
+
+            const encKey = await getEncKey(flaskSiteUrl);
+            if (!encKey) throw new Error('Encryption key not available');
+            const instanceData = { type: 'Collab', instance: COLLAB_DEFAULT, title: 'collab.mooc.ca', permissions: 'e' };
+            const encryptedValue = await encryptWithKey(encKey, JSON.stringify(instanceData));
+
+            const saveResp = await fetch(`${flaskSiteUrl}/add_kv/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                body: JSON.stringify({ key: COLLAB_DEFAULT, value: encryptedValue })
+            });
+            if (!saveResp.ok) throw new Error('Collab account save failed: ' + saveResp.status);
+        }
+
+        // Re-register on all saved Collab servers to push an updated DID.
+        // Called from me.html after DID generation via window.parent.refreshCollabRegistrations().
+        window.refreshCollabRegistrations = async function() {
+            const token = getSiteSpecificCookie(flaskSiteUrl, 'access_token');
+            if (!token) return;
+            const collabAccounts = (accounts || []).filter(a => {
+                const v = parseAccountValue(a);
+                return v && v.type === 'Collab';
+            });
+            await Promise.all(collabAccounts.map(async a => {
+                const v = parseAccountValue(a);
+                const base = v.instance.replace(/^wss?:\/\//, 'https://').replace(/\/$/, '');
+                try {
+                    const resp = await fetch(`${base}/api/register`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+                    });
+                    if (!resp.ok) console.warn(`Collab DID refresh failed for ${base}: ${resp.status}`);
+                } catch (e) {
+                    console.warn(`Collab DID refresh error for ${base}:`, e);
+                }
+            }));
+        };
 
 
 // =============================================================================

@@ -167,6 +167,7 @@ function populateSaveOptions() {
 async function postAll() {
 
     const post = await packagePost();
+    if (!post) return; // packagePost() already displayed the error (e.g. missing title)
     const writeColumnTitle = document.getElementById('write-title').innerText.trim();
     const resultDiv = document.getElementById('post-result');
     resultDiv.innerHTML = '';
@@ -233,6 +234,11 @@ async function postAll() {
 
         const url = await handler.publish(accountData, writeColumnTitle, contentToPost);
         if (url && !publishedURL) publishedURL = url;
+    }
+    if (typeof window._onPostAllComplete === 'function') {
+        const cb = window._onPostAllComplete;
+        window._onPostAllComplete = null;
+        cb();
     }
 }
 
