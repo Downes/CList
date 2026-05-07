@@ -184,10 +184,8 @@ async function postAll() {
             if (!account) return null;
             const accountData = parseAccountValue(account);
             if (!accountData) return null;
-            const parts = accountData.permissions.split(' ');
-            const charLimit = (parts.length > 1 && !isNaN(parseInt(parts[1], 10)))
-                ? parseInt(parts[1], 10)
-                : 1000000;
+            const maxLen = parseInt(accountData.maxlength, 10);
+            const charLimit = (!isNaN(maxLen) && maxLen > 0) ? maxLen : 1000000;
             return { key, charLimit };
         })
         .filter(Boolean)

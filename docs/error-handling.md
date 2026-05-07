@@ -198,9 +198,44 @@ if (!appPassword || !handle) {
 - Soft empty-state messages using `.feed-status-message` — these are correct and intentional
 - `response.ok` checks that `throw` — the outer `catch` handles display
 
+### P2P chat errors (dynamicp2p.js)
+
+The chat pane has no `#statusPane`. Use `appendMessage(text, true)` to surface errors inline in the chat transcript:
+
+```javascript
+} catch (e) {
+    console.error('Chat connection error:', e)
+    appendMessage('Connection failed: ' + e.message, true)
+}
+```
+
+Use the second argument `true` to mark the message as a system/error line (distinct styling from user messages).
+
+### Standalone page errors (share page, etc.)
+
+Pages served by backend services (e.g. the collab share page at `/doc/…/edit`) have no access to CList utility functions. In this context:
+
+- Display errors inline with DOM methods: create an element, set `.textContent`, append it.
+- For input validation, show an inline error span and a red border — do **not** close the form.
+- **Never** use `alert()`, `prompt()`, or `confirm()` — these block the UI and are prohibited everywhere, including standalone pages.
+
+```javascript
+// Inline validation feedback on a standalone page
+const err = document.getElementById('link-err')
+if (!/^https?:\/\//i.test(url)) {
+    inp.style.borderColor = '#c00'
+    err.style.display = 'inline'
+    return
+}
+```
+
+---
+
 ## What to avoid
 
 - `alert()` — anywhere, for any reason
+- `prompt()` or `confirm()` — anywhere, for any reason
 - `catch (e) { console.error(e) }` with no UI feedback
 - Setting `feedContainer.innerHTML` to a plain string error — use `showServiceError` instead
 - Bare `await someAsyncFn()` at the call site without try/catch or `.catch()`
+- `innerHTML` with peer-supplied or server-supplied data — use DOM methods and validate CSS values

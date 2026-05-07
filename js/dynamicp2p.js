@@ -17,7 +17,7 @@ let p2pInitialized = false; // Flag to ensure the P2P system is initialized only
 const API_URL = 'https://discussions.mooc.ca/api/discussions';
 
 // These globals will be set when initializeP2PSystem() is called.
-let peer, connections, knownPeers, processedPeerLists, usernames;
+let peer, connections, knownPeers, processedPeerLists, processedMsgIds, usernames;
 let usernameInput, setUsernameButton, peerIdInput, connectButton, messageInput, sendButton;
 let activeDiscussionName = null; // Tracks the currently advertised discussion name
 let pendingShare = null;         // itemID to share once peer.id is ready
@@ -54,6 +54,7 @@ function playChat() {
     connections = initObj.connections;
     knownPeers = initObj.knownPeers;
     processedPeerLists = initObj.processedPeerLists;
+    processedMsgIds = initObj.processedMsgIds;
     usernames = initObj.usernames;
     usernameInput = initObj.usernameInput;
     setUsernameButton = initObj.setUsernameButton;
@@ -95,7 +96,7 @@ function playChat() {
     // When the PeerJS connection opens, display the Peer ID and set the username.
     peer.on('open', (id) => {
       console.log('Your Peer ID:', id);
-      appendMessage(`Your Peer ID: ${id}`);
+      appendMessage(`Your Peer ID: ${id}`, false, true);
       const myPeerIdDiv = document.getElementById('my-peer-id');
       if (myPeerIdDiv) { myPeerIdDiv.textContent = id; }
       knownPeers.add(id); // Add self to known peers.
@@ -126,7 +127,11 @@ function playChat() {
 
       conn.on('data', async (data) => {
         if (data.type === 'message') {
-            const sender = usernames[conn.peer] || conn.peer;
+            // Deduplicate relayed messages; assign an ID if the sender didn't include one.
+            if (!data.msgId) data = { ...data, msgId: `${conn.peer}-${Date.now()}-${Math.random()}` };
+            if (processedMsgIds.has(data.msgId)) return;
+            processedMsgIds.add(data.msgId);
+            const sender = data.username || usernames[conn.peer] || conn.peer;
             let sanitizedMsg = sanitizeHTML(data.message);
             sanitizedMsg = chatOptions(sanitizedMsg, sender);
             let verifiedMark = '';
@@ -139,6 +144,10 @@ function playChat() {
               }
             }
             appendMessage(`${sender}${verifiedMark}: ${sanitizedMsg}`);
+            // Relay to all other connections so peers not directly linked receive the message.
+            Object.values(connections).forEach((c) => {
+              if (c.open && c.peer !== conn.peer) c.send(data);
+            });
         } else if (data.type === 'peer-list' && !processedPeerLists.has(data.id)) {
           processedPeerLists.add(data.id);
           data.peers.forEach((peerId) => {
@@ -158,7 +167,7 @@ function playChat() {
               console.warn(`Peer identity mismatch: claimed "${data.username}" but DID says "${didUsername}"`);
           }
           const joinLabel = data.did ? `${data.username} (DID)` : data.username;
-          appendMessage(`${joinLabel} has joined the discussion`);
+          appendMessage(`${joinLabel} has joined the discussion`, false, true);
         } else if (data.type === 'request-username') {
             conn.send({ type: 'username-update', username: myUsername, did: myDidKey, didWeb: myDid, publicKeyJwk: myPublicKeyJwk });
         } else if (data.type === 'collab-invite') {
@@ -192,7 +201,7 @@ function playChat() {
           peer.reconnect();
           break;
         case 'peer-unavailable':
-          appendMessage('That peer is no longer available — they may have left the discussion.');
+          appendMessage('That peer is no longer available — they may have left the discussion.', false, true);
           break;
         case 'browser-incompatible':
           showStatusMessage('Your browser does not support WebRTC. Try a modern browser such as Chrome or Firefox.');
@@ -224,6 +233,7 @@ function initializeP2PSystem() {
   connections = {};
   knownPeers = new Set();
   processedPeerLists = new Set(); // Track processed peer list messages.
+  processedMsgIds = new Set(); // Track relayed message IDs to prevent loops.
   usernames = {}; // Map of peer IDs to usernames.
 
   // Initialize DOM elements.
@@ -239,6 +249,7 @@ function initializeP2PSystem() {
     connections,
     knownPeers,
     processedPeerLists,
+    processedMsgIds,
     usernames,
     usernameInput,
     setUsernameButton,
@@ -279,10 +290,14 @@ async function initializeDid() {
  *
  * Appends messages and logs to the chat window (with sanitized HTML).
  */
-function appendMessage(message, isOwn = false) {
+function appendMessage(message, isOwn = false, isEvent = false) {
   const div = document.createElement('div');
   div.innerHTML = sanitizeHTML(message);
-  div.style.textAlign = isOwn ? 'right' : 'left';
+  if (isEvent) {
+    div.classList.add('chat-event');
+  } else {
+    div.style.textAlign = isOwn ? 'right' : 'left';
+  }
   document.getElementById('chat-messages').appendChild(div);
 }
 
@@ -361,7 +376,11 @@ function connectToPeer(peerId, discussionName) {
 
   conn.on('data', async (data) => {
     if (data.type === 'message') {
-        const sender = usernames[conn.peer] || conn.peer;
+        // Deduplicate relayed messages; assign an ID if the sender didn't include one.
+        if (!data.msgId) data = { ...data, msgId: `${conn.peer}-${Date.now()}-${Math.random()}` };
+        if (processedMsgIds.has(data.msgId)) return;
+        processedMsgIds.add(data.msgId);
+        const sender = data.username || usernames[conn.peer] || conn.peer;
         let sanitizedMsg = sanitizeHTML(data.message);
         sanitizedMsg = chatOptions(sanitizedMsg, sender);
         let verifiedMark = '';
@@ -374,6 +393,10 @@ function connectToPeer(peerId, discussionName) {
           }
         }
         appendMessage(`${sender}${verifiedMark}: ${sanitizedMsg}`);
+        // Relay to all other connections so peers not directly linked receive the message.
+        Object.values(connections).forEach((c) => {
+          if (c.open && c.peer !== conn.peer) c.send(data);
+        });
     } else if (data.type === 'peer-list' && !processedPeerLists.has(data.id)) {
       processedPeerLists.add(data.id);
       data.peers.forEach((peerId) => {
@@ -393,9 +416,12 @@ function connectToPeer(peerId, discussionName) {
           console.warn(`Peer identity mismatch: claimed "${data.username}" but DID says "${didUsername}"`);
       }
       const joinLabel = data.did ? `${data.username} (DID)` : data.username;
-      appendMessage(`${joinLabel} has joined the discussion`);
+      appendMessage(`${joinLabel} has joined the discussion`, false, true);
     } else if (data.type === 'request-username') {
         conn.send({ type: 'username-update', username: myUsername, did: myDidKey, didWeb: myDid, publicKeyJwk: myPublicKeyJwk });
+    } else if (data.type === 'collab-invite') {
+        const sender = usernames[conn.peer] || conn.peer;
+        appendCollabInviteCard(data, sender);
     }
   });
 
@@ -508,9 +534,14 @@ function appendCollabInviteCard(invite, sender) {
   const card = document.createElement('div');
   card.style.cssText = 'display:inline-block;border:1px solid #ccc;border-radius:6px;padding:8px 12px;margin:4px 0;background:#f9f9f9;max-width:320px';
   const modeLabel = invite.mode === 'read' ? 'view' : 'co-edit';
-  const docLabel  = sanitizeHTML(invite.title || invite.docId || 'a document');
-  const senderLabel = sanitizeHTML(sender);
-  card.innerHTML = `<strong>${senderLabel}</strong> invites you to ${modeLabel} <em>${docLabel}</em>`;
+  // Build card content via DOM so peer-supplied strings are always treated as text.
+  const strong = document.createElement('strong');
+  strong.textContent = sender;
+  const em = document.createElement('em');
+  em.textContent = invite.title || localPartOf(invite.docId) || invite.docId || 'a document';
+  card.appendChild(strong);
+  card.appendChild(document.createTextNode(` invites you to ${modeLabel} `));
+  card.appendChild(em);
   const btn = document.createElement('button');
   btn.textContent = 'Open in Collab';
   btn.style.cssText = 'display:block;margin-top:6px;padding:3px 10px;cursor:pointer';
@@ -527,9 +558,11 @@ async function sendMessage(message) {
   const sanitizedMessage = sanitizeHTML(`You (${myUsername}): ${message}`);
   appendMessage(sanitizedMessage, true); // Display locally
   const signature = await signMessage(message); // null until Layer 2
+  const msgId = `${peer.id}-${Date.now()}-${Math.random()}`;
+  processedMsgIds.add(msgId);
   Object.values(connections).forEach((conn) => {
     if (conn.open) {
-      conn.send({ type: 'message', message, did: myDidKey, signature }); // Send raw message
+      conn.send({ type: 'message', message, username: myUsername, did: myDidKey, signature, msgId });
     }
   });
 }
@@ -545,17 +578,26 @@ function sanitizeHTML(input) {
   const doc = parser.parseFromString(input, 'text/html');
   const elements = doc.body.querySelectorAll('*');
 
-  // Remove disallowed tags.
   elements.forEach((el) => {
     if (!allowedTags.includes(el.tagName.toLowerCase())) {
       el.replaceWith(...el.childNodes);
-    } else if (el.tagName.toLowerCase() === 'a') {
-      // Validate href attribute.
-      const href = el.getAttribute('href');
-      if (!href || !href.startsWith('http')) {
-        el.removeAttribute('href');
-      }
+      return;
     }
+    // Strip all attributes, then restore only the safe subset.
+    const attrsToKeep = {};
+    if (el.tagName.toLowerCase() === 'a') {
+      const href = el.getAttribute('href') || '';
+      if (href.startsWith('http://') || href.startsWith('https://')) {
+        attrsToKeep.href = href;
+      }
+      const target = el.getAttribute('target');
+      if (target) attrsToKeep.target = '_blank'; // normalise to _blank
+      attrsToKeep.rel = 'noopener noreferrer';
+    }
+    // Remove every attribute on the element.
+    [...el.attributes].forEach(attr => el.removeAttribute(attr.name));
+    // Re-apply only the vetted ones.
+    Object.entries(attrsToKeep).forEach(([k, v]) => el.setAttribute(k, v));
   });
 
   return doc.body.innerHTML;
@@ -582,7 +624,8 @@ function advertiseDiscussion() {
     return;
   }
 
-  console.log(`Advertising discussion: ${discussionName} (ID: ${peerId})`);
+  const isPublic = !!(document.getElementById('discussionPublicCheckbox')?.checked);
+  console.log(`Advertising discussion: ${discussionName} (ID: ${peerId}, public: ${isPublic})`);
 
   // Post discussion details to the external API endpoint.
   const _advertiseToken = getSiteSpecificCookie(flaskSiteUrl, 'access_token');
@@ -592,12 +635,12 @@ function advertiseDiscussion() {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer ' + _advertiseToken,
     },
-    body: JSON.stringify({ name: discussionName, peerId })
+    body: JSON.stringify({ name: discussionName, peerId, public: isPublic })
   })
   .then((response) => {
     if (response.ok) {
       console.log('Discussion advertised successfully!');
-      appendMessage(`Created discussion: ${discussionName}`);
+      appendMessage(`Created discussion: ${discussionName}`, false, true);
       if (discussionName) { activeDiscussionName = discussionName; }
       toggleDiv('discussion-button-div');
       toggleDiv('end-discussion-div');
@@ -789,14 +832,31 @@ function chatOptions(content, sender) {
  * Searches for an Etherpad link in the message content and returns a formatted message if found.
  */
 function findEtherpadLink(content, sender) {
-  // Look for a link using a regular expression.
   const regex = /['"<](https:\/\/[^\s'"><]+)[>\s'"]/g;
   let match;
   while ((match = regex.exec(content)) !== null) {
-    const link = match[1]; // Extract the link.
+    const link = match[1];
     if (link.includes('etherpad')) {
       console.log(`${sender} shared ${link}`);
-      return `${sender} shared an Etherpad link (Click on the link to open): <em><i><a onClick="showPadShare('${link}')">${link}</a></i></em>`;
+      // Build the anchor safely via DOM instead of string interpolation.
+      const a = document.createElement('a');
+      a.href = link;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.textContent = link;
+      a.addEventListener('click', (e) => { e.preventDefault(); showPadShare(link); });
+      const em = document.createElement('em');
+      const i  = document.createElement('i');
+      i.appendChild(a);
+      em.appendChild(i);
+      const prefix = document.createTextNode(`${sender} shared an Etherpad link (Click on the link to open): `);
+      const frag = document.createDocumentFragment();
+      frag.appendChild(prefix);
+      frag.appendChild(em);
+      // appendMessage expects a string; serialise via a temp div.
+      const tmp = document.createElement('div');
+      tmp.appendChild(frag);
+      return tmp.innerHTML;
     } else {
       return content;
     }

@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Public Chat — CList</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: sans-serif; margin: 0; padding: 20px; color: #222; }
+    h1 { font-size: 1.4em; margin-bottom: 4px; }
+    .subtitle { color: #666; font-size: 0.9em; margin-bottom: 20px; }
+
+    /* Two-pane wrapper */
+    #page { display: flex; gap: 16px; align-items: flex-start; }
+    #left-pane { flex: 0 0 340px; min-width: 260px; }
+    #doc-pane { flex: 1; display: none; flex-direction: column; gap: 6px; min-width: 0; }
+    #doc-pane.open { display: flex; }
+    #doc-pane-header { display: flex; align-items: center; gap: 10px; font-size: 0.9em; }
+    #doc-pane-title { font-weight: 500; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #close-doc-btn { padding: 2px 9px; border: 1px solid #ccc; border-radius: 3px; background: #f5f5f5; cursor: pointer; font-size: 0.85em; white-space: nowrap; }
+    #close-doc-btn:hover { background: #e8e8e8; }
+    #doc-frame { width: 100%; height: calc(100vh - 80px); border: 1px solid #ddd; border-radius: 4px; }
+
+    /* Setup screen */
+    #setup { display: flex; flex-direction: column; gap: 10px; }
+    #setup input { padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; width: 100%; }
+    #setup button { padding: 6px 14px; border: 1px solid #ccc; border-radius: 4px; background: #f5f5f5; cursor: pointer; font-size: 0.9em; align-self: flex-start; }
+    #setup button:hover { background: #e8e8e8; }
+    #discussion-list { list-style: none; padding: 0; margin: 0; }
+    #discussion-list li { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 6px; }
+    #discussion-list li .name { font-weight: 500; }
+    #discussion-list li button { padding: 3px 10px; font-size: 0.85em; border: 1px solid #ccc; border-radius: 3px; background: #f5f5f5; cursor: pointer; }
+    #discussion-list li button:hover { background: #e8e8e8; }
+    #no-discussions { color: #888; font-style: italic; margin: 12px 0; }
+
+    /* Chat */
+    #chat { display: none; flex-direction: column; gap: 8px; }
+    #chat-header { display: flex; align-items: center; gap: 10px; font-weight: 500; }
+    #leave-btn { padding: 3px 10px; font-size: 0.85em; border: 1px solid #ccc; border-radius: 3px; background: #f5f5f5; cursor: pointer; }
+    #leave-btn:hover { background: #e8e8e8; }
+    #chat-messages { border: 1px solid #ccc; border-radius: 4px; padding: 10px; min-height: 280px; max-height: calc(100vh - 220px); overflow-y: auto; font-size: 0.95em; }
+    #chat-messages .msg { margin: 3px 0; }
+    #chat-messages .msg.own { text-align: right; }
+    #chat-messages .event { text-align: center; font-style: italic; font-size: 0.82em; color: #888; margin: 8px 0; }
+    #send-row { display: flex; gap: 6px; }
+    #send-row input { flex: 1; padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.95em; min-width: 0; }
+    #send-row button { padding: 6px 14px; border: 1px solid #ccc; border-radius: 4px; background: #f5f5f5; cursor: pointer; }
+    #send-row button:hover { background: #e8e8e8; }
+    #status { font-size: 0.8em; color: #888; margin-top: 2px; }
+
+    /* Invite card */
+    .invite-card { display: inline-block; border: 1px solid #ccc; border-radius: 6px; padding: 8px 12px; margin: 4px 0; background: #f9f9f9; max-width: 100%; }
+    .invite-card button { display: block; margin-top: 6px; padding: 3px 10px; border: 1px solid #ccc; border-radius: 3px; background: #f5f5f5; cursor: pointer; font-size: 0.9em; width: 100%; }
+    .invite-card button:hover { background: #e8e8e8; }
+
+    /* Responsive: stack vertically on narrow screens */
+    @media (max-width: 700px) {
+      #page { flex-direction: column; }
+      #left-pane { flex: none; width: 100%; }
+      #doc-frame { height: 60vh; }
+    }
+  </style>
+</head>
+<body>
+  <div id="page">
+    <div id="left-pane">
+      <h1>Public Chat</h1>
+      <p class="subtitle">Join an open discussion. No account required.</p>
+
+      <div id="setup">
+        <input id="username-input" type="text" placeholder="Your name" maxlength="40">
+        <div>
+          <strong>Available discussions:</strong>
+          <button id="refresh-btn" style="margin-left:8px">Refresh</button>
+        </div>
+        <ul id="discussion-list"></ul>
+        <div id="no-discussions" style="display:none">No public discussions active right now. Check back later.</div>
+      </div>
+
+      <div id="chat">
+        <div id="chat-header">
+          <span id="chat-room-name"></span>
+          <button id="leave-btn">Leave</button>
+        </div>
+        <div id="status">connecting…</div>
+        <div id="chat-messages"></div>
+        <div id="send-row">
+          <input id="message-input" type="text" placeholder="Type a message…" maxlength="2000">
+          <button id="send-btn">Send</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="doc-pane">
+      <div id="doc-pane-header">
+        <span id="doc-pane-title"></span>
+        <button id="close-doc-btn">✕ Close document</button>
+      </div>
+      <iframe id="doc-frame" src="" frameborder="0" allow="clipboard-write"></iframe>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/peerjs@1/dist/peerjs.min.js"></script>
+  <script>
+    const DISCUSSIONS_URL = 'https://discussions.mooc.ca/api/discussions/public'
+
+    let peer = null
+    let conn = null
+    let myName = ''
+    let roomName = ''
+
+    // ── UI helpers ────────────────────────────────────────────────────────────
+
+    function addMsg(text, cls) {
+      const div = document.createElement('div')
+      div.className = 'msg ' + (cls || '')
+      div.textContent = text
+      const box = document.getElementById('chat-messages')
+      box.appendChild(div)
+      box.scrollTop = box.scrollHeight
+    }
+
+    function addEvent(text) {
+      const div = document.createElement('div')
+      div.className = 'event'
+      div.textContent = text
+      const box = document.getElementById('chat-messages')
+      box.appendChild(div)
+      box.scrollTop = box.scrollHeight
+    }
+
+    function setStatus(text) {
+      document.getElementById('status').textContent = text
+    }
+
+    function openDocPane(url, title) {
+      const dest = myName ? url + '#user=' + encodeURIComponent(myName) : url
+      document.getElementById('doc-frame').src = dest
+      document.getElementById('doc-pane-title').textContent = title || url
+      document.getElementById('doc-pane').classList.add('open')
+    }
+
+    function closeDocPane() {
+      document.getElementById('doc-frame').src = ''
+      document.getElementById('doc-pane-title').textContent = ''
+      document.getElementById('doc-pane').classList.remove('open')
+    }
+
+    function addInviteCard(invite) {
+      const modeLabel = invite.mode === 'read' ? 'view' : 'co-edit'
+      const title     = invite.title || invite.docId || 'a document'
+      const wrapper   = document.createElement('div')
+      const card      = document.createElement('div')
+      card.className  = 'invite-card'
+      card.innerHTML  = '<strong>Invitation:</strong> ' + modeLabel + ' <em>' + title.replace(/</g, '&lt;') + '</em>'
+      if (invite.link) {
+        const btn = document.createElement('button')
+        btn.textContent = 'Open document'
+        btn.addEventListener('click', () => openDocPane(invite.link, title))
+        card.appendChild(btn)
+      }
+      wrapper.appendChild(card)
+      const box = document.getElementById('chat-messages')
+      box.appendChild(wrapper)
+      box.scrollTop = box.scrollHeight
+    }
+
+    document.getElementById('close-doc-btn').addEventListener('click', closeDocPane)
+
+    // ── Discussion list ───────────────────────────────────────────────────────
+
+    async function loadDiscussions() {
+      const list = document.getElementById('discussion-list')
+      const none = document.getElementById('no-discussions')
+      list.innerHTML = '<li style="color:#aaa;font-style:italic">Loading…</li>'
+      none.style.display = 'none'
+      try {
+        const res  = await fetch(DISCUSSIONS_URL)
+        const data = await res.json()
+        list.innerHTML = ''
+        if (!data.length) {
+          none.style.display = ''
+          return
+        }
+        data.forEach(d => {
+          const li  = document.createElement('li')
+          const nm  = document.createElement('span')
+          nm.className = 'name'
+          nm.textContent = d.name
+          const btn = document.createElement('button')
+          btn.textContent = 'Join'
+          btn.addEventListener('click', () => joinDiscussion(d.name, d.peerId))
+          li.appendChild(nm)
+          li.appendChild(btn)
+          list.appendChild(li)
+        })
+      } catch (e) {
+        list.innerHTML = '<li style="color:#c00">Could not load discussions.</li>'
+      }
+    }
+
+    document.getElementById('refresh-btn').addEventListener('click', loadDiscussions)
+
+    // ── Join ──────────────────────────────────────────────────────────────────
+
+    function joinDiscussion(name, hostPeerId) {
+      myName = document.getElementById('username-input').value.trim() || 'Guest'
+      roomName = name
+
+      peer = new Peer()
+      peer.on('open', () => {
+        document.getElementById('setup').style.display = 'none'
+        document.getElementById('chat').style.display = 'flex'
+        document.getElementById('chat-room-name').textContent = name
+        setStatus('connecting to host…')
+        openConn(hostPeerId)
+      })
+      peer.on('error', err => setStatus('PeerJS error: ' + err.message))
+    }
+
+    function openConn(hostPeerId) {
+      conn = peer.connect(hostPeerId, { reliable: true })
+      conn.on('open', () => {
+        setStatus('connected')
+        conn.send({ type: 'username-update', username: myName })
+      })
+      conn.on('data', data => {
+        if (data.type === 'message') {
+          addMsg((data.username || 'them') + ': ' + data.message)
+        } else if (data.type === 'username-update') {
+          addEvent((data.username || 'Someone') + ' is here')
+        } else if (data.type === 'collab-invite') {
+          addInviteCard(data)
+        }
+      })
+      conn.on('close', () => {
+        setStatus('disconnected')
+        addEvent('Connection closed.')
+      })
+      conn.on('error', err => {
+        setStatus('error: ' + err.message)
+        addEvent('Connection error: ' + err.message)
+      })
+    }
+
+    // ── Send ──────────────────────────────────────────────────────────────────
+
+    function sendMessage() {
+      const input = document.getElementById('message-input')
+      const text  = input.value.trim()
+      if (!text || !conn || !conn.open) return
+      const msgId = peer.id + '-' + Date.now() + '-' + Math.random()
+      conn.send({ type: 'message', message: text, username: myName, msgId })
+      addMsg('You: ' + text, 'own')
+      input.value = ''
+    }
+
+    document.getElementById('send-btn').addEventListener('click', sendMessage)
+    document.getElementById('message-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
+    })
+
+    // ── Leave ─────────────────────────────────────────────────────────────────
+
+    document.getElementById('leave-btn').addEventListener('click', () => {
+      if (conn) { conn.close(); conn = null }
+      if (peer) { peer.destroy(); peer = null }
+      closeDocPane()
+      document.getElementById('chat').style.display = 'none'
+      document.getElementById('chat-messages').innerHTML = ''
+      document.getElementById('setup').style.display = 'flex'
+      loadDiscussions()
+    })
+
+    // ── Init ──────────────────────────────────────────────────────────────────
+
+    loadDiscussions()
+  </script>
+</body>
+</html>

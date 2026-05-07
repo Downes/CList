@@ -287,6 +287,14 @@
             border-radius: 4px;          /* Rounded corners */
         }
 
+        #chat-messages .chat-event {
+            text-align: center;
+            font-style: italic;
+            font-size: 0.82em;
+            color: #888;
+            margin: 8px 0;
+        }
+
         #accounts-section,#chat-section, #audio-section, #read-section, #find-section {
             width: 100%;                /* Full width */
             margin: 0;              /* Padding inside the input */

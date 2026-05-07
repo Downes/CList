@@ -101,11 +101,12 @@ window.accountSchemas['Collab'] = {
 
     async function loadDeps() {
         if (deps) return deps
-        const [core, sk, collab, cursor, hocus, yjs] = await Promise.all([
+        const [core, sk, collab, cursor, link, hocus, yjs] = await Promise.all([
             import('https://esm.sh/@tiptap/core@2'),
             import('https://esm.sh/@tiptap/starter-kit@2'),
             import('https://esm.sh/@tiptap/extension-collaboration@2'),
             import('https://esm.sh/@tiptap/extension-collaboration-cursor@2'),
+            import('https://esm.sh/@tiptap/extension-link@2'),
             import('https://esm.sh/@hocuspocus/provider@2'),
             import('https://esm.sh/yjs@13'),
         ])
@@ -114,6 +115,7 @@ window.accountSchemas['Collab'] = {
             StarterKit:           sk.default,
             Collaboration:        collab.default,
             CollaborationCursor:  cursor.default,
+            Link:                 link.default,
             HocuspocusProvider:   hocus.HocuspocusProvider,
             Y:                    yjs,
         }
@@ -246,7 +248,7 @@ window.accountSchemas['Collab'] = {
     // Initialize TipTap with a local Y.Doc only (no Hocuspocus) so the editor is
     // immediately usable before the user commits a document title.
     async function initLocalEditor() {
-        const { Editor, StarterKit, Collaboration, Y } = await loadDeps()
+        const { Editor, StarterKit, Collaboration, Link, Y } = await loadDeps()
         if (tiptapEditor) { tiptapEditor.destroy(); tiptapEditor = null }
         const ydoc = new Y.Doc()
         tiptapEditor = new Editor({
@@ -255,6 +257,7 @@ window.accountSchemas['Collab'] = {
             extensions: [
                 StarterKit.configure({ history: false }),
                 Collaboration.configure({ document: ydoc }),
+                Link.configure({ openOnClick: false, validate: href => /^https?:\/\//i.test(href) }),
             ],
         })
         buildFormatToolbar()
@@ -370,11 +373,18 @@ window.accountSchemas['Collab'] = {
     function updateWhoList() {
         const whoEl = document.getElementById('collab-who')
         if (!whoEl || !hocuspocusProvider) return
-        const states = [...hocuspocusProvider.awareness.getStates().values()]
-        whoEl.innerHTML = states
+        whoEl.textContent = ''
+        ;[...hocuspocusProvider.awareness.getStates().values()]
             .filter(s => s.user)
-            .map(s => `<span class="collab-user" style="color:${s.user.color}">● ${s.user.name}</span>`)
-            .join(' ')
+            .forEach((s, i) => {
+                if (i > 0) whoEl.appendChild(document.createTextNode(' '))
+                const span = document.createElement('span')
+                span.className = 'collab-user'
+                const safeColor = /^#[0-9a-f]{3,6}$/i.test(s.user.color || '') ? s.user.color : '#888'
+                span.style.color = safeColor
+                span.textContent = '● ' + (s.user.name || 'Anonymous')
+                whoEl.appendChild(span)
+            })
     }
 
     // --- Sharing helpers ---
@@ -397,7 +407,7 @@ window.accountSchemas['Collab'] = {
             docId:  currentDocId,
             server: currentWsUrl,
             mode,
-            title:  currentDocTitle || currentDocId,
+            title:  currentDocTitle || localPartOf(currentDocId),
             link:   getCollabShareLink(mode),
         }
         if (typeof window.sendCollabInvite === 'function') {
@@ -570,7 +580,7 @@ window.accountSchemas['Collab'] = {
         currentWsUrl = wsUrl
 
         await loadDeps()
-        const { Editor, StarterKit, Collaboration, CollaborationCursor, HocuspocusProvider, Y } = deps
+        const { Editor, StarterKit, Collaboration, CollaborationCursor, Link, HocuspocusProvider, Y } = deps
 
         const statusEl = document.getElementById('collab-status')
         if (statusEl) statusEl.textContent = 'connecting…'
@@ -614,6 +624,7 @@ window.accountSchemas['Collab'] = {
                     provider: hocuspocusProvider,
                     user: { name: userName, color: userColor },
                 }),
+                Link.configure({ openOnClick: false, validate: href => /^https?:\/\//i.test(href) }),
             ],
         })
 
@@ -779,7 +790,12 @@ window.accountSchemas['Collab'] = {
             } else {
                 // Fresh open — show a slug and start local editor; press Enter to connect
                 setDocTitle(generateDocSlug())
-                await initLocalEditor()
+                try {
+                    await initLocalEditor()
+                } catch (e) {
+                    console.error('Failed to initialize local editor:', e)
+                    showStatusMessage('Could not start editor — check your network connection.')
+                }
             }
 
             loadPredefinedContent('collab')
