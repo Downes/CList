@@ -245,6 +245,30 @@ Pre-declaring panels in HTML lets `populateEditorList()` and similar functions u
 
 ---
 
+## Conditional UI visibility
+
+Several UI elements are hidden or shown depending on the user's registration and account state. The rules are enforced by `updateUIVisibility()` in `kvstore.js`, which is called from `loginRequired()`, `loginNotRequired()`, and `acceptLogin()` — i.e. on page load and whenever auth state changes.
+
+| Element | ID / selector | Condition to show |
+|---|---|---|
+| Read button | `#openLeftButton` | Registered + has a feed account (Mastodon, Bluesky, OPML, …) |
+| Chat button | `#openChatButton` | Registered |
+| Me button | `#meButton` | Registered |
+| Post button | `#post-button` | Registered + has an account with `w` or `p` permission |
+| Share-to-chat | `.clist-action-btn` | Registered (CSS: `body.user-registered .clist-action-btn`) |
+| Refs button | `#references-button` | At least one reference added to current editor |
+| Collab documents | `loadHandlers` entry | Registered (`visible()` callback checked by `populateLoadOptions()`) |
+| Generate template | `loadHandlers` entry | Registered + has AI account (`type === 'AI'`) |
+
+**How it works:**
+
+- `updateUIVisibility()` calls `isRegistered()`, `hasReadAccount()`, `hasPostAccount()`, and `hasAIAccount()` (all in `kvstore.js`) to set `element.style.display` directly.
+- `.clist-action-btn` elements are created dynamically inside feed listings (in `reader.js`), so they are toggled via a CSS rule keyed on the `user-registered` body class rather than by direct element lookup.
+- The Refs button is shown the first time `createReference()` in `tinymce.js` successfully adds a non-duplicate reference.
+- `populateLoadOptions()` in `editors.js` checks `handler.visible()` before rendering each load-panel entry, so Collab and Generate template appear only when their conditions are met.
+
+---
+
 ## Adding a new list panel
 
 ### In the left pane

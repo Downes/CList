@@ -216,9 +216,7 @@ window.accountSchemas['Collab'] = {
         if (localName.includes('/')) return localName  // already namespaced
         const didKey = await getUserDidKey()
         if (didKey) return `${didKey}/${localName}`
-        const myUser = (typeof window.username !== 'undefined' && window.username !== 'none')
-            ? window.username
-            : getSiteSpecificCookie(flaskSiteUrl, 'username')
+        const myUser = (window.username && window.username !== 'none' && window.username !== '') ? window.username : null
         const shortHost = kvShortHost(flaskSiteUrl)
         if (myUser && shortHost) return `${myUser}@${shortHost}/${localName}`
         return localName
@@ -228,9 +226,7 @@ window.accountSchemas['Collab'] = {
     // Returns the did:key string, or null if unavailable.  Result is cached.
     async function getUserDidKey() {
         if (cachedDidKey) return cachedDidKey
-        const myUser = (typeof window.username !== 'undefined' && window.username !== 'none')
-            ? window.username
-            : getSiteSpecificCookie(flaskSiteUrl, 'username')
+        const myUser = (window.username && window.username !== 'none' && window.username !== '') ? window.username : null
         if (!myUser) return null
         try {
             const res = await fetch(`${flaskSiteUrl}/users/${myUser}/did.json`)
@@ -537,7 +533,7 @@ window.accountSchemas['Collab'] = {
         }
 
         showModal(`
-            <div style="width:min(560px,90vw)">
+            <div style="width:min(640px,88vw)">
                 <h3 style="margin:0 0 14px">Share &ldquo;${docTitle}&rdquo;</h3>
                 <label style="display:flex;align-items:center;gap:8px;margin-bottom:16px;cursor:pointer;font-size:0.9em">
                     <input type="checkbox" id="collab-anon-check"${allowAnon ? ' checked' : ''}>
@@ -591,9 +587,9 @@ window.accountSchemas['Collab'] = {
 
         const rawToken = getSiteSpecificCookie(flaskSiteUrl, 'access_token')
         const token    = (mode === 'read' && !rawToken) ? 'anonymous' : (rawToken || 'anonymous')
-        const userName = (typeof window.username !== 'undefined' && window.username !== 'none')
+        const userName = (window.username && window.username !== 'none' && window.username !== '')
             ? window.username
-            : getSiteSpecificCookie(flaskSiteUrl, 'username') || 'Anonymous'
+            : 'Anonymous'
         const userColor = '#' + Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, '0')
 
         const ydoc = new Y.Doc()
@@ -638,9 +634,10 @@ window.accountSchemas['Collab'] = {
     ;(function () {
         window.loadHandlers = window.loadHandlers || []
         window.loadHandlers.push({
-            label: 'Collab documents',
-            icon:  'group',
-            load:  async () => {
+            label:   'Collab documents',
+            icon:    'group',
+            visible: () => typeof isRegistered === 'function' && isRegistered(),
+            load:    async () => {
                 const optionsDiv = document.getElementById('load-options')
                 optionsDiv.innerHTML = '<p class="list-tip">Loading documents…</p>'
                 try {
@@ -703,6 +700,7 @@ window.accountSchemas['Collab'] = {
         icon:            'group',
         contentTypes:    ['text/html'],
         requiresAccount: false,
+        visible:         () => typeof isRegistered === 'function' && isRegistered(),
 
         initialize: async () => {
             currentEditor = 'collab'

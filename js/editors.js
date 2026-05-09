@@ -207,6 +207,7 @@ function populateLoadOptions() {
     list.appendChild(tip);
 
     loadHandlers.forEach(handler => {
+        if (typeof handler.visible === 'function' && !handler.visible()) return;
         const btn = document.createElement('button');
         btn.className = 'account-button';
 
@@ -306,23 +307,28 @@ function makeEditorButton(label, icon, onClick) {
     return btn;
 }
 
-// Rebuild the editor list in the right pane.
-// carriedContent — { type, value } to pass into the new editor, or null.
-async function populateEditorList(carriedContent) {
+// Synchronously populate the built-in (no-account) editor buttons.
+function _populateBuiltInEditors(carriedContent) {
     const builtInOptions = document.getElementById('editor-switch-options');
     builtInOptions.innerHTML = '';
     Object.entries(editorHandlers).forEach(([key, handler]) => {
         if (handler.requiresAccount || typeof handler.initialize !== 'function') return;
+        if (typeof handler.visible === 'function' && !handler.visible()) return;
         if (key === currentEditor) return;
         builtInOptions.appendChild(makeEditorButton(handler.label || key, handler.icon, () => switchToEditor(key, carriedContent)));
     });
+    document.getElementById('editor-switch-account-options').innerHTML = '';
+}
 
-    const accountList = document.getElementById('editor-switch-account-options');
-    accountList.innerHTML = '';
-    if (!Array.isArray(accounts) || accounts.length === 0) {
-        try { accounts = await getAccounts(flaskSiteUrl); } catch(e) { showStatusMessage('Could not load accounts: ' + e.message); }
+// Asynchronously populate account-based editor buttons (may fetch accounts).
+async function _populateAccountEditors(carriedContent) {
+    if (typeof isRegistered === 'function' && isRegistered()) {
+        if (!Array.isArray(accounts) || accounts.length === 0) {
+            try { accounts = await getAccounts(flaskSiteUrl); } catch(e) { showStatusMessage('Could not load accounts: ' + e.message); }
+        }
     }
-    accounts.forEach(account => {
+    const accountList = document.getElementById('editor-switch-account-options');
+    (accounts || []).forEach(account => {
         const parsedValue = parseAccountValue(account);
         if (!parsedValue || !parsedValue.permissions.includes('e')) return;
         const editorType = parsedValue.type?.toLowerCase();
@@ -333,13 +339,21 @@ async function populateEditorList(carriedContent) {
     });
 }
 
-// Open the editor switcher in the right pane
+// Rebuild the editor list in the right pane.
+// carriedContent — { type, value } to pass into the new editor, or null.
+async function populateEditorList(carriedContent) {
+    _populateBuiltInEditors(carriedContent);
+    await _populateAccountEditors(carriedContent);
+}
+
+// Open the editor switcher in the right pane — opens immediately with built-in editors,
+// then appends account-based editors once accounts are fetched.
 async function playEditorSwitch() {
     let carriedContent = null;
     const currentHandler = editorHandlers[currentEditor];
     if (currentHandler?.getContent) {
         try {
-            const raw = await currentHandler.getContent();
+            const raw = currentHandler.getContent();
             const currentType = currentHandler.contentTypes[0] || 'text/plain';
             if (typeof raw === 'string' && raw.trim()) carriedContent = { type: currentType, value: raw };
         } catch(e) {
@@ -347,8 +361,9 @@ async function playEditorSwitch() {
         }
     }
 
-    await populateEditorList(carriedContent);
+    _populateBuiltInEditors(carriedContent);
     openRightInterface('editor-list');
+    await _populateAccountEditors(carriedContent);
 }
 
 
@@ -417,6 +432,7 @@ async function populateEditorAccountList(content) {
     const builtInOptions = document.getElementById('write-load-options');
     Object.entries(editorHandlers).forEach(([key, handler]) => {
         if (handler.requiresAccount || typeof handler.initialize !== 'function') return;
+        if (typeof handler.visible === 'function' && !handler.visible()) return;
         const btn = document.createElement('button');
         btn.className = 'save-button';
         btn.textContent = handler.label || key;
@@ -429,22 +445,13 @@ async function populateEditorAccountList(content) {
 
     // Account-backed editors: accounts with permission 'e' whose type maps to a registered handler
     const accountList = document.getElementById('more-write-load-options');
-    if (!Array.isArray(accounts)) {
-        throw new Error('Error: Accounts array not found; maybe you need to log in.');
-    }
-
-    // If necessary, fetch the accounts from the KVstore
-    if (accounts.length === 0) {
-        try {
-            // Fetch the accounts from the KVstore
-            accounts = await getAccounts(flaskSiteUrl); 
-
-        } catch (error) {
-            showStatusMessage('Error getting Editor accounts: ' + error.message);
+    if (typeof isRegistered === 'function' && isRegistered()) {
+        if (!Array.isArray(accounts) || accounts.length === 0) {
+            try { accounts = await getAccounts(flaskSiteUrl); } catch(e) { showStatusMessage('Error getting Editor accounts: ' + e.message); }
         }
     }
 
-    accounts.forEach(account => {
+    (accounts || []).forEach(account => {
         const parsedValue = parseAccountValue(account);
         if (!parsedValue || !parsedValue.permissions.includes('e')) return;
 
@@ -467,6 +474,12 @@ async function populateEditorAccountList(content) {
 }
 
 async function initializeEditor(editorType) {
+
+    const handler = editorHandlers[editorType];
+    if (handler && typeof handler.visible === 'function' && !handler.visible()) {
+        showStatusMessage('That editor is not available. Please register or log in.');
+        return;
+    }
 
     // Close all editors
     // Note that we do not remove the editors, we just hide them

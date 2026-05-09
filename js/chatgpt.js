@@ -183,8 +183,9 @@ function extractCodeContent(template) {
 (function () {
     window.loadHandlers = window.loadHandlers || [];
     window.loadHandlers.push({
-        label: 'Generate template',
-        icon:  'auto_awesome',
-        load:  async () => await generateTemplateContent()
+        label:   'Generate template',
+        icon:    'auto_awesome',
+        visible: () => typeof hasAIAccount === 'function' && hasAIAccount(),
+        load:    async () => await generateTemplateContent()
     });
 })();

@@ -221,7 +221,7 @@
             const token  = getSiteSpecificCookie(flaskSiteUrl, 'access_token');
             const encKey = await window.parent.getEncKey(flaskSiteUrl);
             if (!token || !encKey) {
-                statusEl.textContent = 'Not logged in — please log in to your identity server before generating a DID.';
+                statusEl.textContent = 'Not logged in — please log in to your account server before generating a DID.';
                 return;
             }
 
@@ -266,7 +266,7 @@
                 body: JSON.stringify({ publicKeyJwk, didKey, service: existingServices, alsoKnownAs: existingAlsoKnownAs })
             });
             const data = await res.json();
-            if (!res.ok) throw new Error(`DID registration failed (${data.error || res.status}). Check that you are logged in to the correct identity server.`);
+            if (!res.ok) throw new Error(`DID registration failed (${data.error || res.status}). Check that you are logged in to the correct account server.`);
 
             statusEl.innerHTML = `<strong>DID registered.</strong><br>did:key: <code>${data.didKey}</code>`;
             setDidState(true);

@@ -800,13 +800,12 @@
 }
 
 #modal-content {
-
   background-color: #fff;
-  padding: 20px;
+  padding: 28px 32px;
   border-radius: 8px;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
-  max-width: 90%;
-  max-height: 80%;
+  max-width: 92vw;
+  max-height: 92vh;
   overflow-y: auto;
   position: relative;
 }
@@ -885,4 +884,7 @@
     flex-shrink: 0; /* Standard property for compatibility */
   }
 }
+
+/* Hide social-share buttons for unregistered users */
+body:not(.user-registered) .clist-action-btn { display: none; }
 }

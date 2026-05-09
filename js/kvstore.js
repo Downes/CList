@@ -10,6 +10,9 @@
 //  This software is provided "AS IS," and you, its user, assume all risks when using it.
 //
 
+// DOM references used by login-state functions defined outside DOMContentLoaded.
+let identityDiv, loginButton, logoutButton, accountButton;
+
 window.accountSchemas = window.accountSchemas || {};
 window.accountSchemas['Proxyp'] = {
     type: 'Proxyp',
@@ -62,10 +65,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 
-    const identityDiv = document.getElementById("identityDiv");
-    const loginButton = document.getElementById("loginButton");
-    const logoutButton = document.getElementById("logoutButton");
-    const accountButton = document.getElementById("accountButton");
+    identityDiv   = document.getElementById("identityDiv");
+    loginButton   = document.getElementById("loginButton");
+    logoutButton  = document.getElementById("logoutButton");
+    accountButton = document.getElementById("accountButton");
 
     // Your stored accounts (will be replaced with fetched data) and List of required element IDs
 
@@ -108,15 +111,67 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 
+// ── Auth-state helpers ────────────────────────────────────────────────────────
+
+function isRegistered() {
+    return !!(username && username !== 'none' && username !== '');
+}
+
+function hasReadAccount() {
+    return isRegistered() && (accounts || []).some(a => {
+        const v = parseAccountValue(a);
+        return v && v.type && window.readerHandlers &&
+               window.readerHandlers[v.type] &&
+               window.readerHandlers[v.type].feedFunctions;
+    });
+}
+
+function hasPostAccount() {
+    return isRegistered() && (accounts || []).some(a => {
+        const v = parseAccountValue(a);
+        return v && v.permissions &&
+               (v.permissions.includes('w') || v.permissions.includes('p'));
+    });
+}
+
+function hasAIAccount() {
+    return isRegistered() && (accounts || []).some(a => {
+        const v = parseAccountValue(a);
+        return v && v.type === 'AI';
+    });
+}
+
+function updateUIVisibility() {
+    const reg = isRegistered();
+    const _show = (id, on) => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = on ? '' : 'none';
+    };
+    document.body.classList.toggle('user-registered', reg);
+    _show('openLeftButton',   hasReadAccount());
+    _show('openChatButton',   reg);
+    _show('meButton',         reg);
+    _show('post-button',      hasPostAccount());
+}
+
+// ── Login state ───────────────────────────────────────────────────────────────
+
 // Login is required
 function loginRequired(msg) {
+    username = 'none';
     openLeftPane();
     loginButton.style.display="inline-block";
     const registerButton = document.getElementById("registerButton");
     if (registerButton) registerButton.style.display="inline-block";
     accountButton.style.display="none";
     logoutButton.style.display="none";
-    identityDiv.innerHTML = `${msg} Please login to Identity Server`;
+    if (msg && (msg.includes('expired') || msg.includes('cleared') || msg.includes('logged out'))) {
+        identityDiv.textContent = `Session ended — please log in again.`;
+    } else {
+        identityDiv.textContent = `Register (new) or Login to get started.`;
+        if (typeof startTour === 'function') startTour();
+    }
+    updateUIVisibility();
 }
 
 // Login not required
@@ -128,6 +183,7 @@ function loginNotRequired() {
     if (registerButton) registerButton.style.display="none";
     username = getSiteSpecificCookie(flaskSiteUrl, 'username');
     identityDiv.innerHTML = `Identity: ${username}`;
+    updateUIVisibility();
 }
 
 
@@ -221,18 +277,50 @@ function kvstoreMePanel() {
         function redirectToKVRegister() { openAuthModal('register'); }
 
         function openAuthModal(mode) {
+            if (typeof endTour === 'function') endTour();
             document.getElementById('authModalTitle').textContent = mode === 'login' ? 'Login' : 'Register';
             document.getElementById('authSubmitBtn').textContent  = mode === 'login' ? 'Login' : 'Register';
             document.getElementById('authSubmitBtn').disabled = false;
-            document.getElementById('authConfirmWrap').style.display = mode === 'register' ? 'block' : 'none';
+            document.getElementById('authConfirmWrap').style.display  = mode === 'register' ? 'block' : 'none';
+            document.getElementById('authUsernameHint').style.display = mode === 'register' ? 'inline' : 'none';
             document.getElementById('authUsername').value  = '';
             document.getElementById('authPassword').value  = '';
             document.getElementById('authConfirm').value   = '';
             document.getElementById('authError').style.display = 'none';
+            document.getElementById('authServerUrl').textContent = new URL(flaskSiteUrl).hostname;
+            document.getElementById('authMainForm').style.display = 'block';
+            document.getElementById('authServerLine').style.display = 'block';
+            document.getElementById('changeServerPanel').style.display = 'none';
             const modal = document.getElementById('authModal');
             modal.dataset.mode = mode;
             modal.style.display = 'flex';
             document.getElementById('authUsername').focus();
+        }
+
+        function openChangeServerPanel() {
+            document.getElementById('authMainForm').style.display = 'none';
+            document.getElementById('authServerLine').style.display = 'none';
+            document.getElementById('changeServerPanel').style.display = 'block';
+            document.getElementById('authModalTitle').textContent = 'Change Account Server';
+            const sel = document.getElementById('serverSelect');
+            sel.value = flaskSiteUrl;
+            if (!sel.value) sel.selectedIndex = 0;
+        }
+
+        function closeChangeServerPanel() {
+            document.getElementById('changeServerPanel').style.display = 'none';
+            document.getElementById('authMainForm').style.display = 'block';
+            document.getElementById('authServerLine').style.display = 'block';
+            const mode = document.getElementById('authModal').dataset.mode;
+            document.getElementById('authModalTitle').textContent = mode === 'login' ? 'Login' : 'Register';
+        }
+
+        function selectAccountServer() {
+            const url = document.getElementById('serverSelect').value;
+            flaskSiteUrl = url;
+            localStorage.setItem('clist_kvstore_url', url);
+            document.getElementById('authServerUrl').textContent = new URL(url).hostname;
+            closeChangeServerPanel();
         }
 
         function closeAuthModal() {
@@ -274,12 +362,31 @@ function kvstoreMePanel() {
                     await playRead();
                     populateReadAccountList(accounts);
                 }
+                if (mode === 'register') showOnboardingNudge();
             } catch (e) {
                 errDiv.textContent = (mode === 'register' ? 'Registration' : 'Login') + ' failed: ' + e.message;
                 errDiv.style.display = 'block';
                 document.getElementById('authSubmitBtn').disabled = false;
                 document.getElementById('authSubmitBtn').textContent = mode === 'login' ? 'Login' : 'Register';
             }
+        }
+
+        function showOnboardingNudge() {
+            const container = document.getElementById('feed-container');
+            if (!container) return;
+            container.innerHTML = `
+                <div style="padding:8% 10%">
+                    <h3>You're in!</h3>
+                    <p style="margin:0.6em 0;">Your account is ready. Next, connect your first service so you can read feeds and post content.</p>
+                    <p style="margin:1em 0;">
+                        <button onclick="playAccounts()">Open Accounts &rarr;</button>
+                    </p>
+                    <p style="margin:0.8em 0 0; font-size:0.85em; color:#666;">
+                        You can add Mastodon, Bluesky, RSS feeds, WordPress, and more.<br>
+                        Not sure where to start? Check the
+                        <a href="https://github.com/Downes/CList/wiki" target="_blank">documentation</a>.
+                    </p>
+                </div>`;
         }
 
         // Function to handle logout
@@ -319,12 +426,10 @@ function kvstoreMePanel() {
 
 
         function displayUsername() {
-            username = localStorage.getItem('username');
             const usernameDisplay = document.getElementById('username-display');
             if (usernameDisplay) {
-                usernameDisplay.textContent = username ? `Logged in as ${username}!` : 'Welcome, guest!';
+                usernameDisplay.textContent = (username && username !== 'none') ? `Logged in as ${username}!` : 'Welcome, guest!';
             }
-
         }
 
 
@@ -497,6 +602,7 @@ function kvstoreMePanel() {
                if (registerButton) registerButton.style.display="none";
                logoutButton.style.display="block";
                accountButton.style.display="block";
+               updateUIVisibility();
             }
         }
 

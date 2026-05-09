@@ -161,6 +161,8 @@ function createReference(statusID, editorDiv) {
     if (!isDuplicate) {
         editorDiv.references.push(reference);
         console.log("Reference added:", reference);
+        const refsBtn = document.getElementById('references-button');
+        if (refsBtn) refsBtn.style.display = '';
     } else {
         console.log("Duplicate reference detected, not added:", reference);
     }

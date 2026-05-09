@@ -24,7 +24,9 @@
     <!-- Global Variables for essential services -->
     <script>
         let username = "none";                              // Global var for username
-        let flaskSiteUrl = 'https://kvstore.mooc.ca';   // Base URL of your identity server
+        let flaskSiteUrl = 'https://kvstore.mooc.ca';   // Base URL of your account server
+        const _savedKvUrl = localStorage.getItem('clist_kvstore_url');
+        if (_savedKvUrl) flaskSiteUrl = _savedKvUrl;
         let accounts = [];                                // Global var to store accounts
         let BaseURL = "none";
         let accessCode = "none";
@@ -47,21 +49,33 @@
                 <div id="left-main-command" class="command">
                     <div>
                     <button class="left icon-btn" onclick="playRead(); playAccounts();" title="Accounts"><span class="material-icons">person</span></button>
-                    <button id="openLeftButton" class="left" onclick="playRead();">Read</button>
+                    <button id="openLeftButton" class="left" onclick="playRead();" style="display:none">Read</button>
                     <button id="openFindButton" class="left" onclick="playFind();">Find</button>
-                    <button id="openChatButton" class="left" onclick="playChat();">Chat</button>
+                    <button id="openChatButton" class="left" onclick="playChat();" style="display:none">Chat</button>
                     </div>
-                    <button class="pane-snap-btn" onclick="snapPanes('left')" title="Collapse/expand panes"><span class="material-icons">arrow_left</span></button>
+                    <button id="snapLeftBtn" class="pane-snap-btn" onclick="snapPanes('left')" title="Collapse/expand panes"><span class="material-icons">arrow_left</span></button>
                 </div>
                 <div id="feed-section">
                     <!-- Dynamic buttons will be inserted here -->
                     <div id="feed-menu"></div><!-- This div will display the feed menu -->
                     <div id="feed-container">
-                        <div style="padding:10%">
+                        <div style="padding:8% 10%">
                             <h3>Welcome to CList</h3>
-                            <p>Your personal learning environment</p>
-                            <p>Click on the 'Read' button to get started</p>
-                            <p>Or read <a href="about.html">about Clist</a> to learn more</p>
+                            <p style="margin:0.6em 0;">Your personal learning environment for reading feeds, writing content, and publishing to social platforms.</p>
+                            <p style="margin:1em 0 0.4em;">
+                                <a href="#" onclick="startInterfaceTour(); return false;">Take a quick tour</a>
+                            </p>
+                            <h4 style="margin:1em 0 0.4em;">Getting started</h4>
+                            <ol style="margin-left:1.2em; line-height:1.8;">
+                                <li><strong>Register</strong> — create a free account using the left panel</li>
+                                <li><strong>Add services</strong> — connect Mastodon, Bluesky, RSS feeds, and more via Accounts</li>
+                                <li><strong>Read and write</strong> — browse your feeds, write content, and post</li>
+                            </ol>
+                            <p style="margin:1em 0 0;">No account needed to try it out — click <strong>Find</strong> to search right now.</p>
+                            <p style="margin:0.8em 0 0; font-size:0.85em;">
+                                <a href="about.html">About CList</a> &nbsp;&middot;&nbsp;
+                                <a href="https://github.com/Downes/CList/wiki" target="_blank">Documentation</a>
+                            </p>
                         </div>
 
                     </div><!-- This div will display the feed content -->
@@ -71,14 +85,14 @@
             <div id="write-pane">
                 <div id="right-main-command" class="command">
                     <div>
-                        <button class="pane-snap-btn" onclick="snapPanes('right')" title="Collapse/expand panes"><span class="material-icons">arrow_right</span></button>
+                        <button id="snapRightBtn" class="pane-snap-btn" onclick="snapPanes('right')" title="Collapse/expand panes"><span class="material-icons">arrow_right</span></button>
                     </div>
                     <div>
                         <!--button id="load-button" class="right" onclick="loadFile();">Load</button>-->
                        <button id="load-button" class="right" onclick="playLoad();">Load</button>
                          <button id="save-button" class="right" onclick="playSave()">Save</button>
-                         <button id="save-button" class="right" onclick="playPost()">Post</button>
-                         <button id="references-button" class="right" onclick="alternateDivs(currentEditor + '-references','write-pane-content')">Refs</button>
+                         <button id="post-button" class="right" onclick="playPost()" style="display:none">Post</button>
+                         <button id="references-button" class="right" onclick="alternateDivs(currentEditor + '-references','write-pane-content')" style="display:none">Refs</button>
                          <button id="editor-indicator" onclick="playEditorSwitch()" title="Switch editor">Text &#9662;</button>
                     </div>
                 </div>
@@ -141,7 +155,7 @@
                 <button id="registerButton" onclick="redirectToKVRegister()">Register</button>
                 <button id="logoutButton" onclick="KVlogout(flaskSiteUrl);">Logout</button>
                 <button id="accountButton" onclick="playAccounts();">Accounts</button>
-                <button id="meButton" onclick="playMe();">Me</button>
+                <button id="meButton" onclick="playMe();" style="display:none">Me</button>
                 <button id="audioButton" style="display:none;" onclick="toggleDiv('audio-section');">Audio</button>
                 <button id="chatButton"  style="display:none;" onclick="toggleDiv('chat-section');">Chat</button>
             </div>
@@ -267,6 +281,7 @@
 
 
 
+  <script src="js/tour.js" defer></script>          <!-- Onboarding tour -->
   <script src="js/utilities.js" defer></script>    <!-- Utility functions -->
   <script src="js/crypto_utils.js" defer></script>
   <script src="js/kvstore.js" defer></script>     <!-- Loads usere and account data --> 
@@ -312,30 +327,60 @@
 <div id="authModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
   <div style="background:#fff; padding:2em; border-radius:8px; min-width:300px; max-width:360px; width:90%;">
     <h3 id="authModalTitle" style="margin-top:0;"></h3>
-    <label style="display:block; margin-bottom:.5em;">Username<br>
-      <input id="authUsername" type="text" autocomplete="username" style="width:100%; box-sizing:border-box; padding:.4em;">
-    </label>
-    <label style="display:block; margin-bottom:.5em;">Password<br>
-      <div style="position:relative;">
-        <input id="authPassword" type="password" autocomplete="current-password" style="width:100%; box-sizing:border-box; padding:.4em; padding-right:2.2em;">
-        <span onclick="toggleAuthPassword('authPassword',this)" title="Show/hide password"
-              style="position:absolute; right:.4em; top:50%; transform:translateY(-50%); cursor:pointer; user-select:none; font-size:1.1em;">👁</span>
-      </div>
-    </label>
-    <div id="authConfirmWrap" style="display:none;">
-      <label style="display:block; margin-bottom:.5em;">Confirm password<br>
+
+    <!-- Account server line -->
+    <div id="authServerLine" style="font-size:0.75em; color:#666; margin-bottom:.85em;">
+      Account server: <span id="authServerUrl"></span>
+      <a href="#" onclick="event.preventDefault(); openChangeServerPanel();" style="margin-left:.3em;">Change</a>
+      <span id="authUsernameHint" style="display:none;">
+        · <a href="https://github.com/Downes/CList/wiki/A1-%E2%80%90-Create-a-New-CList-Account" target="_blank" rel="noopener">About</a>
+      </span>
+    </div>
+
+    <!-- Main login/register form -->
+    <div id="authMainForm">
+      <label style="display:block; margin-bottom:.5em;">Username<br>
+        <input id="authUsername" type="text" autocomplete="username" style="width:100%; box-sizing:border-box; padding:.4em;">
+      </label>
+      <label style="display:block; margin-bottom:.5em;">Password<br>
         <div style="position:relative;">
-          <input id="authConfirm" type="password" autocomplete="new-password" style="width:100%; box-sizing:border-box; padding:.4em; padding-right:2.2em;">
-          <span onclick="toggleAuthPassword('authConfirm',this)" title="Show/hide password"
+          <input id="authPassword" type="password" autocomplete="current-password" style="width:100%; box-sizing:border-box; padding:.4em; padding-right:2.2em;">
+          <span onclick="toggleAuthPassword('authPassword',this)" title="Show/hide password"
                 style="position:absolute; right:.4em; top:50%; transform:translateY(-50%); cursor:pointer; user-select:none; font-size:1.1em;">👁</span>
         </div>
       </label>
+      <div id="authConfirmWrap" style="display:none;">
+        <label style="display:block; margin-bottom:.5em;">Confirm password<br>
+          <div style="position:relative;">
+            <input id="authConfirm" type="password" autocomplete="new-password" style="width:100%; box-sizing:border-box; padding:.4em; padding-right:2.2em;">
+            <span onclick="toggleAuthPassword('authConfirm',this)" title="Show/hide password"
+                  style="position:absolute; right:.4em; top:50%; transform:translateY(-50%); cursor:pointer; user-select:none; font-size:1.1em;">👁</span>
+          </div>
+        </label>
+      </div>
+      <div id="authError" style="color:red; margin-bottom:.5em; display:none;"></div>
+      <div style="display:flex; gap:.5em; justify-content:flex-end;">
+        <button onclick="closeAuthModal()">Cancel</button>
+        <button id="authSubmitBtn" onclick="submitAuthModal()"></button>
+      </div>
     </div>
-    <div id="authError" style="color:red; margin-bottom:.5em; display:none;"></div>
-    <div style="display:flex; gap:.5em; justify-content:flex-end;">
-      <button onclick="closeAuthModal()">Cancel</button>
-      <button id="authSubmitBtn" onclick="submitAuthModal()"></button>
+
+    <!-- Change account server panel (hidden by default) -->
+    <div id="changeServerPanel" style="display:none;">
+      <p style="font-size:0.85em; color:#666; margin:.25em 0 1em;">
+        Only one account server is currently available. Additional servers will appear here as the CList network grows.
+      </p>
+      <label style="display:block; margin-bottom:.75em; font-size:0.9em;">Account server<br>
+        <select id="serverSelect" style="width:100%; box-sizing:border-box; padding:.4em; margin-top:.3em;">
+          <option value="https://kvstore.mooc.ca">kvstore.mooc.ca</option>
+        </select>
+      </label>
+      <div style="display:flex; gap:.5em; justify-content:flex-end;">
+        <button onclick="closeChangeServerPanel()">Cancel</button>
+        <button onclick="selectAccountServer()">Select</button>
+      </div>
     </div>
+
   </div>
 </div>
 
