@@ -49,6 +49,50 @@
         </details>
     </div>
 
+
+    <div class="me-section" id="migrate-section" style="display:none;">
+        <h3>Migrate to New Account Server</h3>
+        <details class="did-help">
+            <summary>What is this?</summary>
+            <p>Move your accounts and DID identity to a different Account Server. All your credentials are exported, re-encrypted with your new server's key, and uploaded securely. Your old account is not deleted — both will exist until you delete the old one.</p>
+            <p><strong>Note:</strong> The destination server must allow connections from this app's origin. Any kvstore server configured to accept requests from <code>clist.mooc.ca</code> will work.</p>
+        </details>
+
+        <div id="migrate-step-1">
+            <div style="margin:0.6em 0;">
+                <label style="display:block; font-size:0.85em; color:#555; margin-bottom:0.2em;">Destination server URL</label>
+                <input type="text" id="migrate-new-url" value="https://kvstore.mooc.ca"
+                    style="width:100%; box-sizing:border-box; padding:0.35em 0.5em; font-size:0.9em; border:1px solid #ccc; border-radius:4px;">
+            </div>
+            <div style="margin:0.6em 0;">
+                <label style="display:block; font-size:0.85em; color:#555; margin-bottom:0.2em;">Username on destination server</label>
+                <input type="text" id="migrate-new-username" placeholder="username"
+                    style="width:100%; box-sizing:border-box; padding:0.35em 0.5em; font-size:0.9em; border:1px solid #ccc; border-radius:4px;">
+            </div>
+            <div style="margin:0.6em 0;">
+                <label style="display:block; font-size:0.85em; color:#555; margin-bottom:0.2em;">Password on destination server</label>
+                <input type="password" id="migrate-new-password" placeholder="password"
+                    style="width:100%; box-sizing:border-box; padding:0.35em 0.5em; font-size:0.9em; border:1px solid #ccc; border-radius:4px;">
+            </div>
+            <div style="margin:0.6em 0; font-size:0.85em;">
+                <label><input type="checkbox" id="migrate-register" style="margin-right:0.4em;">Register a new account on the destination server</label>
+            </div>
+            <div class="kv-action-buttons">
+                <button class="kv-action-btn kv-save-btn" onclick="migratePrepare()">Preview Migration</button>
+            </div>
+        </div>
+
+        <div id="migrate-step-2" style="display:none;">
+            <div id="migrate-preview" style="font-size:0.9em;"></div>
+            <div class="kv-action-buttons">
+                <button class="kv-action-btn kv-save-btn" onclick="migrateRun()">Run Migration</button>
+                <button class="kv-action-btn" onclick="migrateReset()" style="margin-left:0.5em;">Cancel</button>
+            </div>
+        </div>
+
+        <div id="migrate-progress" class="me-status" style="display:none;"></div>
+    </div>
+
 </div>
 
 <script src="js/utilities.js"></script>
@@ -310,7 +354,7 @@
     }
 
     function setDidState(active) {
-        ['public-accounts-section', 'did-regen-help', 'did-remove-help'].forEach(id =>
+        ['public-accounts-section', 'did-regen-help', 'did-remove-help', 'migrate-section'].forEach(id =>
             document.getElementById(id).style.display = active ? '' : 'none'
         );
         document.getElementById('did-btn').textContent = active ? 'Regenerate Key' : 'Generate Identity Key';
@@ -340,6 +384,227 @@
     document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => { checkExistingDid(); loadAccounts(); }, 300);
     });
+
+
+    // ── Account migration ─────────────────────────────────────────────────────
+
+    let _migrateCtx = null;
+
+    async function exportAllKVRaw(serverUrl, token) {
+        const res = await fetch(`${serverUrl}/get_kvs/`, {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!res.ok) throw new Error(`Could not read accounts from source server (${res.status})`);
+        return await res.json();
+    }
+
+    async function putKV(serverUrl, token, key, value) {
+        const res = await fetch(`${serverUrl}/add_kv/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            body: JSON.stringify({ key, value })
+        });
+        if (res.status === 409) {
+            const upRes = await fetch(`${serverUrl}/update_kv/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                body: JSON.stringify({ key, value })
+            });
+            if (!upRes.ok) throw new Error(`Update failed (${upRes.status})`);
+        } else if (!res.ok) {
+            throw new Error(`Upload failed (${res.status})`);
+        }
+    }
+
+    async function migratePrepare() {
+        const progressEl = document.getElementById('migrate-progress');
+        progressEl.style.display = 'block';
+        progressEl.textContent = 'Checking credentials…';
+
+        const oldToken    = getSiteSpecificCookie(flaskSiteUrl, 'access_token');
+        const oldUsername = getSiteSpecificCookie(flaskSiteUrl, 'username');
+        const oldEncKey   = await window.parent.getEncKey(flaskSiteUrl);
+
+        if (!oldToken || !oldUsername || !oldEncKey) {
+            progressEl.textContent = 'Not logged in to source server. Please log in first.';
+            return;
+        }
+
+        const newUrl      = document.getElementById('migrate-new-url').value.trim().replace(/\/$/, '');
+        const newUsername = document.getElementById('migrate-new-username').value.trim().toLowerCase();
+        const newPassword = document.getElementById('migrate-new-password').value;
+        const doRegister  = document.getElementById('migrate-register').checked;
+
+        if (!newUrl || !newUsername || !newPassword) {
+            progressEl.textContent = 'Please fill in all destination fields.';
+            return;
+        }
+
+        try {
+            progressEl.textContent = 'Exporting accounts from source server…';
+            const kvs = await exportAllKVRaw(flaskSiteUrl, oldToken);
+
+            let accountCount = 0;
+            for (const kv of kvs.filter(k => !k.key.startsWith('_'))) {
+                try { await decryptWithKey(oldEncKey, kv.value); accountCount++; } catch {}
+            }
+
+            let hasDid = false;
+            try {
+                const didRes = await fetch(`${flaskSiteUrl}/users/${oldUsername}/did.json`);
+                hasDid = didRes.ok;
+            } catch {}
+
+            progressEl.textContent = doRegister
+                ? 'Registering on destination server…'
+                : 'Logging in to destination server…';
+
+            const [newEncKey, newAuthHash] = await Promise.all([
+                deriveEncKey(newPassword, newUsername),
+                deriveAuthHash(newPassword, newUsername)
+            ]);
+
+            if (doRegister) {
+                const regRes = await fetch(`${newUrl}/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: newUsername, auth_hash: newAuthHash })
+                });
+                if (!regRes.ok) {
+                    const err = await regRes.json().catch(() => ({}));
+                    throw new Error(err.error || `Registration failed (${regRes.status})`);
+                }
+            }
+
+            const loginRes = await fetch(`${newUrl}/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: newUsername, auth_hash: newAuthHash })
+            });
+            if (!loginRes.ok) {
+                const err = await loginRes.json().catch(() => ({}));
+                throw new Error(err.error || `Login failed (${loginRes.status}). Is the destination server URL correct?`);
+            }
+            const loginData = await loginRes.json();
+
+            _migrateCtx = {
+                oldUrl: flaskSiteUrl, oldToken, oldEncKey, oldUsername,
+                newUrl, newToken: loginData.token, newEncKey, newUsername,
+                hasDid, kvs, accountCount
+            };
+
+            const srcHost = new URL(flaskSiteUrl).hostname;
+            const dstHost = new URL(newUrl).hostname;
+            document.getElementById('migrate-preview').innerHTML = `
+                <p><strong>Ready to migrate:</strong></p>
+                <ul style="margin:0.4em 0 0.6em 1.2em; padding:0;">
+                    <li>${accountCount} account${accountCount !== 1 ? 's' : ''} from <strong>${srcHost}</strong> (${kvs.filter(k => !k.key.startsWith('_')).length} total entries)</li>
+                    <li>${kvs.filter(k => k.key.startsWith('_')).length} system key${kvs.filter(k => k.key.startsWith('_')).length !== 1 ? 's' : ''}${hasDid ? ' (including your DID private key)' : ''}</li>
+                    ${hasDid ? '<li>DID identity will be linked between old and new servers</li>' : ''}
+                </ul>
+                <p><strong>Destination:</strong> ${dstHost} as <strong>${newUsername}</strong></p>
+                <p style="font-size:0.85em; color:#856404; background:#fff3cd; padding:0.5em 0.7em; border-radius:4px; margin:0.6em 0 0;">
+                    Your source account will not be deleted. To switch servers after migration, log out and use the "Change" link on the login screen.
+                </p>`;
+
+            document.getElementById('migrate-step-1').style.display = 'none';
+            document.getElementById('migrate-step-2').style.display = 'block';
+            progressEl.style.display = 'none';
+
+        } catch (err) {
+            console.error('migratePrepare failed:', err);
+            progressEl.textContent = `Error: ${err.message}`;
+        }
+    }
+
+    async function migrateRun() {
+        if (!_migrateCtx) return;
+        const { oldUrl, oldToken, oldEncKey, oldUsername, newUrl, newToken, newEncKey, newUsername, hasDid, kvs } = _migrateCtx;
+
+        const progressEl = document.getElementById('migrate-progress');
+        progressEl.style.display = 'block';
+        document.getElementById('migrate-step-2').style.display = 'none';
+
+        let done = 0, errors = 0;
+
+        try {
+            for (const kv of kvs) {
+                try {
+                    const plaintext = await decryptWithKey(oldEncKey, kv.value);
+                    const newValue  = await encryptWithKey(newEncKey, plaintext);
+                    await putKV(newUrl, newToken, kv.key, newValue);
+                    done++;
+                } catch (err) {
+                    console.error(`Failed to migrate "${kv.key}":`, err);
+                    errors++;
+                }
+                progressEl.textContent = `Migrating: ${done + errors} / ${kvs.length} entries…`;
+            }
+
+            if (hasDid) {
+                progressEl.textContent = 'Linking DID between servers…';
+                try {
+                    const oldDidRes = await fetch(`${oldUrl}/users/${oldUsername}/did.json`);
+                    if (oldDidRes.ok) {
+                        const oldDoc = await oldDidRes.json();
+                        const publicKeyJwk = oldDoc.verificationMethod?.[0]?.publicKeyJwk;
+                        const didKey = (oldDoc.alsoKnownAs || []).find(a => a.startsWith('did:key:'));
+                        const services = (oldDoc.service || []).filter(s => s.type !== 'KVStore');
+
+                        if (publicKeyJwk && didKey) {
+                            const oldDidWeb = `did:web:${new URL(oldUrl).hostname}:users:${oldUsername}`;
+                            const newDidWeb = `did:web:${new URL(newUrl).hostname}:users:${newUsername}`;
+
+                            // alsoKnownAs for new server: include old server's did:web
+                            const newAlsoKnownAs = (oldDoc.alsoKnownAs || [])
+                                .filter(a => !a.startsWith('did:key:'));
+                            if (!newAlsoKnownAs.includes(oldDidWeb)) newAlsoKnownAs.push(oldDidWeb);
+
+                            await fetch(`${newUrl}/auth/did`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + newToken },
+                                body: JSON.stringify({ publicKeyJwk, didKey, service: services, alsoKnownAs: newAlsoKnownAs })
+                            });
+
+                            // alsoKnownAs for old server: include new server's did:web
+                            const oldAlsoKnownAs = [...newAlsoKnownAs];
+                            if (!oldAlsoKnownAs.includes(newDidWeb)) oldAlsoKnownAs.push(newDidWeb);
+
+                            await fetch(`${oldUrl}/auth/did`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + oldToken },
+                                body: JSON.stringify({ publicKeyJwk, didKey, service: services, alsoKnownAs: oldAlsoKnownAs })
+                            });
+                        }
+                    }
+                } catch (err) {
+                    console.warn('DID linking failed:', err);
+                    errors++;
+                }
+            }
+
+            const srcHost = new URL(oldUrl).hostname;
+            const dstHost = new URL(newUrl).hostname;
+            progressEl.innerHTML = `
+                <p style="color:green; font-weight:bold;">Migration complete!</p>
+                <p>${done} of ${kvs.length} entries migrated successfully.${errors > 0 ? ` <span style="color:#c44;">(${errors} error${errors !== 1 ? 's' : ''} — see browser console)</span>` : ''}</p>
+                ${hasDid ? `<p>DID identity linked between <strong>${srcHost}</strong> and <strong>${dstHost}</strong>.</p>` : ''}
+                <p style="font-size:0.85em; margin-top:0.8em;"><strong>Next steps:</strong> Log out, then use the "Change" link on the login screen to switch to <strong>${dstHost}</strong>.</p>`;
+
+        } catch (err) {
+            console.error('migrateRun failed:', err);
+            progressEl.textContent = `Migration failed: ${err.message}`;
+        }
+
+        _migrateCtx = null;
+    }
+
+    function migrateReset() {
+        _migrateCtx = null;
+        document.getElementById('migrate-step-1').style.display = 'block';
+        document.getElementById('migrate-step-2').style.display = 'none';
+        document.getElementById('migrate-progress').style.display = 'none';
+    }
 
 </script>
 </body>

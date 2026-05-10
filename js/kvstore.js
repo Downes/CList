@@ -96,6 +96,16 @@ document.addEventListener('DOMContentLoaded', function() {
         loginRequired("Session key cleared. Please log in again.");
     } else {
         loginNotRequired();
+        // Fetch accounts on reload so Read/Post buttons reflect the user's saved accounts.
+        // (accounts array is empty at page load; it's normally populated only after login)
+        getAccounts(flaskSiteUrl).then(accts => {
+            if (accts) {
+                accounts = accts;
+                if (typeof populateReadAccountList === 'function') populateReadAccountList(accts);
+                if (typeof populatePostOptions    === 'function') populatePostOptions(accts);
+                updateUIVisibility();
+            }
+        }).catch(e => console.warn('Could not fetch accounts on reload:', e));
     }
 
 

@@ -97,12 +97,12 @@
         }
 
         async function addOrUpdateKeyValue() {
-            if (!currentSchema) { alert('No account type selected.'); return; }
+            if (!currentSchema) { window.parent.showStatusMessage('No account type selected.'); return; }
             const token = getSiteSpecificCookie(flaskSiteUrl, 'access_token');
 
             const keyEl = document.getElementById('_keyInput');
             const key = keyEl ? keyEl.value.trim() : '';
-            if (!key) { alert('Please enter a value for "' + currentSchema.kvKey.label + '".'); return; }
+            if (!key) { window.parent.showStatusMessage('Please enter a value for "' + currentSchema.kvKey.label + '".'); return; }
 
             // Build instanceData from schema
             const instanceData = { type: currentSchema.type };
@@ -111,7 +111,7 @@
                 const el = document.getElementById(field.key + 'Input');
                 instanceData[field.key] = el ? el.value : (field.default || '');
             }
-            if (!instanceData.title) { alert('Please enter a Title.'); return; }
+            if (!instanceData.title) { window.parent.showStatusMessage('Please enter a Title.'); return; }
 
             let encryptedValue;
             try {
@@ -138,6 +138,8 @@
                     try {
                         accounts = await window.parent.getAccounts(flaskSiteUrl);
                         window.parent.populatePostOptions(accounts);
+                        window.parent.populateReadAccountList(accounts);
+                        window.parent.updateUIVisibility();
                     } catch (error) {
                         console.error('Error fetching accounts:', error);
                     } finally {
@@ -146,16 +148,16 @@
                     }
                 })();
             })
-            .catch(error => alert('Error saving account: ' + error));
+            .catch(error => window.parent.showStatusMessage('Error saving account: ' + error));
         }
 
         async function setFormValues(targetKey) {
             const matchingAccount = accounts.find(account => account.key === targetKey);
-            if (!matchingAccount) { alert("Can't find account: " + targetKey); return; }
+            if (!matchingAccount) { window.parent.showStatusMessage("Can't find account: " + targetKey); return; }
             const valueData = JSON.parse(matchingAccount.value);
 
             const schema = window.parent.accountSchemas && window.parent.accountSchemas[valueData.type];
-            if (!schema) { alert('No schema for account type: ' + (valueData.type || 'unknown')); return; }
+            if (!schema) { window.parent.showStatusMessage('No schema for account type: ' + (valueData.type || 'unknown')); return; }
 
             buildFormFields(schema, 'edit', { _key: targetKey, ...valueData });
 
@@ -215,6 +217,7 @@
             }
             closeForm();
             document.getElementById('kvList').style.display = 'none';
+            document.getElementById('add-account-header').style.display = 'none';
             showTypePicker();
         }
 
@@ -273,7 +276,7 @@
             }
 
             const schema = window.parent.accountSchemas && window.parent.accountSchemas[type];
-            if (!schema) { alert('No schema for account type: ' + type); return; }
+            if (!schema) { window.parent.showStatusMessage('No schema for account type: ' + type); return; }
 
             cancelAdd();
             buildFormFields(schema, 'create', {});
@@ -353,12 +356,13 @@
         function cancelAdd() {
             document.getElementById('add-flow').style.display = 'none';
             document.getElementById('kvList').style.display = 'block';
+            document.getElementById('add-account-header').style.display = '';
         }
 
         function submitMastodonUsername() {
             const username = document.getElementById('mastodon-username-input').value.trim();
             if (!username.includes('@')) {
-                alert('Please enter your username as you@instance.social');
+                window.parent.showStatusMessage('Please enter your username as you@instance.social');
                 return;
             }
             window.top.mastodonOAuthStart(username, username, 'rw');
@@ -469,6 +473,8 @@
                     try {
                         accounts = await window.parent.getAccounts(flaskSiteUrl);
                         window.parent.populatePostOptions(accounts);
+                        window.parent.populateReadAccountList(accounts);
+                        window.parent.updateUIVisibility();
                     } catch (error) {
                         console.error('Error fetching accounts:', error);
                     } finally {
@@ -476,9 +482,9 @@
                         getSite(flaskSiteUrl);
                     }
                 })
-                .catch(error => alert('Error deleting key-value pair: ' + error));
+                .catch(error => window.parent.showStatusMessage('Error deleting account: ' + error));
             } else {
-                alert('No key specified for deletion.');
+                window.parent.showStatusMessage('No key specified for deletion.');
             }
         }
 
@@ -488,7 +494,7 @@
 
             //localStorage.removeItem('token');
             
-            alert('You have been logged out.');
+            window.parent.showStatusMessage('You have been logged out.');
 
             // Redirect to the login page with the current URL as the 'next' parameter
             const currentUrl = encodeURIComponent(parent.window.location.href);
@@ -516,7 +522,7 @@
         // Site Specific Cookies
 
         function deriveSiteIdentifier(flaskSiteUrl) {
-            if (!flaskSiteUrl) { alert('No flaskSiteUrl provided'); console.error("No flask site URL provided."); } //
+            if (!flaskSiteUrl) { console.error("No flask site URL provided."); } //
             return new URL(flaskSiteUrl).hostname.replace(/\./g, '_');
         }
 
@@ -572,7 +578,7 @@
                     console.log("Username set in local storage: "+username);
                 } else {
                     // If we don't have a username by now we're going to need to login
-                    alert("Please login.");
+                    window.parent.showStatusMessage('Please log in.');
                 }
 
 
