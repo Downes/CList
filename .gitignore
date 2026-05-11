@@ -15,5 +15,10 @@ certs/
 # Runtime state
 .launcher-port
 
+# PyInstaller build output
+CList.spec
+build/
+dist/
+
 # Node (if ever used for tooling)
 node_modules/

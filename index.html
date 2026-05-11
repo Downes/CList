@@ -2,8 +2,9 @@
 <html lang="en">
 <head>
   <script> <!-- Beacuse my stupid server defaults to http -->
-    if (window.location.protocol === "http:") {
-    window.location.href = window.location.href.replace("http:", "https:");
+    const _h = window.location.hostname;
+    if (window.location.protocol === "http:" && _h !== "localhost" && _h !== "127.0.0.1") {
+      window.location.href = window.location.href.replace("http:", "https:");
     }
   </script>
   <meta charset="UTF-8">

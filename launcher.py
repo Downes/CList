@@ -117,13 +117,35 @@ class CListHandler(http.server.SimpleHTTPRequestHandler):
             self.send_error(404, 'Not found')
 
     def _serve_runtime_config(self):
-        """Return a JS snippet that sets window._launcherConfig."""
-        content = (
+        """Return a JS snippet that sets window._launcherConfig and installs a kvstore fetch proxy."""
+        proxy_base = json.dumps(BASE_URL + KVSTORE_PREFIX)
+        js = (
             f'window._launcherConfig = {{'
-            f' kvstoreUrl: {json.dumps(BASE_URL + KVSTORE_PREFIX)},'
+            f' kvstoreUrl: {json.dumps(KVSTORE_URL)},'
             f' port: {PORT}'
             f' }};\n'
-        ).encode()
+            # Intercept fetch calls to flaskSiteUrl and route them through the local proxy,
+            # avoiding CORS restrictions without changing any kvstore call sites.
+            # X-Kvstore-Target tells the proxy which upstream server to forward to,
+            # so changing flaskSiteUrl (server switch) is transparently picked up.
+            '(function(){\n'
+            f'  var _proxy={proxy_base};\n'
+            '  var _real=window.fetch;\n'
+            '  window.fetch=function fetchWithKvstoreProxy(input,init){\n'
+            '    try{\n'
+            '      var url=typeof input==="string"?input:(input instanceof Request?input.url:String(input));\n'
+            '      var up=typeof flaskSiteUrl==="string"&&flaskSiteUrl.startsWith("http")?flaskSiteUrl:null;\n'
+            '      if(up&&(url.startsWith(up+"/")||url===up)){\n'
+            '        var hdrs=new Headers((init&&init.headers)||{});\n'
+            '        hdrs.set("X-Kvstore-Target",up);\n'
+            '        return _real(_proxy+url.slice(up.length),Object.assign({},init,{headers:hdrs}));\n'
+            '      }\n'
+            '    }catch(_){}\n'
+            '    return _real(input,init);\n'
+            '  };\n'
+            '})();\n'
+        )
+        content = js.encode()
         self.send_response(200)
         self.send_header('Content-Type', 'application/javascript')
         self.send_header('Content-Length', str(len(content)))
@@ -197,8 +219,11 @@ class CListHandler(http.server.SimpleHTTPRequestHandler):
         so no CORS restriction), and the launcher forwards each request to
         KVSTORE_URL/... server-side where CORS does not apply.
         """
-        tail = self.path[len(KVSTORE_PREFIX):]
-        target_url = KVSTORE_URL + tail
+        # X-Kvstore-Target lets the JS tell us which upstream to forward to,
+        # so the user can switch kvstore servers without bypassing the proxy.
+        upstream   = self.headers.get('X-Kvstore-Target', '').strip() or KVSTORE_URL
+        tail       = self.path[len(KVSTORE_PREFIX):]
+        target_url = upstream + tail
 
         length = int(self.headers.get('Content-Length', 0))
         body   = self.rfile.read(length) if length > 0 else None
@@ -208,6 +233,7 @@ class CListHandler(http.server.SimpleHTTPRequestHandler):
             v = self.headers.get(h)
             if v:
                 forward_headers[h] = v
+        # X-Kvstore-Target is consumed here — not forwarded to the upstream server
 
         req = urllib.request.Request(
             target_url,
@@ -269,7 +295,8 @@ def main():
     thread.start()
 
     if not wait_for_server(BASE_URL):
-        print('Warning: server did not start within 5 seconds', file=sys.stderr)
+        if sys.stderr:
+            print('Warning: server did not start within 5 seconds', file=sys.stderr)
 
     port_file = os.path.join(BASE_DIR, '.launcher-port')
     with open(port_file, 'w') as f:
@@ -278,7 +305,8 @@ def main():
     print(f'CList running at {BASE_URL}')
     print(f'kvstore: {KVSTORE_URL}')
     print('Press Ctrl+C to stop.')
-    sys.stdout.flush()
+    if sys.stdout:
+        sys.stdout.flush()
 
     webbrowser.open(BASE_URL)
 
