@@ -3,9 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <title>KV Board</title>
+    <script src="runtime-config.js" onerror="void 0"></script>
     <script>
         let username;   // Global variable to store the username
         let flaskSiteUrl = 'https://kvstore.mooc.ca';  // Base URL of your account server
+        const _savedKvUrl = localStorage.getItem('clist_kvstore_url');
+        if (_savedKvUrl) flaskSiteUrl = _savedKvUrl;
+        if (window._launcherConfig && window._launcherConfig.kvstoreUrl) flaskSiteUrl = window._launcherConfig.kvstoreUrl;
         let accounts = [];
        </script> <!-- Global variable to store accounts, filled by kvstore.js -->
     <script>

@@ -26,6 +26,7 @@ import json
 import urllib.request
 import urllib.parse
 import urllib.error
+import ssl
 import sys
 import os
 import socket
@@ -60,13 +61,15 @@ def find_free_port():
 args     = parse_args()
 BASE_DIR = get_base_dir()
 PORT     = find_free_port()
-BASE_URL = f'http://127.0.0.1:{PORT}'
+BASE_URL = f'https://127.0.0.1:{PORT}'
 
 KVSTORE_URL = (
     args.kvstore
     or os.environ.get('CLIST_KVSTORE_URL')
     or 'https://kvstore.mooc.ca'
 )
+
+KVSTORE_PREFIX = '/kvstore-api'
 
 
 # ---------------------------------------------------------------------------
@@ -82,12 +85,31 @@ class CListHandler(http.server.SimpleHTTPRequestHandler):
         path = self.path.split('?')[0]
         if path == '/runtime-config.js':
             self._serve_runtime_config()
+        elif path.startswith(KVSTORE_PREFIX + '/') or path == KVSTORE_PREFIX:
+            self._handle_kvstore_proxy()
         else:
             super().do_GET()
 
     def do_POST(self):
+        path = self.path.split('?')[0]
         if self.path == '/oauth/token':
             self._handle_token_exchange()
+        elif path.startswith(KVSTORE_PREFIX + '/') or path == KVSTORE_PREFIX:
+            self._handle_kvstore_proxy()
+        else:
+            self.send_error(404, 'Not found')
+
+    def do_DELETE(self):
+        path = self.path.split('?')[0]
+        if path.startswith(KVSTORE_PREFIX + '/') or path == KVSTORE_PREFIX:
+            self._handle_kvstore_proxy()
+        else:
+            self.send_error(404, 'Not found')
+
+    def do_OPTIONS(self):
+        path = self.path.split('?')[0]
+        if path.startswith(KVSTORE_PREFIX + '/') or path == KVSTORE_PREFIX:
+            self._handle_kvstore_proxy()
         else:
             self.send_error(404, 'Not found')
 
@@ -95,7 +117,7 @@ class CListHandler(http.server.SimpleHTTPRequestHandler):
         """Return a JS snippet that sets window._launcherConfig."""
         content = (
             f'window._launcherConfig = {{'
-            f' kvstoreUrl: {json.dumps(KVSTORE_URL)},'
+            f' kvstoreUrl: {json.dumps(BASE_URL + KVSTORE_PREFIX)},'
             f' port: {PORT}'
             f' }};\n'
         ).encode()
@@ -128,6 +150,8 @@ class CListHandler(http.server.SimpleHTTPRequestHandler):
                 'redirect_uri': params['redirectUri'],
                 'client_id':    params['clientId'],
             }
+            if params.get('clientSecret'):
+                post_fields['client_secret'] = params['clientSecret']
             if params.get('codeVerifier'):
                 post_fields['code_verifier'] = params['codeVerifier']
 
@@ -162,6 +186,58 @@ class CListHandler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(error_body)
 
+    def _handle_kvstore_proxy(self):
+        """
+        Proxy all kvstore API requests to the upstream kvstore server.
+
+        The browser talks to https://127.0.0.1:PORT/kvstore-api/... (same origin,
+        so no CORS restriction), and the launcher forwards each request to
+        KVSTORE_URL/... server-side where CORS does not apply.
+        """
+        tail = self.path[len(KVSTORE_PREFIX):]
+        target_url = KVSTORE_URL + tail
+
+        length = int(self.headers.get('Content-Length', 0))
+        body   = self.rfile.read(length) if length > 0 else None
+
+        forward_headers = {}
+        for h in ('Authorization', 'Content-Type'):
+            v = self.headers.get(h)
+            if v:
+                forward_headers[h] = v
+
+        req = urllib.request.Request(
+            target_url,
+            data=body,
+            headers=forward_headers,
+            method=self.command,
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                resp_body    = resp.read()
+                content_type = resp.headers.get('Content-Type', 'application/json')
+            self.send_response(200)
+            self.send_header('Content-Type', content_type)
+            self.send_header('Content-Length', str(len(resp_body)))
+            self.end_headers()
+            self.wfile.write(resp_body)
+
+        except urllib.error.HTTPError as e:
+            resp_body = e.read()
+            self.send_response(e.code)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(resp_body)))
+            self.end_headers()
+            self.wfile.write(resp_body)
+
+        except Exception as e:
+            error_body = json.dumps({'error': str(e)}).encode()
+            self.send_response(500)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(error_body)))
+            self.end_headers()
+            self.wfile.write(error_body)
+
     def log_message(self, format, *args):
         pass  # suppress per-request logging to keep the console clean
 
@@ -173,9 +249,12 @@ class CListHandler(http.server.SimpleHTTPRequestHandler):
 def wait_for_server(url, timeout=5.0):
     """Poll until the server is accepting connections."""
     deadline = time.time() + timeout
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
     while time.time() < deadline:
         try:
-            urllib.request.urlopen(url + '/runtime-config.js', timeout=1)
+            urllib.request.urlopen(url + '/runtime-config.js', timeout=1, context=ctx)
             return True
         except Exception:
             time.sleep(0.05)
@@ -186,15 +265,30 @@ def main():
     server = socketserver.TCPServer(('127.0.0.1', PORT), CListHandler)
     server.allow_reuse_address = True
 
+    cert_dir  = os.path.join(BASE_DIR, 'certs')
+    certfile  = os.path.join(cert_dir, '127.0.0.1.pem')
+    keyfile   = os.path.join(cert_dir, '127.0.0.1-key.pem')
+    if os.path.exists(certfile) and os.path.exists(keyfile):
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ctx.load_cert_chain(certfile, keyfile)
+        server.socket = ctx.wrap_socket(server.socket, server_side=True)
+    else:
+        print('Warning: TLS cert not found in certs/, serving plain HTTP', file=sys.stderr)
+
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
 
     if not wait_for_server(BASE_URL):
         print('Warning: server did not start within 5 seconds', file=sys.stderr)
 
+    port_file = os.path.join(BASE_DIR, '.launcher-port')
+    with open(port_file, 'w') as f:
+        f.write(str(PORT))
+
     print(f'CList running at {BASE_URL}')
     print(f'kvstore: {KVSTORE_URL}')
     print('Press Ctrl+C to stop.')
+    sys.stdout.flush()
 
     webbrowser.open(BASE_URL)
 

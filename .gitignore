@@ -9,5 +9,11 @@ Thumbs.db
 *.env
 *.local
 
+# mkcert TLS certificates (machine-local, never commit the private key)
+certs/
+
+# Runtime state
+.launcher-port
+
 # Node (if ever used for tooling)
 node_modules/

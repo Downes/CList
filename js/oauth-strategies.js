@@ -20,7 +20,7 @@ const OAuthStrategies = {
 
     async exchangeCode(code, { instanceUrl, tokenPath, clientId, clientSecret, redirectUri, codeVerifier, mode }) {
         if (mode === 'desktop-local') {
-            return this._exchangeViaBroker(code, { instanceUrl, tokenPath, clientId, redirectUri, codeVerifier });
+            return this._exchangeViaBroker(code, { instanceUrl, tokenPath, clientId, clientSecret, redirectUri, codeVerifier });
         }
         return this._exchangeDirect(code, { instanceUrl, tokenPath, clientId, clientSecret, redirectUri, codeVerifier });
     },
@@ -51,12 +51,12 @@ const OAuthStrategies = {
 
     // The desktop launcher exposes POST /oauth/token which proxies the exchange,
     // avoiding CORS restrictions on Mastodon instances.
-    async _exchangeViaBroker(code, { instanceUrl, tokenPath, clientId, redirectUri, codeVerifier }) {
+    async _exchangeViaBroker(code, { instanceUrl, tokenPath, clientId, clientSecret, redirectUri, codeVerifier }) {
         const brokerUrl = window.location.origin + '/oauth/token';
         const response = await fetch(brokerUrl, {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ code, instanceUrl, tokenPath, clientId, redirectUri, codeVerifier }),
+            body:    JSON.stringify({ code, instanceUrl, tokenPath, clientId, clientSecret, redirectUri, codeVerifier }),
         });
         if (!response.ok) {
             const errText = await response.text().catch(() => '');
