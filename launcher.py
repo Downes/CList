@@ -2,9 +2,13 @@
 """
 CList desktop launcher — stdlib only.
 
-Starts a local HTTP server on a random port at 127.0.0.1, opens CList in
-the default browser, and proxies OAuth token exchanges so Mastodon CORS
-restrictions do not block the authorization code flow.
+Starts a local HTTP server on a random port bound to 127.0.0.1, opens
+CList at http://localhost:PORT in the default browser, and proxies OAuth
+token exchanges and kvstore API calls so no CORS configuration is needed.
+
+http://localhost is treated as a secure context by all major browsers
+(SubtleCrypto, etc. all work), and Firefox's HTTPS-Only mode exempts it,
+so no TLS certificates are required.
 
 Usage:
     python launcher.py [--kvstore URL]
@@ -26,7 +30,6 @@ import json
 import urllib.request
 import urllib.parse
 import urllib.error
-import ssl
 import sys
 import os
 import socket
@@ -61,7 +64,7 @@ def find_free_port():
 args     = parse_args()
 BASE_DIR = get_base_dir()
 PORT     = find_free_port()
-BASE_URL = f'https://127.0.0.1:{PORT}'
+BASE_URL = f'http://localhost:{PORT}'
 
 KVSTORE_URL = (
     args.kvstore
@@ -92,7 +95,7 @@ class CListHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_POST(self):
         path = self.path.split('?')[0]
-        if self.path == '/oauth/token':
+        if path == '/oauth/token':
             self._handle_token_exchange()
         elif path.startswith(KVSTORE_PREFIX + '/') or path == KVSTORE_PREFIX:
             self._handle_kvstore_proxy()
@@ -190,7 +193,7 @@ class CListHandler(http.server.SimpleHTTPRequestHandler):
         """
         Proxy all kvstore API requests to the upstream kvstore server.
 
-        The browser talks to https://127.0.0.1:PORT/kvstore-api/... (same origin,
+        The browser talks to http://localhost:PORT/kvstore-api/... (same origin,
         so no CORS restriction), and the launcher forwards each request to
         KVSTORE_URL/... server-side where CORS does not apply.
         """
@@ -249,12 +252,9 @@ class CListHandler(http.server.SimpleHTTPRequestHandler):
 def wait_for_server(url, timeout=5.0):
     """Poll until the server is accepting connections."""
     deadline = time.time() + timeout
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
     while time.time() < deadline:
         try:
-            urllib.request.urlopen(url + '/runtime-config.js', timeout=1, context=ctx)
+            urllib.request.urlopen(url + '/runtime-config.js', timeout=1)
             return True
         except Exception:
             time.sleep(0.05)
@@ -264,16 +264,6 @@ def wait_for_server(url, timeout=5.0):
 def main():
     server = socketserver.TCPServer(('127.0.0.1', PORT), CListHandler)
     server.allow_reuse_address = True
-
-    cert_dir  = os.path.join(BASE_DIR, 'certs')
-    certfile  = os.path.join(cert_dir, '127.0.0.1.pem')
-    keyfile   = os.path.join(cert_dir, '127.0.0.1-key.pem')
-    if os.path.exists(certfile) and os.path.exists(keyfile):
-        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-        ctx.load_cert_chain(certfile, keyfile)
-        server.socket = ctx.wrap_socket(server.socket, server_side=True)
-    else:
-        print('Warning: TLS cert not found in certs/, serving plain HTTP', file=sys.stderr)
 
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
