@@ -22,3 +22,6 @@ dist/
 
 # Node (if ever used for tooling)
 node_modules/
+
+# Bundled build tools (downloaded by build scripts, not committed)
+tools/

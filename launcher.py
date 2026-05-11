@@ -3,12 +3,12 @@
 CList desktop launcher — stdlib only.
 
 Starts a local HTTP server on a random port bound to 127.0.0.1, opens
-CList at http://localhost:PORT in the default browser, and proxies OAuth
-token exchanges and kvstore API calls so no CORS configuration is needed.
+CList in the default browser, and proxies OAuth token exchanges and kvstore
+API calls so no CORS configuration is needed.
 
-http://localhost is treated as a secure context by all major browsers
-(SubtleCrypto, etc. all work), and Firefox's HTTPS-Only mode exempts it,
-so no TLS certificates are required.
+On Windows and macOS the launcher sets up a locally-trusted TLS certificate
+(via bundled mkcert) on first run and serves over HTTPS. On Linux it falls
+back to plain HTTP with instructions for manual cert setup.
 
 Usage:
     python launcher.py [--kvstore URL]
@@ -18,8 +18,10 @@ Options:
                     Defaults to the CLIST_KVSTORE_URL environment variable,
                     or https://kvstore.mooc.ca if neither is set.
 
-Build (run from the project root, requires PyInstaller):
-    pyinstaller --onefile --noconsole launcher.py
+Build (run from the project root):
+    Windows:  .\\build-windows.ps1
+    macOS:    ./build-macos.sh
+    Linux:    ./build-linux.sh
 """
 
 import http.server
@@ -30,8 +32,12 @@ import json
 import urllib.request
 import urllib.parse
 import urllib.error
+import ssl
 import sys
 import os
+import platform
+import subprocess
+import shutil
 import socket
 import argparse
 import time
@@ -64,7 +70,7 @@ def find_free_port():
 args     = parse_args()
 BASE_DIR = get_base_dir()
 PORT     = find_free_port()
-BASE_URL = f'http://localhost:{PORT}'
+BASE_URL = None  # set in main() after TLS detection
 
 KVSTORE_URL = (
     args.kvstore
@@ -73,6 +79,152 @@ KVSTORE_URL = (
 )
 
 KVSTORE_PREFIX = '/kvstore-api'
+
+
+# ---------------------------------------------------------------------------
+# TLS setup (Windows and macOS only; Linux gets plain HTTP with instructions)
+# ---------------------------------------------------------------------------
+
+def get_certs_dir():
+    """Return the platform-appropriate user data directory for TLS certs."""
+    system = platform.system()
+    if system == 'Windows':
+        base = os.environ.get('APPDATA', os.path.expanduser('~'))
+        return os.path.join(base, 'CList', 'certs')
+    elif system == 'Darwin':
+        return os.path.join(
+            os.path.expanduser('~'), 'Library', 'Application Support', 'CList', 'certs'
+        )
+    else:
+        xdg = os.environ.get('XDG_CONFIG_HOME', os.path.expanduser('~/.config'))
+        return os.path.join(xdg, 'clist', 'certs')
+
+
+def get_mkcert_exe():
+    """Find mkcert: bundled in the PyInstaller package, or on system PATH."""
+    if getattr(sys, 'frozen', False):
+        system = platform.system()
+        name   = 'mkcert.exe' if system == 'Windows' else 'mkcert-darwin'
+        path   = os.path.join(sys._MEIPASS, 'tools', name)
+        if os.path.exists(path):
+            return path
+    return shutil.which('mkcert')
+
+
+def _install_ca_firefox_windows(mkcert_exe):
+    """
+    Add the mkcert CA to every Firefox profile on Windows.
+
+    The prebuilt mkcert Windows binary lacks built-in Firefox/NSS support, so
+    we locate Firefox's own certutil.exe and drive it directly.
+    """
+    firefox_dirs = [
+        r'C:\Program Files\Mozilla Firefox',
+        r'C:\Program Files (x86)\Mozilla Firefox',
+    ]
+    certutil = next(
+        (os.path.join(d, 'certutil.exe') for d in firefox_dirs
+         if os.path.exists(os.path.join(d, 'certutil.exe'))),
+        None
+    )
+    if not certutil:
+        return
+
+    result = subprocess.run([mkcert_exe, '-CAROOT'], capture_output=True, text=True)
+    if result.returncode != 0:
+        return
+    ca_cert = os.path.join(result.stdout.strip(), 'rootCA.pem')
+    if not os.path.exists(ca_cert):
+        return
+
+    profiles_base = os.path.join(
+        os.environ.get('APPDATA', ''), 'Mozilla', 'Firefox', 'Profiles'
+    )
+    if not os.path.isdir(profiles_base):
+        return
+
+    for profile in os.listdir(profiles_base):
+        profile_path = os.path.join(profiles_base, profile)
+        if os.path.isdir(profile_path):
+            subprocess.run([
+                certutil, '-A',
+                '-n', 'CList Local CA',
+                '-t', 'CT,,',
+                '-i', ca_cert,
+                '-d', 'sql:' + profile_path,
+            ], capture_output=True)
+
+
+def setup_tls(certs_dir):
+    """
+    Generate TLS certs using mkcert on first run.
+    Returns (certfile, keyfile) on success, or None on failure/Linux.
+    """
+    system = platform.system()
+    if system == 'Linux':
+        return None
+
+    mkcert = get_mkcert_exe()
+    if not mkcert:
+        return None
+
+    os.makedirs(certs_dir, exist_ok=True)
+    certfile = os.path.join(certs_dir, 'localhost.pem')
+    keyfile  = os.path.join(certs_dir, 'localhost-key.pem')
+
+    if system == 'Darwin':
+        os.chmod(mkcert, 0o755)
+
+    # Install the local CA into the system trust store.
+    # On Windows this writes to CURRENT_USER\Root (no admin needed).
+    # On macOS this pops the standard keychain password dialog.
+    result = subprocess.run([mkcert, '-install'], capture_output=True)
+    if result.returncode != 0:
+        return None
+
+    # Windows: also import into Firefox, which the prebuilt binary can't do itself.
+    if system == 'Windows':
+        _install_ca_firefox_windows(mkcert)
+
+    # Generate the cert for localhost / 127.0.0.1.
+    result = subprocess.run([
+        mkcert,
+        '-cert-file', certfile,
+        '-key-file',  keyfile,
+        'localhost', '127.0.0.1',
+    ], capture_output=True)
+
+    if result.returncode != 0 or not os.path.exists(certfile):
+        return None
+
+    return certfile, keyfile
+
+
+def get_or_create_certs():
+    """
+    Return (certfile, keyfile) for TLS, running first-run setup if needed.
+    Returns None on Linux or if setup fails.
+    """
+    certs_dir = get_certs_dir()
+    certfile  = os.path.join(certs_dir, 'localhost.pem')
+    keyfile   = os.path.join(certs_dir, 'localhost-key.pem')
+
+    if os.path.exists(certfile) and os.path.exists(keyfile):
+        return certfile, keyfile
+
+    return setup_tls(certs_dir)
+
+
+def print_linux_tls_instructions():
+    certs_dir = get_certs_dir()
+    certfile  = os.path.join(certs_dir, 'localhost.pem')
+    keyfile   = os.path.join(certs_dir, 'localhost-key.pem')
+    print('Running over HTTP (no TLS certs found).')
+    print('To enable HTTPS and unlock providers that require it (e.g. WordPress):')
+    print('  1. Install mkcert: https://github.com/FiloSottile/mkcert#installation')
+    print('  2. mkcert -install')
+    print(f'  3. mkcert -cert-file "{certfile}" -key-file "{keyfile}" localhost 127.0.0.1')
+    print('  4. Relaunch CList.')
 
 
 # ---------------------------------------------------------------------------
@@ -223,9 +375,9 @@ class CListHandler(http.server.SimpleHTTPRequestHandler):
         """
         Proxy all kvstore API requests to the upstream kvstore server.
 
-        The browser talks to http://localhost:PORT/kvstore-api/... (same origin,
-        so no CORS restriction), and the launcher forwards each request to
-        KVSTORE_URL/... server-side where CORS does not apply.
+        The browser talks to BASE_URL/kvstore-api/... (same origin, so no CORS
+        restriction), and the launcher forwards each request to KVSTORE_URL/...
+        server-side where CORS does not apply.
         """
         # X-Kvstore-Target lets the JS tell us which upstream to forward to,
         # so the user can switch kvstore servers without bypassing the proxy.
@@ -286,9 +438,17 @@ class CListHandler(http.server.SimpleHTTPRequestHandler):
 def wait_for_server(url, timeout=5.0):
     """Poll until the server is accepting connections."""
     deadline = time.time() + timeout
+    ctx = None
+    if url.startswith('https'):
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
     while time.time() < deadline:
         try:
-            urllib.request.urlopen(url + '/runtime-config.js', timeout=1)
+            kwargs = {'timeout': 1}
+            if ctx:
+                kwargs['context'] = ctx
+            urllib.request.urlopen(url + '/runtime-config.js', **kwargs)
             return True
         except Exception:
             time.sleep(0.05)
@@ -296,8 +456,26 @@ def wait_for_server(url, timeout=5.0):
 
 
 def main():
+    global BASE_URL
+
+    # Determine TLS availability and set BASE_URL accordingly.
+    certs = get_or_create_certs()
+    if certs:
+        certfile, keyfile = certs
+        BASE_URL = f'https://localhost:{PORT}'
+    else:
+        certfile = keyfile = None
+        BASE_URL = f'http://localhost:{PORT}'
+        if platform.system() == 'Linux':
+            print_linux_tls_instructions()
+
     server = socketserver.TCPServer(('127.0.0.1', PORT), CListHandler)
     server.allow_reuse_address = True
+
+    if certfile and keyfile:
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ctx.load_cert_chain(certfile, keyfile)
+        server.socket = ctx.wrap_socket(server.socket, server_side=True)
 
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
