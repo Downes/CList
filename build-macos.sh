@@ -10,9 +10,12 @@ pyinstaller \
     --noconsole \
     --name "CList" \
     --add-data "index.html:." \
+    --add-data "about.html:." \
     --add-data "callback.html:." \
     --add-data "redirect.html:." \
-    --add-data "about.html:." \
+    --add-data "flasker.html:." \
+    --add-data "me.html:." \
+    --add-data "chat.html:." \
     --add-data "js:js" \
     --add-data "css:css" \
     --add-data "assets:assets" \
