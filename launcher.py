@@ -124,10 +124,18 @@ class CListHandler(http.server.SimpleHTTPRequestHandler):
             f' kvstoreUrl: {json.dumps(KVSTORE_URL)},'
             f' port: {PORT}'
             f' }};\n'
-            # Intercept fetch calls to flaskSiteUrl and route them through the local proxy,
-            # avoiding CORS restrictions without changing any kvstore call sites.
-            # X-Kvstore-Target tells the proxy which upstream server to forward to,
-            # so changing flaskSiteUrl (server switch) is transparently picked up.
+            # Monkey-patch window.fetch to intercept kvstore calls and route them through
+            # the local proxy, avoiding CORS restrictions without touching any call sites.
+            # X-Kvstore-Target tells the proxy which upstream to forward to, so server-
+            # switching (flaskSiteUrl changing at runtime) is transparently picked up.
+            #
+            # RISKS TO KNOW ABOUT:
+            # 1. Fragile global: the patch references window.flaskSiteUrl by name. If that
+            #    variable is ever renamed or moved out of global scope, the proxy silently
+            #    stops working with no error.
+            # 2. JS in a Python string: hard to syntax-highlight, read, or test. If this
+            #    logic grows, extract it into js/launcher-proxy.js and have runtime-config.js
+            #    activate it by checking window._launcherConfig.
             '(function(){\n'
             f'  var _proxy={proxy_base};\n'
             '  var _real=window.fetch;\n'
