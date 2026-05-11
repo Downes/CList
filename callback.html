@@ -10,6 +10,24 @@
     <script>
         window.addEventListener('DOMContentLoaded', async () => {
             const msg = document.getElementById('msg');
+
+            // WordPress Application Passwords callback
+            // WordPress redirects here with site_url, user_login, and password as GET params.
+            const params = new URLSearchParams(window.location.search);
+            if (params.has('site_url') && params.has('user_login') && params.has('password')) {
+                const result = {
+                    providerType: 'WordPress',
+                    siteUrl:   params.get('site_url'),
+                    userLogin: params.get('user_login'),
+                    password:  params.get('password'),
+                };
+                localStorage.setItem('oauth_callback_result', JSON.stringify(result));
+                history.replaceState({}, document.title, window.location.pathname);
+                window.location.href = '/';
+                return;
+            }
+
+            // Standard OAuth callback (Mastodon etc.)
             try {
                 const result = await OAuthClient.handleCallback();
                 if (!result) {
@@ -17,7 +35,6 @@
                     return;
                 }
                 localStorage.setItem('oauth_callback_result', JSON.stringify(result));
-                // Remove code and state from the URL before navigating away
                 history.replaceState({}, document.title, window.location.pathname);
                 window.location.href = '/';
             } catch (err) {

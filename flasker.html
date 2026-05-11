@@ -185,6 +185,7 @@
             currentMode = 'update';
             document.getElementById('submitBtn').textContent = 'Update Account';
             document.getElementById('deleteBtn').style.display = 'inline';
+            document.getElementById('cancelBtn').onclick = tryCloseForm;
             formDirty = false;
         }
 
@@ -242,28 +243,68 @@
             showTypePicker();
         }
 
-        function showTypePicker() {
+        function typePickerIcon(type) {
+            const icons = {
+                Bluesky:   'cloud',
+                OPML:      'rss_feed',
+                WordPress: 'article',
+                Blogger:   'article',
+                Etherpad:  'edit',
+                Collab:    'groups',
+                AI:        'psychology',
+                Proxyp:    'vpn_key',
+            };
+            if (type === 'Mastodon') {
+                const span = document.createElement('span');
+                span.className = 'account-icon-img';
+                span.setAttribute('aria-label', 'Mastodon');
+                return span;
+            }
+            const span = document.createElement('span');
+            span.className = 'material-icons';
+            span.textContent = icons[type] || 'account_circle';
+            return span;
+        }
+
+        window.addEventListener('popstate', function (e) {
+            if (e.state && e.state.view === 'typePicker') showTypePicker(false);
+        });
+
+        function showTypePicker(pushHistory = true) {
+            if (pushHistory) history.pushState({ view: 'typePicker' }, '');
             const flow = document.getElementById('add-flow');
-            flow.innerHTML = `
-                <h3 style="margin:0 0 8px;">Add Account</h3>
-                <div id="type-picker-buttons">
-                    <button class="kv-name-btn" style="margin:3px;width:auto;" onclick="selectAccountType('Mastodon')">Mastodon</button>
-                    <button class="kv-name-btn" style="margin:3px;width:auto;" onclick="selectAccountType('Bluesky')">Bluesky</button>
-                    <button class="kv-name-btn" style="margin:3px;width:auto;" onclick="selectAccountType('WordPress')">WordPress</button>
-                    <button class="kv-name-btn" style="margin:3px;width:auto;" onclick="selectAccountType('OPML')">OPML</button>
-                    <button class="kv-name-btn" style="margin:3px;width:auto;" onclick="selectAccountType('Blogger')">Blogger</button>
-                    <button class="kv-name-btn" style="margin:3px;width:auto;" onclick="selectAccountType('Etherpad')">Etherpad</button>
-                    <button class="kv-name-btn" style="margin:3px;width:auto;" onclick="selectAccountType('Collab')">Collab</button>
-                    <button class="kv-name-btn" style="margin:3px;width:auto;" onclick="selectAccountType('AI')">AI</button>
-                    <button class="kv-name-btn" style="margin:3px;width:auto;" onclick="selectAccountType('Proxyp')">Proxyp</button>
-                </div>
-                <div class="kv-action-buttons" style="margin-top:8px;">
-                    <button class="kv-action-btn kv-cancel-btn" onclick="cancelAdd()">Cancel</button>
-                </div>`;
+            flow.innerHTML = '';
+
+            const heading = document.createElement('div');
+            heading.className = 'list-tip';
+            heading.textContent = 'Pick an account type to add';
+            flow.appendChild(heading);
+
+            const list = document.createElement('div');
+            list.className = 'account-list';
+            ['Mastodon', 'Bluesky', 'WordPress', 'OPML', 'Blogger', 'Etherpad', 'Collab', 'AI', 'Proxyp'].forEach(type => {
+                const btn = document.createElement('button');
+                btn.className = 'account-button';
+                btn.onclick = () => selectAccountType(type);
+                btn.appendChild(typePickerIcon(type));
+                const label = document.createElement('span');
+                label.textContent = type;
+                btn.appendChild(label);
+                list.appendChild(btn);
+            });
+            flow.appendChild(list);
+
+            const actions = document.createElement('div');
+            actions.className = 'kv-action-buttons';
+            actions.style.marginTop = '8px';
+            actions.innerHTML = '<button class="kv-action-btn kv-cancel-btn" onclick="cancelAdd()">Cancel</button>';
+            flow.appendChild(actions);
+
             flow.style.display = 'block';
         }
 
         function selectAccountType(type) {
+            history.pushState({ view: 'form', type }, '');
             if (type === 'Mastodon') {
                 const flow = document.getElementById('add-flow');
                 const inputStyle = 'display:block;width:100%;box-sizing:border-box;padding:0.2rem;font-size:0.8rem;margin:2px 0 8px;';
@@ -298,6 +339,23 @@
                 return;
             }
 
+            if (type === 'WordPress') {
+                const flow = document.getElementById('add-flow');
+                const inputStyle = 'display:block;width:100%;box-sizing:border-box;padding:0.2rem;font-size:0.8rem;margin:2px 0 8px;';
+                const labelStyle = 'font-variant:small-caps;font-size:0.8rem;color:#555;display:block;margin-top:6px;';
+                flow.innerHTML = `
+                    <h3 style="margin:0 0 8px;">Add WordPress Account</h3>
+                    <label style="${labelStyle}">Site URL</label>
+                    <input type="url" id="wp-site-url"
+                           placeholder="https://your-site.com"
+                           style="${inputStyle}">
+                    <div class="kv-action-buttons">
+                        <button class="kv-action-btn kv-save-btn" onclick="authorizeWordPress()">Authorize with WordPress</button>
+                        <button class="kv-action-btn kv-cancel-btn" onclick="showTypePicker()">Back</button>
+                    </div>`;
+                return;
+            }
+
             if (type === 'Collab') {
                 const flow = document.getElementById('add-flow');
                 flow.innerHTML = `
@@ -318,7 +376,7 @@
             const schema = window.parent.accountSchemas && window.parent.accountSchemas[type];
             if (!schema) { window.parent.showStatusMessage('No schema for account type: ' + type); return; }
 
-            cancelAdd();
+            document.getElementById('add-flow').style.display = 'none';
             buildFormFields(schema, 'create', {});
 
             const form = document.getElementById('sharedForm');
@@ -331,6 +389,7 @@
             currentMode = 'add';
             document.getElementById('submitBtn').textContent = 'Add Account';
             document.getElementById('deleteBtn').style.display = 'none';
+            document.getElementById('cancelBtn').onclick = showTypePicker;
             formDirty = false;
         }
 
@@ -397,6 +456,16 @@
             document.getElementById('add-flow').style.display = 'none';
             document.getElementById('kvList').style.display = 'block';
             document.getElementById('add-account-header').style.display = '';
+        }
+
+        function authorizeWordPress() {
+            let siteUrl = document.getElementById('wp-site-url').value.trim();
+            if (!siteUrl) {
+                window.parent.showStatusMessage('Please enter your WordPress site URL.');
+                return;
+            }
+            if (!/^https?:\/\//i.test(siteUrl)) siteUrl = 'https://' + siteUrl;
+            window.top.wpAuthStart(siteUrl);
         }
 
         function submitMastodonUsername() {

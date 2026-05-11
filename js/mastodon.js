@@ -46,13 +46,14 @@ window.accountSchemas['Mastodon'] = {
                     await initializeMasto(baseURL, accessToken);
                 },
                 feedFunctions: {
-                    'Post':      () => openLeftInterface(mastodonStatusForm()),
-                    'Following':  loadMastodonFeed.bind(null, 'home', null),
-                    'Bookmarks':  loadMastodonFeed.bind(null, 'bookmarks', null),
-                    'Lists':      loadMastodonLists.bind(null, 'list', null),
-                    'Local':      loadMastodonFeed.bind(null, 'local', null),
-                    'Hashtag':   () => openLeftInterface(mastodonInputForm('hashtag', 'Enter a hashtag without the #')),
-                    'User':      () => openLeftInterface(mastodonInputForm('user', '@username@instance.social'))
+                    'Post':          () => openLeftInterface(mastodonStatusForm()),
+                    'Following':     loadMastodonFeed.bind(null, 'home', null),
+                    'Notifications': loadMastodonNotifications.bind(null, null),
+                    'Bookmarks':     loadMastodonFeed.bind(null, 'bookmarks', null),
+                    'Lists':         loadMastodonLists.bind(null, 'list', null),
+                    'Local':         loadMastodonFeed.bind(null, 'local', null),
+                    'Hashtag':       () => openLeftInterface(mastodonInputForm('hashtag', 'Enter a hashtag without the #')),
+                    'User':          () => openLeftInterface(mastodonInputForm('user', '@username@instance.social'))
                 }
               };
 
@@ -272,6 +273,23 @@ async function constructThreadData(threadData, statusID, baseURL, accessToken) {
 
 
 
+function renderMastodonNextPageButton(feedContainer, nextPageUrl, onLoadNext) {
+    let btn = document.getElementById('nextPageButton');
+    if (nextPageUrl) {
+        if (!btn) {
+            btn = document.createElement('button');
+            btn.id = 'nextPageButton';
+            btn.textContent = 'Load Next Page';
+            feedContainer.appendChild(btn);
+        }
+        btn.onclick = () => onLoadNext(nextPageUrl);
+        btn.style.display = '';
+    } else if (btn) {
+        btn.style.display = 'none';
+    }
+    if (btn) feedContainer.appendChild(btn);
+}
+
 // Function to load and display Mastodon feeds (GET requests)
 // baseURL and accessToken are global variables
 let nextPageUrl = null;  // To store the URL for the next page
@@ -411,7 +429,9 @@ function displayMastodonFeed(data,type,page,nextPageUrl,feedContainer,typevalue)
 
         // Update the status box content asynchronously
         if (status.reblog) {
-            displayMastodonPost(status.reblog, statusBox, status.account);
+            const a = status.account;
+            displayMastodonPost(status.reblog, statusBox,
+                `Reblogged by <a href="#" onclick="loadMastodonFeed('user',null,'@${a.acct}');return false;">${a.display_name}</a> (@${a.acct}):`);
         } else {
             displayMastodonPost(status, statusBox);
         }
@@ -419,26 +439,76 @@ function displayMastodonFeed(data,type,page,nextPageUrl,feedContainer,typevalue)
 
                                                          // Next Button
 
-    // Show a button to load the next page if there is more data
-    let nextPageButton = document.getElementById('nextPageButton');
-    if (nextPageUrl) {
-        if (!nextPageButton) {
-            nextPageButton = document.createElement('button');
-            nextPageButton.id = 'nextPageButton';
-            nextPageButton.textContent = 'Load Next Page';
-            nextPageButton.onclick = () => loadMastodonFeed(type, nextPageUrl);
-            feedContainer.appendChild(nextPageButton);
-        }
-    } else if (nextPageButton) {
-        nextPageButton.style.display = 'none';  // Hide the button if no next page is available
-    }
-
-    // Push Next Page button to the Bottom
-    if (nextPageButton) feedContainer.appendChild(nextPageButton);
+    renderMastodonNextPageButton(feedContainer, nextPageUrl, url => loadMastodonFeed(type, url));
 
 
 }
 
+
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+
+async function loadMastodonNotifications(pageUrl = null) {
+    const feedContainer = document.getElementById('feed-container');
+    if (!accessToken || !baseURL) {
+        showServiceError(feedContainer, 'Mastodon error', 'Feed client not initialized.',
+            'Select a Mastodon account using the <strong>Find</strong> button.');
+        return;
+    }
+    let page = 1;
+    if (!pageUrl) {
+        feedContainer.innerHTML = '';
+    } else {
+        page++;
+    }
+    const url = pageUrl || `${baseURL}/api/v1/notifications`;
+    let data;
+    try {
+        data = await getMastodonFeed(url, 'notifications', feedContainer);
+    } catch (error) {
+        showServiceError(feedContainer, 'Mastodon notifications error', error.message,
+            'Check your Mastodon account credentials under <strong>Accounts</strong>.');
+        return;
+    }
+    if (data) displayMastodonNotifications(data, page, nextPageUrl, feedContainer);
+}
+
+function displayMastodonNotifications(data, page, nextPageUrl, feedContainer) {
+    if (page === 1) feedContainer.appendChild(createFeedHeader('Notifications'));
+
+    const typeLabels = {
+        mention:        'mentioned you',
+        reblog:         'boosted your post',
+        favourite:      'liked your post',
+        follow:         'followed you',
+        follow_request: 'requested to follow you',
+        poll:           'poll ended',
+        update:         'edited a post',
+        status:         'posted',
+    };
+
+    for (const notification of data) {
+        const statusBox = document.createElement('div');
+        statusBox.classList.add('status-box');
+        feedContainer.appendChild(statusBox);
+
+        const acct = notification.account?.acct || '';
+        const name = notification.account?.display_name || acct;
+        const label = typeLabels[notification.type] || notification.type;
+        const headerHtml = `<a href="#" onclick="loadMastodonFeed('user',null,'@${acct}');return false;">${name}</a> (@${acct}) ${label}`;
+
+        if (notification.status) {
+            displayMastodonPost(notification.status, statusBox, headerHtml);
+        } else {
+            const headerDiv = document.createElement('div');
+            headerDiv.classList.add('reblog-info');
+            headerDiv.innerHTML = headerHtml;
+            statusBox.appendChild(headerDiv);
+        }
+    }
+
+    renderMastodonNextPageButton(feedContainer, nextPageUrl, loadMastodonNotifications);
+}
 
 
 //  Function to Get User Data
@@ -503,7 +573,7 @@ function validateUsername(username, instanceBase) {
 
     // Display a Mastodon Post inside feedContainer
 
-async function displayMastodonPost(status,statusBox,reblogger) {
+async function displayMastodonPost(status, statusBox, headerHtml) {
 
         // Create the status content div
         const statusContent = document.createElement('div');
@@ -522,14 +592,12 @@ async function displayMastodonPost(status,statusBox,reblogger) {
         //  const translatedContent = status.content;
         //console.log(status);
 
-        // Reblog Information
-        if (reblogger && Object.keys(reblogger).length > 0) {
- //alert("Adding reblog info");           
-            const reblogInfo = document.createElement('div');
-            reblogInfo.classList.add('reblog-info');  // Add a class for styling
-            reblogInfo.innerHTML=`Reblogged by <a href="#" onclick="loadMastodonFeed('user',null,'@${reblogger.acct}');return false;" title='View User Thread'">${reblogger.display_name}</a> (@${reblogger.acct}):`;
-            statusContent.appendChild(reblogInfo);
-       }
+        if (headerHtml) {
+            const headerDiv = document.createElement('div');
+            headerDiv.classList.add('reblog-info');
+            headerDiv.innerHTML = headerHtml;
+            statusContent.appendChild(headerDiv);
+        }
 
 
 
@@ -866,10 +934,10 @@ async function mastodonOAuthStart(title, username, permissions) {
 document.addEventListener('DOMContentLoaded', async function () {
     const raw = localStorage.getItem('oauth_callback_result');
     if (!raw) return;
-    localStorage.removeItem('oauth_callback_result');
     let data;
     try { data = JSON.parse(raw); } catch (e) { console.error('Bad oauth_callback_result', e); return; }
     if (data.providerType !== 'Mastodon') return;
+    localStorage.removeItem('oauth_callback_result');
     await saveMastodonAccount(data.extra.title || data.accountKey, data.accountKey, data.accessToken, data.extra.permissions);
 });
 

@@ -231,7 +231,13 @@ async function postAll() {
         }
 
         const url = await handler.publish(accountData, writeColumnTitle, contentToPost);
-        if (url && !publishedURL) publishedURL = url;
+        if (url) {
+            if (!publishedURL) publishedURL = url;
+            const p = document.createElement('p');
+            p.className = 'feed-status-message';
+            p.innerHTML = `Published to ${accountData.title || accountData.type}: <a href="${url}" target="_blank">${url}</a>`;
+            resultDiv.appendChild(p);
+        }
     }
     if (typeof window._onPostAllComplete === 'function') {
         const cb = window._onPostAllComplete;

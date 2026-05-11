@@ -33,13 +33,14 @@ let pds = null;
             await createBlueskySession();
         },
         feedFunctions: {
-            'Post':        () => openLeftInterface(blueskyPostForm()),
-            'Timeline':    fetchBlueskyTimeline.bind(null, 'home'),
-            'Favorites':   fetchBlueskyFavorites.bind(null,'favorites'),
-            'Pinned':      async () => openLeftInterface(await blueskySelectForm('pinned')),
-            'Recommended': async () => openLeftInterface(await blueskySelectForm('recommended')),
-            'What\'s Hot': fetchBlueskyWhatsHotFeed.bind(null,'hot'),
-            'Search':      () => openLeftInterface(blueskySearchForm()),
+            'Post':          () => openLeftInterface(blueskyPostForm()),
+            'Timeline':      fetchBlueskyTimeline.bind(null, 'home'),
+            'Notifications': fetchBlueskyNotifications.bind(null, null),
+            'Favorites':     fetchBlueskyFavorites.bind(null,'favorites'),
+            'Pinned':        async () => openLeftInterface(await blueskySelectForm('pinned')),
+            'Recommended':   async () => openLeftInterface(await blueskySelectForm('recommended')),
+            'What\'s Hot':   fetchBlueskyWhatsHotFeed.bind(null,'hot'),
+            'Search':        () => openLeftInterface(blueskySearchForm()),
         }
     };
     if (typeof window.readerHandlers === 'undefined') {
@@ -694,5 +695,123 @@ async function submitBlueskyPost(content, responseDiv, replyContentId = null, pa
             errP.textContent = `Failed to post: ${error.message}`;
             resultEl.appendChild(errP);
         }
+    }
+}
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+
+async function fetchBlueskyNotifications(cursor = null) {
+    const feedContainer = document.getElementById('feed-container');
+    try {
+        const { accessToken, pds } = await createBlueskySession();
+        let url = `${pds}/xrpc/app.bsky.notification.listNotifications?limit=25`;
+        if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
+
+        const response = await fetch(url, {
+            headers: { 'Authorization': `Bearer ${accessToken}` },
+        });
+        if (!response.ok) {
+            const errBody = await response.json().catch(() => ({}));
+            throw new Error(errBody.message || errBody.error || response.status);
+        }
+        const data = await response.json();
+        await displayBlueskyNotifications(data.notifications || [], data.cursor || null, cursor === null);
+    } catch (error) {
+        showServiceError(feedContainer, 'Bluesky notifications error', error.message,
+            'Check your Bluesky account credentials under <strong>Accounts</strong>.');
+    }
+}
+
+async function displayBlueskyNotifications(notifications, cursor, isFirstPage) {
+    const feedContainer = document.getElementById('feed-container');
+
+    if (isFirstPage) {
+        feedContainer.innerHTML = '';
+        feedContainer.appendChild(createFeedHeader('Notifications'));
+        const summary = document.createElement('div');
+        summary.id = 'feed-summary';
+        feedContainer.appendChild(summary);
+    }
+
+    const reasonLabels = {
+        like:    'liked your post',
+        repost:  'reposted your post',
+        follow:  'followed you',
+        mention: 'mentioned you',
+        reply:   'replied to your post',
+        quote:   'quoted your post',
+    };
+
+    for (const notif of notifications) {
+        const statusBox = document.createElement('div');
+        statusBox.classList.add('status-box');
+
+        const statusContent = document.createElement('div');
+        statusContent.classList.add('status-content');
+        statusBox.appendChild(statusContent);
+
+        const handle = notif.author.handle;
+        const name   = notif.author.displayName || handle;
+        const label  = reasonLabels[notif.reason] || notif.reason;
+
+        const headerDiv = document.createElement('div');
+        headerDiv.classList.add('reblog-info');
+        headerDiv.innerHTML = `<a href="#" onclick="fetchBlueskyUserFeed('${handle}'); return false;">${name}</a> (@${handle}) ${label}`;
+        statusContent.appendChild(headerDiv);
+
+        // mention / reply / quote carry the post text in the notification record
+        if (['mention', 'reply', 'quote'].includes(notif.reason) && notif.record?.text) {
+            const postId  = notif.uri.split('/').pop();
+            const postUrl = `https://bsky.app/profile/${handle}/post/${postId}`;
+
+            let translatedContent;
+            try {
+                translatedContent = await processTranslationWithTimeout(notif.record.text);
+            } catch (e) {
+                translatedContent = notif.record.text;
+            }
+
+            const statusSpecific = document.createElement('div');
+            statusSpecific.classList.add('statusSpecific');
+            statusSpecific.id = postId;
+            statusSpecific.innerHTML = `<p>${translatedContent}</p>`;
+            statusContent.appendChild(statusSpecific);
+
+            statusSpecific.reference = {
+                author_name: name,
+                author_id:   handle,
+                url:         postUrl,
+                title:       'Bluesky',
+                created_at:  notif.indexedAt,
+                id:          postId,
+            };
+
+            const actionButtons = document.createElement('div');
+            actionButtons.classList.add('status-actions');
+            actionButtons.innerHTML = `
+                <button class="material-icons md-18 md-light" onclick="window.open('${postUrl}','_blank','width=800,height=600,scrollbars=yes')">launch</button>
+            `;
+            statusContent.appendChild(actionButtons);
+
+            const clistButtons = document.createElement('div');
+            clistButtons.classList.add('clist-actions');
+            clistButtons.innerHTML = `
+                <button class="material-icons md-18 md-light" onclick="loadContentToEditor('${postId}');" title="Load in editor">arrow_right</button>
+                <button class="clist-action-btn" onclick="shareToChat('${postId}');" title="Share to chat"><span class="material-icons md-18 md-light">chat_bubble_outline</span></button>
+            `;
+            statusBox.appendChild(clistButtons);
+        }
+
+        feedContainer.appendChild(statusBox);
+    }
+
+    const existingButton = document.getElementById('loadMoreButton');
+    if (existingButton) existingButton.remove();
+    if (cursor) {
+        const loadMoreButton = document.createElement('button');
+        loadMoreButton.id = 'loadMoreButton';
+        loadMoreButton.innerText = 'Load More';
+        loadMoreButton.onclick = () => fetchBlueskyNotifications(cursor);
+        feedContainer.appendChild(loadMoreButton);
     }
 }

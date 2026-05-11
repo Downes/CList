@@ -109,7 +109,7 @@ All feed display functions build the same DOM shape inside `#feed-container`:
   ├── #feed-summary                — empty div, reserved for optional summary text
   └── div.status-box               — one per item
         ├── div.status-content
-        │     ├── div.reblog-info        (optional — Mastodon reblogs only)
+        │     ├── div.reblog-info        (optional — Mastodon reblogs and notification headers)
         │     ├── div#[item-id]          — author + summary/content; carries .reference object
         │     ├── div.status-images-container  (optional)
         │     │     └── div.image-item × N

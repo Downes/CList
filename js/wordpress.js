@@ -77,3 +77,77 @@ async function publishPost(instance,username,password,title,content) {
       return null; // Return null on failure
     }
   }
+
+// ── WordPress Application Passwords OAuth ─────────────────────────────────────
+
+// Redirect the top-level page to the WordPress authorization screen.
+// Works for both hosted-web (success_url = https://clist.mooc.ca/callback.html)
+// and desktop-local (success_url = http://localhost:PORT/callback.html).
+function wpAuthStart(siteUrl) {
+    const callbackUrl = window.location.origin + '/callback.html';
+    const appId = crypto.randomUUID ? crypto.randomUUID()
+                                    : Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+    const params = new URLSearchParams({
+        app_name:    'CList',
+        app_id:      appId,
+        success_url: callbackUrl,
+        reject_url:  callbackUrl,
+    });
+    window.location.href = siteUrl.replace(/\/$/, '') + '/wp-admin/authorize-application.php?' + params;
+}
+
+// On page load, check whether we're returning from a WordPress authorization.
+// callback.html stores the result in localStorage; we pick it up here and save to kvstore.
+document.addEventListener('DOMContentLoaded', async function () {
+    const raw = localStorage.getItem('oauth_callback_result');
+    if (!raw) return;
+    let data;
+    try { data = JSON.parse(raw); } catch (e) { return; }
+    if (data.providerType !== 'WordPress') return;
+    localStorage.removeItem('oauth_callback_result');
+    await saveWordPressAccount(data.siteUrl, data.userLogin, data.password);
+});
+
+async function saveWordPressAccount(siteUrl, userLogin, password) {
+    const token = getSiteSpecificCookie(flaskSiteUrl, 'access_token');
+    if (!token) { showStatusMessage('Please log in to kvstore before authorizing WordPress.'); return; }
+
+    const encKey = await getEncKey(flaskSiteUrl);
+    if (!encKey) { showStatusMessage('Encryption key missing — please log in again.'); return; }
+
+    const host = new URL(siteUrl).host;
+    const accountKey = `${userLogin}@${host}`;
+    const instanceData = { type: 'WordPress', id: password, title: host, permissions: 'w' };
+
+    let encryptedValue;
+    try {
+        encryptedValue = await encryptWithKey(encKey, JSON.stringify(instanceData));
+    } catch (err) {
+        console.error('Failed to encrypt WordPress account data:', err);
+        showStatusMessage('Could not save WordPress account — encryption failed. Try logging in again.');
+        return;
+    }
+
+    const existing = Array.isArray(accounts) && accounts.find(a => a.key === accountKey);
+    const endpoint = existing ? 'update_kv/' : 'add_kv/';
+
+    const response = await fetch(`${flaskSiteUrl}/${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ key: accountKey, value: encryptedValue }),
+    });
+
+    if (!response.ok) { showStatusMessage('Failed to save WordPress account to kvstore.'); return; }
+
+    try {
+        accounts = await getAccounts(flaskSiteUrl);
+        if (accounts) {
+            updateUIVisibility();
+            populatePostOptions(accounts);
+        }
+        showStatusMessage('WordPress account authorized and saved.');
+    } catch (error) {
+        showStatusMessage('Account saved — but could not refresh. Try reloading: ' + error.message);
+    }
+    playAccounts();
+}

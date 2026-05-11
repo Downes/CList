@@ -210,7 +210,8 @@ function snapPanes(direction) {
             local: "Local Feed",
             bookmarks: "Bookmarks",
             hashtag: "Hashtag Feed",
-            user: "User Feed"
+            user: "User Feed",
+            Notifications: "Notifications",
         };
 
         // Create the container div
