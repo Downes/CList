@@ -50,6 +50,7 @@ import time
 def parse_args():
     parser = argparse.ArgumentParser(description='CList desktop launcher')
     parser.add_argument('--kvstore', default=None, help='kvstore base URL')
+    parser.add_argument('--port', type=int, default=None, help='override the fixed port')
     return parser.parse_args()
 
 
@@ -60,16 +61,31 @@ def get_base_dir():
     return os.path.dirname(os.path.abspath(__file__))
 
 
-def find_free_port():
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(('127.0.0.1', 0))
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        return s.getsockname()[1]
+# Fixed port so localStorage (login state, tour flag, etc.) persists across restarts.
+# Power users can override with --port.
+DEFAULT_PORT = 51888
+
+
+def is_clist_running(base_url):
+    """Return True if CList is already serving at base_url."""
+    ctx = None
+    if base_url.startswith('https'):
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+    try:
+        kwargs = {'timeout': 2}
+        if ctx:
+            kwargs['context'] = ctx
+        with urllib.request.urlopen(base_url + '/runtime-config.js', **kwargs) as resp:
+            return b'_launcherConfig' in resp.read(512)
+    except Exception:
+        return False
 
 
 args     = parse_args()
 BASE_DIR = get_base_dir()
-PORT     = find_free_port()
+PORT     = args.port if args.port else DEFAULT_PORT
 BASE_URL = None  # set in main() after TLS detection
 
 KVSTORE_URL = (
@@ -469,7 +485,23 @@ def main():
         if platform.system() == 'Linux':
             print_linux_tls_instructions()
 
-    server = socketserver.TCPServer(('127.0.0.1', PORT), CListHandler)
+    try:
+        server = socketserver.TCPServer(('127.0.0.1', PORT), CListHandler)
+    except OSError:
+        # Port already in use — check if it's an existing CList instance.
+        if is_clist_running(BASE_URL):
+            print(f'CList is already running at {BASE_URL} — opening browser.')
+            if sys.stdout:
+                sys.stdout.flush()
+            webbrowser.open(BASE_URL)
+            return
+        print(f'Port {PORT} is in use by another application.')
+        print('CList uses a fixed port so your login state is remembered across restarts.')
+        print(f'Please free port {PORT} and try again, or use --port to override.')
+        if sys.stdout:
+            sys.stdout.flush()
+        sys.exit(1)
+
     server.allow_reuse_address = True
 
     if certfile and keyfile:
