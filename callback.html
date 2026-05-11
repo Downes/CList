@@ -11,9 +11,23 @@
         window.addEventListener('DOMContentLoaded', async () => {
             const msg = document.getElementById('msg');
 
+            const params = new URLSearchParams(window.location.search);
+
+            // HACK: Desktop-local bounce. WordPress requires HTTPS on success_url, so
+            // wordpress.js sends https://clist.mooc.ca/callback.html?local_port=PORT.
+            // We receive the credentials here and immediately redirect them to the local
+            // launcher, which serves the real callback.html that processes them.
+            // See the comment in js/wordpress.js for context on why this exists.
+            const localPort = params.get('local_port');
+            if (localPort && /^\d+$/.test(localPort)) {
+                const forwarded = new URLSearchParams(params);
+                forwarded.delete('local_port');
+                window.location.replace('http://localhost:' + localPort + '/callback.html?' + forwarded);
+                return;
+            }
+
             // WordPress Application Passwords callback
             // WordPress redirects here with site_url, user_login, and password as GET params.
-            const params = new URLSearchParams(window.location.search);
             if (params.has('site_url') && params.has('user_login') && params.has('password')) {
                 const result = {
                     providerType: 'WordPress',
