@@ -904,6 +904,7 @@ async function saveMastodonAccount(title, username, accessToken, permissions) {
     try {
         accounts = await getAccounts(flaskSiteUrl);
         if (accounts) {
+            updateUIVisibility();
             await playRead();
             populateReadAccountList(accounts);
         }

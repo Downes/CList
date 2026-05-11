@@ -369,6 +369,7 @@ function kvstoreMePanel() {
                 accounts = await getAccounts(flaskSiteUrl);
                 if (mode === 'register') autoRegisterCollab().catch(e => console.warn('Collab auto-registration failed:', e));
                 if (accounts) {
+                    updateUIVisibility();
                     await playRead();
                     populateReadAccountList(accounts);
                 }
