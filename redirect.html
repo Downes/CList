@@ -4,177 +4,45 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Redirect Page</title>
-    
     <script src="js/utilities.js"></script>
     <script>
-        const params = new URLSearchParams(window.location.hash.substring(1));
         const urlParams = new URLSearchParams(window.location.search);
         const state = urlParams.get('state');
 
-        if (state === 'Reddit') {
-
-            // Reddit OAuth — not yet implemented
-
-        } else if (state === 'Mastodon') {
-
-            window.onload = handleMastodonCallback;
-
-        } else {
-
-            // Default: kvstore login redirect
-            window.onload = setLoginCookiesAndUpdateLocalStorage;
-
-        }
+        // OAuth provider callbacks now go to callback.html.
+        // This page handles only kvstore login redirects.
+        window.onload = setLoginCookiesAndUpdateLocalStorage;
 
         function getFlaskSiteUrl() {
-            // Try to extract from the `next` parameter
             const currentUrl = new URL(window.location.href);
             const nextParam = currentUrl.searchParams.get('next');
-
-            if (nextParam) {
-                return new URL(nextParam).origin;
-            }
-
-            // Try to extract from the referrer
-            if (document.referrer) {
-                return new URL(document.referrer).origin;
-            }
-
-            // Fallback to the current page's origin
+            if (nextParam) return new URL(nextParam).origin;
+            if (document.referrer) return new URL(document.referrer).origin;
             return window.location.origin;
         }
 
-
         function setLoginCookiesAndUpdateLocalStorage() {
-
-            // Extract the service name from the state parameter
-
-
-
             const flaskSiteUrl = getFlaskSiteUrl();
-            console.log('Identity Server URL:'+flaskSiteUrl);
-            //const params = new URLSearchParams(window.location.search);
-            const username = urlParams.get('username');
-            const token = urlParams.get('token');
+            const username  = urlParams.get('username');
+            const token     = urlParams.get('token');
             const passphrase = urlParams.get('passphrase');
 
             if (username && token) {
-
-                // Set cookies for the Flask site (1 day expiry
-
-                setSiteSpecificCookie(flaskSiteUrl, 'passphrase', passphrase, 1);
-                setSiteSpecificCookie(flaskSiteUrl, 'access_token', token, 1);
-                setSiteSpecificCookie(flaskSiteUrl, 'username', username, 1);
+                setSiteSpecificCookie(flaskSiteUrl, 'passphrase',    passphrase, 1);
+                setSiteSpecificCookie(flaskSiteUrl, 'access_token',  token,      1);
+                setSiteSpecificCookie(flaskSiteUrl, 'username',      username,   1);
                 localStorage.setItem('username', username);
-      
-                history.replaceState({}, document.title, window.location.pathname); // Hide params from history
-
-                // Update localStorage with a new value for 'kvstore'
-                // This tells the CList site that the user has logged in
-
-                localStorage.setItem('kvstore', Date.now().toString()); // Store a timestamp as a new value
-
-                // Close the redirect page
+                history.replaceState({}, document.title, window.location.pathname);
+                localStorage.setItem('kvstore', Date.now().toString());
                 window.close();
             } else {
                 console.error('Missing login data in query parameters.');
             }
         }
-
-        async function handleMastodonCallback() {
-            const code = urlParams.get('code');
-            if (!code) {
-                document.body.innerHTML = '<h1>Authorization failed</h1><p>No code received from Mastodon. Please try again.</p>';
-                return;
-            }
-
-            const clientId     = sessionStorage.getItem('mastodon_oauth_client_id');
-            const clientSecret = sessionStorage.getItem('mastodon_oauth_client_secret');
-            const instanceUrl  = sessionStorage.getItem('mastodon_oauth_instance');
-            const username     = sessionStorage.getItem('mastodon_oauth_username');
-            const title        = sessionStorage.getItem('mastodon_oauth_title');
-            const permissions  = sessionStorage.getItem('mastodon_oauth_permissions');
-            const redirectUri  = sessionStorage.getItem('mastodon_oauth_redirect_uri');
-
-            if (!clientId || !instanceUrl) {
-                document.body.innerHTML = '<h1>Authorization failed</h1><p>OAuth session data missing. Please try again.</p>';
-                return;
-            }
-
-            // Exchange authorization code for access token
-            let tokenData;
-            try {
-                const response = await fetch(`${instanceUrl}/oauth/token`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        client_id:     clientId,
-                        client_secret: clientSecret,
-                        redirect_uri:  redirectUri,
-                        grant_type:    'authorization_code',
-                        code:          code,
-                        scope:         'read write'
-                    })
-                });
-                if (!response.ok) throw new Error(response.statusText);
-                tokenData = await response.json();
-            } catch (e) {
-                document.body.innerHTML = `<h1>Authorization failed</h1><p>Could not exchange code for token: ${e.message}</p>`;
-                return;
-            }
-
-            // Store result for index.html to pick up and save to kvstore
-            localStorage.setItem('mastodon_auth_result', JSON.stringify({
-                username:    username,
-                instanceUrl: instanceUrl,
-                accessToken: tokenData.access_token,
-                title:       title || username,
-                permissions: permissions || 'rw'
-            }));
-
-            // Clean up sessionStorage
-            ['mastodon_oauth_client_id', 'mastodon_oauth_client_secret', 'mastodon_oauth_instance',
-             'mastodon_oauth_username',  'mastodon_oauth_title',          'mastodon_oauth_permissions',
-             'mastodon_oauth_redirect_uri'].forEach(k => sessionStorage.removeItem(k));
-
-            // Return to main app
-            window.location.href = '/';
-        }
-
-        async function getAccessToken(tokenUrl,authCode) {
-            const credentials = btoa(`${CLIENT_ID}:${CLIENT_SECRET}`); // Base64 encode client_id and client_secret
-
-            const response = await fetch(tokenUrl, {
-                method: 'POST',
-                headers: {
-                'Authorization': `Basic ${credentials}`,
-                'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: new URLSearchParams({
-                grant_type: 'authorization_code',
-                code: authCode,
-                redirect_uri: REDIRECT_URI,
-                }),
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                document.write('Access Token:', data.access_token);
-                document.write('Refresh Token:', data.refresh_token); // If duration is "permanent"
-                document.write('Expires In:', data.expires_in); // Usually in seconds
-            } else {
-                console.error('Failed to get access token:', response.statusText);
-            }
-        }
-
     </script>
 </head>
 <body>
     <h1>Processing Login...</h1>
     <p>If this page doesn't close automatically, please close it manually.</p>
-
-
-
 </body>
 </html>
-

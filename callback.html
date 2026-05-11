@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authorizing...</title>
+    <script src="js/oauth-config.js"></script>
+    <script src="js/oauth-strategies.js"></script>
+    <script src="js/oauth-client.js"></script>
+    <script>
+        window.addEventListener('DOMContentLoaded', async () => {
+            const msg = document.getElementById('msg');
+            try {
+                const result = await OAuthClient.handleCallback();
+                if (!result) {
+                    msg.textContent = 'No authorization data found in URL.';
+                    return;
+                }
+                localStorage.setItem('oauth_callback_result', JSON.stringify(result));
+                // Remove code and state from the URL before navigating away
+                history.replaceState({}, document.title, window.location.pathname);
+                window.location.href = '/';
+            } catch (err) {
+                console.error('OAuth callback error:', err);
+                msg.textContent = 'Authorization failed: ' + err.message;
+            }
+        });
+    </script>
+</head>
+<body>
+    <p id="msg">Completing authorization, please wait&hellip;</p>
+    <p>If this page does not redirect automatically, <a href="/">return to CList</a>.</p>
+</body>
+</html>

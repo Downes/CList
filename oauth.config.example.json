@@ -1,0 +1,32 @@
+{
+    "_comment": "OAuth configuration example for CList. This file documents the OAuthProviders structure defined in js/oauth-config.js. Copy and modify js/oauth-config.js to add new providers.",
+
+    "providers": {
+        "Mastodon": {
+            "name": "Mastodon",
+            "dynamicRegistration": true,
+            "_note": "Mastodon registers a new app per instance. client_id is cached in localStorage per instance+redirectUri. No static clientId needed.",
+            "registrationEndpoint": "/api/v1/apps",
+            "authorizationPath": "/oauth/authorize",
+            "tokenPath": "/oauth/token",
+            "scopes": "read write",
+            "requiresInstanceUrl": true
+        },
+
+        "_example_github": {
+            "_note": "Example for a provider with a fixed client_id (not Mastodon). Add to OAuthProviders in oauth-config.js.",
+            "name": "GitHub",
+            "dynamicRegistration": false,
+            "clientId": "YOUR_GITHUB_CLIENT_ID_HERE",
+            "authorizationPath": "/login/oauth/authorize",
+            "tokenPath": "/login/oauth/access_token",
+            "baseUrl": "https://github.com",
+            "scopes": "read:user"
+        }
+    },
+
+    "launcher": {
+        "_note": "Launcher kvstore URL can be set via --kvstore argument or CLIST_KVSTORE_URL environment variable.",
+        "defaultKvstoreUrl": "https://kvstore.mooc.ca"
+    }
+}

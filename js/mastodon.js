@@ -838,10 +838,10 @@ async function displayMastodonPost(status,statusBox,reblogger) {
 // Mastodon OAuth2 flow
 //
 // Called from flasker.html when user clicks "Authorize with Mastodon".
-// Registers CList as an app on the user's instance, saves session data,
-// and redirects to the Mastodon authorization page.
-// redirect.html handles the callback and stores the result in localStorage.
-// The DOMContentLoaded listener below picks it up on return and saves to kvstore.
+// Delegates to OAuthClient.login() which handles app registration (with per-instance
+// caching), PKCE, and the redirect to the Mastodon authorization page.
+// callback.html handles the OAuth callback, stores the result in localStorage,
+// and redirects back to /. The DOMContentLoaded listener below picks it up and saves to kvstore.
 
 async function mastodonOAuthStart(title, username, permissions) {
     const parts = username.split('@').filter(Boolean);
@@ -850,54 +850,27 @@ async function mastodonOAuthStart(title, username, permissions) {
         return;
     }
     const instanceUrl = 'https://' + parts[parts.length - 1];
-    const redirectUri = window.location.origin + '/redirect.html';
 
-    let appData;
     try {
-        const response = await fetch(`${instanceUrl}/api/v1/apps`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                client_name: 'CList',
-                redirect_uris: redirectUri,
-                scopes: 'read write',
-                website: window.location.origin
-            })
+        await OAuthClient.login(username, 'Mastodon', instanceUrl, {
+            forceLogin: true,
+            extra: { title: title || username, permissions: permissions || 'rw' },
         });
-        if (!response.ok) throw new Error(response.statusText);
-        appData = await response.json();
     } catch (e) {
-        showStatusMessage('Could not register with Mastodon instance ' + instanceUrl + ': ' + e.message);
-        return;
+        showStatusMessage('Could not start Mastodon authorization: ' + e.message);
     }
-
-    sessionStorage.setItem('mastodon_oauth_client_id',     appData.client_id);
-    sessionStorage.setItem('mastodon_oauth_client_secret', appData.client_secret);
-    sessionStorage.setItem('mastodon_oauth_instance',      instanceUrl);
-    sessionStorage.setItem('mastodon_oauth_username',      username);
-    sessionStorage.setItem('mastodon_oauth_title',         title || username);
-    sessionStorage.setItem('mastodon_oauth_permissions',   permissions || 'rw');
-    sessionStorage.setItem('mastodon_oauth_redirect_uri',  redirectUri);
-
-    window.location.href = instanceUrl + '/oauth/authorize?' + new URLSearchParams({
-        client_id:     appData.client_id,
-        redirect_uri:  redirectUri,
-        response_type: 'code',
-        scope:         'read write',
-        state:         'Mastodon',
-        force_login:   'true'
-    });
 }
 
-// On page load, check whether we're returning from a Mastodon OAuth redirect.
-// redirect.html stores the token in localStorage; we pick it up here and save to kvstore.
+// On page load, check whether we're returning from a Mastodon OAuth callback.
+// callback.html stores the result in localStorage; we pick it up here and save to kvstore.
 document.addEventListener('DOMContentLoaded', async function () {
-    const raw = localStorage.getItem('mastodon_auth_result');
+    const raw = localStorage.getItem('oauth_callback_result');
     if (!raw) return;
-    localStorage.removeItem('mastodon_auth_result');
+    localStorage.removeItem('oauth_callback_result');
     let data;
-    try { data = JSON.parse(raw); } catch (e) { console.error('Bad mastodon_auth_result', e); return; }
-    await saveMastodonAccount(data.title, data.username, data.accessToken, data.permissions);
+    try { data = JSON.parse(raw); } catch (e) { console.error('Bad oauth_callback_result', e); return; }
+    if (data.providerType !== 'Mastodon') return;
+    await saveMastodonAccount(data.extra.title || data.accountKey, data.accountKey, data.accessToken, data.extra.permissions);
 });
 
 async function saveMastodonAccount(title, username, accessToken, permissions) {

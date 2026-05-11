@@ -21,12 +21,18 @@
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <script src="https://www.downes.ca/assets/tinymce/tinymce.min.js" referrerpolicy="origin"></script>
   
+    <!-- Desktop launcher injects kvstoreUrl via this file; browsers load it from the same origin -->
+    <!-- onerror keeps the page working when the file is absent (normal browser use) -->
+    <script src="runtime-config.js" onerror="void 0"></script>
+
     <!-- Global Variables for essential services -->
     <script>
         let username = "none";                              // Global var for username
         let flaskSiteUrl = 'https://kvstore.mooc.ca';   // Base URL of your account server
         const _savedKvUrl = localStorage.getItem('clist_kvstore_url');
         if (_savedKvUrl) flaskSiteUrl = _savedKvUrl;
+        // Launcher override takes highest priority (set via runtime-config.js served by launcher.py)
+        if (window._launcherConfig && window._launcherConfig.kvstoreUrl) flaskSiteUrl = window._launcherConfig.kvstoreUrl;
         let accounts = [];                                // Global var to store accounts
         let BaseURL = "none";
         let accessCode = "none";
@@ -290,6 +296,9 @@
 
                                                      <!-- handlers -->
   
+  <script src="js/oauth-config.js" defer></script>      <!-- OAuth module -->
+  <script src="js/oauth-strategies.js" defer></script>
+  <script src="js/oauth-client.js" defer></script>
   <script src="js/mastodon.js?v=3" defer></script>       <!-- Social Media -->
   <script src="js/bluesky.js?v=3" defer></script>
   <script src="js/opml.js" defer></script>
