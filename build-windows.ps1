@@ -21,7 +21,7 @@ if (-not (Test-Path $mkcertExe)) {
     Write-Host "mkcert.exe already present, skipping download."
 }
 
-pyinstaller `
+python -m PyInstaller `
     --onefile `
     --noconsole `
     --name "CList" `
