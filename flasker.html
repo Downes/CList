@@ -73,6 +73,23 @@
                         );
                     };
                     wrapper.appendChild(btn);
+
+                    const manualBtn = document.createElement('button');
+                    manualBtn.type = 'button';
+                    manualBtn.className = 'kv-action-btn';
+                    manualBtn.textContent = 'Enter manually';
+                    manualBtn.style.marginTop = '4px';
+                    manualBtn.onclick = () => {
+                        display.style.display = 'none';
+                        manualBtn.style.display = 'none';
+                        const input = document.createElement('input');
+                        input.type = 'password';
+                        input.id = field.key + 'Input';
+                        input.placeholder = 'Paste access token';
+                        input.style.cssText = 'display:block;width:100%;box-sizing:border-box;padding:0.2rem;font-size:0.8rem;margin:4px 0;';
+                        hidden.replaceWith(input);
+                    };
+                    wrapper.appendChild(manualBtn);
                 }
             } else if (isEditable) {
                 const input = document.createElement('input');
@@ -245,16 +262,35 @@
         function selectAccountType(type) {
             if (type === 'Mastodon') {
                 const flow = document.getElementById('add-flow');
+                const inputStyle = 'display:block;width:100%;box-sizing:border-box;padding:0.2rem;font-size:0.8rem;margin:2px 0 8px;';
+                const labelStyle = 'font-variant:small-caps;font-size:0.8rem;color:#555;display:block;margin-top:6px;';
                 flow.innerHTML = `
                     <h3 style="margin:0 0 8px;">Add Mastodon Account</h3>
-                    <label style="font-variant:small-caps;font-size:0.8rem;color:#555;">Username</label>
+                    <label style="${labelStyle}">Username</label>
                     <input type="text" id="mastodon-username-input"
                            placeholder="you@mastodon.social"
-                           style="display:block;width:100%;box-sizing:border-box;padding:0.2rem;font-size:0.8rem;margin:2px 0 8px;">
+                           style="${inputStyle}">
                     <div class="kv-action-buttons">
                         <button class="kv-action-btn kv-save-btn" onclick="submitMastodonUsername()">Authorize with Mastodon</button>
                         <button class="kv-action-btn kv-cancel-btn" onclick="showTypePicker()">Back</button>
-                    </div>`;
+                    </div>
+                    <details style="margin-top:14px;">
+                        <summary style="cursor:pointer;font-size:0.85em;color:#555;user-select:none;">Advanced: enter access token manually</summary>
+                        <p style="font-size:0.82em;color:#666;margin:6px 0 10px;">
+                            Get a token from your Mastodon instance under
+                            <em>Settings → Development → New Application</em>.
+                            Grant <code>read</code> and <code>write</code> scopes.
+                        </p>
+                        <label style="${labelStyle}">Title</label>
+                        <input type="text" id="mastodon-manual-title" placeholder="My Mastodon" style="${inputStyle}">
+                        <label style="${labelStyle}">Permissions</label>
+                        <input type="text" id="mastodon-manual-permissions" value="rw" style="${inputStyle}">
+                        <label style="${labelStyle}">Access Token</label>
+                        <input type="password" id="mastodon-manual-token" placeholder="Paste token here" style="${inputStyle}">
+                        <div class="kv-action-buttons">
+                            <button class="kv-action-btn kv-save-btn" onclick="submitMastodonManual()">Save Account</button>
+                        </div>
+                    </details>`;
                 return;
             }
 
@@ -366,6 +402,58 @@
                 return;
             }
             window.top.mastodonOAuthStart(username, username, 'rw');
+        }
+
+        async function submitMastodonManual() {
+            const username    = document.getElementById('mastodon-username-input').value.trim();
+            const title       = document.getElementById('mastodon-manual-title').value.trim();
+            const permissions = document.getElementById('mastodon-manual-permissions').value.trim() || 'rw';
+            const token       = document.getElementById('mastodon-manual-token').value.trim();
+
+            if (!username.includes('@')) {
+                window.parent.showStatusMessage('Please enter your username as you@instance.social');
+                return;
+            }
+            if (!token) {
+                window.parent.showStatusMessage('Please paste an access token.');
+                return;
+            }
+
+            const instanceData = {
+                type: 'Mastodon',
+                instance: username,
+                id: token,
+                title: title || username,
+                permissions,
+            };
+
+            try {
+                const kvToken = getSiteSpecificCookie(flaskSiteUrl, 'access_token');
+                if (!kvToken) { window.parent.showStatusMessage('Please log in to your account server first.'); return; }
+                const encKey = await window.parent.getEncKey(flaskSiteUrl);
+                if (!encKey) throw new Error('Encryption key not found — please log in again.');
+                const encryptedValue = await encryptWithKey(encKey, JSON.stringify(instanceData));
+
+                const matchingAccount = accounts.find(a => a.key === username);
+                const endpoint = matchingAccount ? 'update_kv/' : 'add_kv/';
+                const resp = await fetch(`${flaskSiteUrl}/${endpoint}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + kvToken },
+                    body: JSON.stringify({ key: username, value: encryptedValue })
+                });
+                if (!resp.ok) throw new Error('Save failed: ' + resp.status);
+
+                accounts = await window.parent.getAccounts(flaskSiteUrl);
+                window.parent.populateReadAccountList(accounts);
+                window.parent.populatePostOptions(accounts);
+                window.parent.updateUIVisibility();
+                window.parent.showStatusMessage('Mastodon account saved.');
+                cancelAdd();
+                getSite(flaskSiteUrl);
+            } catch (err) {
+                console.error('Manual Mastodon save failed:', err);
+                window.parent.showStatusMessage('Could not save account: ' + err.message);
+            }
         }
 
         function resetForm() {
