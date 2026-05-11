@@ -82,17 +82,18 @@ async function publishPost(instance,username,password,title,content) {
 
 // Redirect the top-level page to the WordPress authorization screen.
 //
-// HACK: WordPress enforces HTTPS on success_url, so http://localhost:PORT is
-// rejected even though RFC 8252 allows plain-HTTP loopback for native apps.
-// Workaround: in desktop-local mode we use the production callback URL and
-// append local_port so callback.html can bounce the credentials back to the
-// local launcher. If this pattern is ever needed for more OAuth providers,
-// the right fix is to revert the launcher to HTTPS (mkcert) instead of
-// extending this bounce approach.
+// WordPress enforces HTTPS on success_url. When running locally over HTTPS
+// (mkcert, Windows/macOS) we can use window.location.origin directly.
+// On Linux we fall back to plain HTTP; in that case we bounce through the
+// production callback URL so WordPress accepts it (HACK — see comment below).
 function wpAuthStart(siteUrl) {
     const mode = OAuthStrategies.detectRuntimeMode();
     let callbackUrl;
-    if (mode === 'desktop-local' && window._launcherConfig) {
+    if (mode === 'desktop-local' && window.location.protocol === 'http:' && window._launcherConfig) {
+        // HACK: http://localhost is rejected by WordPress. Use the production
+        // callback URL with local_port so it can bounce credentials back here.
+        // Only needed on Linux where mkcert is not bundled. On Windows/macOS
+        // the launcher serves HTTPS and the branch above handles it cleanly.
         callbackUrl = 'https://clist.mooc.ca/callback.html?local_port=' + window._launcherConfig.port;
     } else {
         callbackUrl = window.location.origin + '/callback.html';
