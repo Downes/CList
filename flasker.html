@@ -339,6 +339,39 @@
                 return;
             }
 
+            if (type === 'Blogger') {
+                const flow = document.getElementById('add-flow');
+                const inputStyle = 'display:block;width:100%;box-sizing:border-box;padding:0.2rem;font-size:0.8rem;margin:2px 0 8px;';
+                const labelStyle = 'font-variant:small-caps;font-size:0.8rem;color:#555;display:block;margin-top:6px;';
+                const origin = window.location.origin;
+                flow.innerHTML = `
+                    <h3 style="margin:0 0 8px;">Add Blogger Account</h3>
+                    <label style="${labelStyle}">Blog ID</label>
+                    <input type="text" id="blogger-blog-id" placeholder="1234567890" style="${inputStyle}">
+                    <label style="${labelStyle}">Client ID</label>
+                    <input type="text" id="blogger-client-id" placeholder="123456789-abc.apps.googleusercontent.com" style="${inputStyle}">
+                    <label style="${labelStyle}">Blog Title</label>
+                    <input type="text" id="blogger-title" placeholder="My Blog" style="${inputStyle}">
+                    <div class="kv-action-buttons">
+                        <button class="kv-action-btn kv-save-btn" onclick="submitBloggerManual()">Save Account</button>
+                        <button class="kv-action-btn kv-cancel-btn" onclick="showTypePicker()">Back</button>
+                    </div>
+                    <details style="margin-top:14px;">
+                        <summary style="cursor:pointer;font-size:0.85em;color:#555;user-select:none;">How to set up a Blogger account</summary>
+                        <ol style="font-size:0.82em;color:#444;margin:8px 0 0;padding-left:1.4em;line-height:1.7;">
+                            <li><a href="https://www.blogger.com" target="_blank">Open your Blogger dashboard</a> and click on your blog — the URL will contain <code style="background:#f4f4f4;padding:1px 4px;">blogID=XXXXXXXXXX</code>. Paste those digits above.</li>
+                            <li><a href="https://console.cloud.google.com/projectcreate" target="_blank">Create a new Google Cloud project</a>.</li>
+                            <li><a href="https://console.cloud.google.com/apis/library/blogger.googleapis.com" target="_blank">Enable the Blogger API v3</a> for that project.</li>
+                            <li><a href="https://console.cloud.google.com/apis/credentials" target="_blank">Go to Credentials</a> → <strong>Create Credentials → OAuth client ID</strong>.</li>
+                            <li>Choose <strong>Web application</strong>. Under <em>Authorized JavaScript origins</em>, add:<br>
+                                <code style="background:#f4f4f4;padding:1px 4px;">${origin}</code></li>
+                            <li>Click <strong>Create</strong> and copy the <em>Client ID</em> — paste it into the field above.</li>
+                            <li><a href="https://console.cloud.google.com/auth/audience" target="_blank">Go to the Audience page</a>. Under <em>Test users</em>, add your own Google email address.</li>
+                        </ol>
+                    </details>`;
+                return;
+            }
+
             if (type === 'WordPress') {
                 const flow = document.getElementById('add-flow');
                 const inputStyle = 'display:block;width:100%;box-sizing:border-box;padding:0.2rem;font-size:0.8rem;margin:2px 0 8px;';
@@ -456,6 +489,44 @@
             document.getElementById('add-flow').style.display = 'none';
             document.getElementById('kvList').style.display = 'block';
             document.getElementById('add-account-header').style.display = '';
+        }
+
+        async function submitBloggerManual() {
+            const blogId      = document.getElementById('blogger-blog-id').value.trim();
+            const clientId    = document.getElementById('blogger-client-id').value.trim();
+            const title       = document.getElementById('blogger-title').value.trim();
+
+            if (!blogId)   { window.parent.showStatusMessage('Please enter your Blog ID.');    return; }
+            if (!clientId) { window.parent.showStatusMessage('Please enter your Client ID.'); return; }
+
+            const instanceData = { type: 'Blogger', id: clientId, title: title || blogId, permissions: 'w' };
+
+            try {
+                const kvToken = getSiteSpecificCookie(flaskSiteUrl, 'access_token');
+                if (!kvToken) { window.parent.showStatusMessage('Please log in to your account server first.'); return; }
+                const encKey = await window.parent.getEncKey(flaskSiteUrl);
+                if (!encKey) throw new Error('Encryption key not found — please log in again.');
+                const encryptedValue = await encryptWithKey(encKey, JSON.stringify(instanceData));
+
+                const existing = accounts.find(a => a.key === blogId);
+                const endpoint = existing ? 'update_kv/' : 'add_kv/';
+                const resp = await fetch(`${flaskSiteUrl}/${endpoint}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + kvToken },
+                    body: JSON.stringify({ key: blogId, value: encryptedValue }),
+                });
+                if (!resp.ok) throw new Error('Save failed: ' + resp.status);
+
+                window.parent.accounts = await window.parent.getAccounts(flaskSiteUrl);
+                window.parent.populatePostOptions(window.parent.accounts);
+                window.parent.updateUIVisibility();
+                window.parent.showStatusMessage('Blogger account saved.');
+                cancelAdd();
+                getSite(flaskSiteUrl);
+            } catch (err) {
+                console.error('Blogger save failed:', err);
+                window.parent.showStatusMessage('Could not save account: ' + err.message);
+            }
         }
 
         function authorizeWordPress() {

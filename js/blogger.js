@@ -15,9 +15,9 @@ window.accountSchemas['Blogger'] = {
     instanceFromKey: true,
     kvKey: { label: 'Blog ID', placeholder: '1234567890' },
     fields: [
-        { key: 'title',       label: 'Blog Title', editable: true, inputType: 'text', placeholder: 'My Blog',                                      default: '' },
-        { key: 'permissions', label: 'Permissions',editable: true, inputType: 'text', placeholder: 'w',                                            default: 'w' },
-        { key: 'id',          label: 'Client ID',  editable: true, inputType: 'text', placeholder: '123456.apps.googleusercontent.com',            default: '' },
+        { key: 'title',       label: 'Blog Title', editable: true, inputType: 'text',     placeholder: 'My Blog', default: '' },
+        { key: 'permissions', label: 'Permissions',editable: true, inputType: 'text',     placeholder: 'w',       default: 'w' },
+        { key: 'id',          label: 'Client ID',  editable: true, inputType: 'text',     placeholder: '123456.apps.googleusercontent.com', default: '' },
     ]
 };
 
@@ -108,8 +108,6 @@ async function publishBloggerPost(blogid, clientid, responseDiv, bloggerTitle, b
   
       // Helper function to display messages in the responseDiv
       function Blogger_displayMessage(responseDiv, Blogger_message) {
-            // Update the UI
-           // responseElement = document.getElementById(responseDiv);
             responseDiv.innerHTML += `<p>${Blogger_message}</p>`;
       }
     });
