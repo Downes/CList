@@ -45,10 +45,10 @@ window.accountSchemas['RSS'] = {
         type: 'feed',
         initialize: () => {},
         feedFunctions: {
-            'Unread':     () => { rssActiveFeedFilter = null; rssFilter = 'unread';     rssDisplayEntries(); },
-            'All':        () => { rssActiveFeedFilter = null; rssFilter = 'all';        rssDisplayEntries(); },
-            'Bookmarked': () => { rssActiveFeedFilter = null; rssFilter = 'bookmarked'; rssDisplayEntries(); },
-            'Refresh':    () => rssRefresh(),
+            'Unread':     () => { rssActiveFeedFilter = null; rssFilter = 'unread';     rssDisplayEntries().catch(e => { console.error(e); showStatusMessage('Could not display entries: ' + e.message); }); },
+            'All':        () => { rssActiveFeedFilter = null; rssFilter = 'all';        rssDisplayEntries().catch(e => { console.error(e); showStatusMessage('Could not display entries: ' + e.message); }); },
+            'Bookmarked': () => { rssActiveFeedFilter = null; rssFilter = 'bookmarked'; rssDisplayEntries().catch(e => { console.error(e); showStatusMessage('Could not display entries: ' + e.message); }); },
+            'Refresh':    () => rssRefresh().catch(e => { console.error(e); showStatusMessage('Refresh failed: ' + e.message); }),
         },
         statusActions: (item, itemID) => {
             let a = '';
@@ -57,9 +57,10 @@ window.accountSchemas['RSS'] = {
                    + `onclick="toggleFormDisplay('${itemID}-content');`
                    + `toggleFormDisplay('${itemID}-summary');">zoom_out_map</button>`;
             }
-            if (item.link) {
+            if (item.link && /^https?:\/\//i.test(item.link)) {
+                const safeLink = item.link.replace(/'/g, '%27');
                 a += `<button class="material-icons md-18 md-light" `
-                   + `onclick="window.open('${item.link}','_blank','width=800,height=600,scrollbars=yes')">`
+                   + `onclick="window.open('${safeLink}','_blank','width=800,height=600,scrollbars=yes')">`
                    + `launch</button>`;
             }
             const ri = item.readAt ? 'drafts' : 'mail';
@@ -273,7 +274,7 @@ function _rssSanitizeHtml(html) {
                 // Block javascript: and data: URLs on href/src
                 if (name === 'href' || name === 'src') {
                     const v = attr.value.replace(/\s/g, '').toLowerCase();
-                    if (v.startsWith('javascript:') || v.startsWith('data:')) {
+                    if (v.startsWith('javascript:') || v.startsWith('data:') || v.startsWith('vbscript:')) {
                         child.removeAttribute(attr.name);
                     }
                 }
@@ -287,7 +288,7 @@ function _rssSanitizeHtml(html) {
     }
 
     walk(doc.body);
-    return doc.body.innerHTML;
+    return new SafeHtml(doc.body.innerHTML);
 }
 
 // ---- Fetch one feed via opml2json /fetch_feed ----
@@ -353,7 +354,7 @@ async function _rssFetchFeed(feedUrl, collectionKey, serviceUrl) {
 
 function rssFilterByFeed(feedUrl) {
     rssActiveFeedFilter = feedUrl;
-    rssDisplayEntries();
+    rssDisplayEntries().catch(e => { console.error(e); showStatusMessage('Could not filter entries: ' + e.message); });
 }
 
 async function initializeRSS(accountData) {
@@ -377,7 +378,11 @@ async function rssRefresh() {
     const fc  = document.getElementById('feed-container');
     if (fc) fc.innerHTML = '<p class="feed-status-message" id="rss-fetch-status">Fetching feeds…</p>';
     delete _rssFetchState[key];
-    _rssBgFetch(rssCurrentAccount).catch(e => console.error('RSS refresh failed:', e));
+    _rssBgFetch(rssCurrentAccount).catch(e => {
+        console.error('RSS refresh failed:', e);
+        showServiceError('feed-container', 'RSS error', e.message,
+            'Try refreshing again, or check your network connection.');
+    });
 }
 
 // Internal: fetch all feeds for a collection in the background.
@@ -426,7 +431,10 @@ function rssBackgroundFetchAll(accounts) {
         const data = parseAccountValue(acct);
         if (!data || data.type !== 'RSS') continue;
         if (_rssFetchState[data.instance]) continue; // already running or done
-        _rssBgFetch(data).catch(e => console.error(`RSS bg fetch failed (${data.instance}):`, e));
+        _rssBgFetch(data).catch(e => {
+            console.error(`RSS bg fetch failed (${data.instance}):`, e);
+            showStatusMessage(`RSS: could not fetch "${data.title || data.instance}" — ${e.message}`);
+        });
     }
 }
 
@@ -434,57 +442,62 @@ async function rssDisplayEntries() {
     if (!rssCurrentAccount) return;
     const fc = document.getElementById('feed-container');
     if (!fc) return;
+    try {
+        const key    = rssCurrentAccount.instance;
+        const now    = Math.floor(Date.now() / 1000);
+        const cutoff = now - RSS_RETENTION;
 
-    const key    = rssCurrentAccount.instance;
-    const now    = Math.floor(Date.now() / 1000);
-    const cutoff = now - RSS_RETENTION;
+        let entries = await _rssGetByIndex('entries', 'collectionKey', key);
+        entries = entries.filter(e => e.published >= cutoff);
+        if (rssActiveFeedFilter)        entries = entries.filter(e => e.feedUrl === rssActiveFeedFilter);
+        if (rssFilter === 'unread')     entries = entries.filter(e => !e.readAt);
+        if (rssFilter === 'bookmarked') entries = entries.filter(e =>  e.bookmarked);
 
-    let entries = await _rssGetByIndex('entries', 'collectionKey', key);
-    entries = entries.filter(e => e.published >= cutoff);
-    if (rssActiveFeedFilter)        entries = entries.filter(e => e.feedUrl === rssActiveFeedFilter);
-    if (rssFilter === 'unread')     entries = entries.filter(e => !e.readAt);
-    if (rssFilter === 'bookmarked') entries = entries.filter(e =>  e.bookmarked);
+        // Build per-feed maps for scoring, titles, and authors
+        const feedMetas  = await _rssGetByIndex('feeds', 'collectionKey', key);
+        const mcMap      = Object.fromEntries(feedMetas.map(f => [f.url, f.monthCount || 0]));
+        _rssTitleMap     = Object.fromEntries(feedMetas.map(f => [f.url, f.title  || f.url]));
+        _rssAuthorMap    = Object.fromEntries(feedMetas.map(f => [f.url, f.author || '']));
+        entries.forEach(e => { e._score = _rssScore(e.published, mcMap[e.feedUrl] || 0, now); });
+        entries.sort((a, b) => b._score - a._score);
 
-    // Build per-feed maps for scoring, titles, and authors
-    const feedMetas  = await _rssGetByIndex('feeds', 'collectionKey', key);
-    const mcMap      = Object.fromEntries(feedMetas.map(f => [f.url, f.monthCount || 0]));
-    _rssTitleMap     = Object.fromEntries(feedMetas.map(f => [f.url, f.title  || f.url]));
-    _rssAuthorMap    = Object.fromEntries(feedMetas.map(f => [f.url, f.author || '']));
-    entries.forEach(e => { e._score = _rssScore(e.published, mcMap[e.feedUrl] || 0, now); });
-    entries.sort((a, b) => b._score - a._score);
+        _rssSortedEntries = entries;
+        _rssDisplayOffset = 0;
 
-    _rssSortedEntries = entries;
-    _rssDisplayOffset = 0;
+        fc.innerHTML = '';
+        fc.appendChild(createFeedHeader(rssCurrentAccount.title || 'RSS'));
 
-    fc.innerHTML = '';
-    fc.appendChild(createFeedHeader(rssCurrentAccount.title || 'RSS'));
-
-    // Show live progress banner if a background fetch is running for this collection
-    if (_rssFetchState[key] === 'fetching') {
-        const banner = document.createElement('p');
-        banner.className = 'feed-status-message';
-        banner.id = 'rss-fetch-status';
-        const p = _rssFetchProgress[key];
-        banner.textContent = p && p.total
-            ? `Fetching: checked ${p.checked}/${p.total} (updated=${p.updated}, errors=${p.errors}) — ${p.url}`
-            : 'Fetching feeds…';
-        fc.appendChild(banner);
-    }
-
-    if (!entries.length) {
-        // Don't show "caught up" while a fetch is still in progress
-        if (_rssFetchState[key] !== 'fetching') {
-            const p = document.createElement('p');
-            p.className = 'feed-status-message';
-            p.textContent = rssFilter === 'bookmarked' ? 'No bookmarked items.'
-                          : rssFilter === 'unread'     ? 'All caught up — no unread items.'
-                          :                              'No items found.';
-            fc.appendChild(p);
+        // Show live progress banner if a background fetch is running for this collection
+        if (_rssFetchState[key] === 'fetching') {
+            const banner = document.createElement('p');
+            banner.className = 'feed-status-message';
+            banner.id = 'rss-fetch-status';
+            const p = _rssFetchProgress[key];
+            banner.textContent = p && p.total
+                ? `Fetching: checked ${p.checked}/${p.total} (updated=${p.updated}, errors=${p.errors}) — ${p.url}`
+                : 'Fetching feeds…';
+            fc.appendChild(banner);
         }
-        return;
-    }
 
-    _rssAppendPage();
+        if (!entries.length) {
+            // Don't show "caught up" while a fetch is still in progress
+            if (_rssFetchState[key] !== 'fetching') {
+                const p = document.createElement('p');
+                p.className = 'feed-status-message';
+                p.textContent = rssFilter === 'bookmarked' ? 'No bookmarked items.'
+                              : rssFilter === 'unread'     ? 'All caught up — no unread items.'
+                              :                              'No items found.';
+                fc.appendChild(p);
+            }
+            return;
+        }
+
+        _rssAppendPage();
+    } catch (err) {
+        console.error('RSS: error displaying entries:', err);
+        showServiceError('feed-container', 'RSS error', err.message,
+            'Try clicking <strong>Refresh</strong>, or reload the page.');
+    }
 }
 
 function _rssAppendPage() {
@@ -502,7 +515,7 @@ function _rssAppendPage() {
             desc:       _rssPlainText(e.contentHtml),
             feed:       _rssTitleMap[e.feedUrl]  || e.feedUrl,
             titleHtml:  `<strong>${e.title.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</strong>`,
-            feedAction: `rssFilterByFeed('${e.feedUrl}'); return false;`,
+            feedAction: `rssFilterByFeed(decodeURIComponent('${encodeURIComponent(e.feedUrl)}')); return false;`,
             author:     e.author || _rssAuthorMap[e.feedUrl] || '',
             date:       new Date(e.published * 1000).toLocaleDateString(),
             full_content: _rssSanitizeHtml(e.contentHtml),
@@ -527,27 +540,37 @@ function _rssAppendPage() {
 }
 
 async function rssToggleRead(entryId, btn) {
-    const e = await _rssGet('entries', entryId);
-    if (!e) return;
-    e.readAt = e.readAt ? null : Math.floor(Date.now() / 1000);
-    await _rssPut('entries', e);
-    if (btn) {
-        btn.textContent = e.readAt ? 'drafts' : 'mail';
-        btn.title       = e.readAt ? 'Mark unread' : 'Mark read';
+    try {
+        const e = await _rssGet('entries', entryId);
+        if (!e) return;
+        e.readAt = e.readAt ? null : Math.floor(Date.now() / 1000);
+        await _rssPut('entries', e);
+        if (btn) {
+            btn.textContent = e.readAt ? 'drafts' : 'mail';
+            btn.title       = e.readAt ? 'Mark unread' : 'Mark read';
+        }
+        if (rssFilter === 'unread' && e.readAt) btn?.closest('.status-box')?.remove();
+    } catch (err) {
+        console.error('RSS: could not toggle read state:', err);
+        showStatusMessage('Could not update read state: ' + err.message);
     }
-    if (rssFilter === 'unread' && e.readAt) btn?.closest('.status-box')?.remove();
 }
 
 async function rssToggleBookmark(entryId, btn) {
-    const e = await _rssGet('entries', entryId);
-    if (!e) return;
-    e.bookmarked = e.bookmarked ? 0 : 1;
-    await _rssPut('entries', e);
-    if (btn) {
-        btn.textContent = e.bookmarked ? 'bookmark' : 'bookmark_border';
-        btn.title       = e.bookmarked ? 'Remove bookmark' : 'Bookmark';
+    try {
+        const e = await _rssGet('entries', entryId);
+        if (!e) return;
+        e.bookmarked = e.bookmarked ? 0 : 1;
+        await _rssPut('entries', e);
+        if (btn) {
+            btn.textContent = e.bookmarked ? 'bookmark' : 'bookmark_border';
+            btn.title       = e.bookmarked ? 'Remove bookmark' : 'Bookmark';
+        }
+        if (rssFilter === 'bookmarked' && !e.bookmarked) btn?.closest('.status-box')?.remove();
+    } catch (err) {
+        console.error('RSS: could not toggle bookmark:', err);
+        showStatusMessage('Could not update bookmark: ' + err.message);
     }
-    if (rssFilter === 'bookmarked' && !e.bookmarked) btn?.closest('.status-box')?.remove();
 }
 
 // Prevent onclick errors from makeListing's title link

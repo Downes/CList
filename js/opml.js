@@ -60,7 +60,10 @@ let cursor;
             if (item.audioIcon && item.audioIcon != '') { opmlstatusActions +=  `${item.audioIcon}`; }
 
             // Open link in a new window
-            if (item.link) { opmlstatusActions += `<button class="material-icons md-18 md-light" onClick="window.open('${item.link}', '_blank', 'width=800,height=600,scrollbars=yes')">launch</button>`; }
+            if (item.link && /^https?:\/\//i.test(item.link)) {
+                const safeLink = item.link.replace(/'/g, '%27');
+                opmlstatusActions += `<button class="material-icons md-18 md-light" onClick="window.open('${safeLink}', '_blank', 'width=800,height=600,scrollbars=yes')">launch</button>`;
+            }
 
             return opmlstatusActions;
         }

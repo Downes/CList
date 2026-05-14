@@ -124,7 +124,73 @@ Services render items in one of two ways:
 
 **Direct DOM** (Mastodon, Bluesky) — each service builds its own DOM elements via `createElement` / `innerHTML` directly inside its display function.
 
-**`makeListing()`** (OPML, OASIS, DuckDuckGo, Google) — services populate a standard item object and pass it to `makeListing()` in `reader.js`, which builds the `div.status-box` and calls `readerHandlers[service].statusActions()` to get the action buttons as an HTML string.
+**`makeListing()`** (RSS, OPML, OASIS, DuckDuckGo, Google) — services populate a standard item object and pass it to `makeListing()` in `reader.js`, which builds the `div.status-box` and calls `readerHandlers[service].statusActions()` to get the action buttons as an HTML string.
+
+---
+
+## `makeListing(item)` — item object contract
+
+`makeListing()` is defined in `reader.js`. It accepts a single object with the fields below and returns a fully assembled `div.status-box`.
+
+### Field reference
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `service` | string | yes | Key into `readerHandlers` — determines which `statusActions()` is called |
+| `url` | string | yes | Canonical URL of the item — used to generate `itemID` via `createUniqueIdFromUrl()` |
+| `title` | string | yes | Plain text title. Escaped internally — **do not pre-escape.** |
+| `desc` | string | no | Plain text summary. Escaped internally — **do not pre-escape.** Truncated to `summaryLimit` if too long. |
+| `feed` | string | no | Plain text feed/source name. Escaped internally — **do not pre-escape.** |
+| `author` | string | no | Plain text author name. Escaped internally — **do not pre-escape.** |
+| `date` | string | no | Plain text date string. Escaped internally — **do not pre-escape.** |
+| `full_content` | `SafeHtml` | no | **Must be a `SafeHtml` instance** (see below). Passing a plain string throws immediately. Omit or pass `''` if there is no full content. |
+| `titleHtml` | HTML string | no | If provided, replaces the default `<a onclick>` title link entirely. Caller is responsible for safety — `makeListing` uses it as-is. |
+| `feedAction` | JS string | no | If provided, replaces the default `loadMastodonFeed(...)` onclick on the feed-name link. Caller is responsible for safety — `makeListing` uses it as-is. |
+| `images` | array | no | Array of `{ url, preview_url, description }`. Only `https?://` URLs are rendered; others are silently skipped. |
+| `link` | string | no | (RSS only) Direct item URL; forwarded to `statusActions` for the launch button. |
+| `entryId` | string | no | (RSS only) Stable content-hash ID; forwarded to `statusActions` for read/bookmark toggles. |
+
+### `SafeHtml` — the `full_content` contract
+
+`makeListing` must render `full_content` as HTML (not escaped text), so it enforces that the caller has sanitized it first. Passing an unsanitized plain string throws:
+
+```
+Error: makeListing: full_content must be a SafeHtml instance. Sanitize it before passing.
+```
+
+`SafeHtml` is a small opaque class defined in `reader.js` and assigned to `window.SafeHtml`. To produce one, run the content through a sanitizer that returns `new SafeHtml(html)`:
+
+```js
+// In rss.js — the reference implementation:
+const safeContent = _rssSanitizeHtml(rawHtml);  // returns new SafeHtml(...)
+makeListing({ ..., full_content: safeContent });
+```
+
+**`_rssSanitizeHtml(html)`** (in `rss.js`) is the standard sanitizer. It:
+- Strips dangerous tags with their children: `script`, `noscript`, `style`, `iframe`, `frame`, `frameset`, `object`, `embed`, `applet`, `form`, `input`, `button`, `select`, `textarea`
+- Unwraps unknown tags (keeps child text/elements)
+- Strips all attributes except an explicit allowlist per tag
+- Blocks `javascript:`, `data:`, and `vbscript:` URLs on `href` and `src`
+- Forces `target="_blank" rel="noopener noreferrer"` on all links
+
+If you have content that is already safe (e.g. generated entirely by your own code, not from external feeds), you can bypass the sanitizer by wrapping directly: `new SafeHtml(yourHtml)`. Only do this when you are certain the content contains no user- or feed-supplied data.
+
+### Escaping helpers (reader.js)
+
+Two helpers are defined globally in `reader.js` for use by services building item objects or `statusActions` strings:
+
+| Function | Use for |
+|---|---|
+| `_he(s)` | Escaping plain text for insertion into an **HTML** context (element text, attribute values) |
+| `_heJs(s)` | Escaping plain text for insertion into a **JS string literal** inside an `onclick` attribute (delimited by `'`) |
+
+The text fields listed above (`title`, `desc`, `feed`, `author`, `date`) are escaped by `makeListing` itself — callers should pass raw unescaped text. However, fields passed through `feedAction` or `titleHtml` are the caller's responsibility; use `_he`/`_heJs` as appropriate when constructing those strings. See the RSS `statusActions` implementation for a reference example.
+
+### Desc-to-content promotion
+
+If `desc` exceeds `summaryLimit` characters and is longer than `full_content`, `makeListing` promotes the (HTML-escaped) desc text to the full content slot and truncates `desc` to the limit. The expand button is only rendered when `full_content` (or promoted content) is longer than the (truncated) `desc`.
+
+---
 
 **Future recommendations (deferred):**
 
@@ -244,4 +310,4 @@ statusSpecific.reference = {
 
 All previously identified inconsistencies have been resolved. The remaining structural gap is that Mastodon and Bluesky still build their feed items directly via DOM/innerHTML rather than going through `makeListing()`. This is a larger refactor deferred for a future session.
 
-**When adding a new service:** follow the `makeListing()` + `readerHandlers` pattern. The `div.clist-actions` with `arrow_right` calling `loadContentToEditor(itemID)` and the `.reference` object on `div#[item-id]` are mandatory — they wire each item into the write/publish flow.
+**When adding a new service:** follow the `makeListing()` + `readerHandlers` pattern. The `div.clist-actions` with `arrow_right` calling `loadContentToEditor(itemID)` and the `.reference` object on `div#[item-id]` are mandatory — they wire each item into the write/publish flow. See the `makeListing()` field contract above for escaping rules and the `SafeHtml` requirement for `full_content`.

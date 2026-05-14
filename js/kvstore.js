@@ -553,6 +553,12 @@ function kvstoreMePanel() {
                     }
                 }));
         
+                const failedCount = accounts.filter(a => {
+                    try { return JSON.parse(a.value).type === 'bad'; } catch(e) { return true; }
+                }).length;
+                if (failedCount > 0 && failedCount === accounts.length) {
+                    showStatusMessage('Session key invalid — please log out and log back in to decrypt your accounts.');
+                }
                 console.log('Accounts in getAccounts():', accounts);
                 return accounts; // Return the accounts array
             } catch (error) {

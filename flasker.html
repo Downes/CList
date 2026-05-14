@@ -177,6 +177,11 @@
             if (!matchingAccount) { window.parent.showStatusMessage("Can't find account: " + targetKey); return; }
             const valueData = JSON.parse(matchingAccount.value);
 
+            if (valueData.type === 'bad') {
+                window.parent.showStatusMessage('Could not decrypt this account — please log out and log back in.');
+                return;
+            }
+
             if (valueData.type === 'RSS') { showRSSEditForm(targetKey, valueData); return; }
 
             const schema = window.parent.accountSchemas && window.parent.accountSchemas[valueData.type];
@@ -579,15 +584,14 @@
             saveBtn.style.display = 'inline';
             saveBtn.textContent = 'Save';
             saveBtn.onclick = async () => {
-                const ok = await _rssSaveCollection();
-                if (ok) {
-                    window.parent.showStatusMessage('Collection saved.');
-                    getSite(flaskSiteUrl);
-                }
+                try {
+                    const ok = await _rssSaveCollection();
+                    if (ok) { window.parent.showStatusMessage('Collection saved.'); getSite(flaskSiteUrl); }
+                } catch (e) { console.error(e); window.parent.showStatusMessage('Save failed: ' + e.message); }
             };
             document.getElementById('deleteBtn').style.display = 'inline';
             document.getElementById('deleteBtn').textContent = 'Delete Collection';
-            document.getElementById('deleteBtn').onclick = _rssDeleteCollection;
+            document.getElementById('deleteBtn').onclick = () => _rssDeleteCollection().catch(e => { console.error(e); window.parent.showStatusMessage('Delete failed: ' + e.message); });
             document.getElementById('cancelBtn').textContent = 'Done';
             document.getElementById('cancelBtn').onclick = tryCloseForm;
         }
@@ -618,10 +622,10 @@
 
             document.getElementById('submitBtn').style.display = '';
             document.getElementById('submitBtn').textContent = isNew ? 'Add Feed' : 'Save Feed';
-            document.getElementById('submitBtn').onclick = () => _rssSaveFeedFromEditor(feedIndex);
+            document.getElementById('submitBtn').onclick = () => _rssSaveFeedFromEditor(feedIndex).catch(e => { console.error(e); window.parent.showStatusMessage('Save failed: ' + e.message); });
             document.getElementById('deleteBtn').style.display = isNew ? 'none' : 'inline';
             document.getElementById('deleteBtn').textContent = 'Remove Feed';
-            document.getElementById('deleteBtn').onclick = () => _rssDeleteFeed(feedIndex);
+            document.getElementById('deleteBtn').onclick = () => _rssDeleteFeed(feedIndex).catch(e => { console.error(e); window.parent.showStatusMessage('Delete failed: ' + e.message); });
             document.getElementById('cancelBtn').textContent = 'Back';
             document.getElementById('cancelBtn').onclick = _rssRenderList;
         }
@@ -648,8 +652,21 @@
         }
 
         async function _rssDeleteFeed(feedIndex) {
-            const feed = _rssEditFeeds[feedIndex];
-            if (!confirm(`Remove "${feed.title || feed.url}" from this collection?`)) return;
+            const btn = document.getElementById('deleteBtn');
+            if (btn && btn.dataset.confirm !== 'pending') {
+                btn.dataset.confirm = 'pending';
+                btn.textContent = 'Click again to confirm';
+                btn.style.background = '#c0392b';
+                setTimeout(() => {
+                    if (btn.dataset.confirm === 'pending') {
+                        btn.dataset.confirm = '';
+                        btn.textContent = 'Remove Feed';
+                        btn.style.background = '';
+                    }
+                }, 3000);
+                return;
+            }
+            if (btn) { btn.dataset.confirm = ''; btn.textContent = 'Remove Feed'; btn.style.background = ''; }
             _rssEditFeeds.splice(feedIndex, 1);
             const ok = await _rssSaveCollection();
             if (ok) {
@@ -659,7 +676,21 @@
         }
 
         async function _rssDeleteCollection() {
-            if (!confirm(`Delete the collection "${_rssEditKey}" and all its feeds? This cannot be undone.`)) return;
+            const btn = document.getElementById('deleteBtn');
+            if (btn && btn.dataset.confirm !== 'pending') {
+                btn.dataset.confirm = 'pending';
+                btn.textContent = 'Click again to confirm';
+                btn.style.background = '#c0392b';
+                setTimeout(() => {
+                    if (btn.dataset.confirm === 'pending') {
+                        btn.dataset.confirm = '';
+                        btn.textContent = 'Delete Collection';
+                        btn.style.background = '';
+                    }
+                }, 3000);
+                return;
+            }
+            if (btn) { btn.dataset.confirm = ''; btn.textContent = 'Delete Collection'; btn.style.background = ''; }
             const token = getSiteSpecificCookie(flaskSiteUrl, 'access_token');
             try {
                 const resp = await fetch(`${flaskSiteUrl}/delete_kv/`, {
@@ -696,7 +727,7 @@
                 <label style="${labelStyle}">Load from File</label>
                 <input type="file" id="_opml-file" accept=".opml,.xml" style="font-size:0.8rem;margin-bottom:8px;">
                 <div id="_opml-status" style="font-size:0.8rem;color:#888;margin-top:4px;"></div>`;
-            document.getElementById('_opml-url-btn').onclick = _rssLoadOpmlFromUrl;
+            document.getElementById('_opml-url-btn').onclick = () => _rssLoadOpmlFromUrl().catch(e => { console.error(e); const s = document.getElementById('_opml-status'); if (s) s.textContent = 'Error: ' + e.message; });
             document.getElementById('_opml-file').onchange   = _rssLoadOpmlFromFile;
             document.getElementById('submitBtn').style.display = 'none';
             document.getElementById('deleteBtn').style.display = 'none';
@@ -747,6 +778,10 @@
                     console.error('OPML file parse failed:', err);
                     status.textContent = 'Error: ' + err.message;
                 }
+            };
+            reader.onerror = () => {
+                console.error('FileReader error:', reader.error);
+                status.textContent = 'Error reading file: ' + (reader.error?.message || 'unknown error');
             };
             reader.readAsText(file);
         }
@@ -999,13 +1034,16 @@
                 tip.textContent = 'Select an account to manage';
                 accountList.appendChild(tip);
 
-                for (const kv of data.filter(k => !k.key.startsWith('_'))) {
+                const kvItems = data.filter(k => !k.key.startsWith('_'));
+                let decryptFailCount = 0;
+                for (const kv of kvItems) {
                     let parsedValue = null;
                     try {
                         const encKey = await window.parent.getEncKey(flaskSiteUrl);
                         const decryptedString = await decryptWithKey(encKey, kv.value);
                         parsedValue = decryptedString ? JSON.parse(decryptedString) : null;
                     } catch (error) {
+                        decryptFailCount++;
                         console.error(`Decryption failed for key "${kv.key}" — entry may be unreadable or from a different key.`, error);
                     }
 
@@ -1022,6 +1060,13 @@
                     accountList.appendChild(item);
                 }
                 kvList.appendChild(accountList);
+                if (kvItems.length > 0 && decryptFailCount === kvItems.length) {
+                    const errBanner = document.createElement('p');
+                    errBanner.className = 'list-tip';
+                    errBanner.style.color = '#c44';
+                    errBanner.textContent = 'Could not decrypt accounts — session key missing. Please log out and log back in.';
+                    kvList.appendChild(errBanner);
+                }
             } catch (error) {
                 console.error('Error fetching account list:', error);
                 const kvList = document.getElementById('kvList');

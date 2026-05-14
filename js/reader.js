@@ -61,7 +61,32 @@ if (!leftContent) { console.error('Element with ID "left-content" not found.'); 
 
 // Ensure readerHandlers exists
 if (typeof window.readerHandlers === 'undefined') {
-    window.readerHandlers = {}; // Create it if it doesn't exist
+    window.readerHandlers = {};
+}
+
+// Opaque type for HTML that has been sanitized. makeListing requires this for full_content.
+// Produce via sanitizeHtml() (rss.js) or any sanitizer that returns new SafeHtml(html).
+class SafeHtml {
+    constructor(html) { this._html = String(html == null ? '' : html); }
+    toString() { return this._html; }
+}
+window.SafeHtml = SafeHtml;
+
+// HTML-escape a plain-text value for safe insertion into an HTML context.
+function _he(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// Escape a plain-text value for use inside a JS string literal delimited by single quotes.
+function _heJs(s) {
+    return String(s == null ? '' : s)
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'");
 }
 
 
@@ -253,7 +278,6 @@ function populateReadAccountList(accounts) {
     
 // Function to switch accounts
 async function switchReaderAccount(key) {
-
     const selectedAccount = accounts.find(acc => acc.key === key);
     const accountData = parseAccountValue(selectedAccount);
     if (!accountData) { showStatusMessage('Could not read account data — it may be corrupt.'); return; }
@@ -265,15 +289,22 @@ async function switchReaderAccount(key) {
     setupFeedButtons(instanceType);  // Different feed buttons for different services
     document.getElementById('feed-container').innerHTML = '';   // Empty feed container
 
-    switch (instanceType) {
-        // case 'Mastodon': await initializeMasto(baseURL, accessToken); break;
-        case 'Mastodon': await initializeReader('Mastodon',baseURL, accessToken); break;
-        case 'Bluesky': await initializeReader('Bluesky',instance, accessToken); break;
-        case 'OPML': await initializeOPML(instance, accessToken); break;
-        case 'RSS':  await initializeRSS(accountData); break;
-        // Additional cases can be easily added here
-        default: console.log("Unsupported instance type:", instanceType);
+    try {
+        switch (instanceType) {
+            // case 'Mastodon': await initializeMasto(baseURL, accessToken); break;
+            case 'Mastodon': await initializeReader('Mastodon',baseURL, accessToken); break;
+            case 'Bluesky': await initializeReader('Bluesky',instance, accessToken); break;
+            case 'OPML': await initializeOPML(instance, accessToken); break;
+            case 'RSS':  await initializeRSS(accountData); break;
+            // Additional cases can be easily added here
+            default: console.log("Unsupported instance type:", instanceType);
+        }
+    } catch (err) {
+        console.error('Error loading feed:', err);
+        showServiceError('feed-container', 'Could not load feed', err.message,
+            'Try selecting the account again, or check your network connection.');
     }
+
     // Clear status after some time
     setTimeout(() => {
         document.getElementById('account-status').innerHTML = '';
@@ -343,39 +374,45 @@ function makeListing(
         date: itemDate = null,
         full_content: itemFull_content = ""
     } = item || {};
-  
+
+    // Validate full_content: must be a SafeHtml instance (or absent).
+    // Callers are responsible for sanitizing HTML before passing it here.
+    let safeContentHtml = '';
+    if (itemFull_content instanceof SafeHtml) {
+        safeContentHtml = itemFull_content.toString();
+    } else if (itemFull_content && itemFull_content !== '') {
+        throw new Error('makeListing: full_content must be a SafeHtml instance. Sanitize it before passing.');
+    }
+
     // Create item ID
     // (One day we want this to be a content-based ID)
     const itemID = createUniqueIdFromUrl(itemUrl);
     if (!itemID) { console.error('Could not make itemID'); }
 
-    // Prepare the summary and full content
+    // Prepare the summary: truncate if too long; promote plain-text desc to content if longer.
     if (itemDesc && itemDesc.length > summaryLimit) {
-        if (itemDesc.length > itemFull_content.length) {
-         
-        // Define the full content (which could be the too-long summary)
-            itemFull_content = itemDesc;
+        if (itemDesc.length > safeContentHtml.length) {
+            safeContentHtml = _he(itemDesc); // promoted plain text — escape for HTML context
         }
-        // Summary is too long ( more than summaryLimit )
         itemDesc = truncateContent(itemDesc);
     }
 
     summary = `
         <div id='${itemID}-summary' style='display:block;'>
-        <a href="#" onclick="${item.feedAction || `loadMastodonFeed('user',null,'${itemAuthor || 'Unknown Author'}'); return false;`}" title='View User Thread'>${itemFeed || 'Unknown Source'}</a>:
-        ${itemDesc || 'No Summary'}
+        <a href="#" onclick="${item.feedAction || `loadMastodonFeed('user',null,'${_heJs(itemAuthor || 'Unknown Author')}'); return false;`}" title='View User Thread'>${_he(itemFeed) || 'Unknown Source'}</a>:
+        ${_he(itemDesc) || 'No Summary'}
         </div>`;
 
-    if (itemFull_content && itemFull_content.length > itemDesc.length) {
+    if (safeContentHtml && safeContentHtml.length > (itemDesc || '').length) {
             content = `
             <div id='${itemID}-content' style='display:none;'>
                 <div class='status-actions'>
                 <button class="material-icons md-18 md-light" onClick="toggleFormDisplay('${itemID}-content');toggleFormDisplay('${itemID}-summary');">zoom_in_map</button>
                 </div>
                 <div class='post'>
-                    <h2 class='post-title'>${itemTitle}</h2>
-                    <p><em>${itemAuthor || 'Unknown Author'}, ${itemFeed || 'Unknown Source'}, ${itemDate || 'Date unknown'}</em></p>
-                    <div class='post-full-content'>${itemFull_content}</div>
+                    <h2 class='post-title'>${_he(itemTitle)}</h2>
+                    <p><em>${_he(itemAuthor || 'Unknown Author')}, ${_he(itemFeed || 'Unknown Source')}, ${_he(itemDate || 'Date unknown')}</em></p>
+                    <div class='post-full-content'>${safeContentHtml}</div>
                 </div>
             </div>`;
         } else {
@@ -398,7 +435,7 @@ function makeListing(
   
     // Populate StatusSpecific inner HTML
     statusSpecific.innerHTML = `
-      ${item.titleHtml || `<a onclick="${service}Search('${itemTitle}');">${itemTitle}</a>`}<br>
+      ${item.titleHtml || `<a onclick="${service}Search('${_heJs(itemTitle || '')}');">${_he(itemTitle)}</a>`}<br>
       ${summary}
       ${content}
     `;
@@ -408,17 +445,19 @@ function makeListing(
     if (images && images.length > 0) {
         const statusImages = document.createElement('div');
         statusImages.classList.add('status-images-container');
-        // Loop through the images and log their url and description
         images.forEach(image => {
+            if (!/^https?:\/\//i.test(image.preview_url)) return; // skip unsafe preview URLs
             const imageItem = document.createElement('div');
             imageItem.classList.add('image-item');
-            imageItem.innerHTML = `
-            <a href="${image.url}" target="_blank">
-                <img src="${image.preview_url}" alt="${image.description || 'Image'}"/>
-            </a>
-            `;
-            console.log(`URL: ${image.url}`);
-            console.log(`Description: ${image.description}`);
+            const a = document.createElement('a');
+            if (/^https?:\/\//i.test(image.url)) a.href = image.url;
+            a.target = '_blank';
+            a.rel = 'noopener noreferrer';
+            const img = document.createElement('img');
+            img.src = image.preview_url;
+            img.alt = image.description || 'Image';
+            a.appendChild(img);
+            imageItem.appendChild(a);
             statusImages.appendChild(imageItem);
         });
         statusContent.appendChild(statusImages);

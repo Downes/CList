@@ -238,7 +238,7 @@ function decodeHTML(html) {
 
 function createUniqueIdFromUrl(url) {
     const prefix = 'item-'; // Ensure the id starts with a letter
-    const sanitizedUrl = encodeURIComponent(url); // Encode the URL to make it safe
+    const sanitizedUrl = encodeURIComponent(url).replace(/'/g, '%27'); // Encode the URL to make it safe
     return prefix + sanitizedUrl;
 }
 
