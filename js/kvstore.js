@@ -368,6 +368,7 @@ function kvstoreMePanel() {
                 acceptLogin();
                 accounts = await getAccounts(flaskSiteUrl);
                 if (mode === 'register') autoRegisterCollab().catch(e => console.warn('Collab auto-registration failed:', e));
+                autoSeedRSSRelay().catch(e => console.warn('RSS Relay account seed failed:', e));
                 if (accounts) {
                     updateUIVisibility();
                     await playRead();
@@ -527,6 +528,7 @@ function kvstoreMePanel() {
                         return {
                             key: kv.key,
                             value: JSON.stringify({
+                                ...accountData,
                                 instance: kv.key,
                                 id: accountData.id || '',
                                 permissions: accountData.permissions || '',
@@ -649,6 +651,31 @@ function kvstoreMePanel() {
                 body: JSON.stringify({ key: COLLAB_DEFAULT, value: encryptedValue })
             });
             if (!saveResp.ok) throw new Error('Collab account save failed: ' + saveResp.status);
+        }
+
+        // Silently save a default RSS Relay (OPML2JSON) service account if one doesn't exist.
+        async function autoSeedRSSRelay() {
+            const OPML2JSON_DEFAULT = 'https://opml2json.downes.ca';
+            const token = getSiteSpecificCookie(flaskSiteUrl, 'access_token');
+            if (!token) return;
+
+            const existing = (accounts || []).find(a => {
+                const v = parseAccountValue(a);
+                return v && v.type === 'OPML2JSON';
+            });
+            if (existing) return;
+
+            const encKey = await getEncKey(flaskSiteUrl);
+            if (!encKey) throw new Error('Encryption key not available');
+            const instanceData = { type: 'OPML2JSON', instance: OPML2JSON_DEFAULT, title: 'RSS Relay', permissions: 's' };
+            const encryptedValue = await encryptWithKey(encKey, JSON.stringify(instanceData));
+
+            const saveResp = await fetch(`${flaskSiteUrl}/add_kv/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                body: JSON.stringify({ key: OPML2JSON_DEFAULT, value: encryptedValue })
+            });
+            if (!saveResp.ok) throw new Error('RSS Relay account save failed: ' + saveResp.status);
         }
 
         // Re-register on all saved Collab servers to push an updated DID.

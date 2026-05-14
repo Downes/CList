@@ -76,6 +76,7 @@ function accountIcon(type) {
     const materialIcons = {
         'Bluesky':   'cloud',
         'OPML':      'rss_feed',
+        'RSS':       'rss_feed',
         'WordPress': 'article',
         'Blogger':   'article',
     };
@@ -213,7 +214,6 @@ function findPanel() {
         if (handler.logoSrc) {
             iconEl = document.createElement('span');
             iconEl.className = 'service-icon-img';
-            iconEl.style.webkitMask = `url('${handler.logoSrc}') no-repeat center / contain`;
             iconEl.style.mask = `url('${handler.logoSrc}') no-repeat center / contain`;
         } else {
             iconEl = document.createElement('span');
@@ -245,6 +245,8 @@ function populateReadAccountList(accounts) {
         v => v.permissions.includes('r'),
         key => switchReaderAccount(key)
     ));
+    // Kick off background RSS fetches so feeds are ready before the user clicks
+    if (typeof rssBackgroundFetchAll === 'function') rssBackgroundFetchAll(accounts);
 }
 
 
@@ -268,6 +270,7 @@ async function switchReaderAccount(key) {
         case 'Mastodon': await initializeReader('Mastodon',baseURL, accessToken); break;
         case 'Bluesky': await initializeReader('Bluesky',instance, accessToken); break;
         case 'OPML': await initializeOPML(instance, accessToken); break;
+        case 'RSS':  await initializeRSS(accountData); break;
         // Additional cases can be easily added here
         default: console.log("Unsupported instance type:", instanceType);
     }
@@ -359,7 +362,7 @@ function makeListing(
 
     summary = `
         <div id='${itemID}-summary' style='display:block;'>
-        <a href="#" onclick="loadMastodonFeed('user',null,'${itemAuthor || 'Unknown Author'}'); return false;" title='View User Thread';>${itemFeed || 'Unknown Source'}</a>: 
+        <a href="#" onclick="${item.feedAction || `loadMastodonFeed('user',null,'${itemAuthor || 'Unknown Author'}'); return false;`}" title='View User Thread'>${itemFeed || 'Unknown Source'}</a>:
         ${itemDesc || 'No Summary'}
         </div>`;
 
@@ -395,7 +398,7 @@ function makeListing(
   
     // Populate StatusSpecific inner HTML
     statusSpecific.innerHTML = `
-      <a onclick="${service}Search('${itemTitle}');">${itemTitle}</a><br>
+      ${item.titleHtml || `<a onclick="${service}Search('${itemTitle}');">${itemTitle}</a>`}<br>
       ${summary}
       ${content}
     `;

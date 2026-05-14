@@ -102,7 +102,9 @@ async function initializeOPML(baseURL, accessToken, nextCursor) {
     try {
         console.log('Attempting to initialize OPML client for', baseURL);
 
-        opmlServer = 'https://opml2json.downes.ca';
+        opmlServer = (typeof getOpml2jsonUrl === 'function')
+            ? await getOpml2jsonUrl()
+            : 'https://opml2json.downes.ca';
         opmlFile = baseURL;
         cursor = nextCursor;
 
