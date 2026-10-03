@@ -864,7 +864,7 @@ async function displayMastodonPost(status, statusBox, headerHtml) {
 //
 // Mastodon OAuth2 flow
 //
-// Called from flasker.html when user clicks "Authorize with Mastodon".
+// Called from the Accounts panel (kvstore.js) when user clicks "Authorize with Mastodon".
 // Delegates to OAuthClient.login() which handles app registration (with per-instance
 // caching), PKCE, and the redirect to the Mastodon authorization page.
 // callback.html handles the OAuth callback, stores the result in localStorage,

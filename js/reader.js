@@ -230,17 +230,21 @@ function populateReadAccountList(accounts) {
         key => switchReaderAccount(key)
     );
 
-    const annotBtn = document.createElement('button');
-    annotBtn.className = 'account-button';
-    annotBtn.onclick = () => window.showAnnotations('all');
-    const annotIcon = document.createElement('span');
-    annotIcon.className = 'material-icons';
-    annotIcon.textContent = 'rate_review';
-    const annotLabel = document.createElement('span');
-    annotLabel.textContent = 'Annotations';
-    annotBtn.appendChild(annotIcon);
-    annotBtn.appendChild(annotLabel);
-    list.insertBefore(annotBtn, list.children[1]);
+    // Annotations require a real, network-reachable kvstore for annotations.mooc.ca to verify
+    // the token against — not available to a Local-only account (see local-kvstore.js).
+    if (!(window.CList.isLocalMode && window.CList.isLocalMode())) {
+        const annotBtn = document.createElement('button');
+        annotBtn.className = 'account-button';
+        annotBtn.onclick = () => window.showAnnotations('all');
+        const annotIcon = document.createElement('span');
+        annotIcon.className = 'material-icons';
+        annotIcon.textContent = 'rate_review';
+        const annotLabel = document.createElement('span');
+        annotLabel.textContent = 'Annotations';
+        annotBtn.appendChild(annotIcon);
+        annotBtn.appendChild(annotLabel);
+        list.insertBefore(annotBtn, list.children[1]);
+    }
 
     accountList.appendChild(list);
 

@@ -1,14 +1,5 @@
-/* sidebar.css — shared styles for all left-sidebar iframe pages
+/* sidebar.css — shared styles for the left-sidebar nav panels (me/following/identity/options)
    Load after kvlist.css so overrides take effect.                */
-
-/* interface.css sets html,body { display:flex; justify-content:center } which
-   centers body inside html and shrinks it to content width. Override both so
-   the full viewport width is available to sidebar content. */
-html, body {
-    display: block;
-    width: 100%;
-    text-align: left;
-}
 
 /* Left-align the container (kvlist.css defaults to margin: 0 auto) */
 .kvcontainer {

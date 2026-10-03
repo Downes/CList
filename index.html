@@ -13,6 +13,8 @@
   <script>if (localStorage.getItem('clist-dark-mode') === '1') document.documentElement.classList.add('dark-mode');</script>
   <link rel="stylesheet" href="css/interface.css">
   <link rel="stylesheet" href="css/reader.css">
+  <link rel="stylesheet" href="css/kvlist.css">
+  <link rel="stylesheet" href="css/sidebar.css">
   <link rel="icon" type="image/x-icon" href="assets/icons/CList.ico">
 
   <!-- Google Fonts for the entire page -->
@@ -313,13 +315,14 @@
 
 
   <script src="js/tour.js" defer></script>          <!-- Onboarding tour -->
+  <script src="js/local-kvstore.js" defer></script>  <!-- In-browser kvstore for "Local" account mode; must load before kvstore.js -->
   <script src="js/utilities.js" defer></script>    <!-- Utility functions -->
   <script src="js/ui.js" defer></script>          <!-- CList.ui factory functions -->
   <script src="js/references.js" defer></script>  <!-- Reference list for convergence -->
   <script src="js/crypto_utils.js" defer></script>
   <script src="js/kvstore.js" defer></script>     <!-- Loads usere and account data --> 
   <script src="js/editors.js" defer></script>   <!-- Major function handlers-->
-  <script src="js/reader.js?v=4" defer></script>
+  <script src="js/reader.js?v=5" defer></script>
 
                                                      <!-- handlers -->
   
@@ -390,6 +393,9 @@
       <label style="display:block; margin-bottom:.5em;">Username<br>
         <input id="authUsername" type="text" autocomplete="username" style="width:100%; box-sizing:border-box; padding:.4em;">
       </label>
+      <div id="authUsernameRule" style="display:none; font-size:0.75em; color:#666; margin:-0.3em 0 .6em;">
+        3–32 characters: letters, digits, dots, hyphens, and underscores; must start with a letter or digit.
+      </div>
       <label style="display:block; margin-bottom:.5em;">Password<br>
         <div style="position:relative;">
           <input id="authPassword" type="password" autocomplete="current-password" style="width:100%; box-sizing:border-box; padding:.4em; padding-right:2.2em;">
@@ -419,7 +425,13 @@
         <select id="serverSelect" style="width:100%; box-sizing:border-box; padding:.4em; margin-top:.3em;">
           <option value="https://kvstore.mooc.ca">kvstore.mooc.ca</option>
           <option value="https://kvstore.downes.ca">kvstore.downes.ca</option>
+          <option value="http://local.clist">Local — nothing leaves your computer</option>
         </select>
+        <div style="font-size:0.75em; color:#666; margin-top:.4em;">
+          "Local" stores your account and credentials only in this browser — nothing is sent to any server.
+          Collab, shared annotations, following, and P2P chat need a real server to reach you, so those
+          aren't available in Local mode. You can't use the same Local account on another device or browser.
+        </div>
       </label>
       <div style="display:flex; gap:.5em; justify-content:flex-end;">
         <button class="btn btn-secondary" onclick="closeChangeServerPanel()">Cancel</button>

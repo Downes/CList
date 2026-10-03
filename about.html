@@ -6,64 +6,7 @@
     <title>About CList</title>
 
     <link rel="icon" type="image/x-icon" href="assets/icons/CList.ico">
-    <style>
-        :root {
-            --highlight-color: #4CAF50; /* Define the default highlight color */
-        }
-
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: #f4f4f4;
-            color: #333;
-            overflow-y: auto;
-        }
-        .container {
-            width: 60%;
-            margin: 20px auto;
-            padding: 20px;
-            background: white;
-            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
-            border-radius: 5px;
-            overflow-y: auto;
-            font-size: 14px;
-            cursor: pointer;
-        }
-        p {
-            margin: 0;
-            padding: 10px;
-        }
-        a {
-            color: var(--highlight-color);
-            text-decoration: none;
-        }
-        h1 {
-            color: var(--highlight-color);
-            text-align: center;
-        }
-        ul {
-            list-style-type: none;
-            padding: 0;
-        }
-        li {
-            padding: 10px;
-            border-bottom: 1px solid #ddd;
-        }
-        li:last-child {
-            border-bottom: none;
-        }
-        .text-size-controls {
-            text-align: center;
-            margin: 20px;
-        }
-        .text-size-controls button {
-            padding: 10px 20px;
-            font-size: 14px;
-            margin: 5px;
-            cursor: pointer;
-        }
-    </style>
+    <link rel="stylesheet" href="css/docs.css">
     <script>
         function increaseTextSize(sizeChange) {
             let container = document.querySelector('.container');
@@ -85,7 +28,7 @@
 </head>
 <body>
 
-    <div class="container">
+    <div class="container resizable-text">
         <h1>About CList</h1>
         <p><strong>CList</strong> is your personal learning environment. Find resources, follow media feeds, chat with colleagues, create new resources on your own or with others, publish to social media, blogs or your own web site.<br/></p>
         <p>CList is a single user application, not a multi-user platform. Think of it the way you might your web browser or your email service. You define what you want to read, and you decide where to send what you create. Your data is your own and you can access it from whereever you find this client.<br/></p><p><br></p>
@@ -103,6 +46,7 @@
             <li>Set up your Mastodon, Bluesky, Wordpress, Blogger or other services in your account</li>
             <li>Use the client to read, find, chat, load, edit, save, and post whatever you want wherever you want</li>
             <li>Tap into the educational services that are being enabled to help you learn</li>
+            <li>Prefer to run CList from your own computer instead of a server? <a href="desktop.html">Download &amp; instructions</a></li>
         </ul><br/></p>
         <p><strong>What you can do with it:</strong></p>
         <ul>

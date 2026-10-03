@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Run CList on Your Own Computer</title>
+
+    <link rel="icon" type="image/x-icon" href="assets/icons/CList.ico">
+    <link rel="stylesheet" href="css/docs.css">
+</head>
+<body>
+
+    <div class="container">
+        <h1>Run CList on Your Own Computer</h1>
+        <p>CList normally runs in your browser from <a href="https://clist.mooc.ca">clist.mooc.ca</a>. You can
+        also run the exact same application entirely on your own computer, with no website involved — useful
+        if you'd rather not depend on any particular site staying online, or if you just want CList available
+        offline. There are two ways to do this.</p>
+
+        <h2>Part 1 — Run CList as a self-contained app</h2>
+        <p>This runs CList from a small local server on your own machine, the same way it runs when hosted —
+        just double-click to start it.</p>
+        <ul>
+            <li>Download the app for your platform from the
+            <a href="https://github.com/Downes/CList/releases/latest" target="_blank">Releases page</a>
+            (a Windows build is available now; Mac and Linux builds will be added there as they're built)</li>
+            <li>Double-click the downloaded app — it starts a local server on your own computer and opens
+            CList in your default browser automatically</li>
+        </ul>
+        <p>Once it opens, CList works exactly as it does on the hosted version: register or log in with a
+        regular account, or click <strong>Change Account Server</strong> in the login pane to switch to
+        <strong>Local</strong> storage instead, which keeps everything only on this computer. See
+        <a href="desktop-how-it-works.html">how this works</a> for the short version of why it needs a local
+        server at all.</p>
+        <p style="font-size:0.9em;">Prefer to build it yourself instead of downloading a prebuilt app? Get the
+        source from <a href="https://github.com/Downes/CList" target="_blank">github.com/Downes/CList</a> and
+        run the build script for your platform (<code>build-windows.ps1</code>, <code>build-macos.sh</code>,
+        or <code>build-linux.sh</code>) — this requires Python 3, or you can just run
+        <code>python3 launcher.py</code> directly without building a standalone app at all.</p>
+
+        <h2>Part 2 — Save the files and run them directly</h2>
+        <p>This is the simplest option: no install, nothing to run, no Python required. You just save a
+        folder to your computer and open a file in your browser.</p>
+        <ul>
+            <li><a href="https://github.com/Downes/CList/archive/refs/heads/main.zip">Download the CList files (ZIP)</a></li>
+            <li>Unzip it anywhere on your computer</li>
+            <li>Open <code>index.html</code> from that folder in your browser (double-click it, or drag it
+            into a browser window)</li>
+        </ul>
+        <p>CList opens and works the same way as the hosted version: register or log in with a regular
+        account, or click <strong>Change Account Server</strong> in the login pane to switch to
+        <strong>Local</strong> storage instead, which keeps everything only on this computer.</p>
+
+        <p><a href="index.html">Return to CList</a> &nbsp;&middot;&nbsp; <a href="about.html">About CList</a></p>
+    </div>
+</body>
+</html>

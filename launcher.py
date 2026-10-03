@@ -298,8 +298,8 @@ class CListHandler(http.server.SimpleHTTPRequestHandler):
             # switching (flaskSiteUrl changing at runtime) is transparently picked up.
             #
             # RISKS TO KNOW ABOUT:
-            # 1. Fragile global: the patch references window.flaskSiteUrl by name. If that
-            #    variable is ever renamed or moved out of global scope, the proxy silently
+            # 1. Fragile global: the patch references window.CList.config.flaskSiteUrl by
+            #    path. If that path is ever renamed or restructured, the proxy silently
             #    stops working with no error.
             # 2. JS in a Python string: hard to syntax-highlight, read, or test. If this
             #    logic grows, extract it into js/launcher-proxy.js and have runtime-config.js
@@ -310,7 +310,8 @@ class CListHandler(http.server.SimpleHTTPRequestHandler):
             '  window.fetch=function fetchWithKvstoreProxy(input,init){\n'
             '    try{\n'
             '      var url=typeof input==="string"?input:(input instanceof Request?input.url:String(input));\n'
-            '      var up=typeof flaskSiteUrl==="string"&&flaskSiteUrl.startsWith("http")?flaskSiteUrl:null;\n'
+            '      var cfgUrl=window.CList&&window.CList.config&&window.CList.config.flaskSiteUrl;\n'
+            '      var up=typeof cfgUrl==="string"&&cfgUrl.startsWith("http")?cfgUrl:null;\n'
             '      if(up&&(url.startsWith(up+"/")||url===up)){\n'
             '        var hdrs=new Headers((init&&init.headers)||{});\n'
             '        hdrs.set("X-Kvstore-Target",up);\n'

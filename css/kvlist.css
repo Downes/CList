@@ -109,6 +109,14 @@
     padding-bottom: 1rem;
     border-bottom: 1px solid #ddd;
 }
+/* Top-level nav page (no back-btn above it) needs breathing room from the panel edge. */
+.me-section--top {
+    padding-top: 1rem;
+}
+/* Sub-panels that are a single section (not a list of several) skip the divider line. */
+.me-section--flat {
+    border-bottom: none;
+}
 .me-section h3 {
     font-size: 0.95rem;
     margin: 0 0 0.5rem;
@@ -147,3 +155,32 @@
     margin: 0;
     line-height: 1.3;
 }
+
+/* Accounts panel add/edit form (was flasker.html's own inline <style> block) */
+#sharedForm {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 10px;
+    margin-top: 6px;
+    background: #fafafa;
+}
+#addKvForm { width: 100%; }
+#addKvForm label {
+    margin-bottom: 0;
+    display: block;
+    font-variant: small-caps;
+    font-weight: 400;
+    font-size: 0.8rem;
+    line-height: 0.8rem;
+    color: #555;
+}
+#addKvForm input, #add-account-header button {
+    display: block;
+    margin-top: 2px;
+    margin-bottom: 0.5rem;
+    padding: 0.2rem;
+    width: 100%;
+    font-size: 0.8rem;
+    box-sizing: border-box;
+}
+#kvList { margin-top: 0.5rem; }

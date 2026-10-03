@@ -153,7 +153,8 @@ const _interfaceSteps = [
         text: 'Ready to get started? Create a free account here — it only takes a moment.',
     },
     {
-        targetId: 'divider',
+        targetId: 'left-pane',
+        fullHeight: true,
         text: 'That\'s what CList can do without an account. Register to connect Mastodon, Bluesky, RSS feeds, and more — read from all of them, write, and publish to your open networks from one place.',
     },
 ];

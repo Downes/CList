@@ -176,7 +176,9 @@ async function _dropboxListFolder(token, folder) {
     });
     if (!resp.ok) {
         const text = await resp.text().catch(() => '');
-        throw new Error(`Dropbox list failed (${resp.status}): ${text}`);
+        const err = new Error(`Dropbox list failed (${resp.status}): ${text}`);
+        if (text.includes('missing_scope')) err.missingScope = true;
+        throw err;
     }
     return await resp.json(); // { entries: [...], cursor, has_more }
 }
@@ -380,7 +382,7 @@ async function _dropboxDownloadFile(token, path) {
                 try {
                     listing = await _dropboxListFolder(accountData.id, accountData.folder);
                 } catch (err) {
-                    if (accountData.refresh && err.message.includes('401')) {
+                    if (accountData.refresh && err.message.includes('401') && !err.missingScope) {
                         try {
                             const newToken = await _dropboxRefreshAndPersist(account, accountData);
                             listing = await _dropboxListFolder(newToken, accountData.folder);
@@ -459,7 +461,7 @@ async function _dropboxDownloadFile(token, path) {
                             await _openInEditor(text, file.name);
                             resolve(null);
                         } catch (err) {
-                            if (accountData.refresh && err.message.includes('401')) {
+                            if (accountData.refresh && err.message.includes('401') && !err.missingScope) {
                                 try {
                                     const newToken = await _dropboxRefreshAndPersist(account, accountData);
                                     const text = await _dropboxDownloadFile(newToken, file.path_display);

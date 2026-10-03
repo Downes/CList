@@ -1,0 +1,75 @@
+/* Shared styles for CList's standalone documentation pages
+   (about.html, desktop.html, desktop-how-it-works.html, etc.) */
+
+:root {
+    --highlight-color: #4CAF50; /* Define the default highlight color */
+}
+
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f4f4f4;
+    color: #333;
+    overflow-y: auto;
+}
+.container {
+    width: 60%;
+    margin: 20px auto;
+    padding: 20px;
+    background: white;
+    box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+    border-radius: 5px;
+    overflow-y: auto;
+    font-size: 14px;
+}
+p {
+    margin: 0;
+    padding: 10px;
+}
+a {
+    color: var(--highlight-color);
+    text-decoration: none;
+}
+h1 {
+    color: var(--highlight-color);
+    text-align: center;
+}
+ul, ol {
+    padding: 0 10px 0 30px;
+}
+li {
+    padding: 6px 0;
+}
+code {
+    background: #f0f0f0;
+    padding: 2px 5px;
+    border-radius: 3px;
+    font-size: 0.95em;
+}
+
+/* about.html only: cursor hint + text-size controls */
+.container.resizable-text {
+    cursor: pointer;
+}
+.container.resizable-text ul {
+    list-style-type: none;
+    padding: 0;
+}
+.container.resizable-text li {
+    padding: 10px;
+    border-bottom: 1px solid #ddd;
+}
+.container.resizable-text li:last-child {
+    border-bottom: none;
+}
+.text-size-controls {
+    text-align: center;
+    margin: 20px;
+}
+.text-size-controls button {
+    padding: 10px 20px;
+    font-size: 14px;
+    margin: 5px;
+    cursor: pointer;
+}

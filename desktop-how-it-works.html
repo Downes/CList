@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>How CList Desktop Mode Works</title>
+
+    <link rel="icon" type="image/x-icon" href="assets/icons/CList.ico">
+    <link rel="stylesheet" href="css/docs.css">
+</head>
+<body>
+
+    <div class="container">
+        <h1>How CList Desktop Mode Works</h1>
+        <p>Desktop mode runs the same CList files you'd get from the web, but serves them from a small
+        program on your own computer instead of from a website.</p>
+
+        <ul>
+            <li><strong>A tiny local server.</strong> <code>launcher.py</code> starts a plain Python web
+            server bound only to <code>127.0.0.1</code> (your own machine — nothing on your network can
+            reach it) and opens it in your browser automatically.</li>
+            <li><strong>A local stand-in for cross-site requests.</strong> Browsers normally block a page
+            from calling a different site's server directly (CORS). The launcher works around this for
+            its own traffic by routing kvstore requests and OAuth token exchanges through itself first,
+            so login, registration, and connecting services like Mastodon work the same as on the hosted
+            site.</li>
+            <li><strong>Your account works unchanged.</strong> There's no separate "desktop account" —
+            it's the same kvstore account, and the same zero-knowledge encryption applies: your password
+            and encryption key are derived and used only in your browser, never sent anywhere in the
+            clear, whether you're running the hosted version or the desktop one.</li>
+            <li><strong>Nothing is installed system-wide.</strong> The launcher only serves files and
+            proxies requests while it's running. Closing it (or <code>Ctrl+C</code> in the terminal)
+            stops it completely.</li>
+        </ul>
+
+        <p><a href="desktop.html">Download &amp; run instructions</a> &nbsp;&middot;&nbsp;
+        <a href="index.html">Return to CList</a></p>
+    </div>
+</body>
+</html>

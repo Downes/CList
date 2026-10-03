@@ -56,16 +56,39 @@ function deriveSiteIdentifier(siteUrl) {
     return new URL(siteUrl).hostname.replace(/\./g, '_');
 }
 
+// document.cookie never works under file:// (Chrome gives file:// documents no cookie jar at
+// all), and Local mode (IndexedDB-backed) has no real server to send a cookie-scoped token to
+// anyway — so both use localStorage for auth storage. Remote/server mode over http(s) keeps using
+// real cookies, which is the more secure choice when credentials are actually leaving the device.
+function _authStorageIsLocalStorage() {
+    return (window.CList && window.CList.isLocalMode && window.CList.isLocalMode())
+        || window.location.protocol === 'file:';
+}
+
 function setSiteSpecificCookie(siteUrl, name, value, days) {
-    setCookie(`${name}_${deriveSiteIdentifier(siteUrl)}`, value, days);
+    const key = `${name}_${deriveSiteIdentifier(siteUrl)}`;
+    if (_authStorageIsLocalStorage()) {
+        localStorage.setItem(key, value);
+        return;
+    }
+    setCookie(key, value, days);
 }
 
 function getSiteSpecificCookie(siteUrl, name) {
-    return getCookie(`${name}_${deriveSiteIdentifier(siteUrl)}`);
+    const key = `${name}_${deriveSiteIdentifier(siteUrl)}`;
+    if (_authStorageIsLocalStorage()) {
+        return localStorage.getItem(key);
+    }
+    return getCookie(key);
 }
 
 function deleteSiteSpecificCookie(siteUrl, name) {
-    setCookie(`${name}_${deriveSiteIdentifier(siteUrl)}`, '', -1);
+    const key = `${name}_${deriveSiteIdentifier(siteUrl)}`;
+    if (_authStorageIsLocalStorage()) {
+        localStorage.removeItem(key);
+        return;
+    }
+    setCookie(key, '', -1);
 }
 
 // Extract baseURL  (from username@baseURL.social allowing for submission of baseURL.social)
