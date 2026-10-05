@@ -4,7 +4,7 @@
 //  Each function takes data and returns a DOM element (no side effects).
 //  Backward-compatible bare-name globals are aliased at the bottom of this file.
 //
-//  Copyright National Research Council of Canada 2025
+//  Copyright Stephen Downes 2025
 //  Licensed under Creative Commons Attribution 4.0 International https://creativecommons.org/licenses/by/4.0/
 //
 //  This software carries NO WARRANTY OF ANY KIND.

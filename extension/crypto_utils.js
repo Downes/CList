@@ -1,7 +1,7 @@
 //  crypto_utils.js — cryptographic helpers for CList browser extension
 //  Copied verbatim from /srv/www/clist.mooc.ca/js/crypto_utils.js
 //
-//  Copyright National Research Council of Canada 2025
+//  Copyright Stephen Downes 2025
 //  Licensed under Creative Commons Attribution 4.0 International https://creativecommons.org/licenses/by/4.0/
 
 async function deriveEncKey(password, username) {

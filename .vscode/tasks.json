@@ -1,0 +1,13 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Merge with GitHub main",
+			"type": "shell",
+			"command": "git status --short --branch && git fetch origin && git merge origin/main",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		}
+	]
+}

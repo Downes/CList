@@ -1,7 +1,7 @@
 //  collab.js  -  TipTap rich-text editor with Hocuspocus real-time collaboration
 //  Part of CList, the next generation of learning and connecting with your community
 //
-//  Copyright National Research Council of Canada 2025
+//  Copyright Stephen Downes 2025
 //  Licensed under Creative Commons Attribution 4.0 International https://creativecommons.org/licenses/by/4.0/
 //
 //  This software carries NO WARRANTY OF ANY KIND.
