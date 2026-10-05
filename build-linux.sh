@@ -19,6 +19,7 @@ python3 -m PyInstaller \
     --add-data "js:js" \
     --add-data "css:css" \
     --add-data "assets:assets" \
+    --add-data "images:images" \
     launcher.py
 
 echo "Build complete. Executable: dist/clist"

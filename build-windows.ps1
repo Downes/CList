@@ -36,6 +36,7 @@ python -m PyInstaller `
     --add-data "js;js" `
     --add-data "css;css" `
     --add-data "assets;assets" `
+    --add-data "images;images" `
     --add-data "tools/mkcert.exe;tools" `
     launcher.py
 

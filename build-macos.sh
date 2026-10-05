@@ -41,6 +41,7 @@ python3 -m PyInstaller \
     --add-data "js:js" \
     --add-data "css:css" \
     --add-data "assets:assets" \
+    --add-data "images:images" \
     --add-data "tools/mkcert-darwin:tools" \
     launcher.py
 
