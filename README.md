@@ -3,6 +3,20 @@
 Personal learning and communications application — a browser-based tool for reading feeds,
 publishing to social platforms, and managing credentials for those platforms.
 
+## Download
+
+Pre-built desktop binaries for Windows, macOS, and Linux are available on the
+[Releases page](https://github.com/Downes/CList/releases).
+
+| Platform | File |
+|----------|------|
+| Windows  | `CList.exe` |
+| macOS    | `CList-macos` |
+| Linux    | `CList-linux` |
+
+Windows and macOS binaries are automatically code-signed. This project uses
+[SignPath Foundation](https://signpath.org) for code signing of release binaries.
+
 ## Architecture
 
 CList is 100% client-side HTML/JS. There is no CList server. All pages are static files
