@@ -26,5 +26,11 @@ node_modules/
 # Bundled build tools (downloaded by build scripts, not committed)
 tools/
 
+# Editor config
+.vscode/
+
+# Temp files
+*tmp_clist_diff*
+
 # Extension build artifacts (zip packages are published via web, not git)
 *.zip
