@@ -5,16 +5,17 @@
 
 set -e
 
-pyinstaller \
+python3 -m PyInstaller \
     --onefile \
     --name "clist" \
     --add-data "index.html:." \
     --add-data "about.html:." \
     --add-data "callback.html:." \
     --add-data "redirect.html:." \
-    --add-data "flasker.html:." \
-    --add-data "me.html:." \
     --add-data "chat.html:." \
+    --add-data "chat-popup.html:." \
+    --add-data "desktop.html:." \
+    --add-data "desktop-how-it-works.html:." \
     --add-data "js:js" \
     --add-data "css:css" \
     --add-data "assets:assets" \
