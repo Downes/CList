@@ -10,6 +10,7 @@ python3 -m PyInstaller \
     --name "clist" \
     --add-data "index.html:." \
     --add-data "about.html:." \
+    --add-data "privacy.html:." \
     --add-data "callback.html:." \
     --add-data "redirect.html:." \
     --add-data "chat.html:." \

@@ -104,6 +104,10 @@ css/
 assets/
 ```
 
+## Privacy
+
+See [privacy.html](privacy.html) / [https://clist.mooc.ca/privacy.html](https://clist.mooc.ca/privacy.html)
+
 ## License
 
 Copyright Stephen Downes 2025

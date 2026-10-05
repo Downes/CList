@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy — CList</title>
+    <link rel="icon" type="image/x-icon" href="assets/icons/CList.ico">
+    <link rel="stylesheet" href="css/docs.css">
+</head>
+<body>
+
+    <div class="container">
+        <h1>Privacy Policy</h1>
+        <p><em>Last updated: October 2026</em></p>
+
+        <p>CList is a personal learning and communications tool developed by
+        <strong>Stephen Downes</strong>. This policy explains what data CList
+        collects, where it goes, and what it never does.</p>
+
+        <h2>What CList does not do</h2>
+        <ul>
+            <li>CList does not collect personal data on its own behalf.</li>
+            <li>CList does not run analytics or tracking scripts.</li>
+            <li>The CList web server (clist.mooc.ca) does not log requests.</li>
+            <li>The desktop application communicates only with servers you explicitly configure.</li>
+        </ul>
+
+        <h2>Credential storage (kvstore)</h2>
+        <p>CList optionally uses a companion service called <strong>kvstore</strong>
+        (hosted at kvstore.mooc.ca) to store your account credentials across devices.
+        kvstore stores only:</p>
+        <ul>
+            <li>Your chosen username</li>
+            <li>A one-way authentication hash of your password (your password itself is never sent or stored)</li>
+            <li>Encrypted credential blobs — your API tokens and passwords are encrypted
+                in your browser before transmission using AES-GCM with a key derived from
+                your password via PBKDF2. The server stores only ciphertext and cannot
+                read your credentials.</li>
+        </ul>
+        <p>You can run your own kvstore instance instead of using kvstore.mooc.ca.
+        The source code is available on GitHub.</p>
+
+        <h2>Third-party services</h2>
+        <p>CList can connect to external services on your behalf — including Mastodon,
+        Bluesky, WordPress, Blogger, OpenAI, and Dropbox. You choose which services to
+        connect, and CList communicates with them using credentials you provide.
+        Each service's own privacy policy governs how they handle your data:</p>
+        <ul>
+            <li><a href="https://joinmastodon.org/privacy-policy" target="_blank">Mastodon</a></li>
+            <li><a href="https://bsky.social/about/support/privacy-policy" target="_blank">Bluesky</a></li>
+            <li><a href="https://automattic.com/privacy/" target="_blank">WordPress.com</a></li>
+            <li><a href="https://policies.google.com/privacy" target="_blank">Blogger (Google)</a></li>
+            <li><a href="https://openai.com/policies/privacy-policy" target="_blank">OpenAI</a></li>
+            <li><a href="https://www.dropbox.com/privacy" target="_blank">Dropbox</a></li>
+        </ul>
+        <p>CList does not share your data with any of these services beyond what is
+        necessary to perform the action you request (e.g. publishing a post).</p>
+
+        <h2>Code signing</h2>
+        <p>Windows and macOS desktop binaries are code-signed through
+        <a href="https://signpath.org" target="_blank">SignPath Foundation</a>,
+        a free code-signing service for open source projects.</p>
+
+        <h2>Open source</h2>
+        <p>CList is fully open source. You can inspect exactly what it does at
+        <a href="https://github.com/Downes/CList" target="_blank">github.com/Downes/CList</a>.</p>
+
+        <h2>Contact</h2>
+        <p>Questions about this policy: <a href="mailto:stephen@downes.ca">stephen@downes.ca</a></p>
+    </div>
+
+</body>
+</html>
