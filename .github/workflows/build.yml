@@ -1,17 +1,63 @@
-name: Build CList
+name: Build and Release CList
 
 on:
   push:
     branches: [ main ]
 
 jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install PyInstaller
+        run: pip install pyinstaller
+
+      - name: Download mkcert
+        shell: pwsh
+        run: |
+          $release = Invoke-RestMethod -Uri 'https://api.github.com/repos/FiloSottile/mkcert/releases/latest'
+          $ver = $release.tag_name
+          $url = "https://github.com/FiloSottile/mkcert/releases/download/$ver/mkcert-$ver-windows-amd64.exe"
+          New-Item -ItemType Directory -Force -Path tools | Out-Null
+          Invoke-WebRequest -Uri $url -OutFile tools\mkcert.exe
+
+      - name: Build
+        shell: pwsh
+        run: python -m PyInstaller
+              --onefile
+              --noconsole
+              --name "CList"
+              --add-data "index.html;."
+              --add-data "about.html;."
+              --add-data "callback.html;."
+              --add-data "redirect.html;."
+              --add-data "chat.html;."
+              --add-data "chat-popup.html;."
+              --add-data "desktop.html;."
+              --add-data "desktop-how-it-works.html;."
+              --add-data "js;js"
+              --add-data "css;css"
+              --add-data "assets;assets"
+              --add-data "images;images"
+              --add-data "tools/mkcert.exe;tools"
+              launcher.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CList-windows
+          path: dist/CList.exe
+
   build-macos:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
@@ -21,8 +67,7 @@ jobs:
       - name: Build
         run: bash build-macos.sh
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: CList-macos
           path: dist/CList
@@ -32,8 +77,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
@@ -43,8 +87,65 @@ jobs:
       - name: Build
         run: bash build-linux.sh
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: CList-linux
           path: dist/clist
+
+  release:
+    needs: [build-windows, build-macos, build-linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute tag and title
+        id: meta
+        run: |
+          VERSION=$(cat VERSION | tr -d '[:space:]')
+          DATE=$(date +'%Y-%m-%d')
+          TAG="v${VERSION}-${DATE}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "title=CList v${VERSION} — ${DATE}" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "date=$DATE" >> $GITHUB_OUTPUT
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: CList-windows
+          path: release-assets/
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: CList-macos
+          path: release-assets/
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: CList-linux
+          path: release-assets/
+
+      - name: Rename binaries
+        run: |
+          mv release-assets/CList release-assets/CList-macos
+          mv release-assets/clist release-assets/CList-linux
+          chmod +x release-assets/CList-macos release-assets/CList-linux
+
+      - name: Create or update release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: ${{ steps.meta.outputs.title }}
+          body: |
+            **CList v${{ steps.meta.outputs.version }}** — built ${{ steps.meta.outputs.date }}
+
+            | Platform | File |
+            |----------|------|
+            | Windows  | `CList.exe` |
+            | macOS    | `CList-macos` |
+            | Linux    | `CList-linux` |
+
+            Built from commit ${{ github.sha }}.
+          files: release-assets/*
+          make_latest: true
