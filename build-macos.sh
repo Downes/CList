@@ -12,7 +12,7 @@ MKCERT_BIN="$TOOLS_DIR/mkcert-darwin"
 if [ ! -f "$MKCERT_BIN" ]; then
     echo "Downloading mkcert for macOS..."
     mkdir -p "$TOOLS_DIR"
-    VER="$(curl -fsSL https://api.github.com/repos/FiloSottile/mkcert/releases/latest | grep '"tag_name"' | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')"
+    VER="v1.4.4"
     ARCH="$(uname -m)"
     if [ "$ARCH" = "arm64" ]; then
         MKCERT_URL="https://github.com/FiloSottile/mkcert/releases/download/$VER/mkcert-$VER-darwin-arm64"
