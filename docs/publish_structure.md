@@ -18,7 +18,7 @@ When the user clicks **Publish**, `postAll()` in `publish.js`:
    - If the result fits within `maxlength`, passes it to `handler.publish()` as-is.
    - If it is too long but a URL was already returned by an earlier account, assembles `"opening… see <url>"` within the limit.
    - If it is too long and no URL exists yet, truncates and warns.
-5. Passes the final content string to `handler.publish(accountData, title, content)`.
+5. Passes the final content string and the reference list to `handler.publish(accountData, title, content, refs)`.
 
 ---
 
@@ -28,8 +28,8 @@ Wrap the registration in an IIFE so it does not pollute the global scope:
 
 ```javascript
 (function () {
-    window.publishHandlers = window.publishHandlers || {};
-    window.publishHandlers['MyService'] = {
+    window.CList.publishers = window.CList.publishers || {};
+    window.CList.publishers['MyService'] = {
         construct: (title, content) => { /* optional — see below */ },
         publish:   async (accountData, title, content) => { /* required */ },
     };
@@ -40,7 +40,7 @@ The key (`'MyService'`) must exactly match the `type` field in the account schem
 
 ---
 
-## `publish(accountData, title, content)`
+## `publish(accountData, title, content, refs)`
 
 The only required method. Called once for each selected account.
 
@@ -49,6 +49,7 @@ The only required method. Called once for each selected account.
 | `accountData` | object | Parsed account from kvstore — see shape below |
 | `title` | string | Write-pane title; may contain HTML — strip if the service needs plain text |
 | `content` | string | Post body; may be HTML — already truncated to `maxlength` by `postAll()` |
+| `refs` | array | The write pane's reference list (`window.CList.state.references`), passed in by `postAll()`. Each entry has `url`, `author`, and `replyToken` (or `null`). Filter for your own type: `refs.filter(r => r.replyToken?.type === 'MyService')`. Ignore it if the service has no reply concept. Token shapes are in `references.js`. |
 | returns | `string \| null` | Permanent URL of the published post, or `null` |
 
 **Return the URL when the service provides one.** `postAll()` passes it to subsequent shorter-limit accounts so they can publish `"title see <url>"` rather than truncating.
@@ -115,10 +116,10 @@ If `construct` is absent, `postAll()` uses the raw HTML string for measurement.
 
 ## Account schema fields for publishing services
 
-The `accountSchemas` entry drives the Accounts panel form. For a publish-only service:
+The `window.CList.schemas` entry drives the Accounts panel form. For a publish-only service:
 
 ```javascript
-window.accountSchemas['MyService'] = {
+window.CList.schemas['MyService'] = {
     type: 'MyService',
     instanceFromKey: true,
     kvKey: { label: 'Username', placeholder: 'you@myservice.example' },
@@ -198,8 +199,8 @@ Follow `docs/error-handling.md`. For publish handlers specifically:
 ```javascript
 // js/myservice.js
 
-window.accountSchemas = window.accountSchemas || {};
-window.accountSchemas['MyService'] = {
+window.CList.schemas = window.CList.schemas || {};
+window.CList.schemas['MyService'] = {
     type: 'MyService',
     instanceFromKey: true,
     kvKey: { label: 'Username', placeholder: 'you@myservice.example' },
@@ -212,8 +213,8 @@ window.accountSchemas['MyService'] = {
 };
 
 (function () {
-    window.publishHandlers = window.publishHandlers || {};
-    window.publishHandlers['MyService'] = {
+    window.CList.publishers = window.CList.publishers || {};
+    window.CList.publishers['MyService'] = {
 
         // Build plain text for length measurement
         construct: (title, content) => {

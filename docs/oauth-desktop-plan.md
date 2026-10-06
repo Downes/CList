@@ -203,4 +203,4 @@ The plan is efficient. Specific notes:
 
 ---
 
-*Recorded 2026-05-11. Not yet started.*
+*Recorded 2026-05-11. Status: implemented. The frontend modules are `js/oauth-config.js`, `js/oauth-client.js`, and `js/oauth-strategies.js`, and the launcher is `launcher.py`. The sections above record the original design; the code is the reference for current behavior.*

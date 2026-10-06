@@ -9,6 +9,8 @@ CList's chat is peer-to-peer WebRTC, brokered by two external pieces:
 
 Once two peers connect, all messages travel directly between browsers. discussions.mooc.ca is only used for discovery and keepalive.
 
+**Relaying.** A CList peer forwards each message it receives to every other connection it holds, and `processedMsgIds` stops a message looping (`dynamicp2p.js`). Peers that are not directly connected still receive it. `chat.html` is a lighter client: it creates a PeerJS peer and connects only to one CList peer (the host), which relays for it. The chat popup (`chat-popup.html`) is a separate window; the main window keeps the WebRTC connections and passes messages to the popup over `BroadcastChannel('clist-chat')`.
+
 ---
 
 ## Globals

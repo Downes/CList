@@ -473,8 +473,7 @@ async function _fetchAnnotationsForAccount(acct, url) {
 // ── Federated annotation discovery ────────────────────────────────────────────
 // Reads the encrypted follows list, fetches each followed user's DID document,
 // and returns any AnnotationService endpoints found there.
-// Result is cached for 5 minutes so the MutationObserver-triggered batch check
-// doesn't re-fetch DID documents on every feed update.
+// Result is cached for 5 minutes so repeated batch checks don't re-fetch DID documents.
 
 let _federatedCache     = null;
 let _federatedCacheTime = 0;

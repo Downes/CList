@@ -70,18 +70,18 @@ If `pendingContent` is `null` when `initialize()` runs, the editor starts empty 
 
 ---
 
-## Content loading — `loadHandlers`
+## Content loading — `window.CList.loaders`
 
-The Load button opens a right-pane list built from the `loadHandlers` registry — an **ordered array** of loader objects defined in `editors.js` and extended by service files.
+The Load button opens a right-pane list built from the `window.CList.loaders` registry — an **ordered array** of loader objects. The first service file that loads creates it (`window.CList.loaders = window.CList.loaders || []`), and each file pushes its own entries (e.g. `files.js`, `dropbox.js`, `chatgpt.js`).
 
 ### Registering a loader
 
-Add an entry by pushing to `window.loadHandlers` from any `.js` file:
+Add an entry by pushing to `window.CList.loaders` from any `.js` file:
 
 ```javascript
 (function () {
-    window.loadHandlers = window.loadHandlers || [];
-    window.loadHandlers.push({
+    window.CList.loaders = window.CList.loaders || [];
+    window.CList.loaders.push({
         label: 'My Source',
         icon:  'source',            // Material Icons name, or set logoSrc for a masked SVG
         load:  async () => {
@@ -108,18 +108,18 @@ If no suitable editor is found (e.g. an unrecognised MIME type), the user is war
 
 ---
 
-## Save destinations — `saveHandlers`
+## Save destinations — `window.CList.savers`
 
-The Save button opens a right-pane list built from the `saveHandlers` registry — an **ordered array** of saver objects defined in `publish.js` and extended by service files.
+The Save button opens a right-pane list built from the `window.CList.savers` registry — an **ordered array** of saver objects defined in `publish.js` and extended by service files.
 
 ### Registering a saver
 
-Add an entry by pushing to `window.saveHandlers` from any `.js` file:
+Add an entry by pushing to `window.CList.savers` from any `.js` file:
 
 ```javascript
 (function () {
-    window.saveHandlers = window.saveHandlers || [];
-    window.saveHandlers.push({
+    window.CList.savers = window.CList.savers || [];
+    window.CList.savers.push({
         label: 'Save to My Service',
         icon:  'cloud_upload',            // Material Icons name, or set logoSrc for a masked SVG
         save:  async () => {
@@ -249,7 +249,7 @@ These are handled by `editors.js` and do not need to be implemented per editor:
 | **Editor switcher UI** | `populateEditorList()` builds the right-pane list from `editorHandlers` automatically. Runs on page load and after every `switchToEditor()` call. New editors appear immediately. |
 | **Content carry-over on switch** | `switchToEditor(editorType, carriedContent)` captures content from the current editor, warns if the conversion is lossy (HTML → plain text strips tags), stashes it in `pendingContent`, then calls `initializeEditor()`. |
 | **Indicator button** | `updateEditorIndicator()` is called by `initializeEditor()` after every successful init. It reads `handler.label` and updates both the command-bar button and the `#editor-status` div in the right pane. |
-| **Load blank clears draft** | The "Load blank" entry in `loadHandlers` calls `clearDraft(currentEditor)` before returning empty content. |
+| **Load blank clears draft** | The "Load blank" entry in `window.CList.loaders` calls `clearDraft(currentEditor)` before returning empty content. |
 | **Account-backed editor listing** | Editors with `requiresAccount: true` appear in the switcher only when the user has a kvstore account with permission `'e'` and a matching `type` field. No extra code needed. |
 
 ---

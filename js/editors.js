@@ -172,7 +172,7 @@ const editorHandlers = {
 //
 // Define handlers for each content loader
 //
-//      The loadHandlers registry is an ordered array of loader objects displayed
+//      The loaders registry is an ordered array of loader objects displayed
 //      in the right-pane Load list. Each loader must have:
 //
 //          label  {string}   Display name shown in the list
@@ -200,7 +200,7 @@ async function playLoad() {
     openRightInterface('load-instructions');
 }
 
-// Build the load list from the loadHandlers registry
+// Build the load list from the loaders registry
 function populateLoadOptions() {
     const optionsDiv = window.CList.ui.view.loadOptions;
     optionsDiv.innerHTML = '';

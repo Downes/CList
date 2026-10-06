@@ -118,19 +118,15 @@ All feed display functions build the same DOM shape inside `#feed-container`:
   └── [pagination button]          — "Load Next Page" / "Load More" when cursor exists
 ```
 
-### Two rendering approaches
+### How items are rendered
 
-Services render items in one of two ways:
-
-**Direct DOM** (Mastodon, Bluesky) — each service builds its own DOM elements via `createElement` / `innerHTML` directly inside its display function.
-
-**`makeListing()`** (RSS, OPML, OASIS, DuckDuckGo, Google) — services populate a standard item object and pass it to `makeListing()` in `reader.js`, which builds the `div.status-box` and calls `window.CList.readers[service].statusActions()` to get the action buttons as an HTML string.
+Every service renders items through `makeListing()`. Services populate a standard item object and pass it to `makeListing()`, which builds the `div.status-box` and calls `window.CList.readers[service].statusActions()` to get the service's action buttons as an HTML string. Mastodon calls `makeListing()` directly; Bluesky passes normalized posts through `renderFeed()`, which calls `makeListing()` for each one.
 
 ---
 
 ## `makeListing(item)` — item object contract
 
-`makeListing()` is defined in `reader.js`. It accepts a single object with the fields below and returns a fully assembled `div.status-box`.
+`makeListing()` is defined in `ui.js`. It accepts a single object with the fields below and returns a fully assembled `div.status-box`.
 
 ### Field reference
 
@@ -192,17 +188,11 @@ If `desc` exceeds `summaryLimit` characters and is longer than `full_content`, `
 
 ---
 
-**Future recommendations (deferred):**
-
-1. **Move Mastodon and Bluesky action buttons into `window.CList.readers[service].statusActions()`** — the same interface the search services use. This gives a single place to look up what actions a service supports without requiring a full `makeListing()` migration. Do this when already touching those files for another reason.
-
-2. **Migrate Mastodon and Bluesky to `makeListing()`** — the right trigger is adding a cross-service feature that needs to work on every item regardless of service (e.g. CList-level bookmarks, save to reading list). At that point the item object format will need standardizing anyway, and the migration earns its keep. Not worth doing as pure cleanup.
-
 ---
 
 ## `div.status-actions` — post action buttons
 
-Every rendered item has a `div.status-actions` containing buttons for acting on the post. Actions vary by service. The `div.clist-actions` (`arrow_right`) is always present separately and is not part of this set.
+Every rendered item has a `div.status-actions` containing buttons for acting on the post. Actions vary by service. The `div.clist-actions` (`arrow_right`) is always present separately and is not part of this set. After the service's buttons, `makeListing()` always appends collect (`library_add`) and share-to-chat (`chat_bubble_outline`) buttons.
 
 ### Button markup standard
 

@@ -107,7 +107,7 @@ Not every subsystem uses permission flags. Two notable exceptions:
 
 ## 2. Publish handler
 
-See `publish_structure.md` for the full contract. In brief: register `window.CList.publishers['MyService']` with a `publish(accountData, title, content)` method and an optional `construct(title, content)` method.
+See `publish_structure.md` for the full contract. In brief: register `window.CList.publishers['MyService']` with a `publish(accountData, title, content, refs)` method and an optional `construct(title, content)` method.
 
 ---
 

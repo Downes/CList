@@ -11,7 +11,7 @@
 
 ## Two helpers — pick the right one
 
-### `showServiceError(container, title, message, actionHtml)` — `utilities.js`
+### `showServiceError(container, title, message, actionHtml)` — `ui.js`
 
 For **hard failures** that need user action: feed loads, API calls, credential problems. Appends a persistent red `error-message` div to a container element.
 
@@ -30,7 +30,7 @@ Parameters:
 - `message` — the error text, typically `error.message` from the caught exception
 - `actionHtml` — optional HTML string with remediation advice; can contain `<strong>` and `<a>` tags
 
-### `showStatusMessage(text)` — `utilities.js`
+### `showStatusMessage(text)` — `ui.js`
 
 For **transient action feedback**: post results, validation messages, confirmations. Writes to `#statusPane` (bottom of screen) and auto-hides after 3 seconds.
 

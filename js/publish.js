@@ -16,7 +16,7 @@
 //
 // Definition:
 //
-//      The publishHandlers registry maps account types to publisher objects.
+//      The publishers registry maps account types to publisher objects.
 //      Each publisher must implement:
 //
 //          publish: async (accountData, title, content) => publishedURL | null
@@ -44,7 +44,7 @@ window.CList.publishers = window.CList.publishers || {};
 //
 // Define handlers for each save destination
 //
-//      The saveHandlers registry is an ordered array of saver objects displayed
+//      The savers registry is an ordered array of saver objects displayed
 //      in the right-pane Save list. Each saver must have:
 //
 //          label  {string}   Display name shown in the list

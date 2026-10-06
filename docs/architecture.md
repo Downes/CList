@@ -15,7 +15,7 @@ CList is organized around a single core activity: the cycle of reading, respondi
 **Synthesize** — load selected items into the editor and compose a response.  
 **Publish** — send that response back out to the places your readers are.
 
-Every major component maps to a step in this cycle. The two-pane layout keeps reading and writing visible simultaneously. The annotation system records understanding as it forms, linked to the source material. The editor supports loading multiple items as the basis for a single composed response. The publish system reaches multiple platforms in one action.
+Every major component maps to a step in this cycle. The two-pane layout keeps reading and writing visible simultaneously. The annotation system records understanding as it forms, linked to the source material. The editor supports loading multiple items as the basis for a single composed response. One publish action can post to several accounts; that is multi-publishing, which is separate from convergence (see convergence.md).
 
 The ambition is to make this cycle fast enough that it becomes natural — not a workflow requiring a tool switch, but one that happens in the margin of reading.
 
@@ -51,9 +51,9 @@ CList is designed so that **no single server is required and no single operator 
 
 ## Two-pane layout
 
-The interface is split horizontally between a **read pane** (left) and a **write pane** (right). Each pane has a matching **options pane** that slides in from the edge of the screen. A floating `#statusPane` at the bottom shows transient feedback.
+The interface is split horizontally between `#read-pane` (left) and `#write-pane` (right). Each has a matching options pane that slides in from the edge of the screen: `#left-pane` for the read pane and `#right-pane` for the write pane. A floating `#statusPane` at the bottom shows transient feedback.
 
-The left pane holds the feed reader and (optionally) the P2P chat or audio section. The right pane holds the active editor. Both panes have command bars, account lists, and pre-declared panels that are shown/hidden on demand.
+`#read-pane` holds the feed reader. `#left-pane` holds accounts, login, and (optionally) the P2P chat or audio section. `#write-pane` holds the active editor. `#right-pane` holds the editor list, the load and save panels, and publish controls. Both options panes have command bars, account lists, and pre-declared panels that are shown or hidden on demand.
 
 See `ui_components.md` for the full div tree, CSS classes, and JS helpers for building panels and lists.
 
@@ -90,7 +90,7 @@ Services register reader handlers via `window.CList.readers`. See `feed-structur
 
 ### Writing and editing
 
-The write pane hosts a pluggable set of editors. Active editors are registered in `editorHandlers` (a module-level object in `editors.js`), each providing `initialize`, `getContent`, `loadContent`, `setFocus`, `draftKey`, and optional `destroy` methods. The editor chooser (right pane) switches between editors while preserving draft content. Auto-save writes draft content to localStorage on each change.
+The write pane hosts a pluggable set of editors. Active editors are registered in `editorHandlers` (a module-level object in `editors.js`), each providing `initialize`, `getContent`, `loadContent`, `setFocus`, `draftKey`, and optional `destroy` methods. The editor chooser (right pane) switches between editors while preserving draft content. Auto-save writes draft content to sessionStorage on each change.
 
 See `editors_structure.md` for the full contract, the `pendingContent` hand-off flow, and how load and save handlers interact with the editor.
 
@@ -176,7 +176,7 @@ No chat content passes through this server — it is only used to exchange peer 
 
 Real-time collaborative editing over WebSocket. Hocuspocus handles Yjs CRDT sync; SQLite persists document state between sessions. Documents without an owner can permit anonymous (read-only) access. Auth via kvstore JWT passed in the WebSocket token.
 
-See `/srv/apps/collab/CLAUDE.md` for the REST API, document ID conventions, and the database schema.
+The collab server's REST API, document ID conventions, and database schema are documented with the server code.
 
 ### opml2json — feed aggregation
 

@@ -10,7 +10,7 @@ Collections can be published to external services as shareable URLs, in standard
 2. Clicks **Edit & Publish** (new button in collection detail header)
 3. A **Collection Editor** panel opens:
    - Editable item list (reorder, remove, edit titles)
-   - Format selector: JSON / OPML / HTML
+   - Format selector: RSS / OPML / JSON / HTML / Markdown / Text
    - Publish-to selector (configured publishing accounts)
    - **Publish** button → returns a URL
 4. URL is shown with copy button and optional "Share to chat" shortcut
@@ -18,9 +18,17 @@ Collections can be published to external services as shareable URLs, in standard
 
 ---
 
+## Pages
+
+A published collection is a **page**: a file on a public server that anyone with the URL can read.
+Pages are served with no login, so do not publish anything that must stay private. The publishing
+account keeps a record of each page, and the **My Pages** view in the Load panel lists them.
+
+---
+
 ## Step 1 — `pastebin.mooc.ca` service
 
-Tiny Flask app, deployed as a new container at `/srv/apps/pastebin/`.
+Tiny Flask app, deployed as its own container behind the Caddy proxy.
 
 | Endpoint | Auth | Description |
 |---|---|---|
@@ -72,7 +80,7 @@ header via a new **Edit & Publish** (`edit` icon) button.
 
 ### UI
 - Editable item list: each item shows title (editable inline) + drag handle + remove button
-- **Format** selector: JSON / OPML / HTML
+- **Format** selector: RSS / OPML / JSON / HTML / Markdown / Text
 - **Publish to** selector: dropdown of `b`-flagged accounts from `window.CList.accounts`
 - **Publish** button
 - After publishing: URL field (readonly, copy button) + Share to chat button (if chat active)
@@ -88,7 +96,7 @@ Each service file (`jsonbin.js`, `gist.js`, `0x0.js`, `clistbin.js`) registers i
 in `window.CList.binPublishers`. See Step 2 for the interface definition.
 
 The collection editor calls the adapter for whichever `b`-flagged account the user selects.
-The same adapters are available for any other "publish page" flow (write-pane export, etc.).
+Only the collection editor uses these adapters today. Publishing other write-pane documents as pages is planned but not implemented: the write-pane Publish button lists only `w`-flagged accounts.
 
 ### Output formats
 
@@ -97,6 +105,9 @@ The same adapters are available for any other "publish page" flow (write-pane ex
 | JSON | `application/json` | `{title, items:[{title,url,author,date,...}]}` |
 | OPML | `text/x-opml` | `<opml>` with `<outline>` per item — RSS-reader compatible |
 | HTML | `text/html` | Styled page with title, linked item list, CList branding |
+| RSS | `application/rss+xml` | RSS feed of the collection's items |
+| Markdown | `text/markdown` | Plain Markdown list of the collection's items |
+| Text | `text/plain` | Plain text list of the collection's items |
 
 ---
 
@@ -143,8 +154,8 @@ Flow:
 
 | File | Change |
 |---|---|
-| `/srv/apps/pastebin/` | New app — Flask, SQLite, Docker ✓ |
-| `/srv/proxy/Caddyfile` | Add `pastebin.mooc.ca` route ✓ |
+| Pastebin service | New app — Flask, SQLite, Docker ✓ |
+| Caddy proxy config | Add `pastebin.mooc.ca` route ✓ |
 | `js/jsonbin.js` | New — JSONBin schema + adapter ✓ |
 | `js/gist.js` | New — Gist schema + adapter ✓ |
 | `js/0x0.js` | New — 0x0.st schema + adapter ✓ |

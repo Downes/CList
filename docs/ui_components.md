@@ -6,7 +6,7 @@ Shared CSS classes and JS helpers used across the left and right panes. When add
 
 ## Overall layout
 
-CList is a two-pane application. The centre of the screen is split horizontally between a **read pane** (left) and a **write pane** (right), separated by a draggable `#divider`. Each pane has a matching **options pane** that slides in from the edge of the screen.
+CList is a two-pane application. The centre of the screen is split horizontally between `#read-pane` (left) and `#write-pane` (right), separated by a draggable `#divider`. Each has a matching options pane that slides in from the edge of the screen: `#left-pane` for the read pane and `#right-pane` for the write pane.
 
 ### Full div tree
 
@@ -311,8 +311,8 @@ Several UI elements are hidden or shown depending on the user's registration and
 | Post button | `#post-button` | Registered + has an account with `w` or `p` permission |
 | Share-to-chat | `.clist-action-btn` | Registered (CSS: `body.user-registered .clist-action-btn`) |
 | Refs button | `#references-button` | At least one reference added to current editor |
-| Collab documents | `loadHandlers` entry | Registered (`visible()` callback checked by `populateLoadOptions()`) |
-| Generate template | `loadHandlers` entry | Registered + has AI account (`type === 'AI'`) |
+| Collab documents | `window.CList.loaders` entry | Registered (`visible()` callback checked by `populateLoadOptions()`) |
+| Generate template | `window.CList.loaders` entry | Registered + has AI account (`type === 'AI'`) |
 
 **How it works:**
 

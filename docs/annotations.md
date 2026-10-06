@@ -41,9 +41,9 @@ following people and "flowing" (re-annotating) annotations you find interesting.
          └────────────────────────────┘
 ```
 
-**Server** (`/srv/apps/annotations/`) — FastAPI application, SQLite database, Docker container.
+**Server** (the annotations service repository) — FastAPI application, SQLite database, Docker container.
 
-**Client** (`/srv/www/clist.mooc.ca/js/annotate.js`) — pure browser JavaScript; no build step.
+**Client** (`js/annotate.js`) — pure browser JavaScript; no build step.
 Registers an `Annotate` account type in CList's account schema system.
 
 ---
@@ -178,8 +178,7 @@ and `showAnnotationThread` use it for reads; the batch check also uses it.
 
 ## Batch annotation check
 
-After the feed renders, `checkAnnotationsBatch()` is called (triggered by a MutationObserver in
-the main reader logic):
+After the feed renders, `checkAnnotationsBatch()` is called directly by the feed render code, once per render (`annotate.js`). It does not use a MutationObserver, which causes double runs (see feed-structure.md):
 
 1. Collects all visible feed items that have a `reference.url`
 2. Sends `POST /annotations/batch-check` to each annotation account with the full list of URLs

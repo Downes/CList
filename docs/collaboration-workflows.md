@@ -152,7 +152,7 @@ If 10 people in a workshop all annotate an article, each person only sees the su
 
 ### Opportunity 6: Persistent chat log
 **What:** Persist chat messages to a store (collab server SQLite, or a kvstore key) so late joiners can fetch recent history. Requires server-side change to `discussions.mooc.ca` or `collab.mooc.ca`.
-**Where:** `/srv/apps/discussions/app.py` (add message store endpoint) or `/srv/apps/collab/server.js`. Client: `dynamicp2p.js` fetches history on join.
+**Where:** the discussions server (`app.py`, add a message store endpoint) or the collab server (`server.js`). Client: `dynamicp2p.js` fetches history on join.
 **Status:** Not started. Server-side work required.
 
 ### Opportunity 7: Annotations on collab documents
