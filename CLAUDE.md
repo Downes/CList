@@ -33,7 +33,7 @@ docs/               — architecture documentation
 - `interface.js` — UI logic (loaded last, depends on all others)
 - `reader.js` — feed reading
 - `publish.js` — publishing dispatch
-- `mastodon.js`, `bluesky.js`, `wordpress.js`, `blogger.js` — platform integrations
+- `mastodon.js`, `bluesky.js`, `wordpress.js`, `blogger.js`, `discord.js` — platform integrations
 - `chatgpt.js`, `summarize.js`, `translate.js` — AI features
 - `editors.js` — TinyMCE and plain-text editor management
 - `dynamicp2p.js` — PeerJS-based chat
@@ -84,8 +84,8 @@ Full reference: `docs/error-handling.md`. These rules apply to all new and modif
 - **`showServiceError(container, title, message, actionHtml?)`** — persistent red `error-message` div
   appended to a feed container. Use for hard failures: feed loads, API errors, missing credentials.
   `container` can be a DOM element or an ID string.
-- **`showStatusMessage(text)`** — transient message in `#statusPane`, auto-hides after 3 s.
-  Use for action feedback, validation, and background operation results.
+- **`showStatusMessage(text)`** — transient message in `#identityDiv` (the login-identity bar),
+  auto-restores after 3 s. Use for action feedback, validation, and background operation results.
 - **`parseAccountValue(account)`** — safe `JSON.parse(account.value)`. Returns `null` on failure
   (logs `console.error`). **Always use this instead of bare `JSON.parse(account.value)`.**
 

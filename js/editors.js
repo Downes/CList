@@ -15,6 +15,10 @@
 // Name of the current editor
 let currentEditor = 'texteditor'; // Default editor is TinyMCE
 
+// The specific account (raw kvstore entry) backing the current editor, if any —
+// e.g. which Etherpad account is active. null for built-in, non-account-backed editors.
+let currentEditorAccount = null;
+
 // Content waiting to be loaded into the next editor that is initialized.
 // Shape: { type: string, value: string } — set by switchToEditor() when carrying content, consumed by loadPredefinedContent().
 let pendingContent = null;
@@ -29,7 +33,15 @@ let pendingContent = null;
 //                            Empty array means the editor accepts any content type.
 //   requiresAccount {bool}   true if this editor needs a kvstore account with permission 'e'
 //                            and a matching type field (e.g. Etherpad). false for built-ins.
+//   isActive()     {function, optional} requiresAccount editors only: returns true if there's
+//                            already a live connection to resume even without a matching saved
+//                            account (e.g. an active guest Etherpad session) — lets the switcher
+//                            offer a way back in without requiring a saved account.
 //   initialize()             Set currentEditor, create/show DOM, call loadPredefinedContent().
+//                            Must be idempotent: if the editor's DOM/connection already exists
+//                            and represents what's being asked for, just show it — don't rebuild
+//                            or reset state. This is what lets editors "stay open": switching
+//                            away and back resumes exactly where you left off.
 //   getContent()             Return current editor content as a string.
 //   loadContent({type,value}, itemId?)
 //                            Insert/append content at cursor. type is a MIME type string.
@@ -295,27 +307,57 @@ function populateLoadOptions() {
 })();
 
 
-// Close the write-load panel and return to the editor
-function closeWriteLoadPane() {
-    alternateDivs('write-load', 'write-pane-content');
+// Close the editor-switch overlay and return to the editor, regardless of
+// whether the overlay is currently open — safe to call unconditionally.
+function closeEditorSwitchOverlay() {
+    const overlay = document.getElementById('write-load');
+    const content = document.getElementById('write-pane-content');
+    if (overlay) overlay.style.display = 'none';
+    if (content) content.style.display = 'block';
 }
 
 
-// Synchronously populate the built-in (no-account) editor buttons.
-function _populateBuiltInEditors(carriedContent) {
+// Does this editor currently hold content worth resuming, independent of whether it's the
+// one currently showing? Prefers handler.isActive() (account-based editors like Etherpad,
+// where "active" means "has a live connection", not "has text") — falls back to a
+// synchronous, non-empty handler.getContent() for text-based editors. An editor that hasn't
+// been initialized yet (e.g. getContent() throws because its DOM/instance doesn't exist)
+// simply isn't active — that's an expected case, not an error.
+function editorHasActiveContent(handler) {
+    try {
+        if (typeof handler.isActive === 'function') return handler.isActive();
+        if (typeof handler.getContent === 'function') {
+            const content = handler.getContent();
+            return typeof content === 'string' && content.trim().length > 0;
+        }
+    } catch (e) { /* not initialized — not active */ }
+    return false;
+}
+
+// Synchronously populate the built-in (no-account) editor buttons. An editor that
+// requiresAccount is also listed here when it reports an active account-less connection to
+// resume (handler.isActive()) — e.g. a live guest Etherpad session — so there's a way back
+// into it from the switcher without needing a saved account.
+function _populateBuiltInEditors() {
     const builtInOptions = document.getElementById('editor-switch-options');
     builtInOptions.innerHTML = '';
     Object.entries(editorHandlers).forEach(([key, handler]) => {
-        if (handler.requiresAccount || typeof handler.initialize !== 'function') return;
+        if (typeof handler.initialize !== 'function') return;
+        const resumableWithoutAccount = handler.requiresAccount
+            && typeof handler.isActive === 'function' && handler.isActive();
+        if (handler.requiresAccount && !resumableWithoutAccount) return;
         if (typeof handler.visible === 'function' && !handler.visible()) return;
-        if (key === currentEditor) return;
-        builtInOptions.appendChild(makeEditorButton(handler.label || key, handler.icon, () => switchToEditor(key, carriedContent)));
+        const isCurrent = key === currentEditor;
+        const tag = isCurrent ? ' [Selected]' : (editorHasActiveContent(handler) ? ' [Active]' : '');
+        const label = (handler.label || key) + tag;
+        const onClick = isCurrent ? closeEditorSwitchOverlay : () => switchToEditor(key);
+        builtInOptions.appendChild(makeEditorButton(label, handler.icon, onClick));
     });
     document.getElementById('editor-switch-account-options').innerHTML = '';
 }
 
 // Asynchronously populate account-based editor buttons (may fetch accounts).
-async function _populateAccountEditors(carriedContent) {
+async function _populateAccountEditors() {
     if (typeof isRegistered === 'function' && isRegistered()) {
         if (!Array.isArray(window.CList.accounts) || window.CList.accounts.length === 0) {
             try { window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl); } catch(e) { showStatusMessage('Could not load accounts: ' + e.message); }
@@ -328,56 +370,46 @@ async function _populateAccountEditors(carriedContent) {
         const editorType = parsedValue.type?.toLowerCase();
         const handler = editorHandlers[editorType];
         if (!handler || !handler.requiresAccount) return;
-        if (editorType === currentEditor) return;
-        accountList.appendChild(makeEditorButton(`${parsedValue.title} (${handler.label})`, handler.icon, () => switchToEditor(editorType, carriedContent)));
+        const isCurrent = editorType === currentEditor && currentEditorAccount?.key === account.key;
+        const tag = isCurrent ? ' [Selected]' : (editorHasActiveContent(handler) ? ' [Active]' : '');
+        const label = `${parsedValue.title} (${handler.label})` + tag;
+        const onClick = isCurrent ? closeEditorSwitchOverlay : () => switchToEditor(editorType, null, account);
+        accountList.appendChild(makeEditorButton(label, handler.icon, onClick));
     });
 }
 
 // Rebuild the editor list in the right pane.
-// carriedContent — { type, value } to pass into the new editor, or null.
-async function populateEditorList(carriedContent) {
-    _populateBuiltInEditors(carriedContent);
-    await _populateAccountEditors(carriedContent);
+async function populateEditorList() {
+    _populateBuiltInEditors();
+    await _populateAccountEditors();
 }
 
-// Open the editor switcher in the right pane — opens immediately with built-in editors,
-// then appends account-based editors once accounts are fetched.
+// Open the editor switcher as an overlay on the write pane — opens immediately
+// with built-in editors, then appends account-based editors once accounts are fetched.
+// Switching editors never carries typed content across — each editor keeps its own
+// independent state (see initialize()'s resume contract above); this is purely a picker.
 async function playEditorSwitch() {
-    let carriedContent = null;
-    const currentHandler = editorHandlers[currentEditor];
-    if (currentHandler?.getContent) {
-        try {
-            const raw = currentHandler.getContent();
-            const currentType = currentHandler.contentTypes[0] || 'text/plain';
-            if (typeof raw === 'string' && raw.trim()) carriedContent = { type: currentType, value: raw };
-        } catch(e) {
-            console.warn('Could not read content from current editor:', e);
-        }
-    }
-
-    _populateBuiltInEditors(carriedContent);
-    openRightInterface('editor-list');
-    await _populateAccountEditors(carriedContent);
+    _populateBuiltInEditors();
+    document.getElementById('write-load').style.display = 'block';
+    document.getElementById('write-pane-content').style.display = 'none';
+    await _populateAccountEditors();
 }
 
 
-// Switch to a different editor, optionally carrying content over
-async function switchToEditor(editorType, carriedContent) {
-    const handler = editorHandlers[editorType];
-
-    // Warn when switching from HTML content to a plain-text editor (lossy)
-    if (carriedContent && carriedContent.type === 'text/html'
-            && handler.contentTypes.includes('text/plain')
-            && !handler.contentTypes.includes('text/html')) {
-        if (!confirm(`Switching to ${handler.label} will strip HTML formatting. Continue?`)) return;
-    }
-
+// Switch to a different editor, optionally delivering freshly-loaded content into it
+// (carriedContent — used by the Load dispatch in populateLoadOptions() when the current
+// editor can't handle the loaded content's type; never used for picker-driven switches,
+// which pass no carriedContent so each editor resumes its own independent state).
+// account — the raw kvstore entry for the account-backed editor being switched to, or
+// undefined/null for built-in editors.
+async function switchToEditor(editorType, carriedContent, account) {
     if (carriedContent) pendingContent = carriedContent;
 
-    await initializeEditor(editorType);
+    await initializeEditor(editorType, account ?? null);
     closeRightPane();
+    closeEditorSwitchOverlay();
     updateEditorIndicator();
-    await populateEditorList(null);
+    await populateEditorList();
 }
 
 
@@ -385,95 +417,29 @@ async function switchToEditor(editorType, carriedContent) {
 function updateEditorIndicator() {
     const handler = editorHandlers[currentEditor];
     const label = handler?.label || currentEditor;
-    const btn = document.getElementById('editor-indicator');
-    if (btn) btn.textContent = label + ' ▾';
     const status = document.getElementById('editor-status');
     if (status) status.textContent = 'editor: ' + label;
 }
 
 
 
-// Function to initialize an editor by type
-
-async function populateEditorAccountList(content) {   
-
-    // Check if 'write-load' exists and throw an error if it doesn't
-    const writeLoadDiv = document.getElementById('write-load');
-    if (!writeLoadDiv) {
-        console.error("Error: can't find a div named write-load. It should be created in index.html and it's where we stash the content to be pre-loaded into the editor.");
-        return;
-    }
-    // Make the 'write-load' div visible
-    writeLoadDiv.style.display = 'block';
-
-    // Stash content so initializeEditor → loadPredefinedContent can pick it up
-    pendingContent = content;
-    console.log('Content stashed in pendingContent', content.type);
-
-    // Build the picker shell
-    writeLoadDiv.innerHTML = `
-        <div id="write-load-header" class="flex-container">
-            <h2>Load an Editor</h2>
-            <button id="write-load-close-button" onclick="closeWriteLoadPane()">X</button>
-        </div>
-        <div id="write-load-content">
-            <div id="write-load-instructions"><p>Choose an editor</p></div>
-            <div id="write-load-options"></div>
-            <div id="more-write-load-options"></div>
-        </div>`;
-
-    // Built-in editors: any handler with requiresAccount=false and an initialize method
-    const builtInOptions = document.getElementById('write-load-options');
-    Object.entries(editorHandlers).forEach(([key, handler]) => {
-        if (handler.requiresAccount || typeof handler.initialize !== 'function') return;
-        if (typeof handler.visible === 'function' && !handler.visible()) return;
-        const btn = document.createElement('button');
-        btn.className = 'save-button';
-        btn.textContent = handler.label || key;
-        btn.addEventListener('click', () => {
-            initializeEditor(key);
-            alternateDivs('write-load', 'write-pane-content');
-        });
-        builtInOptions.appendChild(btn);
-    });
-
-    // Account-backed editors: accounts with permission 'e' whose type maps to a registered handler
-    const accountList = document.getElementById('more-write-load-options');
-    if (typeof isRegistered === 'function' && isRegistered()) {
-        if (!Array.isArray(window.CList.accounts) || window.CList.accounts.length === 0) {
-            try { window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl); } catch(e) { showStatusMessage('Error getting Editor accounts: ' + e.message); }
-        }
-    }
-
-    (window.CList.accounts || []).forEach(account => {
-        const parsedValue = parseAccountValue(account);
-        if (!parsedValue || !parsedValue.permissions.includes('e')) return;
-
-        const editorType = parsedValue.type?.toLowerCase();
-        const handler = editorHandlers[editorType];
-        if (!handler || !handler.requiresAccount) {
-            console.warn(`No account-backed editor handler found for type '${parsedValue.type}' — skipping`);
-            return;
-        }
-
-        const accountItem = document.createElement('button');
-        accountItem.className = 'save-button';
-        accountItem.textContent = `${parsedValue.title} (${handler.label})`;
-        accountItem.addEventListener('click', () => {
-            initializeEditor(editorType);
-            alternateDivs('write-load', 'write-pane-content');
-        });
-        accountList.appendChild(accountItem);
-    });
-}
-
-async function initializeEditor(editorType) {
+// Function to initialize an editor by type.
+// account — the raw kvstore entry backing this editor, if account-backed. When omitted
+// (e.g. internal re-init calls like showPadShare()'s initializeEditor('etherpad')), the
+// current account is preserved if we're re-initializing the same editor type, otherwise
+// there is no account to preserve.
+async function initializeEditor(editorType, account) {
 
     const handler = editorHandlers[editorType];
     if (handler && typeof handler.visible === 'function' && !handler.visible()) {
         showStatusMessage('That editor is not available. Please register or log in.');
         return;
     }
+
+    if (account === undefined) {
+        account = (editorType === currentEditor) ? currentEditorAccount : null;
+    }
+    currentEditorAccount = account || null;
 
     // Restore tags row (collection editor hides it; all others need it)
     const writeTagsEl = document.getElementById('write-tags');
@@ -510,11 +476,13 @@ async function initializeEditor(editorType) {
         return;
     }
 
-    // Initialize the editor
+    // Initialize the editor, passing the parsed account data (if any) — mirrors the
+    // reader dispatch convention of handler.initialize(accountData) in reader.js.
     if (editorHandlers[editorType] && typeof editorHandlers[editorType].initialize === 'function') {
         try {
+            const parsedAccount = currentEditorAccount ? parseAccountValue(currentEditorAccount) : null;
             // Await editor initialization if it's asynchronous
-            await editorHandlers[editorType].initialize();
+            await editorHandlers[editorType].initialize(parsedAccount);
             updateEditorIndicator();
         } catch (error) {
             console.error(`Error initializing editor of type '${editorType}':`, error);

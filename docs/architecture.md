@@ -51,7 +51,7 @@ CList is designed so that **no single server is required and no single operator 
 
 ## Two-pane layout
 
-The interface is split horizontally between `#read-pane` (left) and `#write-pane` (right). Each has a matching options pane that slides in from the edge of the screen: `#left-pane` for the read pane and `#right-pane` for the write pane. A floating `#statusPane` at the bottom shows transient feedback.
+The interface is split horizontally between `#read-pane` (left) and `#write-pane` (right). Each has a matching options pane that slides in from the edge of the screen: `#left-pane` for the read pane and `#right-pane` for the write pane. Transient feedback shows in `#identityDiv`, the login-identity bar.
 
 `#read-pane` holds the feed reader. `#left-pane` holds accounts, login, and (optionally) the P2P chat or audio section. `#write-pane` holds the active editor. `#right-pane` holds the editor list, the load and save panels, and publish controls. Both options panes have command bars, account lists, and pre-declared panels that are shown or hidden on demand.
 
@@ -272,7 +272,7 @@ See `adding-a-service.md` for the full pattern and `publish_structure.md` for th
 All user-visible errors go through two helpers in `ui.js` (aliased to globals at the bottom of that file):
 
 - **`showServiceError(container, title, message, actionHtml?)`** — persistent red banner for hard failures (feed loads, API errors, missing credentials).
-- **`showStatusMessage(text)`** — transient message in `#statusPane`, auto-hides after 3 seconds. For action feedback, validation, and background results.
+- **`showStatusMessage(text)`** — transient message in `#identityDiv` (the login-identity bar), auto-restores after 3 seconds. For action feedback, validation, and background results.
 
 `alert()`, `confirm()`, and `prompt()` are never used. `innerHTML` is never set with peer-supplied or server-supplied data.
 

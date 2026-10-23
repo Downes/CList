@@ -30,7 +30,7 @@
     <!-- CList application namespace -->
     <script>
         window.CList = {
-            config:     { flaskSiteUrl: 'https://kvstore.mooc.ca' },
+            config:     { flaskSiteUrl: 'https://kvstore.mooc.ca', adminUsername: 'downes' },
             state:      { username: 'none' },
             accounts:   [],
             schemas:    {},
@@ -53,6 +53,54 @@
             window.CList.config.flaskSiteUrl = window._launcherConfig.kvstoreUrl;
     </script>
 
+    <!-- Pre-paint pane layout (desktop only — mobile uses a different, transform-based
+         pane-switching mechanism; see mobShowRead/mobShowWrite in interface.js — so this
+         is wrapped in the same min-width:769px breakpoint interface.css uses and never
+         applies on mobile). Reads the saved pane state and injects it as CSS before the
+         pane elements are painted, so desktop doesn't flash through the CSS default
+         layout (read/write panes split 50/50) before interface.js's real restore runs
+         on DOMContentLoaded. -->
+    <script>
+    (function () {
+        try {
+            // Best-effort login guess just for this pre-paint layout — doesn't need to
+            // be exact, since interface.js's real hasValidSession() check still runs on
+            // DOMContentLoaded and corrects anything this gets wrong.
+            const siteUrl = window.CList.config.flaskSiteUrl;
+            const siteId = new URL(siteUrl).hostname.replace(/\./g, '_');
+            const useLocalStorage = window.location.protocol === 'file:';
+            let token = null;
+            if (useLocalStorage) {
+                token = localStorage.getItem(`access_token_${siteId}`);
+            } else {
+                const m = document.cookie.match(new RegExp(`(?:^|; )access_token_${siteId}=([^;]*)`));
+                token = m ? m[1] : null;
+            }
+            const key = token ? 'clist_pane_state_loggedin' : 'clist_pane_state';
+
+            let state = null;
+            try { state = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) {}
+            if (!state) state = { leftOpen: true, rightOpen: false, readFlex: '1', writeFlex: '0' };
+
+            const leftWidth  = state.leftOpen  ? '300px' : '0';
+            const rightWidth = state.rightOpen ? '300px' : '0';
+
+            const style = document.createElement('style');
+            style.id = 'pane-boot-style';
+            style.textContent = `@media (min-width: 769px) {
+                #left-pane  { width: ${leftWidth}; }
+                #right-pane { width: ${rightWidth}; }
+                #main-window { left: ${leftWidth}; right: ${rightWidth}; }
+                #read-pane  { flex: ${state.readFlex  || '1'}; }
+                #write-pane { flex: ${state.writeFlex || '0'}; }
+            }`;
+            document.head.appendChild(style);
+        } catch (e) {
+            // If anything goes wrong, just let the CSS defaults render and interface.js fix it up.
+            console.warn('Pane boot-state pre-paint skipped:', e);
+        }
+    })();
+    </script>
 
 </head>
 <body>
@@ -86,9 +134,6 @@
                                 <h3 style="margin:0.4em 0 0;">Welcome to CList</h3>
                             </div>
                             <p style="margin:0.6em 0;">Your personal learning environment for reading feeds, writing content, and publishing to social platforms.</p>
-                            <p style="margin:1em 0 0.4em;">
-                                <a href="#" onclick="startInterfaceTour(); return false;">Take a quick tour</a>
-                            </p>
                             <h4 style="margin:1em 0 0.4em;">Getting started</h4>
                             <ol style="margin-left:1.2em; line-height:1.8;">
                                 <li><strong>Register</strong> — create a free account using the left panel</li>
@@ -117,7 +162,7 @@
                          <button id="save-button" class="right btn" onclick="playSave()">Save</button>
                          <button id="post-button" class="right btn" onclick="playPost()" style="display:none">Post</button>
                          <button id="references-button" class="right btn" onclick="playRefs()" style="display:none">Refs</button>
-                         <button id="editor-indicator" class="btn" onclick="playEditorSwitch()" title="Switch editor">Text &#9662;</button>
+                         <button id="editor-indicator" class="btn" onclick="playEditorSwitch()" title="Switch editor">Editor</button>
                     </div>
                 </div>
                     <!-- Place to store Loaded file input while it is processed-->
@@ -130,20 +175,16 @@
                 <div id="writeReferences"></div>
                 <div id="write-load">
                     <div id="write-load-header" class="flex-container">
-                        <h2>Load an Editor</h2>
-                        <button id="write-load-close-button" onclick="closeWriteLoadPane()">X</button>
+                        <h2>Select Editor</h2>
+                        <button id="write-load-close-button" onclick="closeEditorSwitchOverlay()">X</button>
                     </div>
                     <div id="write-load-content">
-                        <div id="write-load-instructions">
-                            <p>Choose an editor</p>
-                        </div>
-                        <div id="write-load-options"></div>
-                        <div id="more-write-load-options"></div>
-
-
+                        <div class="list-tip">Select an editor to use</div>
+                        <div id="editor-switch-options"></div>
+                        <div id="editor-switch-account-options"></div>
                     </div>
 
-                </div>       
+                </div>
 
 
                 <div id="write-title-row">
@@ -276,11 +317,6 @@
             <div id="editor-status" class="pane-status-item">editor: Text</div>
         </div>
         <div id="right-content" class="pane content">
-            <div id="editor-list" class="account-list">
-                <div class="list-tip">Select an editor to use</div>
-                <div id="editor-switch-options"></div>
-                <div id="editor-switch-account-options"></div>
-            </div>
             <div id="save-instructions" style="display: none;">
                 <div id="save-options"></div>
                 <div id="save-result"></div>
@@ -301,7 +337,6 @@
 
     </div> <!-- /right-pane -->
     </div> <!-- /main-container-->
-    <div id="statusPane"></div>  <!-- Status pane-->
 
     <div id="loading-indicator">
         <p>Loading...</p>
@@ -314,7 +349,6 @@
 
 
 
-  <script src="js/tour.js" defer></script>          <!-- Onboarding tour -->
   <script src="js/local-kvstore.js" defer></script>  <!-- In-browser kvstore for "Local" account mode; must load before kvstore.js -->
   <script src="js/utilities.js" defer></script>    <!-- Utility functions -->
   <script src="js/ui.js" defer></script>          <!-- CList.ui factory functions -->
@@ -331,8 +365,12 @@
   <script src="js/oauth-client.js" defer></script>
   <script src="js/mastodon.js?v=3" defer></script>       <!-- Social Media -->
   <script src="js/bluesky.js?v=3" defer></script>
+  <script src="js/discord.js?v=1" defer></script>
   <script src="js/opml.js" defer></script>
   <script src="js/rss.js" defer></script>
+  <script src="js/public-feeds.js" defer></script>  <!-- Public, no-login RSS collections (localrss_reader) -->
+  <script src="js/youtube.js" defer></script>   <!-- YouTube-specific helpers (video embed detection) -->
+  <script src="js/peertube.js" defer></script>  <!-- PeerTube-specific helpers (video embed detection) -->
 
   <script src="js/googlesearch.js" defer></script>   <!-- Search-->
   <script src="js/duckduckgo.js" defer></script>

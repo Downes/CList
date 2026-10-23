@@ -12,6 +12,7 @@
         icon:           'playlist_add',
         contentTypes:   [],
         requiresAccount: false,
+        visible:        () => typeof isRegistered === 'function' && isRegistered(),
         formats: Object.entries(collectionFormats).map(([id, f]) => ({ id, label: f.label })),
 
         initialize: async () => {

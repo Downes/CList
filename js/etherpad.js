@@ -23,8 +23,43 @@ window.CList.schemas['Etherpad'] = {
 // 
 
 
-const proxyUrl = 'https://www.downes.ca/cgi-bin/proxyp.cgi';
-const etherpadBaseUrl = 'https://etherpad.cloudron.downes.ca/api/1.2.15';
+const proxyUrl = 'https://proxyp.mooc.ca';
+
+// The proxyp.mooc.ca relay requires a valid kvstore Bearer token on every request —
+// read it the same way every other service integration in this codebase does.
+function proxyAuthHeader() {
+    const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
+}
+
+// The specific Etherpad account (parsed kvstore entry) currently active in the editor,
+// set by the handler's initialize() and used by callEtherpadApi() — so API calls target
+// the account the user actually selected, not just "the first Etherpad account found".
+let currentEtherpadAccount = null;
+
+// The web origin of a third-party Etherpad server the user is connected to as a guest
+// (no account, no API key) — e.g. "https://pad.gattini.ninja". Mutually exclusive with
+// currentEtherpadAccount: exactly one of the two represents "where is this pad hosted".
+let currentEtherpadGuestBase = null;
+
+// Derive a pad's web (browser/iframe) URL from whichever connection is currently active —
+// the guest base URL if connected to a third-party pad, otherwise the active account's API
+// base URL, e.g. "https://etherpad.example.com/api/1.2.15" -> ".../p/<padName>". This lets
+// pad links/iframes point at whichever server is actually in play, so people on different
+// Etherpad servers — including ones the user has no account on — can still share and
+// co-edit a pad.
+function etherpadPadUrl(padName) {
+    if (currentEtherpadGuestBase) {
+        return `${currentEtherpadGuestBase}/p/${padName}`;
+    }
+    const apiBase = currentEtherpadAccount?.instance;
+    if (!apiBase) {
+        showStatusMessage('No Etherpad connection active — cannot build a pad URL.');
+        return null;
+    }
+    const webBase = apiBase.replace(/\/api\/[^/]+\/?$/, '');
+    return `${webBase}/p/${padName}`;
+}
 
 (function () {
 
@@ -33,10 +68,32 @@ const etherpadBaseUrl = 'https://etherpad.cloudron.downes.ca/api/1.2.15';
         icon: 'group',
         contentTypes: ['text/html', 'text/plain'],
         requiresAccount: true,
-        initialize: async (content) => {
+        // Resumable even without a saved account — a live guest session counts as "active"
+        // so the switcher can offer a way back into it (see editors.js's isActive() contract).
+        isActive: () => !!(currentEtherpadGuestBase || currentEtherpadAccount),
+        initialize: async (account) => {
 
             currentEditor = 'etherpad';
-           // closeAllEditors();
+
+            const writePaneContent = window.CList.ui.view.writePaneContent;
+            let etherpadDiv = document.getElementById('etherpadDiv');
+
+            // Resume an already-active connection instead of rebuilding from scratch — this is
+            // what lets a guest pad connection (or a selected account's pad) survive switching
+            // to another editor and back, instead of forcing the address to be re-entered.
+            // A live guest session always wins (guest mode is account-independent, so a
+            // mismatched/stale account argument shouldn't blow it away); otherwise resume when
+            // no specific account was requested, or the requested account matches the active one.
+            const isSameAccount = account && currentEtherpadAccount
+                && account.instance === currentEtherpadAccount.instance
+                && account.id === currentEtherpadAccount.id;
+            if (etherpadDiv && (currentEtherpadGuestBase || !account || isSameAccount)) {
+                etherpadDiv.style.display = 'block';
+                return;
+            }
+
+            currentEtherpadAccount = account || null;
+            currentEtherpadGuestBase = null; // own-account and guest connections are mutually exclusive
 
             // HTML elements for Etherpad editor
             let etherpadHTML = `<!-- Pad List Section -->
@@ -48,6 +105,19 @@ const etherpadBaseUrl = 'https://etherpad.cloudron.downes.ca/api/1.2.15';
                     <label for="newPadName">Create a New Pad: </label>
                     <input type="text" id="newPadName" placeholder="Enter a new pad name">
                     <button onclick="createAndLoadEtherpad()">Create and Load</button>
+                </div>
+                <br>
+                <div id="thirdPartyEtherpadSection">
+                    <h3>Connect to a Third-Party Etherpad</h3>
+                    <p class="feed-status-message">Open a pad on someone else's Etherpad server. You usually
+                        won't have an API key for it, so only the pad itself loads — the pad list and
+                        content-sync features above aren't available for a guest connection.</p>
+                    <label for="thirdPartyEtherpadUrl">Server address: </label>
+                    <input type="text" id="thirdPartyEtherpadUrl" placeholder="https://pad.example.com/">
+                    <br>
+                    <label for="thirdPartyEtherpadPad">Pad name: </label>
+                    <input type="text" id="thirdPartyEtherpadPad" placeholder="their-pad-name">
+                    <button onclick="connectToThirdPartyEtherpadFromForm()">Connect</button>
                 </div>
             </div>
 
@@ -74,11 +144,8 @@ const etherpadBaseUrl = 'https://etherpad.cloudron.downes.ca/api/1.2.15';
             authorID = ''; // Global author ID
             etherpadUsername = 'exampleUser'; // Will be replaced with the actual username
 
-            // Check whether etherpadDiv exists; if it doesn't, create it
-            const writePaneContent = window.CList.ui.view.writePaneContent;
-            let etherpadDiv = document.getElementById('etherpadDiv');   
-
-            if (!etherpadDiv) { 
+            // etherpadDiv/writePaneContent declared above — create the div if it doesn't exist
+            if (!etherpadDiv) {
                 etherpadDiv = document.createElement('div');
                 etherpadDiv.id = 'etherpadDiv';
                 writePaneContent.appendChild(etherpadDiv);
@@ -89,9 +156,17 @@ const etherpadBaseUrl = 'https://etherpad.cloudron.downes.ca/api/1.2.15';
             etherpadDiv.innerHTML = etherpadHTML;
 
 
-            listAllEtherpads();
+            if (currentEtherpadAccount) {
+                listAllEtherpads();
+            } else {
+                const padListDiv = document.getElementById('padList');
+                if (padListDiv) {
+                    padListDiv.innerText = 'No Etherpad account selected — connect to a specific ' +
+                        'pad below, or choose an account from the editor switcher.';
+                }
+            }
             showPadList();
-            
+
             // User clicks on a pad link that calls initializeEtherpad(padName)
 
 
@@ -105,8 +180,39 @@ const etherpadBaseUrl = 'https://etherpad.cloudron.downes.ca/api/1.2.15';
         loadContent: async ({ type, value }, itemId) => {
             const itemContent = value;
 
-            // Ensure padName and authorID are available
-            if (!padName || !authorID) {
+            if (!padName) {
+                alert('Pad or author information is missing. Please select or create a pad.');
+                return;
+            }
+
+            if (currentEtherpadGuestBase) {
+                // Guest pad — no API key, so there's no getHTML/setHTML. Read the pad's
+                // current content via the proxy's GET relay, append the new content, and
+                // write the merged result back via Etherpad's own /import endpoint
+                // (which replaces the whole pad, hence reading first rather than just
+                // overwriting with itemContent alone).
+                try {
+                    const existingHtml = await fetchGuestPadHtml(currentEtherpadGuestBase, padName);
+                    const newHtmlContent = `<body>${existingHtml}${itemContent}</body>`;
+                    await importPadViaRelay(currentEtherpadGuestBase, padName, newHtmlContent);
+                    console.log("HTML content imported into guest pad successfully.");
+                } catch (error) {
+                    console.error("Error writing content into guest Etherpad pad:", error);
+                    showStatusMessage(isEtherpadConnectionError(error)
+                        ? 'Cannot connect to Etherpad server.'
+                        : 'Error writing content to the pad. Please check the console for more details.');
+                }
+
+                if (itemId) {
+                    const editorDiv = document.getElementById('etherpadDiv');
+                    const reference = createReference(itemId, editorDiv);
+                    displayCurrentReference(reference, editorDiv);
+                    displayReferences(editorDiv);
+                }
+                return;
+            }
+
+            if (!authorID) {
                 alert('Pad or author information is missing. Please select or create a pad.');
                 return;
             }
@@ -122,10 +228,13 @@ const etherpadBaseUrl = 'https://etherpad.cloudron.downes.ca/api/1.2.15';
 
                 // the updated HTML content back to the pad
                 await callEtherpadApi('setHTML', { padID: padName, html: newHtmlContent });
-        
+
                 console.log("HTML content appended successfully.");
             } catch (error) {
                 console.error("Error appending HTML content to Etherpad:", error);
+                showStatusMessage(isEtherpadConnectionError(error)
+                    ? 'Cannot connect to Etherpad server.'
+                    : 'Error appending content to Etherpad. Please check the console for more details.');
             }
    
             // Add to references
@@ -153,44 +262,21 @@ const etherpadBaseUrl = 'https://etherpad.cloudron.downes.ca/api/1.2.15';
 // Utility function to make API calls through the proxy
 async function callEtherpadApi(endpoint, params) {
 
-    // Add the Etherpad API URL and API key to the parameters
-    // as obtained from the accounts array
-
-    // Assuming 'accounts' is your array of account objects.
-    const accounts = await getAccounts(window.CList.config.flaskSiteUrl);
-    console.log(accounts);
-    const etherpadAccountObj = accounts.find(account => {
-        // Parse the JSON string stored in the 'value' property.
-        try {
-            const accountData = JSON.parse(account.value);
-            console.log(accountData);
-            return accountData.type === 'Etherpad';
-        } catch (error) {
-            console.error('Error parsing account value:', error);
-            return false;
-        }
-    });
-    
-    let etherpadBaseUrl;
-    let etherpadId;
-    if (etherpadAccountObj) {
-        // Parse the account data once more to extract instance and id.
-        const etherpadData = parseAccountValue(etherpadAccountObj);
-        if (!etherpadData) { showStatusMessage('Could not read Etherpad account data — it may be corrupt.'); return; }
-        ({ instance: etherpadBaseUrl, id: etherpadId } = etherpadData);
-        console.log('Etherpad instance:', etherpadBaseUrl);
-        console.log('Etherpad id:', etherpadId);
-    } else {
-        console.log('No Etherpad account found.');
+    // Use the Etherpad account selected via the editor switcher (set in
+    // etherpadHandler.initialize()) — not just "the first Etherpad account found" —
+    // so API calls target the instance the user actually picked.
+    if (!currentEtherpadAccount) {
+        showStatusMessage('No Etherpad account selected.');
+        throw new Error('No Etherpad account selected.');
     }
-  
+    const { instance: etherpadBaseUrl, id: etherpadId } = currentEtherpadAccount;
+
     params.url = `${etherpadBaseUrl}/${endpoint}`;
     params.apikey = etherpadId;
-    //params.apikey = apiKey;
 
     const response = await fetch(proxyUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...proxyAuthHeader() },
         body: new URLSearchParams(params),
     });
 
@@ -202,6 +288,15 @@ async function callEtherpadApi(endpoint, params) {
     const result = await response.json();
     console.log(`Response from ${endpoint}:`, result); // Log raw response
 
+    // The proxy always answers with HTTP 200, reporting its own failure to reach the
+    // target Etherpad server (e.g. the server no longer exists) as a 200 + {error} body
+    // rather than a non-2xx status — so that case must be checked explicitly here, or it
+    // silently falls through as a successful-but-empty result to the caller.
+    if (result && result.error) {
+        console.error(`Etherpad API error in ${endpoint}:`, result.error);
+        throw new Error(result.error);
+    }
+
     if (result) {
         // If result.data is null, return the entire result instead
         return result.data !== null ? result.data : result;
@@ -210,6 +305,12 @@ async function callEtherpadApi(endpoint, params) {
         throw new Error(result ? result.message : 'Unknown error');
     }
 
+}
+
+// Is this error the proxy reporting that it could not reach the target Etherpad server
+// at all (e.g. the instance no longer exists), as opposed to some other API-level failure?
+function isEtherpadConnectionError(error) {
+    return /can't connect to/i.test(error.message);
 }
 
 // Update etherpadUsername and reset the authorID
@@ -233,7 +334,9 @@ async function setUserName() {
         console.log(`Updated author ID for ${newUserName}: ${authorID}`);
     } catch (error) {
         console.error('Error setting user name:', error);
-        showStatusMessage('Error setting name: ' + error.message);
+        showStatusMessage(isEtherpadConnectionError(error)
+            ? 'Cannot connect to Etherpad server.'
+            : 'Error setting name: ' + error.message);
     }
 
     // Clear input field
@@ -263,13 +366,11 @@ async function initializeEtherpad() {
         console.log('Author ID:', authorID);
 
         // Step 2: Create Pad
-        let createPadData = null;
-        try {
-            createPadData = await callEtherpadApi('createPad', { padID: padName });
-            console.log('Pad creation response:', createPadData);
-        } catch (error) {
-            console.warn('createPad API call failed:', error);
-        }
+        // (Let a genuine failure here — e.g. the server being unreachable — propagate to
+        // the outer catch, rather than swallowing it and falling through to the generic
+        // "Unexpected response" error below, which would mask the real cause.)
+        const createPadData = await callEtherpadApi('createPad', { padID: padName });
+        console.log('Pad creation response:', createPadData);
 
         // Handle createPad response
         if (createPadData && createPadData.code === 0) {
@@ -284,6 +385,9 @@ async function initializeEtherpad() {
                 console.log('Initial content set successfully.');
             } catch (error) {
                 console.error('Failed to set initial content:', error);
+                showStatusMessage(isEtherpadConnectionError(error)
+                    ? 'Cannot connect to Etherpad server.'
+                    : 'Failed to set initial pad content. Please check the console for more details.');
             }
 
         } else if (createPadData && createPadData.code === 1) {
@@ -296,7 +400,7 @@ async function initializeEtherpad() {
 
         // Step 4: Display Etherpad in iframe
         const iframe = document.getElementById('padIframe');
-        iframe.src = `https://etherpad.cloudron.downes.ca/p/${padName}`;
+        iframe.src = etherpadPadUrl(padName);
         // showPadContent();
         // Show pad name in the interface
         const currentPadNameDiv = document.getElementById('currentPadName');
@@ -307,16 +411,121 @@ async function initializeEtherpad() {
 
     } catch (error) {
         console.error('Error initializing pad:', error);
-        alert('Error initializing pad. Please check the console for more details.');
+        showStatusMessage(isEtherpadConnectionError(error)
+            ? 'Cannot connect to Etherpad server.'
+            : 'Error initializing pad. Please check the console for more details.');
     }
+}
+
+// Connect to a pad on a third-party Etherpad server the user has no account on. Loads the
+// pad directly into the iframe via its public web URL — there is no API key for this
+// connection, so none of the API-backed features (pad list, append/extract content, author
+// ID) are available; Etherpad's own pad page handles viewing/editing and will create the
+// pad on the fly if it doesn't already exist (assuming the server allows that).
+function connectToThirdPartyEtherpad(baseUrl, padNameToLoad) {
+    currentEtherpadAccount = null;
+    currentEtherpadGuestBase = baseUrl.replace(/\/+$/, '');
+    padName = padNameToLoad;
+    authorID = '';
+
+    const iframe = document.getElementById('padIframe');
+    iframe.src = etherpadPadUrl(padName);
+    const currentPadNameDiv = document.getElementById('currentPadName');
+    currentPadNameDiv.textContent = `Guest: ${padName}`;
+    showPadContent();
+}
+
+// Read the "Connect to a Third-Party Etherpad" form and connect using its values.
+function connectToThirdPartyEtherpadFromForm() {
+    const urlInput = document.getElementById('thirdPartyEtherpadUrl').value.trim();
+    const padInput = document.getElementById('thirdPartyEtherpadPad').value.trim();
+
+    if (!urlInput || !padInput) {
+        showStatusMessage('Please enter both a server address and a pad name.');
+        return;
+    }
+    if (!/^[a-zA-Z0-9_-]+$/.test(padInput)) {
+        showStatusMessage('Pad names can only contain letters, numbers, underscores, and dashes.');
+        return;
+    }
+
+    let origin;
+    try {
+        origin = new URL(urlInput).origin;
+    } catch (error) {
+        showStatusMessage('That does not look like a valid URL.');
+        return;
+    }
+
+    connectToThirdPartyEtherpad(origin, padInput);
+}
+
+// Fetch a guest pad's current content via Etherpad's own /export/html endpoint, relayed
+// through the proxy's GET passthrough (not the account API — there is no API key here).
+async function fetchGuestPadHtml(baseUrl, padNameToLoad) {
+    const exportUrl = `${baseUrl}/p/${padNameToLoad}/export/html`;
+    const response = await fetch(`${proxyUrl}?url=${encodeURIComponent(exportUrl)}`, {
+        method: 'GET',
+        headers: proxyAuthHeader(),
+    });
+
+    if (!response.ok) {
+        throw new Error(`Export relay request failed: ${response.statusText}`);
+    }
+
+    const text = await response.text();
+
+    // The proxy reports its own failures as a 200 + JSON {"error": ...} body rather than
+    // a non-2xx status (same as the account API calls above) — exported pad HTML will
+    // never itself parse as a JSON object, so that's the signal a failure happened here.
+    try {
+        const maybeError = JSON.parse(text);
+        if (maybeError && typeof maybeError === 'object' && maybeError.error) {
+            throw new Error(maybeError.error);
+        }
+    } catch (parseError) {
+        if (parseError instanceof SyntaxError) {
+            return text; // not JSON — this is the real exported HTML
+        }
+        throw parseError;
+    }
+
+    return text;
+}
+
+// Write content into a guest pad via Etherpad's own /import endpoint, relayed through the
+// proxy as a multipart file upload. Unlike setHTML (account mode), import REPLACES the
+// pad's entire content, so callers must read the current content first (see
+// fetchGuestPadHtml) and merge it themselves before calling this.
+async function importPadViaRelay(baseUrl, padNameToLoad, htmlContent) {
+    const importUrl = `${baseUrl}/p/${padNameToLoad}/import`;
+    const formData = new FormData();
+    formData.append('url', importUrl);
+    formData.append('file', new Blob([htmlContent], { type: 'text/html' }), 'content.html');
+
+    const response = await fetch(proxyUrl, {
+        method: 'POST',
+        headers: proxyAuthHeader(),
+        body: formData,
+    });
+
+    if (!response.ok) {
+        throw new Error(`Import relay request failed: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    if (result && result.error) {
+        throw new Error(result.error);
+    }
+    return result;
 }
 
 
 // Example: Embed the pad in an iframe with session context
 function embedPadWithSession(padId, sessionId) {
-    document.cookie = `sessionID=${sessionId}; path=/; domain=cloudron.downes.ca`;
+    document.cookie = `sessionID=${sessionId}; path=/`;
     const iframe = document.getElementById('padIframe');
-    iframe.src = `https://etherpad.cloudron.downes.ca/p/${padId}`;
+    iframe.src = etherpadPadUrl(padId);
 }
 
 // Switch between pad list and pad content views
@@ -383,7 +592,11 @@ async function listAllEtherpads() {
         }
     } catch (error) {
         console.error('Error listing pads:', error);
-        alert('Error listing pads. Please check the console for more details.');
+        if (isEtherpadConnectionError(error)) {
+            showStatusMessage('Cannot connect to Etherpad server.');
+        } else {
+            showStatusMessage('Error listing pads. Please check the console for more details.');
+        }
     }
 }
 
@@ -414,7 +627,9 @@ async function appendEtherpadContent() {
         alert('Content appended successfully!');
     } catch (error) {
         console.error('Error appending content:', error);
-        alert('Error appending content. Please check the console for more details.');
+        showStatusMessage(isEtherpadConnectionError(error)
+            ? 'Cannot connect to Etherpad server.'
+            : 'Error appending content. Please check the console for more details.');
     }
 }
 
@@ -439,7 +654,9 @@ async function extractEtherpadContent(format) {
         return content;
     } catch (error) {
         console.error('Error extracting pad content:', error);
-        alert('Error extracting pad content. Please check the console for more details.');
+        showStatusMessage(isEtherpadConnectionError(error)
+            ? 'Cannot connect to Etherpad server.'
+            : 'Error extracting pad content. Please check the console for more details.');
         return null;
     }
 }
@@ -467,10 +684,13 @@ async function handleExtractContent() {
 
 function sharePad() {
 
+    const padUrl = etherpadPadUrl(padName);
+    if (!padUrl) return;
+
     let padMsg;
     if(window.document.getElementById('chat-messages')) {
         if (connections && Object.keys(connections).length > 0) {
-            sendMessage("Hello from Etherpad. Your actual discussion is "+activeDiscussionName+" and the pad is "+padName+" 'https://etherpad.cloudron.downes.ca/p/"+padName+"'");
+            sendMessage("Hello from Etherpad. Your actual discussion is "+activeDiscussionName+" and the pad is "+padName+" '"+padUrl+"'");
             padMsg = "Pad named "+padName+" have been shared in the chat discussion "+activeDiscussionName;
         } else {
             padMsg = "There is no active chat discussion. If you are in an active discussion the pad "+
@@ -479,32 +699,32 @@ function sharePad() {
     }
 
     const content = "To share this pad, provide the following URL<br>"+
-        'https://etherpad.cloudron.downes.ca/p/'+padName+"<br><br>"+padMsg;
+        padUrl+"<br><br>"+padMsg;
     showModal(content)
 
-    
 
-}   
 
+}
+
+// Open a pad shared by someone else in chat — a link to a specific pad on their
+// Etherpad server, which the user normally has no account or API key for. Connects as a
+// guest (see connectToThirdPartyEtherpad) rather than trying to use the current/own
+// Etherpad account's API, which would target the wrong server entirely.
 async function showPadShare(link) {
-
-
-    const match = link.match(/\/p\/([^/]+)$/);
-    const padName = match ? match[1] : null;
-    alert(`Opening pad: ${padName}`);
-    try {
-        initializeEditor('etherpad');
-        await createAndLoadEtherpad(padName);
-
-        createPadData = await callEtherpadApi('createPad', { padID: padName });
-        initializeEtherpad();
-        showPadContent();
-        console.log('Pad creation response:', createPadData);
-    } catch (error) {
-        console.warn('createPad API call failed:', error);
+    const match = link.match(/^(https?:\/\/[^/]+)\/p\/([^/]+)\/?$/);
+    if (!match) {
+        showStatusMessage('Could not parse the shared Etherpad link.');
+        return;
     }
+    const [, sharedBaseUrl, sharedPadName] = match;
 
-
+    try {
+        await initializeEditor('etherpad', null);
+        connectToThirdPartyEtherpad(sharedBaseUrl, sharedPadName);
+    } catch (error) {
+        console.error('Error opening shared pad:', error);
+        showStatusMessage('Error opening shared pad. Please check the console for more details.');
+    }
 }
             // document.addEventListener('DOMContentLoaded', listAllEtherpads);
 

@@ -54,10 +54,9 @@ window.CList.schemas['RSS'] = {
         onAuthorClick: null,
         statusActions: (item, itemID) => {
             let a = '';
-            if (item.full_content) {
+            if (item._hasExpandableContent) {
                 a += `<button class="clist-action-btn" title="Expand" `
-                   + `onclick="toggleFormDisplay('${itemID}-content');`
-                   + `toggleFormDisplay('${itemID}-summary');"><span class="material-icons md-18 md-light">zoom_out_map</span></button>`;
+                   + `onclick="toggleEntryExpanded('${itemID}');"><span class="material-icons md-18 md-light">zoom_out_map</span></button>`;
             }
             if (item.audioIcon) { a += item.audioIcon; }
             if (item.link && /^https?:\/\//i.test(item.link)) {
@@ -533,6 +532,7 @@ function _rssAppendPage() {
             desc:       _rssPlainText(e.contentHtml),
             feed:       _rssTitleMap[e.feedUrl]  || e.feedUrl,
             titleHtml:  `<strong>${escapeHtml(e.title)}</strong>`,
+            expandOnTitleClick: true,
             feedUrl:    e.feedUrl,
             author:     e.author || _rssAuthorMap[e.feedUrl] || '',
             date:       new Date(e.published * 1000).toLocaleDateString(),

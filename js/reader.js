@@ -127,6 +127,17 @@ function finderString() {
 
 
 async function playRead() {
+    if (typeof isRegistered === 'function' && !isRegistered()) {
+        // Logged-out visitors have no personal reader accounts — show the
+        // public, no-login RSS collections instead (same list setLoggedOutUI()
+        // pre-renders into left-content at boot).
+        openLeftInterface(document.createElement('div'));
+        if (typeof renderPublicFeedsList === 'function') {
+            renderPublicFeedsList(document.getElementById('left-content'));
+        }
+        return;
+    }
+
     openLeftInterface(readPanel());
 
     if (!Array.isArray(window.CList.accounts)) {

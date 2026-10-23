@@ -54,7 +54,6 @@ body
 │       ├── #save-instructions
 │       ├── #post-instructions
 │       └── #load-instructions
-├── #statusPane  (floating, bottom of screen)
 ├── #loading-indicator
 └── #authModal  (fixed-position login/register modal)
 ```
@@ -86,9 +85,9 @@ The right half of `#main-content`. Contains the active editor.
 
 Options for the write pane open in **`#right-pane`**, which slides in from the right edge. Its panels (`#editor-list`, `#load-instructions`, `#save-instructions`, `#post-instructions`) are pre-declared children of `#right-content` and shown/hidden via `openRightInterface(panelId)`.
 
-### Status pane — `#statusPane`
+### Status messages — `#identityDiv`
 
-A floating `div` at the bottom of the screen for transient messages. Written to by `showStatusMessage(text)` in `ui.js`; auto-hides after 3 seconds.
+`#identityDiv` (the login-identity bar, see "Pane status bars" below) doubles as the home for transient status messages. `showStatusMessage(text)` in `ui.js` overwrites it and, after 3 seconds, restores the identity label via `renderIdentityLabel()` (`kvstore.js`).
 
 ---
 

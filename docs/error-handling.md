@@ -32,7 +32,7 @@ Parameters:
 
 ### `showStatusMessage(text)` — `ui.js`
 
-For **transient action feedback**: post results, validation messages, confirmations. Writes to `#statusPane` (bottom of screen) and auto-hides after 3 seconds.
+For **transient action feedback**: post results, validation messages, confirmations. Writes to `#identityDiv` (the login-identity bar) and auto-restores the identity label after 3 seconds.
 
 ```javascript
 showStatusMessage('Failed to boost — server returned 422.');
@@ -200,7 +200,7 @@ if (!appPassword || !handle) {
 
 ### P2P chat errors (dynamicp2p.js)
 
-The chat pane has no `#statusPane`. Use `appendMessage(text, true)` to surface errors inline in the chat transcript:
+The chat pane has no visible `#identityDiv`. Use `appendMessage(text, true)` to surface errors inline in the chat transcript:
 
 ```javascript
 } catch (e) {

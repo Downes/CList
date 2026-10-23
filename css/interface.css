@@ -215,6 +215,7 @@
         flex-direction: column;
         flex: 1;
         background-color: #f5f5f5;
+        position: relative;
     }
 
     #write-pane-content {
@@ -297,9 +298,14 @@
     }
 
     #write-load {
-      width: 100%;
-      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
       padding: 10px;
+      overflow: auto;
+      background-color: #f5f5f5;
       display: none;
       z-index: 10; /* Ensure it appears above other content */
     }
@@ -308,6 +314,12 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
+    }
+
+    #write-load-header h2 {
+      margin: 0;
+      font-size: 1.5em;
+      color: #333;
     }
 
     #write-load-close-button {
@@ -846,22 +858,6 @@
 .material-icons.md-light.md-inactive { color: rgba(186, 234, 184, 0.671); }
 
 
-#statusPane {
-  position: absolute;
-  bottom: 10px;
-  left: 10px;
-  width: calc(100% - 20px); /* Full width minus padding */
-  max-width: 400px; /* Limit the width to 400px */
-  border:1 px solid rgb(93, 95, 93);
-  background-color: rgba(231, 234, 231, 0.8); /* Semi-transparent black background */
-  color: var(--highlight-color); /*Green text */
-  padding: 10px; /* Padding for content */
-  border-radius: 5px; /* Rounded corners */
-  font-size: 0.875rem;
-  display: none; /* Hidden by default */
-  z-index: 1000; /* Ensure it’s above other elements */
-}
-
 /* Loading Indicator */
 
 /* Loading Indicator */
@@ -1015,6 +1011,56 @@ body:not(.user-registered) .clist-action-btn { display: none; }
 .clist-action-btn:hover { background-color: #efede9; }
 html.dark-mode .clist-action-btn:hover { background-color: #333; }
 
+/* ── Toggle switch ──────────────────────────────────────────────────────────── */
+/* Standard pattern for an instant-apply on/off control (admin settings, etc.):
+   <label class="admin-setting-switch">
+     <input type="checkbox">
+     <span class="admin-setting-switch-track"></span>
+   </label> */
+.admin-setting-switch {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 22px;
+    flex-shrink: 0;
+}
+.admin-setting-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.admin-setting-switch-track {
+    position: absolute;
+    inset: 0;
+    background-color: #ccc;
+    border-radius: 22px;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+.admin-setting-switch-track::before {
+    content: "";
+    position: absolute;
+    left: 2px;
+    bottom: 2px;
+    width: 18px;
+    height: 18px;
+    background-color: #fff;
+    border-radius: 50%;
+    transition: transform 0.15s ease;
+}
+.admin-setting-switch input:checked + .admin-setting-switch-track {
+    background-color: var(--highlight-color);
+}
+.admin-setting-switch input:checked + .admin-setting-switch-track::before {
+    transform: translateX(18px);
+}
+.admin-setting-switch input:disabled + .admin-setting-switch-track {
+    opacity: 0.6;
+    cursor: default;
+}
+html.dark-mode .admin-setting-switch-track { background-color: #555; }
+html.dark-mode .admin-setting-switch-track::before { background-color: #ddd; }
+
 /* ── Dark mode ─────────────────────────────────────────────────────────────── */
 html.dark-mode {
     color-scheme: dark;
@@ -1027,6 +1073,7 @@ html.dark-mode #main-window {
 }
 html.dark-mode #read-pane  { background-color: #1e1e1e; }
 html.dark-mode #write-pane { background-color: #1e1e1e; }
+html.dark-mode #write-load { background-color: #1e1e1e; }
 html.dark-mode #left-pane,
 html.dark-mode #right-pane { background: #252525; border-color: #3a3a3a; }
 html.dark-mode #audio-section,
@@ -1160,9 +1207,6 @@ html.dark-mode .save-button {
 }
 html.dark-mode .save-button:hover  { background-color: #3a3a3a; }
 html.dark-mode .save-button:active { background-color: #3a5a3a; }
-html.dark-mode #statusPane {
-    background-color: rgba(40,44,40,0.9); color: var(--highlight-color);
-}
 html.dark-mode .loader { border-color: #3a3a3a; border-top-color: var(--highlight-color); }
 html.dark-mode #modal-content {
     background-color: #252525; color: #e0e0e0;

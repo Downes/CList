@@ -342,9 +342,34 @@
             margin-left:1.4em;
         }
 
-        .post img, .post figure, .post wp-block-image {
+        .post img {
+            max-width: min(500px, 100%);
+            max-height: 500px;
+            height: auto;
+            object-fit: contain;
+        }
+
+        .post figure, .post wp-block-image {
             max-width:100%;
             height: auto;
+        }
+
+        /* Embedded video (YouTube, PeerTube, ...) in expanded entries — drag the
+           bottom-right corner to resize; starts at a 16:9, 500px-wide default. */
+        .video-embed-wrapper {
+            width: 500px;
+            max-width: 100%;
+            height: 281px;
+            resize: both;
+            overflow: auto;
+            margin-bottom: 0.75em;
+        }
+
+        .video-embed-wrapper iframe {
+            width: 100%;
+            height: 100%;
+            display: block;
+            border: none;
         }
 
 
@@ -495,6 +520,12 @@ html.dark-mode textarea {
 }
 html.dark-mode .status-box { background-color: #252525; border-color: #3a3a3a; }
 
+.entry-title-toggle { cursor: pointer; }
+
+/* j/k keyboard navigation: highlight whichever entry is "current" */
+.status-box.current-entry { border-color: rgb(81,177,88); box-shadow: 0 0 0 2px rgba(81,177,88,0.35); }
+html.dark-mode .status-box.current-entry { border-color: rgb(81,177,88); box-shadow: 0 0 0 2px rgba(81,177,88,0.45); }
+
 html.dark-mode .annotation-item { border-bottom-color: #2f2f2f; }
 html.dark-mode .annotation-creator { color: #ccc; }
 html.dark-mode .annotation-date    { color: #777; }
@@ -514,6 +545,7 @@ html.dark-mode .error-message {
 }
 html.dark-mode .feed-header { border-color: #3a3a3a; background-color: #252525; }
 html.dark-mode .feed-header h2 { color: #e0e0e0; }
+html.dark-mode #write-load-header h2 { color: #e0e0e0; }
 html.dark-mode .feed-header p  { color: #999; }
 html.dark-mode #feed-menu { border-bottom-color: #3a3a3a; }
 html.dark-mode #accounts-header,

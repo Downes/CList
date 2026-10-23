@@ -9,7 +9,7 @@
             oasisStatusActions = `<button class="clist-action-btn" title="Open in browser" onClick="openInBrowser('${itemLink}', '${itemID}')"><span class="material-icons md-18 md-light">launch</span></button>`;
 
             // Enlarge Content
-            if (item.full_content) { oasisStatusActions += `<button class="clist-action-btn" title="Expand" onClick="toggleFormDisplay('${itemID}-content');toggleFormDisplay('${itemID}-summary');"><span class="material-icons md-18 md-light">zoom_out_map</span></button>`; }
+            if (item._hasExpandableContent) { oasisStatusActions += `<button class="clist-action-btn" title="Expand" onClick="toggleEntryExpanded('${itemID}');"><span class="material-icons md-18 md-light">zoom_out_map</span></button>`; }
 
             return oasisStatusActions;
         },
@@ -36,7 +36,7 @@ async function oasisSearch(query,start) {
     const feedContainer = window.CList.ui.view.feedContainer;
     const dateString = new Date().toISOString();
 
-    let proxyUrl = "https://www.downes.ca/cgi-bin/proxyp.cgi";
+    let proxyUrl = "https://proxyp.mooc.ca";
     let oasisUrl = `http://oasis.geneseo.edu/basic_search.php?search_query=${query}`;
     // ?title=Test&author=&subject=&format=json
 
@@ -55,9 +55,14 @@ async function oasisSearch(query,start) {
     //params.apikey = apiKey;
 
     try {
+        // proxyp.mooc.ca requires a valid kvstore Bearer token on every request.
+        const kvToken = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
         const response = await fetch(proxyUrl, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                ...(kvToken ? { 'Authorization': `Bearer ${kvToken}` } : {}),
+            },
             body: new URLSearchParams(params),
         });
 

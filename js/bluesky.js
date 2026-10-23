@@ -776,7 +776,7 @@ async function displayBlueskyNotifications(notifications, cursor, isFirstPage) {
             actionButtons.innerHTML = `
                 <button class="clist-action-btn" title="Open in browser" onclick="openInBrowser('${postUrl}', '${postId}')"><span class="material-icons md-18 md-light">launch</span></button>
                 <button class="clist-action-btn" id="collect-btn-${postId}" onclick="collectItem('${postId}');" title="Add to collection"><span class="material-icons md-18 md-light">library_add</span></button>
-                <button class="clist-action-btn" onclick="shareToChat('${postId}');" title="Share to chat"><span class="material-icons md-18 md-light">chat_bubble_outline</span></button>
+                <button class="clist-action-btn chat-only-btn" onclick="shareToChat('${postId}');" title="Share to chat"><span class="material-icons md-18 md-light">chat_bubble_outline</span></button>
             `;
             statusContent.appendChild(actionButtons);
 

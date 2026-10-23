@@ -822,8 +822,9 @@ window.CList.schemas['Collab'] = {
             if (currentDocId) {
                 // Re-activating after switching away — restore display title
                 setDocTitle(localPartOf(currentDocId))
-            } else {
-                // Fresh open — show a slug and start local editor; press Enter to connect
+            } else if (!tiptapEditor) {
+                // Truly fresh open (no doc connected, no local editor yet) — show a slug
+                // and start a local editor; press Enter to connect.
                 setDocTitle(generateDocSlug())
                 try {
                     await initLocalEditor()
@@ -832,6 +833,8 @@ window.CList.schemas['Collab'] = {
                     showStatusMessage('Could not start editor — check your network connection.')
                 }
             }
+            // else: resuming an already-active local (not-yet-connected) editor —
+            // leave the existing TipTap instance and title untouched.
 
             loadPredefinedContent('collab')
         },

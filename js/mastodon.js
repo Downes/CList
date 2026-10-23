@@ -60,7 +60,11 @@ let accessToken = null;
                     const threadsBtn = inThread
                         ? `<button class="clist-action-btn" title="View thread" onclick="handleMastodonAction('${_heJs(statusId)}', 'thread')"><span class="material-icons md-18 md-light">dynamic_feed</span></button>`
                         : '';
+                    const expandBtn = item._hasExpandableContent
+                        ? `<button class="clist-action-btn" title="Expand" onclick="toggleEntryExpanded('${_heJs(_itemID)}');"><span class="material-icons md-18 md-light">zoom_out_map</span></button>`
+                        : '';
                     return `
+                        ${expandBtn}
                         <button class="clist-action-btn" title="Reply" onclick="handleMastodonAction('${_heJs(statusId)}', 'reply', this.parentElement)"><span class="material-icons md-18 md-light">reply</span></button>
                         <button class="clist-action-btn${isReblogged ? ' action-active' : ''}" title="Boost" onclick="handleMastodonAction('${_heJs(statusId)}', 'boost', this)"><span class="material-icons md-18 md-light">autorenew</span></button>
                         <button class="clist-action-btn${isFavourited ? ' action-active' : ''}" title="Favourite" onclick="handleMastodonAction('${_heJs(statusId)}', 'favorite', this)"><span class="material-icons md-18 md-light">favorite</span></button>

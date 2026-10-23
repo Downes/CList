@@ -7,7 +7,11 @@
         label: 'DuckDuckGo',
         logoSrc: 'assets/icons/duckduckgo.svg',
         statusActions: (item,itemID,itemLink) => {
+            const expandBtn = item._hasExpandableContent
+                ? `<button class="clist-action-btn" title="Expand" onClick="toggleEntryExpanded('${itemID}');"><span class="material-icons md-18 md-light">zoom_out_map</span></button>`
+                : '';
             return `
+            ${expandBtn}
             <button class="clist-action-btn" title="Open in browser" onClick="openInBrowser('${itemLink}', '${itemID}')"><span class="material-icons md-18 md-light">launch</span></button>`;
         },
         search: async (baseURL, accessToken) => {
@@ -51,6 +55,8 @@ async function duckduckgoSearch(q) {
 
     } catch (error) {
         console.error("Error accessing the URL:", error.message);
+        showServiceError(feedContainer, 'Search failed', 'Could not reach DuckDuckGo. Try again in a moment.');
+        return;
     }
 
     let ddgHeading = data.Heading || "No heading found";
@@ -80,7 +86,7 @@ async function duckduckgoSearch(q) {
                 // It's a subgroup
                 item.Topics.forEach((subItem) => {
                     const { title, description } = getDDGTitleAndDescription(subItem.FirstURL,subItem.Result);
-                    listing = makeListing({ service: 'duckduckgo', url: subItem.FirstURL, title, desc: description, feed: data.AbstractSource, date: dateString, full_content: subItem.AbstractText });
+                    listing = makeListing({ service: 'duckduckgo', url: subItem.FirstURL, title, desc: description, feed: data.AbstractSource, date: dateString, full_content: subItem.AbstractText ? new SafeHtml(escapeHtml(subItem.AbstractText)) : null });
                 });
 
             } else if (item.Text) {
@@ -88,7 +94,7 @@ async function duckduckgoSearch(q) {
 
                 const { title, description } = getDDGTitleAndDescription(item.FirstURL,item.Result);
 
-                listing = makeListing({ service: 'duckduckgo', url: item.FirstURL, title, desc: description, feed: data.AbstractSource, date: dateString, full_content: item.AbstractText });
+                listing = makeListing({ service: 'duckduckgo', url: item.FirstURL, title, desc: description, feed: data.AbstractSource, date: dateString, full_content: item.AbstractText ? new SafeHtml(escapeHtml(item.AbstractText)) : null });
             }
             feedContainer.appendChild(listing);
         });
@@ -97,6 +103,7 @@ async function duckduckgoSearch(q) {
         ddgAbstract = "No abstract found (Disambiguation page).";
     } else if (!ddgAbstract) {
         // There's no abstract and no disambiguation
+        feedContainer.innerHTML = '';                         // Clear previous content
         feedContainer.appendChild(createFeedHeader("No Result"));   // Header
         const statusBox = document.createElement('div');
         statusBox.classList.add('status-box');  // Add a class for styling
@@ -111,7 +118,7 @@ async function duckduckgoSearch(q) {
             feedContainer.appendChild(createFeedHeader(ddgHeading));   // Header
         }
         console.log("ddg-abstract:", ddgAbstract);
-        listing = makeListing({ service: 'duckduckgo', url: data.AbstractURL, title: ddgHeading, desc: ddgAbstract, feed: data.AbstractSource, date: dateString, full_content: data.AbstractText });
+        listing = makeListing({ service: 'duckduckgo', url: data.AbstractURL, title: ddgHeading, desc: ddgAbstract, feed: data.AbstractSource, date: dateString, full_content: data.AbstractText ? new SafeHtml(escapeHtml(data.AbstractText)) : null });
         feedContainer.appendChild(listing);
 
     }

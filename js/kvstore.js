@@ -70,15 +70,15 @@ document.addEventListener('DOMContentLoaded', function() {
     // Check for access token + session encryption key.
     // encKey is in sessionStorage (cleared on tab close) — if missing, user must log in again
     // to re-derive the key even if the token cookie is still valid.
-    const _token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
-    if (!_token) {
-        loginRequired("No login cookie found.");
-    } else if (isTokenExpired(_token)) {
-        loginRequired("Token expired.");
-    } else if (!sessionStorage.getItem(`${window.CList.config.flaskSiteUrl}_${getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.USERNAME)}_encKey`)) {
-        loginRequired("Session key cleared. Please log in again.");
-    } else {
+    // Page load never nudges the user to log in — that only happens reactively, via
+    // loginRequired(), when they pick an action that actually requires an account.
+    if (hasValidSession()) {
         loginNotRequired();
+    }
+
+    if (!window.CList.state.username || window.CList.state.username === "none") {
+        setLoggedOutUI();
+    } else {
         // Fetch accounts on reload so Read/Post buttons reflect the user's saved accounts.
         // (accounts array is empty at page load; it's normally populated only after login)
         getAccounts(window.CList.config.flaskSiteUrl).then(accts => {
@@ -91,11 +91,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }).catch(e => console.warn('Could not fetch accounts on reload:', e));
     }
 
-
-    if (!window.CList.state.username || window.CList.state.username === "none") {
-        loginRequired("No username found.");
-    }
-
     displayUsername();
 
 
@@ -105,6 +100,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 // ── Auth-state helpers ────────────────────────────────────────────────────────
+
+// Checks the actual cookie/token/session-key state directly, independent of
+// window.CList.state.username — usable before kvstore.js's own boot handler has run
+// (e.g. by interface.js, which registers its DOMContentLoaded listener earlier).
+function hasValidSession() {
+    const _token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
+    return !!(_token && !isTokenExpired(_token)
+        && sessionStorage.getItem(`${window.CList.config.flaskSiteUrl}_${getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.USERNAME)}_encKey`));
+}
 
 function isRegistered() {
     return !!(window.CList.state.username && window.CList.state.username !== 'none' && window.CList.state.username !== '');
@@ -142,13 +146,24 @@ function updateUIVisibility() {
     };
     const local = window.CList.isLocalMode && window.CList.isLocalMode();
     document.body.classList.toggle('user-registered', reg);
-    _show('openLeftButton',   hasReadAccount());
+    _show('openLeftButton',   hasReadAccount() || !reg); // logged-out visitors still get the public feed list
     _show('openChatButton',   reg && !local); // P2P chat needs a reachable peer identity
     _show('meButton',         reg);
     _show('post-button',      hasPostAccount());
 }
 
 // ── Login state ───────────────────────────────────────────────────────────────
+
+// identityDiv's idle content — the login identity when logged in, blank otherwise.
+// Also what showStatusMessage() (ui.js) restores after a transient status message,
+// since that message borrows this same space.
+function renderIdentityLabel() {
+    if (isRegistered()) {
+        identityDiv.innerHTML = `Identity: ${window.CList.state.username}`;
+    } else {
+        identityDiv.textContent = '';
+    }
+}
 
 // Login is required
 function loginRequired(msg) {
@@ -162,8 +177,7 @@ function loginRequired(msg) {
     if (msg && (msg.includes('expired') || msg.includes('cleared') || msg.includes('logged out'))) {
         identityDiv.textContent = `Session ended — please log in again.`;
     } else {
-        identityDiv.textContent = `Register (new) or Login to get started.`;
-        if (typeof startTour === 'function') startTour();
+        renderIdentityLabel();
     }
     updateUIVisibility();
 }
@@ -176,8 +190,26 @@ function loginNotRequired() {
     const registerButton = document.getElementById("registerButton");
     if (registerButton) registerButton.style.display="none";
     window.CList.state.username = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.USERNAME);
-    identityDiv.innerHTML = `Identity: ${window.CList.state.username}`;
+    renderIdentityLabel();
     updateUIVisibility();
+}
+
+// Quietly reflect "not logged in" in the UI at page load — no pane-opening, no
+// messaging. The nudge (loginRequired()) only fires reactively, when the user picks
+// an action that actually needs an account.
+function setLoggedOutUI() {
+    window.CList.state.username = 'none';
+    loginButton.style.display="inline-block";
+    const registerButton = document.getElementById("registerButton");
+    if (registerButton) registerButton.style.display="inline-block";
+    accountButton.style.display="none";
+    logoutButton.style.display="none";
+    updateUIVisibility();
+
+    // Public, no-login RSS collections — listed so logged-out visitors have something to read.
+    if (typeof renderPublicFeedsList === 'function') {
+        renderPublicFeedsList(document.getElementById('left-content'));
+    }
 }
 
 
@@ -466,6 +498,25 @@ function kvstoreAccountsPanel() {
 
         buildFormFields(schema, 'edit', { _key: targetKey, ...valueData });
 
+        if (valueData.type === 'Discord') {
+            const container = div.querySelector('#form-fields');
+            const panelWrap = document.createElement('div');
+            panelWrap.style.marginTop = '10px';
+            panelWrap.innerHTML = `
+                <div id="discord-edit-status" style="font-size:0.8rem;color:#555;margin-bottom:6px;min-height:1.2em;"></div>
+                <div class="kv-action-buttons">
+                    <button class="kv-action-btn kv-save-btn" id="discord-edit-manage-btn" type="button">Manage Channels</button>
+                </div>
+                <div id="discord-edit-admin-panel" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid #ccc;"></div>`;
+            container.appendChild(panelWrap);
+            const ctx = {
+                statusEl: panelWrap.querySelector('#discord-edit-status'),
+                botTokenEl: div.querySelector('#bot_tokenInput'),
+                panelEl: panelWrap.querySelector('#discord-edit-admin-panel'),
+            };
+            panelWrap.querySelector('#discord-edit-manage-btn').onclick = () => discordManageChannels(ctx);
+        }
+
         currentMode = 'update';
         div.querySelector('#submitBtn').textContent = 'Update Account';
         div.querySelector('#deleteBtn').style.display = 'inline';
@@ -540,6 +591,7 @@ function kvstoreAccountsPanel() {
             '0x0':     'upload',
             CListBin:  'storage',
             Dropbox:   'cloud_download',
+            Discord:   'forum',
         };
         if (type === 'Mastodon') {
             const span = document.createElement('span');
@@ -580,7 +632,7 @@ function kvstoreAccountsPanel() {
         // Collab and Annotate both require an external server to verify your kvstore token
         // against a real, network-reachable kvstore instance — not possible in Local mode.
         const isLocal = window.CList?.isLocalMode && window.CList.isLocalMode();
-        const allTypes = ['Mastodon', 'Bluesky', 'WordPress', 'OPML', 'RSS', 'Blogger', 'Etherpad', 'Collab', 'AI', 'Proxyp', 'Annotate', 'Hypothesis', 'JSONBin', 'Gist', '0x0', 'CListBin', 'Dropbox'];
+        const allTypes = ['Mastodon', 'Bluesky', 'WordPress', 'OPML', 'RSS', 'Blogger', 'Etherpad', 'Collab', 'AI', 'Proxyp', 'Annotate', 'Hypothesis', 'JSONBin', 'Gist', '0x0', 'CListBin', 'Dropbox', 'Discord'];
         const availableTypes = isLocal ? allTypes.filter(t => t !== 'Collab' && t !== 'Annotate') : allTypes;
         availableTypes.forEach(type => {
             const btn = document.createElement('button');
@@ -828,6 +880,38 @@ function kvstoreAccountsPanel() {
             return;
         }
 
+        if (type === 'Discord') {
+            const flow = div.querySelector('#add-flow');
+            const inputStyle = 'display:block;width:100%;box-sizing:border-box;padding:0.2rem;font-size:0.8rem;margin:2px 0 8px;';
+            const labelStyle = 'font-variant:small-caps;font-size:0.8rem;color:#555;display:block;margin-top:6px;';
+            flow.innerHTML = `
+                <h3 style="margin:0 0 8px;">Select Channels</h3>
+                <div id="discord-select-status" style="font-size:0.8rem;color:#555;margin-bottom:6px;min-height:1.2em;"></div>
+                <div id="discord-channel-list" class="account-list"></div>
+                <div class="kv-action-buttons" style="margin-top:10px;">
+                    <button class="kv-action-btn kv-cancel-btn" id="discord-back-btn">Back</button>
+                </div>
+                <details style="margin-top:14px;">
+                    <summary style="cursor:pointer;font-size:0.8rem;color:#888;">Manage channels (admin)</summary>
+                    <div style="margin-top:8px;">
+                        <label style="${labelStyle}">Bot Token</label>
+                        <input type="password" id="discord-bot-token" placeholder="" style="${inputStyle}">
+                        <div class="kv-action-buttons">
+                            <button class="kv-action-btn kv-save-btn" id="discord-manage-btn" type="button">Manage Channels</button>
+                        </div>
+                        <div id="discord-admin-panel" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid #ccc;"></div>
+                    </div>
+                </details>`;
+            flow.querySelector('#discord-back-btn').onclick = () => showTypePicker();
+            flow.querySelector('#discord-manage-btn').onclick = () => discordManageChannels({
+                statusEl: flow.querySelector('#discord-select-status'),
+                botTokenEl: flow.querySelector('#discord-bot-token'),
+                panelEl: flow.querySelector('#discord-admin-panel'),
+            });
+            renderDiscordChannelPicker(flow);
+            return;
+        }
+
         const schema = window.CList?.schemas?.[type];
         if (!schema) { showStatusMessage('No schema for account type: ' + type); return; }
 
@@ -963,6 +1047,258 @@ function kvstoreAccountsPanel() {
             console.error('Annotate registration error:', e);
             statusEl.style.color = '#c00';
             statusEl.textContent = 'Error: ' + e.message;
+        }
+    }
+
+    // Finds the existing Discord account (if any) subscribed to a given channel name —
+    // matches on the decrypted `channel` field, not the kvstore key, so it still finds
+    // accounts created under the old free-label flow.
+    function findDiscordAccountKey(channelName) {
+        const match = accounts.find(a => {
+            const v = parseAccountValue(a);
+            return v && v.type === 'Discord' && v.channel === channelName;
+        });
+        return match ? match.key : null;
+    }
+
+    // Renders the channel list as account-button-styled rows (matching the main account
+    // list's look). Clicking an unsubscribed channel creates a Discord account for it,
+    // keyed and titled by the channel's own name (e.g. "CList/General" — the admin sets
+    // this naming when registering the channel); clicking a subscribed one removes it.
+    async function renderDiscordChannelPicker(flow) {
+        const listEl = flow.querySelector('#discord-channel-list');
+        const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
+        listEl.innerHTML = '<p class="feed-status-message">Loading channels…</p>';
+        try {
+            const resp = await fetch('https://discord.mooc.ca/channels', {
+                headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+            });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const channels = await resp.json();
+            if (!listEl.isConnected) return;
+            if (!channels.length) {
+                listEl.innerHTML = '<p class="feed-status-message">No channels registered yet — ask your admin to add one under Manage Channels below.</p>';
+                return;
+            }
+            listEl.innerHTML = channels.map(c => `
+                <div class="account-list-item">
+                    <button type="button" class="account-button${findDiscordAccountKey(c.name) ? ' selected' : ''}" data-channel-name="${escapeHtml(c.name)}">
+                        <span class="material-icons">forum</span>
+                        <span>${escapeHtml(c.name)}</span>
+                    </button>
+                </div>`).join('');
+            listEl.querySelectorAll('[data-channel-name]').forEach(btn => {
+                btn.onclick = () => toggleDiscordChannel(btn.getAttribute('data-channel-name'), flow);
+            });
+        } catch (e) {
+            console.error('Could not load Discord channels:', e);
+            listEl.innerHTML = `<p class="feed-status-message">Could not load channels: ${escapeHtml(e.message)}</p>`;
+        }
+    }
+
+    // Registering/removing a channel from the admin panel can happen while the Select
+    // Channels picker is open behind it (create flow) or from the edit-account form,
+    // where there's no picker to refresh — only re-render when the former is present.
+    async function refreshDiscordChannelPickerIfVisible() {
+        const flow = document.getElementById('add-flow');
+        if (flow && flow.querySelector('#discord-channel-list')) {
+            await renderDiscordChannelPicker(flow);
+        }
+    }
+
+    async function toggleDiscordChannel(channelName, flow) {
+        const statusEl = flow.querySelector('#discord-select-status');
+        const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
+        statusEl.style.color = '#555';
+        try {
+            const existingKey = findDiscordAccountKey(channelName);
+            if (existingKey) {
+                const resp = await fetch(`${window.CList.config.flaskSiteUrl}/delete_kv/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                    body: JSON.stringify({ key: existingKey })
+                });
+                if (!resp.ok) throw new Error('Could not remove subscription: HTTP ' + resp.status);
+                statusEl.textContent = `Unsubscribed from "${channelName}".`;
+            } else {
+                const instanceData = { type: 'Discord', title: channelName, permissions: 'rw', channel: channelName, bot_token: '' };
+                const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
+                if (!encKey) throw new Error('Encryption key not found — please log in again.');
+                const encryptedValue = await encryptWithKey(encKey, JSON.stringify(instanceData));
+                const resp = await fetch(`${window.CList.config.flaskSiteUrl}/add_kv/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                    body: JSON.stringify({ key: channelName, value: encryptedValue })
+                });
+                if (!resp.ok) throw new Error('Could not add subscription: HTTP ' + resp.status);
+                statusEl.textContent = `Subscribed to "${channelName}".`;
+            }
+            accounts = await getAccounts(window.CList.config.flaskSiteUrl);
+            window.CList.accounts = accounts;
+            populatePostOptions(accounts);
+            populateReadAccountList(accounts);
+            updateUIVisibility();
+            await renderDiscordChannelPicker(flow);
+            getSite(window.CList.config.flaskSiteUrl);
+        } catch (e) {
+            console.error('Discord channel toggle failed:', e);
+            statusEl.style.color = '#c00';
+            statusEl.textContent = 'Error: ' + e.message;
+        }
+    }
+
+    // Admin "manage channels" panel — validated live against Discord on every call
+    // (see discord_bridge's CLAUDE.md for the trust-on-first-use auth model).
+    // ctx = { statusEl, botTokenEl, panelEl } — lets the same admin-panel logic run
+    // from both the Add-account flow and the edit-account form.
+    async function discordManageChannels(ctx) {
+        const { statusEl, botTokenEl, panelEl } = ctx;
+        const botToken = (botTokenEl.value || '').trim();
+        if (!botToken) { statusEl.textContent = 'Enter the bot token above first.'; return; }
+        panelEl.style.display = 'block';
+        panelEl.innerHTML = '<p class="feed-status-message">Checking bot token…</p>';
+        try {
+            const [channelsResp, guildsResp] = await Promise.all([
+                fetch(`https://discord.mooc.ca/admin/channels?bot_token=${encodeURIComponent(botToken)}`),
+                fetch(`https://discord.mooc.ca/admin/guilds?bot_token=${encodeURIComponent(botToken)}`),
+            ]);
+            if (!channelsResp.ok) {
+                const err = await channelsResp.json().catch(() => ({}));
+                throw new Error(err.error || `HTTP ${channelsResp.status}`);
+            }
+            const channelsList = await channelsResp.json();
+            const guildsList = guildsResp.ok ? await guildsResp.json() : [];
+            renderDiscordAdminPanel(panelEl, channelsList, guildsList, ctx);
+        } catch (e) {
+            console.error('Discord admin channel list failed:', e);
+            panelEl.innerHTML = `<p class="feed-status-message">Could not load channels: ${escapeHtml(e.message)}</p>`;
+        }
+    }
+
+    function renderDiscordAdminPanel(panel, channelsList, guildsList, ctx) {
+        const rows = channelsList.map(c => `
+            <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #eee;">
+                <span class="account-button" style="width:auto;flex:1 1 auto;border:none;padding:var(--pad-v) 0;cursor:default;">
+                    <span class="material-icons">forum</span>
+                    <span>${escapeHtml(c.name)}</span>
+                </span>
+                <button class="kv-action-btn kv-cancel-btn" data-channel-id="${c.id}" style="padding:2px 8px;margin-left:8px;flex-shrink:0;">Delete</button>
+            </div>`).join('') || '<p class="feed-status-message">No channels registered yet.</p>';
+
+        const guildOptions = guildsList.map(g => `<option value="${g.id}">${escapeHtml(g.name)}</option>`).join('');
+
+        panel.innerHTML = `
+            <h4 style="margin:0 0 6px;">Manage Channels</h4>
+            ${rows}
+            <div style="margin-top:10px;">
+                <label style="font-variant:small-caps;font-size:0.8rem;color:#555;display:block;">Create New Channel</label>
+                ${guildsList.length ? `
+                <select id="discord-new-guild-select" style="width:100%;box-sizing:border-box;padding:0.2rem;font-size:0.8rem;margin:2px 0;">
+                    ${guildOptions}
+                </select>
+                <input type="text" id="discord-new-channel-name" placeholder="Channel name" style="width:100%;box-sizing:border-box;padding:0.2rem;font-size:0.8rem;margin:2px 0;">
+                <button class="kv-action-btn kv-save-btn" id="discord-create-channel-btn" style="margin-top:4px;">Create Channel</button>
+                ` : `<p class="feed-status-message">No eligible guilds — grant the bot's role "Manage Channels" + "Manage Webhooks" in Discord's Server Settings → Roles.</p>`}
+            </div>
+            <div style="margin-top:14px;">
+                <label style="font-variant:small-caps;font-size:0.8rem;color:#555;display:block;">Register Existing Channel</label>
+                <input type="text" id="discord-new-guild" placeholder="Guild ID" style="width:100%;box-sizing:border-box;padding:0.2rem;font-size:0.8rem;margin:2px 0;">
+                <input type="text" id="discord-new-channel-id" placeholder="Channel ID" style="width:100%;box-sizing:border-box;padding:0.2rem;font-size:0.8rem;margin:2px 0;">
+                <input type="text" id="discord-new-webhook" placeholder="Webhook URL" style="width:100%;box-sizing:border-box;padding:0.2rem;font-size:0.8rem;margin:2px 0;">
+                <button class="kv-action-btn kv-save-btn" id="discord-new-channel-btn" style="margin-top:4px;">Add Channel</button>
+            </div>`;
+
+        panel.querySelectorAll('[data-channel-id]').forEach(btn => {
+            btn.onclick = () => discordDeleteChannel(btn.getAttribute('data-channel-id'), ctx);
+        });
+        panel.querySelector('#discord-new-channel-btn').onclick = () => discordAddChannel(panel, ctx);
+        const createBtn = panel.querySelector('#discord-create-channel-btn');
+        if (createBtn) createBtn.onclick = () => discordCreateChannel(panel, ctx);
+    }
+
+    async function discordCreateChannel(panel, ctx) {
+        const { statusEl, botTokenEl } = ctx;
+        const botToken = (botTokenEl.value || '').trim();
+        const guild_id = panel.querySelector('#discord-new-guild-select').value;
+        const name = (panel.querySelector('#discord-new-channel-name').value || '').trim();
+        if (!guild_id || !name) {
+            statusEl.textContent = 'Choose a guild and enter a channel name.';
+            return;
+        }
+        statusEl.style.color = '#555';
+        statusEl.textContent = 'Creating channel…';
+        try {
+            const resp = await fetch(`https://discord.mooc.ca/admin/guilds/${guild_id}/channels`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ bot_token: botToken, name })
+            });
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({}));
+                throw new Error(err.error || `HTTP ${resp.status}`);
+            }
+            const result = await resp.json();
+            statusEl.style.color = '#2a7a2a';
+            statusEl.textContent = result.name ? `✓ Created "${result.name}".` : '✓ Channel created.';
+            await discordManageChannels(ctx);
+            await refreshDiscordChannelPickerIfVisible();
+        } catch (e) {
+            console.error('Discord create channel failed:', e);
+            statusEl.style.color = '#c00';
+            statusEl.textContent = 'Could not create channel: ' + e.message;
+        }
+    }
+
+    async function discordAddChannel(panel, ctx) {
+        const { statusEl, botTokenEl } = ctx;
+        const botToken = (botTokenEl.value || '').trim();
+        const guild_id = (panel.querySelector('#discord-new-guild').value || '').trim();
+        const channel_id = (panel.querySelector('#discord-new-channel-id').value || '').trim();
+        const webhook_url = (panel.querySelector('#discord-new-webhook').value || '').trim();
+        if (!guild_id || !channel_id || !webhook_url) {
+            statusEl.textContent = 'Please fill in all fields to add a channel.';
+            return;
+        }
+        statusEl.textContent = 'Looking up guild and channel names…';
+        try {
+            const resp = await fetch('https://discord.mooc.ca/admin/channels', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ bot_token: botToken, guild_id, channel_id, webhook_url })
+            });
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({}));
+                throw new Error(err.error || `HTTP ${resp.status}`);
+            }
+            const result = await resp.json();
+            statusEl.style.color = '#2a7a2a';
+            statusEl.textContent = result.name ? `✓ Added "${result.name}".` : '✓ Channel added.';
+            await discordManageChannels(ctx);
+            await refreshDiscordChannelPickerIfVisible();
+        } catch (e) {
+            console.error('Discord add channel failed:', e);
+            statusEl.textContent = 'Could not add channel: ' + e.message;
+        }
+    }
+
+    async function discordDeleteChannel(id, ctx) {
+        const { statusEl, botTokenEl } = ctx;
+        const botToken = (botTokenEl.value || '').trim();
+        try {
+            const resp = await fetch(`https://discord.mooc.ca/admin/channels/${id}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ bot_token: botToken })
+            });
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({}));
+                throw new Error(err.error || `HTTP ${resp.status}`);
+            }
+            await discordManageChannels(ctx);
+            await refreshDiscordChannelPickerIfVisible();
+        } catch (e) {
+            console.error('Discord delete channel failed:', e);
+            statusEl.textContent = 'Could not delete channel: ' + e.message;
         }
     }
 
@@ -1651,6 +1987,11 @@ function kvstoreMePanel() {
                 <p class="nav-desc">Manage your saved collections of links and resources.</p>
             </div>
 
+            <div class="nav-item" data-admin-only="1">
+                <button class="nav-btn" id="me-nav-app-settings">App Settings</button>
+                <p class="nav-desc">View or change admin-editable runtime settings for apps that support it.</p>
+            </div>
+
         </div>
     `;
     div.querySelector('#me-nav-following').onclick    = () => playFollowing();
@@ -1658,11 +1999,17 @@ function kvstoreMePanel() {
     div.querySelector('#me-nav-options').onclick       = () => playOptions();
     div.querySelector('#me-nav-annotations').onclick   = () => window.showAnnotations('my');
     div.querySelector('#me-nav-collections').onclick   = () => window.showSavedCollections();
+    div.querySelector('#me-nav-app-settings').onclick  = () => playAppSettings();
 
     // Following, Identity (DID), and Annotations all require a real server reachable by other
     // people — nothing a Local-only account (see local-kvstore.js) can provide.
     if (window.CList.isLocalMode && window.CList.isLocalMode()) {
         div.querySelectorAll('[data-federation="1"]').forEach(el => el.style.display = 'none');
+    }
+    // App Settings is cosmetically hidden for non-admins — the real security boundary is
+    // each app's own ADMIN_USERNAMES check server-side (see admin_settings.py).
+    if (window.CList.state.username !== window.CList.config.adminUsername) {
+        div.querySelectorAll('[data-admin-only="1"]').forEach(el => el.style.display = 'none');
     }
     return div;
 }
@@ -2494,6 +2841,367 @@ function kvstoreOptionsPanel() {
     return div;
 }
 
+function playAppSettings() {
+    if (window.innerWidth <= 768) {
+        history.pushState({ panel: 'me' }, '');
+        openLeftInterface(kvstoreAppSettingsPanel());
+    } else {
+        openAppSettingsModal();
+    }
+}
+
+// Desktop-only modal: 80vw x 80vh, centered, 200px app-picker column on the
+// left, settings pane on the right. Mobile keeps the single-pane left-panel
+// flow (kvstoreAppSettingsPanel) instead of this modal.
+function openAppSettingsModal() {
+    closeAppSettingsModal();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'appSettingsModal';
+    overlay.style.cssText = 'display:flex; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;';
+
+    const box = document.createElement('div');
+    box.style.cssText = 'background:#fff; border-radius:8px; width:80vw; height:80vh; position:relative; display:flex; overflow:hidden;';
+
+    const closeBtn = document.createElement('span');
+    closeBtn.textContent = '✕';
+    closeBtn.title = 'Close';
+    closeBtn.style.cssText = 'position:absolute; top:10px; right:14px; cursor:pointer; font-size:1.3em; line-height:1; color:#555; z-index:1;';
+    closeBtn.onclick = closeAppSettingsModal;
+
+    const nav = document.createElement('div');
+    nav.style.cssText = 'width:300px; flex-shrink:0; border-right:1px solid #ddd; overflow-y:auto; padding:16px 0; box-sizing:border-box;';
+    nav.innerHTML = `<h3 style="margin:0 16px 12px;">App Settings</h3>` +
+        ADMIN_SETTINGS_APPS.map(a => `
+            <button class="account-button" data-app-base="${escapeHtml(a.baseUrl)}" style="display:block;width:100%;text-align:left;margin-bottom:2px;padding-left:16px;box-sizing:border-box;">
+                <span>${escapeHtml(a.label)}</span>
+            </button>`).join('');
+
+    const detail = document.createElement('div');
+    detail.id = 'app-settings-modal-detail';
+    detail.style.cssText = 'flex:1; overflow-y:auto; padding:16px 36px 16px 16px; box-sizing:border-box;';
+    detail.innerHTML = '<p class="feed-status-message">Pick an app to view or change its admin-editable settings.</p>';
+
+    nav.querySelectorAll('[data-app-base]').forEach(btn => {
+        btn.onclick = () => {
+            nav.querySelectorAll('[data-app-base]').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            renderGenericAdminSettingsPanel(detail, btn.getAttribute('data-app-base'));
+        };
+    });
+
+    box.appendChild(closeBtn);
+    box.appendChild(nav);
+    box.appendChild(detail);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+}
+
+function closeAppSettingsModal() {
+    const existing = document.getElementById('appSettingsModal');
+    if (existing) existing.remove();
+}
+
+// Small overlay listing what each settings field does, sourced from the
+// backend schema's "help" text (see admin_settings.py's SettingField.help).
+// Layered above #appSettingsModal (and works standalone over the mobile
+// left-pane flow too, since it's just appended to <body>).
+function openAdminSettingsHelpModal(appLabel, schema) {
+    closeAdminSettingsHelpModal();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'adminSettingsHelpModal';
+    overlay.style.cssText = 'display:flex; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:10000; align-items:center; justify-content:center;';
+
+    const box = document.createElement('div');
+    box.style.cssText = 'background:#fff; border-radius:8px; max-width:480px; width:90%; max-height:80vh; overflow-y:auto; padding:1.5em; position:relative; box-sizing:border-box;';
+
+    const closeBtn = document.createElement('span');
+    closeBtn.textContent = '✕';
+    closeBtn.title = 'Close';
+    closeBtn.style.cssText = 'position:absolute; top:10px; right:14px; cursor:pointer; font-size:1.3em; line-height:1; color:#555;';
+    closeBtn.onclick = closeAdminSettingsHelpModal;
+
+    const body = document.createElement('div');
+    body.innerHTML = `<h3 style="margin-top:0;">${escapeHtml(appLabel)} — Field Help</h3>` +
+        schema.map(f => `
+            <p style="margin-bottom:1em;">
+                <strong>${escapeHtml(f.label)}</strong><br>
+                <span style="font-size:0.9em;color:#555;">${escapeHtml(f.help || 'No additional detail available.')}</span>
+            </p>`).join('');
+
+    box.appendChild(closeBtn);
+    box.appendChild(body);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+}
+
+function closeAdminSettingsHelpModal() {
+    const existing = document.getElementById('adminSettingsHelpModal');
+    if (existing) existing.remove();
+}
+
+// Apps that have adopted the generic admin-settings backend pattern (see
+// /srv/shared/admin_settings.py — a copy-paste module, not a shared import —
+// and its GET/PUT /admin/settings routes). Add an app here once it's wired up.
+const ADMIN_SETTINGS_APPS = [
+    {
+        label: 'Pastebin', baseUrl: 'https://pastebin.mooc.ca',
+        description: 'Stores arbitrary text content (JSON, OPML, HTML) at a short public URL — used by CList to publish collections and other structured content.',
+    },
+    {
+        label: 'Survey', baseUrl: 'https://survey.mooc.ca',
+        description: 'Lets any kvstore user build simple surveys; anyone with the link can respond anonymously, no account needed.',
+    },
+    {
+        label: 'LocalRSS Reader', baseUrl: 'https://localrss.downes.ca',
+        description: 'Server-side RSS/podcast reader with a scheduler that fetches feeds in the background.',
+        // Unlike pastebin/survey, this app's auth gate also requires an
+        // X-Kvstore-Url header naming the issuing kvstore instance (same
+        // pattern rss.js already uses for /fetch_feed) — see rss.js:309.
+        requiresKvstoreUrlHeader: true,
+    },
+    {
+        label: 'Annotations', baseUrl: 'https://annotations.mooc.ca',
+        description: 'W3C-style annotation server for CList — lets users attach public/private notes to any URL.',
+    },
+    {
+        label: 'OPML2JSON', baseUrl: 'https://opml2json.downes.ca',
+        description: 'Converts OPML to JSON and aggregates RSS/Atom feeds for CList feed reading.',
+        // Same as localrss_reader — its admin-settings auth gate also checks
+        // X-Kvstore-Url (same pattern used by /fetch_feed).
+        requiresKvstoreUrlHeader: true,
+    },
+    {
+        label: 'Collab', baseUrl: 'https://collab.mooc.ca',
+        description: 'Hocuspocus/Yjs real-time collaborative document editing server for CList.',
+    },
+    {
+        label: 'Discussions', baseUrl: 'https://discussions.mooc.ca',
+        description: 'Peer discovery / signaling service for CList P2P chat — stores ephemeral PeerJS peer IDs so users can find and join each other\'s discussions.',
+    },
+];
+
+// Extra headers a given admin-settings app's auth gate requires beyond the
+// standard Bearer token — currently only localrss_reader's X-Kvstore-Url.
+function _adminSettingsExtraHeaders(baseUrl) {
+    const app = ADMIN_SETTINGS_APPS.find(a => a.baseUrl === baseUrl);
+    if (app && app.requiresKvstoreUrlHeader) {
+        return { 'X-Kvstore-Url': window.CList.config.flaskSiteUrl };
+    }
+    return {};
+}
+
+// Returns the App Settings panel element — an app picker; selecting an app
+// renders renderGenericAdminSettingsPanel() inline beneath the picker.
+function kvstoreAppSettingsPanel() {
+    const div = document.createElement('div');
+    div.className = 'kvcontainer';
+    const appButtons = ADMIN_SETTINGS_APPS.map(a => `
+        <button class="account-button" data-app-base="${escapeHtml(a.baseUrl)}" style="display:block;width:100%;text-align:left;margin-bottom:2px;">
+            <span>${escapeHtml(a.label)}</span>
+        </button>`).join('');
+    div.innerHTML = `
+        <button class="back-btn" id="app-settings-back-btn">&#8592; Back</button>
+        <div class="me-section me-section--flat">
+            <h3>App Settings</h3>
+            <p class="nav-desc">Pick an app to view or change its admin-editable settings.</p>
+            ${appButtons}
+            <div id="app-settings-detail" style="margin-top:12px;"></div>
+        </div>
+    `;
+    div.querySelector('#app-settings-back-btn').onclick = () => history.back();
+    div.querySelectorAll('[data-app-base]').forEach(btn => {
+        btn.onclick = () => renderGenericAdminSettingsPanel(
+            div.querySelector('#app-settings-detail'),
+            btn.getAttribute('data-app-base')
+        );
+    });
+    return div;
+}
+
+// Generic admin-settings editor, reusable by any app that has adopted the
+// admin_settings.py backend pattern. Fetches GET {baseUrl}/admin/settings,
+// renders one row per schema field, and PUTs only the fields that changed.
+async function renderGenericAdminSettingsPanel(panel, baseUrl) {
+    panel.innerHTML = '<p class="feed-status-message">Loading settings…</p>';
+    const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
+    try {
+        const resp = await fetch(`${baseUrl}/admin/settings`, {
+            headers: { 'Authorization': 'Bearer ' + token, ..._adminSettingsExtraHeaders(baseUrl) }
+        });
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            throw new Error(err.error || `HTTP ${resp.status}`);
+        }
+        const { schema, values } = await resp.json();
+        _renderAdminSettingsForm(panel, baseUrl, schema, values);
+    } catch (e) {
+        console.error('Admin settings load failed:', e);
+        panel.innerHTML = `<p class="feed-status-message">Could not load settings: ${escapeHtml(e.message)}</p>`;
+    }
+}
+
+function _setAdminSettingsStatus(panel, text, color) {
+    const statusEl = panel.querySelector('#admin-settings-status');
+    statusEl.textContent = text || '';
+    statusEl.style.color = color || '#555';
+    // Only show the bordered box styling when there's actually a message.
+    statusEl.classList.toggle('feed-status-message', !!text);
+}
+
+function _booleanStatusLabel(label, isOn) {
+    // Fields are typically labelled e.g. "Enabled" / "Real-time editing
+    // enabled" — flip a trailing "enabled" to "disabled" (matching case)
+    // when off, so the label itself reflects current state at a glance.
+    if (isOn || !/enabled$/i.test(label)) return label;
+    return label.replace(/enabled$/i, m => (m[0] === 'E' ? 'Disabled' : 'disabled'));
+}
+
+function _renderAdminSettingsForm(panel, baseUrl, schema, values, savedMessage) {
+    const rows = schema.map(f => {
+        if (f.type === 'boolean') {
+            const checked = (values[f.key] ?? 'true') === 'true';
+            return `
+                <div class="nav-item" data-setting-key="${escapeHtml(f.key)}">
+                    <label style="display:flex;align-items:center;gap:10px;">
+                        <span class="admin-setting-switch">
+                            <input type="checkbox" class="admin-setting-toggle" data-setting-key="${escapeHtml(f.key)}" data-label="${escapeHtml(f.label)}" ${checked ? 'checked' : ''}>
+                            <span class="admin-setting-switch-track"></span>
+                        </span>
+                        <span class="admin-setting-switch-label" style="font-variant:small-caps;font-size:0.8rem;color:#555;">${escapeHtml(_booleanStatusLabel(f.label, checked))}</span>
+                    </label>
+                </div>`;
+        }
+        if (f.sensitive) {
+            // Masked read-only text + a "Change" button that swaps in a blank
+            // password input, so the admin never retypes a value they're not changing.
+            const masked = values[f.key] ? escapeHtml(values[f.key]) : '(not set)';
+            return `
+                <div class="nav-item" data-setting-key="${escapeHtml(f.key)}">
+                    <label style="font-variant:small-caps;font-size:0.8rem;color:#555;display:block;">${escapeHtml(f.label)}</label>
+                    <span class="admin-setting-masked" style="font-family:monospace;">${masked}</span>
+                    <button class="kv-action-btn" data-change-key="${escapeHtml(f.key)}" style="margin-left:8px;">Change</button>
+                </div>`;
+        }
+        const current = values[f.key] || '';
+        return `
+            <div class="nav-item" data-setting-key="${escapeHtml(f.key)}">
+                <label style="font-variant:small-caps;font-size:0.8rem;color:#555;display:block;">${escapeHtml(f.label)}</label>
+                <input type="text" class="admin-setting-input" data-setting-key="${escapeHtml(f.key)}" value="${escapeHtml(current)}" style="width:100%;box-sizing:border-box;padding:0.2rem;font-size:0.85rem;">
+            </div>`;
+    }).join('');
+
+    const appMeta = ADMIN_SETTINGS_APPS.find(a => a.baseUrl === baseUrl) || { label: baseUrl, description: '' };
+
+    panel.innerHTML = `
+        <h3 style="margin-top:0;">${escapeHtml(appMeta.label)}</h3>
+        <p class="nav-desc" style="margin-bottom:1.2em;">${escapeHtml(appMeta.description)}</p>
+        ${rows}
+        <p id="admin-settings-status" style="min-height:1.2em;"></p>
+        <div style="display:flex;gap:8px;">
+            <button class="btn btn-small" id="admin-settings-save-btn">Save</button>
+            <button class="btn btn-small btn-secondary" id="admin-settings-help-btn">Help</button>
+        </div>
+    `;
+
+    panel.querySelector('#admin-settings-help-btn').onclick = () => {
+        openAdminSettingsHelpModal(appMeta.label, schema);
+    };
+
+    if (savedMessage) {
+        _setAdminSettingsStatus(panel, savedMessage, '#2a7a2a');
+    }
+
+    panel.querySelectorAll('[data-change-key]').forEach(btn => {
+        btn.onclick = () => {
+            const key = btn.getAttribute('data-change-key');
+            const row = panel.querySelector(`[data-setting-key="${key}"]`);
+            row.querySelector('.admin-setting-masked').style.display = 'none';
+            btn.style.display = 'none';
+            const input = document.createElement('input');
+            input.type = 'password';
+            input.className = 'admin-setting-input';
+            input.setAttribute('data-setting-key', key);
+            input.placeholder = 'Enter new value';
+            input.style.cssText = 'width:100%;box-sizing:border-box;padding:0.2rem;font-size:0.85rem;';
+            row.appendChild(input);
+        };
+    });
+
+    // Boolean fields take effect immediately on click, bypassing the Save
+    // button entirely — each toggle PUTs just its own key right away.
+    panel.querySelectorAll('.admin-setting-toggle').forEach(input => {
+        const baseLabel = input.getAttribute('data-label');
+        const labelEl = input.closest('label').querySelector('.admin-setting-switch-label');
+        input.onchange = async () => {
+            const key = input.getAttribute('data-setting-key');
+            const newValue = input.checked ? 'true' : 'false';
+            labelEl.textContent = _booleanStatusLabel(baseLabel, input.checked);
+            input.disabled = true;
+            _setAdminSettingsStatus(panel, 'Saving…', '#555');
+            const saveToken = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
+            try {
+                const resp = await fetch(`${baseUrl}/admin/settings`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + saveToken, ..._adminSettingsExtraHeaders(baseUrl) },
+                    body: JSON.stringify({ [key]: newValue })
+                });
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({}));
+                    throw new Error(err.error || `HTTP ${resp.status}`);
+                }
+                const result = await resp.json();
+                values[key] = result.values[key];
+                _setAdminSettingsStatus(panel, '✓ Saved.', '#2a7a2a');
+            } catch (e) {
+                console.error('Admin setting toggle failed:', e);
+                input.checked = !input.checked;
+                labelEl.textContent = _booleanStatusLabel(baseLabel, input.checked);
+                _setAdminSettingsStatus(panel, 'Could not save: ' + e.message, '#c00');
+            } finally {
+                input.disabled = false;
+            }
+        };
+    });
+
+    panel.querySelector('#admin-settings-save-btn').onclick = async () => {
+        const changes = {};
+        panel.querySelectorAll('.admin-setting-input').forEach(input => {
+            const key = input.getAttribute('data-setting-key');
+            const field = schema.find(f => f.key === key);
+            if (field.sensitive) {
+                // Only present when "Change" was clicked; blank means leave it alone.
+                if (input.value) changes[key] = input.value;
+            } else if (input.value !== (values[key] || '')) {
+                changes[key] = input.value;
+            }
+        });
+        if (!Object.keys(changes).length) {
+            _setAdminSettingsStatus(panel, 'No changes to save.', '#555');
+            return;
+        }
+        _setAdminSettingsStatus(panel, 'Saving…', '#555');
+        const saveToken = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
+        try {
+            const resp = await fetch(`${baseUrl}/admin/settings`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + saveToken, ..._adminSettingsExtraHeaders(baseUrl) },
+                body: JSON.stringify(changes)
+            });
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({}));
+                throw new Error(err.error || `HTTP ${resp.status}`);
+            }
+            const result = await resp.json();
+            _renderAdminSettingsForm(panel, baseUrl, schema, result.values, '✓ Saved.');
+        } catch (e) {
+            console.error('Admin settings save failed:', e);
+            _setAdminSettingsStatus(panel, 'Could not save: ' + e.message, '#c00');
+        }
+    };
+}
+
 // Browser back button returns to the Me nav page when inside a sub-panel.
 // Opens the panel directly (not via playMe()) so landing here doesn't push another
 // history entry on top of the one we just navigated back to.
@@ -2921,7 +3629,7 @@ window.addEventListener('popstate', (e) => {
         function updateIdentityDiv() {
             window.CList.state.username = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.USERNAME);
             if (window.CList.state.username) {
-                identityDiv.innerHTML = `Identity: ${window.CList.state.username}`;
+                renderIdentityLabel();
             } else {
                 console.warn('No login data found in cookies.');
             }

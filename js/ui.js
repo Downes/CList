@@ -127,6 +127,19 @@ window.CList.ui.accountList = function(tip, accounts, filterFn, onClickFn) {
     return container;
 };
 
+// ── video embeds ──────────────────────────────────────────────────────────────
+// Service-specific detection lives in youtube.js / peertube.js, each registering
+// under window.CList.video.<name>; this just asks each in turn so makeListing
+// stays generic across whatever video services get added later.
+function getVideoEmbedUrl(link) {
+    const providers = window.CList.video || {};
+    for (const key in providers) {
+        const embedUrl = providers[key]?.getEmbedUrl?.(link);
+        if (embedUrl) return embedUrl;
+    }
+    return null;
+}
+
 // ── listing ───────────────────────────────────────────────────────────────────
 // Returns a status-box div for a single feed item.
 // full_content must be a SafeHtml instance (or absent).
@@ -202,6 +215,7 @@ window.CList.ui.listing = function makeListing(
     // Build summary div with DOM methods — handlers registered per-service, no inline JS strings
     const summaryDiv = document.createElement('div');
     summaryDiv.id = `${itemID}-summary`;
+    summaryDiv.classList.add('entry-summary');
     summaryDiv.style.display = 'block';
 
     const feedHandler = window.CList.readers[service]?.onFeedClick;
@@ -229,18 +243,24 @@ window.CList.ui.listing = function makeListing(
     }
 
     // Build content div (if applicable)
+    const videoEmbedUrl = getVideoEmbedUrl(itemUrl);
     let contentDiv = null;
-    if (safeContentHtml && safeContentHtml.length > (itemDesc || '').length) {
+    if ((safeContentHtml && safeContentHtml.length > (itemDesc || '').length) || videoEmbedUrl) {
         contentDiv = document.createElement('div');
         contentDiv.id = `${itemID}-content`;
+        contentDiv.classList.add('entry-full-content');
         contentDiv.style.display = 'none';
+        const videoEmbedHtml = videoEmbedUrl
+            ? `<div class="video-embed-wrapper"><iframe src="${_he(videoEmbedUrl)}" loading="lazy" allowfullscreen></iframe></div>`
+            : '';
         contentDiv.innerHTML = `
             <div class='status-actions'>
-            <button class="clist-action-btn" title="Collapse" onclick="toggleFormDisplay('${itemID}-content');toggleFormDisplay('${itemID}-summary');"><span class="material-icons md-18 md-light">zoom_in_map</span></button>
+            <button class="clist-action-btn" title="Collapse" onclick="toggleEntryExpanded('${itemID}');"><span class="material-icons md-18 md-light">zoom_in_map</span></button>
             </div>
             <div class='post'>
                 <h2 class='post-title'>${_he(itemTitle)}</h2>
                 <p><em>${_he(itemAuthor || 'Unknown Author')}, ${_he(itemFeed || 'Unknown Source')}, ${_he(itemDate || 'Date unknown')}</em></p>
+                ${videoEmbedHtml}
                 <div class='post-full-content'>${safeContentHtml}</div>
             </div>`;
     }
@@ -260,7 +280,14 @@ window.CList.ui.listing = function makeListing(
 
     // Assemble statusSpecific: title, then DOM-built summary, then content
     const titleHtmlStr = item.titleHtml || `<a onclick="${service}Search('${_heJs(itemTitle || '')}');">${_he(itemTitle)}</a>`;
-    statusSpecific.innerHTML = `${titleHtmlStr}<br>`;
+    // Services that render plain (non-interactive) titleHtml can opt into
+    // click-to-expand by setting item.expandOnTitleClick — left out for
+    // services whose titleHtml already has its own click behavior (search,
+    // open link, view user feed, etc.) so this doesn't collide with it.
+    const titleWrapperHtml = item.expandOnTitleClick
+        ? `<span class="entry-title-toggle" onclick="toggleEntryExpanded('${itemID}');">${titleHtmlStr}</span>`
+        : titleHtmlStr;
+    statusSpecific.innerHTML = `${titleWrapperHtml}<br>`;
     statusSpecific.appendChild(summaryDiv);
     if (contentDiv) statusSpecific.appendChild(contentDiv);
 
@@ -307,6 +334,11 @@ window.CList.ui.listing = function makeListing(
     const statusActions = document.createElement('div');
     statusActions.classList.add('status-actions');
 
+    // Tell the service's statusActions handler whether there's actually
+    // expandable content, so it can skip rendering the Expand button when
+    // there isn't (the contentDiv decision above is the source of truth).
+    item._hasExpandableContent = !!contentDiv;
+
     const _statusActionsHtml = window.CList.readers[service]?.statusActions?.(item, itemID, itemUrl);
     if (_statusActionsHtml == null) {
         console.error('makeListing: no statusActions handler for service', service);
@@ -314,7 +346,7 @@ window.CList.ui.listing = function makeListing(
     statusActions.innerHTML = _statusActionsHtml || '';
     statusActions.insertAdjacentHTML('beforeend', `
       <button class="clist-action-btn" id="collect-btn-${itemID}" onclick="collectItem('${itemID}');" title="Add to collection"><span class="material-icons md-18 md-light">library_add</span></button>
-      <button class="clist-action-btn" onclick="shareToChat('${itemID}');" title="Share to chat"><span class="material-icons md-18 md-light">chat_bubble_outline</span></button>
+      <button class="clist-action-btn chat-only-btn" onclick="shareToChat('${itemID}');" title="Share to chat"><span class="material-icons md-18 md-light">chat_bubble_outline</span></button>
     `);
 
     // Create CList Actions
@@ -430,7 +462,7 @@ window.CList.ui.view = {
     rightPane:        document.getElementById('right-pane'),
     readPane:         document.getElementById('read-pane'),
     writePaneEl:      document.getElementById('write-pane'),
-    statusPane:       document.getElementById('statusPane'),
+    identityDiv:      document.getElementById('identityDiv'),
     loadingIndicator: document.getElementById('loading-indicator'),
 
     // Read pane
@@ -450,17 +482,21 @@ window.CList.ui.view = {
 };
 
 // ── showStatusMessage ─────────────────────────────────────────────────────────
-// Transient message in #statusPane; auto-hides after 3 s.
+// Transient message in #identityDiv (the same bar that otherwise shows the
+// login identity); auto-restores after 3 s. Debounced so that overlapping
+// calls don't race to restore the identity label too early.
 
 window.CList.ui.showStatusMessage = function(message) {
-    const statusPane = window.CList.ui.view?.statusPane;
-    if (!statusPane) {
-        console.error('Status pane element not found.');
+    const identityDiv = window.CList.ui.view?.identityDiv;
+    if (!identityDiv) {
+        console.error('identityDiv element not found.');
         return;
     }
-    statusPane.textContent = message;
-    statusPane.style.display = 'block';
-    setTimeout(() => { statusPane.style.display = 'none'; }, 3000);
+    identityDiv.textContent = message;
+    clearTimeout(window.CList.ui._statusMessageTimer);
+    window.CList.ui._statusMessageTimer = setTimeout(() => {
+        if (typeof renderIdentityLabel === 'function') renderIdentityLabel();
+    }, 3000);
 };
 
 // ── renderFeed ────────────────────────────────────────────────────────────────

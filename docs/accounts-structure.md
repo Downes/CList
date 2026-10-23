@@ -117,8 +117,11 @@ New account creation for Mastodon is special-cased in `selectAccountType()` in `
 | `gist.js` | Gist | Label | title, permissions, id (GitHub PAT) | — (`b` flag) |
 | `0x0.js` | 0x0 | Label | title, permissions | — (no id; anonymous; `b` flag) |
 | `clistbin.js` | CListBin | Instance URL | title, permissions, id (Bearer token) | — (`b` flag) |
+| `discord.js` | Discord | Account label (free text) | title, permissions, channel, bot_token | — |
 
 AI accounts have `instanceFromKey: false` — `instance` (the API URL) is an explicit editable field, separate from the project key.
+
+Discord accounts also have `instanceFromKey: false` — there is no per-account server URL (the bridge's base URL is a fixed constant in `discord.js`), so `instanceFromKey` is simply unused for this type and the kvstore key is a free-text label the user chooses.
 
 ---
 
