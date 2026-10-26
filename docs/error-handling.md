@@ -9,7 +9,7 @@
 
 ---
 
-## Two helpers — pick the right one
+## Three helpers — pick the right one
 
 ### `showServiceError(container, title, message, actionHtml)` — `ui.js`
 
@@ -42,8 +42,21 @@ showStatusMessage('No publish handler registered for type: Unknown');
 
 Use this for:
 - Social action results (bookmark, boost, favourite)
-- Form validation (empty field, bad format)
+- Lightweight form validation where missing the message briefly has no real cost (e.g. an inline "create" field)
 - Background operation feedback (account saved, name set)
+
+### `showErrorModal(message, { title })` — `ui.js`
+
+For errors that **block the user from completing an action** they just tried — e.g. a required-field check before save/publish. Unlike `showStatusMessage`, this can't be missed (it covers the screen) or auto-dismiss before being read. Built on `showModal()`; `title` defaults to `"Error"`.
+
+```javascript
+showErrorModal('Please enter a collection title before publishing.');
+showErrorModal('That username is already taken.', { title: 'Registration failed' });
+```
+
+Use this for:
+- Required-field checks that gate a save/publish/submit action
+- Any validation failure where silently losing the message (as `showStatusMessage`'s 3 s auto-dismiss can do) would leave the user confused about why the action didn't go through
 
 ### `parseAccountValue(account)` — `utilities.js`
 
@@ -111,10 +124,16 @@ Use `showStatusMessage` — these are transient:
 
 ### Form validation
 
-Use `showStatusMessage` for simple checks; use an inline `responseDiv` message for post forms where the response area is already visible:
+Use `showErrorModal` when the check gates a save/publish/submit action — the user needs to actually see why it didn't go through. Use `showStatusMessage` for lower-stakes inline checks. Use an inline `responseDiv` message for post forms where the response area is already visible:
 
 ```javascript
-// Simple validation
+// Gates a save/publish action — must not be missed
+if (!name) {
+    showErrorModal('Please enter a collection title before publishing.');
+    return;
+}
+
+// Lightweight inline check
 if (!inputValue) {
     showStatusMessage('Please enter a value.');
     return;

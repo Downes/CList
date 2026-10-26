@@ -123,6 +123,16 @@ let pendingTinymceDraftOffer = false;
                 displayCurrentReference(reference, editorDiv);
                 displayReferences(editorDiv);
             }
+        },
+        setContent: (value) => {
+            const editor = tinymce.get('write-column');
+            if (editor) editor.setContent(value);
+            // loadContent() appends directly to the backing textarea's raw value
+            // (independent of TinyMCE's own content model) — keep it in sync here,
+            // since programmatic setContent() doesn't fire the 'change' handler that
+            // normally mirrors TinyMCE's content into it.
+            const textarea = document.getElementById('write-column');
+            if (textarea) textarea.value = value;
         }
     };
 

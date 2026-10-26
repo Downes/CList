@@ -22,6 +22,12 @@ let currentEditorAccount = null;
 // Content waiting to be loaded into the next editor that is initialized.
 // Shape: { type: string, value: string } — set by switchToEditor() when carrying content, consumed by loadPredefinedContent().
 let pendingContent = null;
+
+// The My Pages row currently represented by the editor's content, or null. Set by
+// loadSavedPage()'s empty-editor/New/Replace paths; cleared by anything that makes
+// the editor stop representing that exact page (switching editors, Load blank).
+// Shape: { url: string, title: string } | null.
+let currentLoadedPage = null;
 // 
 // Define handlers for each editor
 //
@@ -29,8 +35,11 @@ let pendingContent = null;
 //
 //   label         {string}   Human-readable name shown in the editor picker UI.
 //   icon          {string}   Material Icons name shown beside the label (e.g. 'edit').
-//   contentTypes  {string[]} MIME types this editor prefers (e.g. ['text/html']).
-//                            Empty array means the editor accepts any content type.
+//   contentTypes  {string[]} MIME types this editor's loadContent() can genuinely accept
+//                            (e.g. ['text/html']). Empty array means none — the editor
+//                            doesn't support loading generic file/page content at all
+//                            (e.g. collection, whose items load via a separate, structured
+//                            path) — it is never treated as "accepts anything".
 //   requiresAccount {bool}   true if this editor needs a kvstore account with permission 'e'
 //                            and a matching type field (e.g. Etherpad). false for built-ins.
 //   isActive()     {function, optional} requiresAccount editors only: returns true if there's
@@ -45,6 +54,11 @@ let pendingContent = null;
 //   getContent()             Return current editor content as a string.
 //   loadContent({type,value}, itemId?)
 //                            Insert/append content at cursor. type is a MIME type string.
+//   setContent(value)        {function, optional} Replace the entire editor body (no cursor
+//                            semantics). Local editors only (texteditor, tinymce) — omit it for
+//                            account-backed/collaborative editors (collab, etherpad, collection)
+//                            rather than attempting collaborative-doc replace. Used by
+//                            loadSavedPage()'s New/Replace options.
 //
 // To add a new editor, create a new JS file and register its handler:
 //
@@ -154,26 +168,12 @@ const editorHandlers = {
                 displayCurrentReference(reference, editorDiv);
                 displayReferences(editorDiv);
             }
-        }
-    },   
-    quill: {
-        label: 'Quill (HTML)',
-        icon: 'edit',
-        contentTypes: ['text/html'],
-        requiresAccount: false,
-        getContent: () => {
-            return quillEditor.root.innerHTML;
+        },
+        setContent: (value) => {
+            const textarea = window.CList.ui.view.textColumn;
+            if (textarea) textarea.value = value;
         }
     },
-    ckeditor: {
-        label: 'CKEditor',
-        icon: 'edit',
-        contentTypes: ['text/html'],
-        requiresAccount: false,
-        getContent: () => {
-            return CKEDITOR.instances['editor-id'].getData();
-        }
-    }
     // Add more editors as needed
 };
 
@@ -250,35 +250,72 @@ function populateLoadOptions() {
             const content = await handler.load();
             if (!content || content.value === undefined || content.type === undefined) return;
 
-            const editorHandler = editorHandlers[currentEditor];
-            const currentHandlesType = !editorHandler.contentTypes.length
-                || editorHandler.contentTypes.includes(content.type);
-
-            if (!currentHandlesType) {
-                // Find a non-account editor that handles this content type
-                const suitableKey = Object.keys(editorHandlers).find(key => {
-                    const h = editorHandlers[key];
-                    return !h.requiresAccount
-                        && (!h.contentTypes.length || h.contentTypes.includes(content.type));
-                });
-                if (suitableKey) {
-                    await switchToEditor(suitableKey, content); // loads content + closes right pane
-                    return;
-                }
-                // No suitable editor — warn that HTML will be stripped
-                if (!confirm('The loaded content is HTML but the current editor is plain text. HTML tags will be stripped. Continue?')) {
-                    return;
-                }
-            }
-
-            loadContent(content);
-            closeRightPane();
+            // Delegate to the same routing/empty-check/choice logic "Load a page" (My
+            // Pages) already uses, so every load path — file, page, or any other
+            // registered loader — behaves identically: strict contentTypes matching,
+            // a choice when more than one editor qualifies, and a warn-before-overwrite
+            // prompt when the target editor already has content. Cancel returns here
+            // (this loader list) rather than My Pages' default.
+            await loadSavedPage(content, null, optionsDiv, () => populateLoadOptions());
         });
 
         list.appendChild(btn);
     });
 
     optionsDiv.appendChild(list);
+}
+
+// More than one local editor can handle the just-loaded content's type (and the
+// current editor isn't one of them) — let the user pick instead of silently
+// guessing. Called only for keys that exclude currentEditor (loadSavedPage()
+// already routes a currentEditor match straight to the empty/replace-or-insert
+// check), so every choice here is a switch to a different, freshly-initialized
+// (and therefore empty) editor. Rendered in the same right-pane spot, mirroring
+// playLoadBlank()'s list styling. page/renderTarget/onCancel mirror loadSavedPage()'s
+// own params — passed through so a choice offered mid-"Load a page" or mid-"Load
+// from file" lands back in the right place either way.
+function _offerEditorChoice(keys, content, page, renderTarget, onCancel) {
+    const optionsDiv = renderTarget || window.CList.ui.view.loadOptions;
+    if (!optionsDiv) return;
+    optionsDiv.innerHTML = '';
+
+    const tip = document.createElement('p');
+    tip.className = 'list-tip';
+    tip.textContent = 'More than one editor can open this content — choose one:';
+    optionsDiv.appendChild(tip);
+
+    const list = document.createElement('div');
+    list.className = 'account-list';
+
+    keys.forEach(key => {
+        const handler = editorHandlers[key];
+        const btn = document.createElement('button');
+        btn.className = 'account-button';
+
+        const iconEl = document.createElement('span');
+        iconEl.className = 'material-icons';
+        iconEl.textContent = handler.icon || 'edit';
+
+        const nameEl = document.createElement('span');
+        nameEl.textContent = handler.label || key;
+
+        btn.appendChild(iconEl);
+        btn.appendChild(nameEl);
+        btn.addEventListener('click', async () => {
+            await switchToEditor(key, content); // fresh editor, empty by construction
+            setLoadedPage(page || null);
+            document.getElementById('generic-modal')?.remove();
+        });
+        list.appendChild(btn);
+    });
+
+    optionsDiv.appendChild(list);
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'btn btn-secondary';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.onclick = onCancel || (() => populateLoadOptions());
+    optionsDiv.appendChild(cancelBtn);
 }
 
 // Register built-in load handlers
@@ -289,9 +326,12 @@ function populateLoadOptions() {
         label: 'Load blank',
         icon:  'note_add',
         load:  async () => {
-            clearDraft(currentEditor);
-            window.clearWriteTags?.();
-            return { type: 'text/plain', value: '' };
+            // Self-managing: asks which editor type, warns if the current editor
+            // would lose content, then loads a blank instance of the chosen type.
+            // See playLoadBlank() below. Returning null tells the generic dispatch
+            // in populateLoadOptions() there's nothing more for it to do.
+            playLoadBlank();
+            return null;
         }
     });
 
@@ -305,6 +345,114 @@ function populateLoadOptions() {
         }
     });
 })();
+
+// "Load blank" step 1: ask which editor type to load blank. Lists the same
+// built-in/resumable-account-less editors as the switcher (_populateBuiltInEditors) —
+// account-backed editors otherwise have no clear "blank" meaning (their content lives
+// server-side), so they're left out, matching that existing convention.
+function playLoadBlank() {
+    const optionsDiv = window.CList.ui.view.loadOptions;
+    if (!optionsDiv) return;
+    optionsDiv.innerHTML = '';
+
+    const tip = document.createElement('p');
+    tip.className = 'list-tip';
+    tip.textContent = 'Load a blank editor — choose which type:';
+    optionsDiv.appendChild(tip);
+
+    const list = document.createElement('div');
+    list.className = 'account-list';
+
+    Object.entries(editorHandlers).forEach(([key, handler]) => {
+        if (typeof handler.initialize !== 'function') return;
+        const resumableWithoutAccount = handler.requiresAccount
+            && typeof handler.isActive === 'function' && handler.isActive();
+        if (handler.requiresAccount && !resumableWithoutAccount) return;
+        if (typeof handler.visible === 'function' && !handler.visible()) return;
+
+        const btn = document.createElement('button');
+        btn.className = 'account-button';
+
+        const iconEl = document.createElement('span');
+        iconEl.className = 'material-icons';
+        iconEl.textContent = handler.icon || 'note_add';
+
+        const nameEl = document.createElement('span');
+        nameEl.textContent = handler.label || key;
+
+        btn.appendChild(iconEl);
+        btn.appendChild(nameEl);
+        btn.addEventListener('click', () => _confirmAndLoadBlank(key, handler));
+        list.appendChild(btn);
+    });
+
+    optionsDiv.appendChild(list);
+}
+
+// "Load blank" step 2: warn if the *current* editor (not the target) has content
+// that would be discarded by switching/clearing. Mirrors offerReplaceOrInsert's
+// button-row pattern below.
+function _confirmAndLoadBlank(targetKey, targetHandler) {
+    const currentHandler = editorHandlers[currentEditor];
+    const hasContent = currentHandler && editorHasActiveContent(currentHandler);
+
+    if (!hasContent) {
+        _doLoadBlank(targetKey);
+        return;
+    }
+
+    const optionsDiv = window.CList.ui.view.loadOptions;
+    if (!optionsDiv) return;
+    optionsDiv.innerHTML = '';
+
+    const msg = document.createElement('p');
+    msg.className = 'list-tip';
+    msg.textContent = `The current ${currentHandler.label || currentEditor} editor has unsaved content. ` +
+        `Loading a blank ${targetHandler.label || targetKey} editor will discard it.`;
+    optionsDiv.appendChild(msg);
+
+    const row = document.createElement('div');
+    row.className = 'published-page-confirm';
+
+    const discardBtn = document.createElement('button');
+    discardBtn.className = 'btn';
+    discardBtn.textContent = 'Discard and continue';
+    discardBtn.onclick = () => _doLoadBlank(targetKey);
+    row.appendChild(discardBtn);
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'btn btn-secondary';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.onclick = () => playLoadBlank();
+    row.appendChild(cancelBtn);
+
+    optionsDiv.appendChild(row);
+}
+
+// "Load blank" step 3: actually load a blank instance of targetKey.
+async function _doLoadBlank(targetKey) {
+    clearDraft(targetKey);
+    window.clearWriteTags?.();
+    clearReferences(); // global references list/panel
+    document.querySelectorAll('.currentReference').forEach(el => el.remove()); // per-editor "last loaded" attribution block
+    setLoadedPage(null);
+
+    if (targetKey === currentEditor) {
+        const handler = editorHandlers[targetKey];
+        if (typeof handler.setContent === 'function') {
+            handler.setContent('');
+        } else if (targetKey === 'collection') {
+            _activeCollection = null; // collection has no setContent — blank it directly
+        }
+        await initializeEditor(targetKey);
+    } else {
+        await switchToEditor(targetKey); // no carriedContent — fresh blank initialize()
+    }
+
+    closeLoadSurfaces();
+    updateEditorIndicator();
+    showStatusMessage('Blank editor loaded.');
+}
 
 
 // Close the editor-switch overlay and return to the editor, regardless of
@@ -405,6 +553,10 @@ async function playEditorSwitch() {
 async function switchToEditor(editorType, carriedContent, account) {
     if (carriedContent) pendingContent = carriedContent;
 
+    // Any switch other than loadSavedPage() carrying a page forward (which re-sets
+    // this right after calling us) means the editor no longer represents that page.
+    setLoadedPage(null);
+
     await initializeEditor(editorType, account ?? null);
     closeRightPane();
     closeEditorSwitchOverlay();
@@ -419,6 +571,38 @@ function updateEditorIndicator() {
     const label = handler?.label || currentEditor;
     const status = document.getElementById('editor-status');
     if (status) status.textContent = 'editor: ' + label;
+}
+
+
+// Track/display which My Pages page (if any) the editor's content currently
+// represents. page is the My Pages row (kind, url, title, serviceId, service,
+// mimeType, accountInstance, pageKey/collectionKey, format, ...) or null.
+// Kept as a full copy (not just {url,title}) so Republish and the Post-time
+// overwrite check have what they need to find the adapter/account and update
+// the right kvstore record.
+function setLoadedPage(page) {
+    currentLoadedPage = page ? { ...page } : null;
+    updateLoadedPageUI();
+}
+
+function updateLoadedPageUI() {
+    const indicator = document.getElementById('loaded-page-indicator');
+    const filenameEl = document.getElementById('loaded-page-filename');
+    const republishBtn = document.getElementById('republish-button');
+    const statusEl = document.getElementById('republish-status');
+    if (indicator) {
+        if (currentLoadedPage) {
+            if (filenameEl) {
+                filenameEl.textContent = `Loaded: ${currentLoadedPage.title || currentLoadedPage.url}`;
+                filenameEl.title = currentLoadedPage.url;
+            }
+            indicator.style.display = '';
+        } else {
+            indicator.style.display = 'none';
+        }
+    }
+    if (republishBtn) republishBtn.style.display = currentLoadedPage ? '' : 'none';
+    if (statusEl) { statusEl.textContent = ''; statusEl.removeAttribute('data-state'); }
 }
 
 
@@ -550,6 +734,151 @@ function loadContent(content, itemId) {
     } else {
         console.error(`No handler defined for editor: ${currentEditor}`);
     }
+}
+
+// Closes every surface a saved-page pick might have opened: the right pane (legacy
+// loaders that render into window.CList.ui.view.loadOptions) and the generic modal
+// (My Pages, which renders its list/prompt there instead). Harmless no-op for
+// whichever of the two wasn't open.
+function closeLoadSurfaces() {
+    closeRightPane();
+    document.getElementById('generic-modal')?.remove();
+}
+
+// Load a page or file into the right editor — the one shared routing path for
+// every loader (My Pages' "Load a page", "Load from file", or any other
+// registered loader), following the routing rules:
+//  1. If the current editor supports the content type, use it.
+//  2. Otherwise, if exactly one local (non-account) editor supports it, use that one.
+//     If more than one does, let the user choose.
+//  3. If the target editor is empty, load the content and make it active.
+//  4. If it already has content, ask the user (New / Replace / Insert / Cancel).
+// content = { type, value }. page = the My Pages row (for the loaded-page indicator),
+// or null for a loader with no such row (e.g. "Load from file").
+// renderTarget = DOM element to render a choice/New-Replace-Insert-Cancel prompt into
+// if needed (defaults to the right-pane load list); My Pages passes its modal body.
+// onCancel = what Cancel does on that prompt (defaults to reopening My Pages if
+// registered, else the right-pane load list) — callers outside My Pages (e.g.
+// "Load from file") pass their own, so Cancel returns to where the user actually was.
+async function loadSavedPage(content, page, renderTarget, onCancel) {
+    // Empty contentTypes means "doesn't support generic file/page content at all"
+    // (e.g. collection, which only loads structured items via its own My Collections
+    // path) — never a wildcard. A handler also needs a working initialize() to ever
+    // be switched into.
+    const candidates = Object.keys(editorHandlers).filter(key => {
+        const h = editorHandlers[key];
+        return typeof h.initialize === 'function' && (h.contentTypes || []).includes(content.type);
+    });
+
+    if (!candidates.length) {
+        if (!confirm('No editor registered for this content type. Load into the current editor anyway? Formatting may be lost.')) return;
+        loadContent(content);
+        closeLoadSurfaces();
+        return;
+    }
+
+    let targetKey;
+    if (candidates.includes(currentEditor)) {
+        targetKey = currentEditor;
+    } else {
+        const localCandidates = candidates.filter(key => !editorHandlers[key].requiresAccount);
+        if (localCandidates.length > 1) {
+            _offerEditorChoice(localCandidates, content, page, renderTarget, onCancel);
+            return;
+        }
+        targetKey = localCandidates[0];
+    }
+
+    if (!targetKey) {
+        showStatusMessage('No local editor is available for this content type.');
+        return;
+    }
+
+    if (targetKey !== currentEditor) {
+        // Freshly initialized editor is empty by construction. switchToEditor()
+        // already closes the right pane; the modal (if any) still needs closing.
+        await switchToEditor(targetKey, content);
+        setLoadedPage(page);
+        document.getElementById('generic-modal')?.remove();
+        return;
+    }
+
+    const handler = editorHandlers[targetKey];
+    const existing = (typeof handler.getContent === 'function') ? await handler.getContent() : '';
+    const isEmpty = !existing || !removeHtml(existing).trim();
+
+    if (isEmpty) {
+        handler.loadContent(content);
+        setLoadedPage(page);
+        closeLoadSurfaces();
+        return;
+    }
+
+    offerReplaceOrInsert(targetKey, handler, content, page, renderTarget, onCancel);
+}
+
+// Rendered into renderTarget (the right-pane load list by default, or the caller's
+// own surface — e.g. My Pages' modal body) when the target editor already has
+// content. New/Replace require handler.setContent — editors that don't have it
+// (collab/etherpad/collection) only offer Insert/Cancel. onCancel overrides the
+// default Cancel behavior (see loadSavedPage() above).
+function offerReplaceOrInsert(targetKey, handler, content, page, renderTarget, onCancel) {
+    const optionsDiv = renderTarget || window.CList.ui.view.loadOptions;
+    if (!optionsDiv) return;
+    optionsDiv.innerHTML = '';
+
+    const msg = document.createElement('p');
+    msg.className = 'list-tip';
+    msg.textContent = 'This editor already has content.';
+    optionsDiv.appendChild(msg);
+
+    const row = document.createElement('div');
+    row.className = 'published-page-confirm';
+
+    if (typeof handler.setContent === 'function') {
+        const newBtn = document.createElement('button');
+        newBtn.className = 'btn';
+        newBtn.textContent = 'New (insert into blank editor)';
+        newBtn.onclick = () => {
+            clearDraft(targetKey);
+            window.clearWriteTags?.();
+            handler.setContent('');
+            handler.loadContent(content);
+            setLoadedPage(page);
+            closeLoadSurfaces();
+        };
+        row.appendChild(newBtn);
+
+        const replaceBtn = document.createElement('button');
+        replaceBtn.className = 'btn';
+        replaceBtn.textContent = 'Replace';
+        replaceBtn.onclick = () => {
+            handler.setContent(content.value);
+            setLoadedPage(page);
+            closeLoadSurfaces();
+        };
+        row.appendChild(replaceBtn);
+    }
+
+    const insertBtn = document.createElement('button');
+    insertBtn.className = 'btn';
+    insertBtn.textContent = 'Insert';
+    insertBtn.onclick = () => {
+        handler.loadContent(content);
+        closeLoadSurfaces();
+    };
+    row.appendChild(insertBtn);
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'btn btn-secondary';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.onclick = onCancel || (() => {
+        const myPagesLoader = window.CList.loaders.find(l => l.label === 'My Pages');
+        if (myPagesLoader) myPagesLoader.load(); else populateLoadOptions();
+    });
+    row.appendChild(cancelBtn);
+
+    optionsDiv.appendChild(row);
 }
 
 // Load a feed item into the active editor by its DOM id.

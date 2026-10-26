@@ -79,13 +79,16 @@ Full reference: `docs/error-handling.md`. These rules apply to all new and modif
 
 **Never use `alert()`, `confirm()` (for errors), or `prompt()`** — use the helpers below instead.
 
-### Helpers (`showServiceError` and `showStatusMessage` are in `ui.js`; `parseAccountValue` is in `utilities.js`)
+### Helpers (`showServiceError`, `showStatusMessage`, `showErrorModal` are in `ui.js`; `parseAccountValue` is in `utilities.js`)
 
 - **`showServiceError(container, title, message, actionHtml?)`** — persistent red `error-message` div
   appended to a feed container. Use for hard failures: feed loads, API errors, missing credentials.
   `container` can be a DOM element or an ID string.
 - **`showStatusMessage(text)`** — transient message in `#identityDiv` (the login-identity bar),
-  auto-restores after 3 s. Use for action feedback, validation, and background operation results.
+  auto-restores after 3 s. Use for action feedback and background operation results.
+- **`showErrorModal(message, { title? })`** — full-screen modal (built on `showModal()`) with an
+  "OK" button to dismiss. Use for validation that blocks a save/publish/submit action — it can't be
+  missed or auto-dismiss unread, unlike `showStatusMessage`.
 - **`parseAccountValue(account)`** — safe `JSON.parse(account.value)`. Returns `null` on failure
   (logs `console.error`). **Always use this instead of bare `JSON.parse(account.value)`.**
 

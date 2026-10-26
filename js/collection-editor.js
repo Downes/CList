@@ -37,7 +37,12 @@
             }
         },
 
-        getContent: () => '',
+        // Reflects the live draft so editorHasActiveContent() (editors.js) can
+        // correctly detect unsaved collection items — _draftItems is the global
+        // set by _renderCollectionEditor (collections.js).
+        getContent: () => (typeof _draftItems !== 'undefined' && _draftItems && _draftItems.length)
+            ? JSON.stringify(_draftItems)
+            : '',
 
         loadContent: () => {},
     };

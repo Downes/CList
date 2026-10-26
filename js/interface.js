@@ -598,9 +598,9 @@ function mobShowRight() {
 
 // Generic Modal for messages too large to just use an alert button for
 
-function showModal(content) {
+function showModal(content, opts = {}) {
     // Check if a modal already exists and remove it
-    const existingModal = document.getElementById('genericModal');
+    const existingModal = document.getElementById('generic-modal');
     if (existingModal) {
         existingModal.remove();
     }
@@ -612,7 +612,7 @@ function showModal(content) {
     // Create modal content box
     const modalContent = document.createElement('div');
     modalContent.id = 'modal-content';
- 
+    if (opts.wide) modalContent.classList.add('modal-content--wide');
 
     // Add the content to the modal
     if (typeof content === 'string') {
@@ -621,18 +621,20 @@ function showModal(content) {
         modalContent.appendChild(content); // If content is a DOM element, append it
     }
 
-    // Create close button
-    const closeButton = document.createElement('button');
-    closeButton.textContent = 'Close';
-    closeButton.style.position = 'absolute';
+    // Create close button — callers that render their own header/close UI
+    // (e.g. the My Pages modal) pass hideDefaultClose to skip this one.
+    if (!opts.hideDefaultClose) {
+        const closeButton = document.createElement('button');
+        closeButton.textContent = 'Close';
+        closeButton.style.position = 'absolute';
 
+        closeButton.addEventListener('click', () => {
+            modal.remove();
+        });
 
-    closeButton.addEventListener('click', () => {
-        modal.remove();
-    });
+        modalContent.appendChild(closeButton);
+    }
 
-    // Append close button and content box to modal
-    modalContent.appendChild(closeButton);
     modal.appendChild(modalContent);
 
     // Add modal to the document body

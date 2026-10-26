@@ -499,6 +499,36 @@ window.CList.ui.showStatusMessage = function(message) {
     }, 3000);
 };
 
+// ── showErrorModal ────────────────────────────────────────────────────────────
+// Full-screen modal (via showModal) for errors that block the user from
+// completing an action (e.g. a required-field check before save/publish) —
+// unlike showStatusMessage, this can't be missed or auto-dismiss unnoticed.
+
+window.CList.ui.showErrorModal = function(message, { title = 'Error' } = {}) {
+    const box = document.createElement('div');
+
+    const heading = document.createElement('h2');
+    heading.textContent = title;
+    box.appendChild(heading);
+
+    const msg = document.createElement('p');
+    msg.className = 'error-message';
+    msg.textContent = message;
+    box.appendChild(msg);
+
+    const row = document.createElement('div');
+    row.className = 'error-modal-actions';
+    const okBtn = document.createElement('button');
+    okBtn.className = 'btn';
+    okBtn.textContent = 'OK';
+    okBtn.onclick = () => document.getElementById('generic-modal')?.remove();
+    row.appendChild(okBtn);
+    box.appendChild(row);
+
+    showModal(box, { hideDefaultClose: true });
+    okBtn.focus();
+};
+
 // ── renderFeed ────────────────────────────────────────────────────────────────
 // Clears container (unless appending), adds a feed header and #feed-summary div,
 // then calls normalize(rawItem) per item and appends the makeListing() result.
@@ -554,3 +584,4 @@ window.makeEditorButton    = window.CList.ui.editorButton;
 window.createFeedHeader    = window.CList.ui.feedHeader;
 window.showServiceError    = window.CList.ui.serviceError;
 window.showStatusMessage   = window.CList.ui.showStatusMessage;
+window.showErrorModal      = window.CList.ui.showErrorModal;

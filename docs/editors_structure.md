@@ -38,6 +38,12 @@ The script tag for the new file goes in `index.html` alongside the other editor 
 | `getContent()` | `function` | Return the current editor content as a string. May be `async`. |
 | `loadContent({ type, value }, itemId?)` | `function` | Insert content into the editor. `type` is a MIME type string. `itemId` is the feed item DOM id, used to attach a reference (optional). |
 
+### Optional handler field
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `setContent(value)` | `function` | **Optional, local editors only** (`requiresAccount: false`, content held in the browser — e.g. `texteditor`, `tinymce`). Fully replaces the editor body with `value`, unlike `loadContent()` which inserts at the cursor/selection. Not implemented by service/collaborative editors (Etherpad, collab, collection editor) — there is no sane "replace" semantics when other people's edits may be live in the document, so those editors are only ever offered Insert when routed through `loadSavedPage()` (below). |
+
 ---
 
 ## `initialize()` contract
@@ -105,6 +111,99 @@ This means:
 - `loadFile()` benefits from this too: loading an `.html` file picks TinyMCE; loading a `.txt` file picks the text editor
 
 If no suitable editor is found (e.g. an unrecognised MIME type), the user is warned that HTML tags will be stripped and asked to confirm before loading into the current editor.
+
+### Type-aware routing with a replace prompt — `loadSavedPage()`
+
+`populateLoadOptions()` above is the generic flow: a loader returns content once, and
+at most an automatic lossless editor switch happens. Some sources instead need to land
+in a *specific* saved document identity (so a later edit is understood as "updating
+this same page", not just "some content") and may need to ask the user how to combine
+the incoming content with whatever the target editor already holds. For that case, call
+`loadSavedPage(content, page)` directly instead of going through a loader:
+
+- `content` — `{ type, value }`, same shape as everywhere else.
+- `page` — the saved-page record (must carry at least `url` and `title`); passed through
+  only to drive the "currently loaded page" indicator (see below), not interpreted
+  otherwise.
+- `renderTarget` — optional DOM element to render the New/Replace/Insert/Cancel prompt
+  into if one is needed. Defaults to the right-pane load list
+  (`window.CList.ui.view.loadOptions`); My Pages passes its modal body instead (see
+  below), since that's where its own list is showing.
+
+`loadSavedPage()`:
+1. Finds editors whose `contentTypes` include `content.type`; keeps the current editor
+   if it qualifies, otherwise picks the first non-account editor that does.
+2. If the target editor isn't the current one, switches to it via `switchToEditor()`
+   (which starts empty) and loads directly.
+3. If the target editor is current and empty, loads directly.
+4. If the target editor is current and **not** empty, calls `offerReplaceOrInsert()`,
+   which renders a prompt into `renderTarget` with up to four choices: **New** (blank
+   the editor via `setContent('')`, then load — only offered if the handler has
+   `setContent`), **Replace** (`setContent(content.value)`, keeps draft/tag state —
+   only offered if `setContent` exists), **Insert** (always offered — `loadContent()`,
+   cursor-insert, mixed content), **Cancel** (re-opens the My Pages modal).
+
+Whichever path completes an action calls `closeLoadSurfaces()`, which closes both the
+right pane and the generic modal (`#generic-modal`) — harmless no-op for whichever of
+the two wasn't open, so this works regardless of where the picker UI actually lives.
+
+Currently used by: the "Load into editor" action on standalone pages in **Load → My
+Pages** (`collections.js`), for pages published via Post → "To Web Page". My Pages
+renders its own list (and, via `renderTarget`, the replace/insert prompt) inside a
+wide centered modal — see **`showModal()` wide mode** below — rather than the
+right-pane load list, since the list can get long and each row carries several action
+buttons.
+
+### `showModal()` wide mode
+
+`showModal(content, opts)` (`interface.js`) is the app's generic modal — a full-screen
+dimmed overlay (`#generic-modal`) centering a `#modal-content` box that sizes to fit
+its content by default (`max-width`/`max-height: 92vw/92vh`). Passing `{ wide: true }`
+adds the `modal-content--wide` class, which fixes the box at `80vw` × `80vh` instead of
+shrinking to content — used for lists that need consistent room regardless of how many
+items they hold. `content` can be a string (`innerHTML`) or a DOM element (appended).
+Calling `showModal()` again replaces any modal already open.
+
+Passing `{ hideDefaultClose: true }` skips `showModal()`'s own absolutely-positioned
+plain-text "Close" button, for callers that render their own header/close UI instead
+(e.g. the My Pages modal's `.modal-header-row` — see `docs/collection-publishing.md`).
+Callers that pass no `opts` (`etherpad.js`, `collab.js`) are unaffected and still get
+the default Close button.
+
+### "Currently loaded page" indicator
+
+When content lands via `loadSavedPage()` through the empty-editor path, or the New/
+Replace choice in the prompt (not Insert, and not the generic `populateLoadOptions()`
+flow) — or a collection is loaded into the Collection Editor from My Pages —
+`setLoadedPage(page)` stores the **whole** My Pages row object (`{...page}`, not just
+`{url, title}`): `kind` (`'page'` or `'collection'`), `url`, `title`, `serviceId`,
+`service`, `accountInstance`, `publishedAt`, and either `pageKey` + `mimeType`
+(standalone pages) or `collectionKey` + `format` (collections). This is the record
+Republish and the Post-time overwrite/new-version prompt both key off of.
+
+`updateLoadedPageUI()` (renamed from `updateLoadedPageIndicator()`) shows/hides
+`#loaded-page-indicator` (inside `#write-title-row`, at the top of the write pane) and
+also toggles `#republish-button`'s visibility — both follow `currentLoadedPage` as a
+single unit, so there's no separate wiring for "show the filename" vs. "show the
+Republish button".
+
+Cleared (`setLoadedPage(null)`) whenever the editor stops representing a known
+published page: at the top of every `switchToEditor()` call, by the "Load blank"
+loader, and by the two collection load paths that pull in an *external* collection
+(not one of ours) — the "Load from URL" dialog and `window.loadCollectionText` — so a
+stale filename/Republish button from a previously-loaded page doesn't linger.
+
+### Republish button — `#republish-button` / `playRepublish()`
+
+Shown next to `#post-button` whenever `currentLoadedPage` is set. `playRepublish()`
+(`js/publish.js`) dispatches the same way `playPost()` does: if
+`currentLoadedPage.kind === 'collection'`, it calls `window.republishCollection()`
+(`js/collections.js`); otherwise it republishes the standalone page directly via the
+bin publisher's `update()` adapter method. Either path saves the current editor
+content to the page's *existing* published URL — no new kvstore entry is created, and
+no second published URL exists afterward. See `docs/collection-publishing.md`'s
+"Republish, and overwrite vs. new version at Post time" section for the full
+Post-time overwrite/new-version flow this feeds into.
 
 ---
 

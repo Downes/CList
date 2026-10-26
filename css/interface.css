@@ -749,6 +749,22 @@
     margin-bottom: 4px;
   }
 
+  #loaded-page-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  #loaded-page-filename {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #republish-status { font-size: 0.8125rem; }
+  #republish-status[data-state="error"] { color: #c00; }
+  #republish-status[data-state="success"] { color: #2d7d46; }
+  html.dark-mode #republish-status[data-state="error"] { color: #e07a6a; }
+  html.dark-mode #republish-status[data-state="success"] { color: #5fc37e; }
+
   .account-button {
     display: flex;
     align-items: center;
@@ -919,6 +935,21 @@
   max-height: 92vh;
   overflow-y: auto;
   position: relative;
+}
+
+/* Wide variant — for content like lists that benefit from a large, fixed-size,
+   centered surface rather than shrinking to fit its content. */
+#modal-content.modal-content--wide {
+  width: 80vw;
+  height: 80vh;
+  max-width: 80vw;
+  max-height: 80vh;
+}
+
+/* showErrorModal (ui.js) — OK button row */
+.error-modal-actions {
+  margin-top: 16px;
+  text-align: right;
 }
 
 
@@ -1158,6 +1189,57 @@ html.dark-mode .published-page-title a { color: #ddd; }
 html.dark-mode .published-page-badge { background: #1a2e1a; color: #7acc7a; border-color: #3a5a3a; }
 html.dark-mode .published-page-badge.badge-service { background: #1a2040; color: #7aaae8; border-color: #3a5a8a; }
 html.dark-mode .published-page-date { color: #666; }
+
+/* Modal header row — mirrors #write-load-header so every panel/modal header
+   (Select Editor, Published pages, …) looks the same. */
+.modal-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.modal-header-row h2 {
+  margin: 0;
+  font-size: 1.5em;
+  color: #333;
+}
+.modal-header-row button {
+  font-size: 0.875rem;
+  margin: 0;
+  padding: 4;
+  cursor: pointer;
+}
+html.dark-mode .modal-header-row h2 { color: #e0e0e0; }
+
+/* My Pages table: Format / Date / Buttons / Title columns, sortable + paginated */
+.published-pages-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.published-pages-table th, .published-pages-table td { padding: 6px 8px; border-bottom: 1px solid #eee; text-align: left; vertical-align: middle; }
+.published-pages-table th { cursor: pointer; white-space: nowrap; color: #555; font-weight: 600; user-select: none; }
+.published-pages-table th.no-sort { cursor: default; }
+.published-pages-table th.sort-active { color: #222; }
+.published-pages-table th .sort-arrow { margin-left: 4px; font-size: 0.75em; }
+.published-pages-table th:nth-child(1), .published-pages-table td:nth-child(1) { width: 90px; }
+.published-pages-table th:nth-child(2), .published-pages-table td:nth-child(2) { width: 110px; }
+.published-pages-table th:nth-child(3), .published-pages-table td:nth-child(3) { width: 110px; }
+.published-pages-table th:nth-child(4), .published-pages-table td:nth-child(4) { width: auto; }
+.published-pages-table td:nth-child(4) .published-page-title { display: block; }
+
+.published-pages-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 10px;
+  font-size: 0.82rem;
+  color: #666;
+}
+.published-pages-pagination select { font-size: 0.82rem; padding: 2px 4px; width: 5ch; }
+
+html.dark-mode .published-pages-table th, html.dark-mode .published-pages-table td { border-bottom-color: #333; }
+html.dark-mode .published-pages-table th { color: #999; }
+html.dark-mode .published-pages-table th.sort-active { color: #ddd; }
+html.dark-mode .published-pages-pagination { color: #999; }
+html.dark-mode .published-pages-pagination select { background: #2d2d2d; border-color: #555; color: #ccc; }
 html.dark-mode #left-content,
 html.dark-mode #right-content { scrollbar-color: #555 #2a2a2a; }
 html.dark-mode #left-content::-webkit-scrollbar,

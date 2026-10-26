@@ -77,11 +77,10 @@ function restorePostContent(content, mimeType) {
         if (mimeType.startsWith("text/html")) {
             return parseHtmlContent(content, mimeType);
         } else if (mimeType.startsWith("text/") || mimeType === "application/json") {
-            // If the MIME type is text/plain or similar, check if it contains HTML
-            if (looksLikeHtml(content)) {
-                console.warn("Content looks like HTML despite MIME type:", mimeType);
-                return parseHtmlContent(content, "text/html");
-            } else if (mimeType === "application/json") {
+            // Trust the declared MIME type (from the file's own extension) as-is —
+            // a .txt file loads as plain text even if its content happens to contain
+            // HTML-like tags (e.g. a saved markup fragment meant to be edited as text).
+            if (mimeType === "application/json") {
                 try {
                     const json = JSON.parse(content);
                     return { type: mimeType, value: json };
@@ -132,13 +131,6 @@ function parseHtmlContent(content, mimeType) {
     if (referencesDiv) referencesDiv.innerHTML = referencesContent;
 
     return { type: mimeType, value: mainContent };
-}
-
-// Helper: Detect HTML Content
-function looksLikeHtml(content) {
-    // Check for basic HTML tags
-    const htmlTags = /<html|<body|<head|<div|<span|<p/i;
-    return htmlTags.test(content);
 }
 
 // Save
@@ -249,30 +241,115 @@ function packageStatus(charlimit, input, publishedURL) {
 })();
 
 
+// Session-only cache of FileSystemFileHandle, keyed by the page's own urn:uuid
+// id — lets a second "Save to local file" of the same resource write straight
+// back to the file the user already picked instead of prompting again (which,
+// on Chromium, the OS would otherwise save as a numbered copy). Only possible
+// when there's a stable id to key off; an anonymous (not logged in, never
+// indexed) save always goes through the picker. Lost on page reload — browsers
+// don't persist file handles across reloads without IndexedDB-backed permission
+// storage, which isn't implemented here.
+const _localFileHandles = {};
+
 async function saveContent() {
 
-    content = await packagePost(); // Package the post content
-    suggestedName = "content.html"
-   // const fileContent = typeof content === "string" ? content : content.outerHTML;
-   const fileContent = String(content); // Ensure content is treated as a string
+    const content = await packagePost(); // Package the post content
+    const fileContent = String(content); // Ensure content is treated as a string
 
+    const loggedIn = !!(window.CList.state && window.CList.state.username);
+    let targetId = null;
+
+    // If the resource is already identified (by urn:uuid), record the local
+    // save against its existing kvstore index entry — minting one now if it's
+    // never been indexed before. Not logged in: no kvstore to index into, so
+    // skip straight to the file write with no identity tracking at all.
+    if (loggedIn) {
+        const titleValue = window.CList.ui.view.writeTitle.innerText.trim();
+        const now = new Date().toISOString();
+
+        if (currentLoadedPage && currentLoadedPage.id && currentLoadedPage.pageKey) {
+            try {
+                const touched = await _touchOrForkWebPageRecord(currentLoadedPage.pageKey, currentLoadedPage.id, {
+                    savedLocally: true,
+                    savedLocallyAt: now,
+                });
+                targetId = touched.id;
+                currentLoadedPage.id = touched.id;
+                currentLoadedPage.pageKey = touched.pageKey;
+                if (touched.forked) {
+                    showStatusMessage('This page was authored by someone else — saved locally as a new, derived copy in My Pages.');
+                }
+            } catch (e) {
+                console.error('[saveContent] failed to update page record', e);
+                showStatusMessage('Saved locally, but could not update My Pages: ' + e.message);
+            }
+        } else {
+            targetId = `urn:uuid:${crypto.randomUUID()}`;
+            try {
+                const pageKey = await _saveWebPageRecord({
+                    id: targetId,
+                    title: titleValue,
+                    mimeType: 'text/html',
+                    authorDid: _currentAuthorDid(),
+                    savedLocally: true,
+                    savedLocallyAt: now,
+                });
+                setLoadedPage({
+                    kind: 'page',
+                    pageKey,
+                    id: targetId,
+                    format: 'HTML',
+                    title: titleValue,
+                    mimeType: 'text/html',
+                    authorDid: _currentAuthorDid(),
+                    savedLocally: true,
+                    savedLocallyAt: now,
+                });
+            } catch (e) {
+                console.error('[saveContent] failed to index page record', e);
+                showStatusMessage('Saved locally, but could not index in My Pages: ' + e.message);
+            }
+        }
+    }
+
+    await _writeLocalFile(fileContent, targetId);
+}
+
+async function _writeLocalFile(fileContent, id) {
     if (window.showSaveFilePicker) {
         // Modern Browsers: File System Access API
         try {
-            const fileHandle = await window.showSaveFilePicker({
-                suggestedName: "content.txt",
-                types: [{ description: "Text Files", accept: { "text/plain": [".txt"] } }]
-            });
+            let fileHandle = id ? _localFileHandles[id] : null;
+            if (fileHandle) {
+                // Permission can be revoked by the browser after inactivity —
+                // re-request it before reusing a cached handle.
+                const granted = await fileHandle.queryPermission({ mode: 'readwrite' }) === 'granted'
+                    || await fileHandle.requestPermission({ mode: 'readwrite' }) === 'granted';
+                if (!granted) fileHandle = null;
+            }
+            if (!fileHandle) {
+                fileHandle = await window.showSaveFilePicker({
+                    suggestedName: "content.txt",
+                    types: [{ description: "Text Files", accept: { "text/plain": [".txt"] } }]
+                });
+                if (id) _localFileHandles[id] = fileHandle;
+            }
 
             const writableStream = await fileHandle.createWritable();
             await writableStream.write(fileContent);
             await writableStream.close();
             showStatusMessage('File saved successfully.');
         } catch (err) {
-            console.error("Save failed:", err);
+            if (err.name !== 'AbortError') {
+                console.error("Save failed:", err);
+                showStatusMessage('Save failed: ' + err.message);
+            }
         }
     } else {
-        // Fallback for Unsupported Browsers
+        // Fallback for Unsupported Browsers (e.g. Firefox, which doesn't implement
+        // showSaveFilePicker) — a plain Blob download. The browser's own download
+        // manager decides whether to rename on conflict; there's no API here to
+        // control or override that.
         fallbackDownload(fileContent);
     }
 }
