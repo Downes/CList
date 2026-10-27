@@ -1,9 +1,12 @@
- CList Canonical Collection Model — Version 1.07
+ CList Canonical Collection Model — Version 1.08
 
 **Status:** Accepted conceptual model  
-**Version:** 1.07  
+**Version:** 1.08  
 **Date:** 2026-10-26  
 **Scope:** Conceptual model; not a storage schema or migration plan
+
+**Changes from 1.07:**
+- Added a note to the Properties/Capabilities/Permissions/Functions section flagging that the existing account-level `permissions` flags are self-asserted, client-side UI-list gating rather than true authorization — and that reader dispatch (`window.CList.readers[accountData.type]`) is the one place CList already does real duck typing. No rename of the existing flag/field — just naming the distinction for anyone implementing the finer-grained layer this section describes.
 
 **Changes from 1.06:**
 - Closed three gaps found during a post-implementation code review: "Share to chat", "Open in Collab", and "Insert as text" (all in `collections.js`, reachable from the collection detail view) read a collection's items expecting flat leaf items, same as the export/publish formats, but weren't included in the original four-phase implementation. Share-to-chat had no `url` guard at all (would have sent a broken card for a nested-collection membership); the other two silently dropped nested branches. All three now call `_flattenForExport` the same way Save/Publish/Republish do — the design in "Nesting and cycle-guard rules" is unchanged, this just extends its code coverage to every surface that reads `col.items`.
@@ -98,6 +101,8 @@ CList may provide an **optional registry of recognized property definitions**, i
 **Capabilities** describe operations that the resource or its supporting system actually supports. **Permissions** determine whether a particular actor is authorized to perform an operation. A descriptive property or capability flag alone does not confer authorization.
 
 CList already has an account-level permission mechanism — the flag string (`r`/`w`/`p`/`e`/`t`/`g`/`z`/`s`/`b`) documented in `docs/accounts-structure.md`. Collection-, membership-, and member-level permissions under this model are a separate, finer-grained layer and will need to compose with, not replace, that existing scheme.
+
+Worth naming precisely, though: those account flags are closer to **capabilities** than **permissions** in this section's own terms. Each flag is self-asserted by whoever fills in the account form, checked with a plain `.includes()`, and enforced nowhere but client-side — it decides which UI list (readers, publish targets, editors, …) an account appears in, not whether some actor is authorized to act. That's a reasonable design for a single-operator app with no second actor to authorize against, but it means "permission" is a slight misnomer carried over from before this distinction existed. Separately, reader dispatch (`window.CList.readers[accountData.type]`) is the one place CList already does real duck typing: existence of a registered handler for the account's `type`, not a flag, decides applicability — exactly the pattern **Functions** above describes. No change is proposed to the existing flag string or field name; this is noted here so the finer-grained layer doesn't inherit the same misnomer.
 
 **Functions** are registered operations that act on collections, memberships, or members. Function applicability depends on relevant properties, capabilities, operational context, and permissions. This is **capability-based duck typing over a common structural model**: operations are not dictated solely by labels such as `playlist` or `feed`.
 

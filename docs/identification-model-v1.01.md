@@ -1,6 +1,6 @@
 # CList Identification Model — Version 1.01
 
-This proposal extends the accepted CList Collection Model v1.07 without changing its three canonical entities: **Collection, Membership, and Member (Entry)**.
+This proposal extends the accepted CList Collection Model v1.08 without changing its three canonical entities: **Collection, Membership, and Member (Entry)**.
 
 The central principle is:
 
@@ -219,7 +219,7 @@ I would distinguish the decisions we've made from implementation details that re
 
 ### My recommendation
 
-I would accept this as **CList Identification Model — Proposal 1.0**, extending Collection Model v1.07.
+I would accept this as **CList Identification Model — Proposal 1.0**, extending Collection Model v1.08.
 
 The next architectural question should be **identity resolution**: given an identifier—whether a UUID URN, URL or DID—how does CList find the corresponding resource?
 
