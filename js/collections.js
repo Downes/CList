@@ -196,17 +196,15 @@ async function _showCollectionPicker(itemId, opts = {}) {
                 const ref   = specificEl?.reference || {};
                 const url   = ref.url   || '';
                 const itemTitle = ref.title || url || itemId;
-                if (url && colData.items.some(i => i.url === url)) {
-                    showStatusMessage(`Already in "${title}".`);
-                    picker.remove();
-                    return;
-                }
-                colData.items.push({ id: itemId, title: itemTitle, url, ...ref });
+                // Duplicate memberships are allowed (e.g. the same track twice in a
+                // playlist) — each membership gets its own id, so this is just a nudge.
+                const alreadyIn = url && colData.items.some(i => i.url === url);
+                colData.items.push({ membershipId: crypto.randomUUID(), id: itemId, title: itemTitle, url, ...ref });
                 const identity = col ? _resolveCollectionIdentity(col.key, colData.id) : _newCollectionIdentity();
                 await _kvSaveItems(identity.key, identity.id, title, colData.items, token, encKey, colData.publishedUrls);
                 document.getElementById(`collect-btn-${itemId}`)?.classList.add('action-active');
                 picker.remove();
-                showStatusMessage(`Added to "${title}".`);
+                showStatusMessage(alreadyIn ? `Already in "${title}" — added again.` : `Added to "${title}".`);
             } catch (e) {
                 console.error('[collection] add failed', e);
                 showStatusMessage('Could not add to collection: ' + e.message);
@@ -248,6 +246,94 @@ function _newCollectionIdentity() {
 function _resolveCollectionIdentity(key, id) {
     if (!id) return _newCollectionIdentity();
     return { key: key || `collection:${id.replace(/^urn:uuid:/, '')}`, id };
+}
+
+// Fetches and decrypts all of the user's saved collections — shared by the
+// nesting feature's lookups (add-to-collection picker, cycle guard, export
+// flattening). Kept separate from the similar fetch/decrypt loops in
+// _showCollectionPicker/showSavedCollections/importCollectionFromChat (each
+// of those needs a slightly different parsed shape) rather than refactoring
+// those pre-existing call sites.
+async function _fetchAllCollections(token, encKey) {
+    const resp = await fetch(`${window.CList.config.flaskSiteUrl}/get_kvs/`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+    });
+    if (!resp.ok) throw new Error(`kvstore error ${resp.status}`);
+    const kvs = await resp.json();
+
+    const collections = [];
+    for (const kv of (kvs || [])) {
+        if (!kv.key.startsWith('collection:')) continue;
+        try {
+            const colData = _parseCollectionData(JSON.parse(await decryptWithKey(encKey, kv.value)));
+            collections.push({ key: kv.key, id: colData.id, title: colData.title || kv.key.replace(/^collection:/, ''), items: colData.items, publishedUrls: colData.publishedUrls });
+        } catch { /* skip corrupt entries */ }
+    }
+    return collections;
+}
+
+// Finds one collection by its urn:uuid id (as stored in a role:'contains'
+// membership's collectionId). A collection with no id yet (never saved) can't
+// be nested into another, so there's nothing to resolve for it.
+async function _resolveCollectionById(id, token, encKey) {
+    if (!id) return null;
+    const collections = await _fetchAllCollections(token, encKey);
+    return collections.find(c => c.id === id) || null;
+}
+
+// Would adding childId as a role:'contains' member of parentId create a
+// cycle? Walks childId's own containment graph looking for parentId — if
+// found, parentId is already (transitively) inside childId, so parentId ->
+// childId would close a loop. This is a plain reachability search (does any
+// path from childId to parentId exist), so a single shared `visited` set is
+// correct and avoids re-walking a branch once it's been fully explored —
+// unlike the read-time traversal guard below, which needs an ancestor-stack
+// because it must still expand a legitimately-shared sub-collection reached
+// twice via different branches.
+async function _wouldCreateCycle(parentId, childId, token, encKey, visited) {
+    visited = visited || new Set();
+    if (parentId === childId) return true;
+    if (visited.has(childId)) return false;
+    visited.add(childId);
+
+    const child = await _resolveCollectionById(childId, token, encKey);
+    if (!child) return false;
+
+    for (const item of (child.items || [])) {
+        if (item.role !== 'contains' || !item.collectionId) continue;
+        if (item.collectionId === parentId) return true;
+        if (await _wouldCreateCycle(parentId, item.collectionId, token, encKey, visited)) return true;
+    }
+    return false;
+}
+
+// Recursively replaces role:'contains' stub items with their nested
+// collection's real leaf items, for export/publish — the six collectionFormats
+// serializers already filter to `i.url`, so this is the only place nesting
+// needs to be taught to the export path. Uses an ancestor-stack (not a global
+// visited set): only an id on the *current* path is a true cycle, so the same
+// sub-collection reached via two different branches is still expanded both
+// times, matching the read-time rule in docs/collection-conceptual-model.
+async function _flattenForExport(items, rootId, token, encKey, ancestors) {
+    ancestors = ancestors || new Set(rootId ? [rootId] : []);
+    const out = [];
+    for (const item of items) {
+        if (item.role !== 'contains') {
+            if (item.url) out.push(item);
+            continue;
+        }
+        if (!item.collectionId) continue;
+        if (ancestors.has(item.collectionId)) {
+            console.error('[collection export] cycle detected — skipping nested collection', item.collectionId);
+            continue;
+        }
+        const nested = await _resolveCollectionById(item.collectionId, token, encKey);
+        if (!nested) { console.error('[collection export] nested collection not found:', item.collectionId); continue; }
+        const childAncestors = new Set(ancestors);
+        childAncestors.add(item.collectionId);
+        out.push(...await _flattenForExport(nested.items || [], rootId, token, encKey, childAncestors));
+    }
+    return out;
 }
 
 // Encrypt items and upsert to kvstore under an explicit key (add_kv, fallback
@@ -348,9 +434,13 @@ async function _loadCollectionIntoEditor(col, token, encKey) {
     // current editor and push every item into the reference list. Kept as an
     // explicit choice (not the Collection editor) for quoting a reading list
     // into a post.
-    const insertAsText = () => {
+    const insertAsText = async () => {
         const isHtmlEditor = (typeof currentEditor !== 'undefined' && currentEditor === 'tinymce');
-        const filteredItems = items.filter(item => item.url);
+        // Nested role:'contains' members have no url — expand them to their
+        // actual leaf items, same as export/publish, instead of silently
+        // dropping the nested branch.
+        const flatItems = encKey ? await _flattenForExport(items, col?.id, token, encKey) : items.filter(item => item.url);
+        const filteredItems = flatItems.filter(item => item.url);
 
         const paragraphs = filteredItems.map(item => {
             const author = (item.author_name && !item.author_name.startsWith('('))
@@ -371,7 +461,7 @@ async function _loadCollectionIntoEditor(col, token, encKey) {
         }
 
         let added = 0;
-        for (const item of items) {
+        for (const item of filteredItems) {
             if (pushReference({ ...item, statusID: item.id })) added++;
         }
 
@@ -410,7 +500,13 @@ async function _loadCollectionIntoEditor(col, token, encKey) {
     const insertBtn = document.createElement('button');
     insertBtn.className = 'btn';
     insertBtn.textContent = 'Insert as text';
-    insertBtn.onclick = () => { document.getElementById('generic-modal')?.remove(); insertAsText(); };
+    insertBtn.onclick = () => {
+        document.getElementById('generic-modal')?.remove();
+        insertAsText().catch(e => {
+            console.error('[collection load] insert as text failed', e);
+            showStatusMessage('Could not insert collection as text: ' + e.message);
+        });
+    };
     row.appendChild(insertBtn);
 
     const cancelBtn = document.createElement('button');
@@ -423,10 +519,14 @@ async function _loadCollectionIntoEditor(col, token, encKey) {
     showModal(box, { hideDefaultClose: true });
 }
 
-// Remove one item from a collection in kvstore and update the UI in place.
-async function _removeItemFromCollection(col, itemUrl, token, encKey, countSpan, itemsDiv) {
+// Remove one membership from a collection in kvstore and update the UI in place.
+// Keyed by membershipId (falling back to object identity for older items saved
+// before memberships had their own id), not url: duplicate memberships (same
+// url) are allowed, so removing "by url" would delete every copy at once.
+async function _removeItemFromCollection(col, item, token, encKey, countSpan, itemsDiv) {
     try {
-        col.items = col.items.filter(i => i.url !== itemUrl);
+        col.items = col.items.filter(i =>
+            item.membershipId ? i.membershipId !== item.membershipId : i !== item);
         const encrypted = await encryptWithKey(encKey, JSON.stringify({ id: col.id, title: col.name, items: col.items, publishedUrls: col.publishedUrls || [] }));
         const resp = await fetch(`${window.CList.config.flaskSiteUrl}/update_kv/`, {
             method:  'POST',
@@ -443,6 +543,48 @@ async function _removeItemFromCollection(col, itemUrl, token, encKey, countSpan,
     }
 }
 
+// Renders a nested-collection membership (role:'contains') as a clickable
+// summary row — reuses the same classes as the "My Collections" list view
+// (saved-collection-wrapper/-row/-name/-count) rather than inventing new CSS.
+function _renderNestedCollectionRow(item, col, token, encKey, countSpan, itemsDiv) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'saved-collection-wrapper';
+
+    const row = document.createElement('div');
+    row.className = 'saved-collection-row';
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className   = 'saved-collection-name';
+    nameSpan.textContent = item.title || 'Untitled collection';
+    nameSpan.title       = 'Open nested collection';
+    nameSpan.onclick     = async () => {
+        try {
+            const nested = await _resolveCollectionById(item.collectionId, token, encKey);
+            if (!nested) { showStatusMessage('That nested collection could not be found — it may have been deleted.'); return; }
+            _showCollectionDetail({ ...nested, name: nested.title }, token, encKey);
+        } catch (e) {
+            console.error('[collection nest] open failed', e);
+            showStatusMessage('Could not open nested collection: ' + e.message);
+        }
+    };
+
+    const nestedCountSpan = document.createElement('span');
+    nestedCountSpan.className   = 'saved-collection-count';
+    nestedCountSpan.textContent = 'Nested collection';
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'clist-action-btn';
+    removeBtn.title     = 'Remove from collection';
+    removeBtn.innerHTML = '<span class="material-icons md-18 md-light">remove_circle_outline</span>';
+    removeBtn.onclick   = () => _removeItemFromCollection(col, item, token, encKey, countSpan, itemsDiv);
+
+    row.appendChild(nameSpan);
+    row.appendChild(nestedCountSpan);
+    row.appendChild(removeBtn);
+    wrapper.appendChild(row);
+    itemsDiv.appendChild(wrapper);
+}
+
 // Render the item list for a collection using makeListing for consistent feed entry display.
 function _renderCollectionItems(col, token, encKey, countSpan, itemsDiv) {
     itemsDiv.innerHTML = '';
@@ -455,6 +597,10 @@ function _renderCollectionItems(col, token, encKey, countSpan, itemsDiv) {
     }
 
     for (const item of col.items) {
+        if (item.role === 'contains' && item.collectionId) {
+            _renderNestedCollectionRow(item, col, token, encKey, countSpan, itemsDiv);
+            continue;
+        }
         if (!item.url) continue;
 
         const displayTitle = _collectionItemDisplayTitle(item);
@@ -491,7 +637,7 @@ function _renderCollectionItems(col, token, encKey, countSpan, itemsDiv) {
                 removeBtn.className = 'clist-action-btn';
                 removeBtn.title     = 'Remove from collection';
                 removeBtn.innerHTML = '<span class="material-icons md-18 md-light">remove_circle_outline</span>';
-                removeBtn.onclick   = () => _removeItemFromCollection(col, item.url, token, encKey, countSpan, itemsDiv);
+                removeBtn.onclick   = () => _removeItemFromCollection(col, item, token, encKey, countSpan, itemsDiv);
                 clistActions.appendChild(removeBtn);
             }
 
@@ -502,6 +648,72 @@ function _renderCollectionItems(col, token, encKey, countSpan, itemsDiv) {
     }
 
     window.checkAnnotationsBatch?.();
+}
+
+// "Add to another collection" — nests the currently-viewed collection `col`
+// as a role:'contains' member of a collection the user picks from a list.
+// Reuses the same picker UI as _showCollectionPicker (item -> collection);
+// this is a separate entry point because what's being added is a
+// collectionId reference, not a feed item.
+async function _showAddToCollectionPicker(col, token, encKey, anchorEl) {
+    const PICKER_CLASS = 'collection-picker';
+    const pickerId     = 'collection-nest-picker';
+
+    const existing = document.getElementById(pickerId);
+    document.querySelectorAll('.' + PICKER_CLASS).forEach(el => el.remove());
+    if (existing) return;
+
+    const picker = document.createElement('div');
+    picker.id        = pickerId;
+    picker.className = PICKER_CLASS;
+    picker.innerHTML = '<p class="feed-status-message">Loading collections…</p>';
+    anchorEl.parentElement.insertBefore(picker, anchorEl.nextSibling);
+
+    try {
+        // A never-saved collection has no durable id yet — it must be
+        // persisted first (same rule as Save/Publish), since another
+        // collection's role:'contains' member references this id.
+        let identity = { key: col.key, id: col.id };
+        if (!identity.id) {
+            identity = _resolveCollectionIdentity(col.key, col.id);
+            await _kvSaveItems(identity.key, identity.id, col.name, col.items, token, encKey, col.publishedUrls || []);
+            col.key = identity.key;
+            col.id  = identity.id;
+        }
+
+        const all        = await _fetchAllCollections(token, encKey);
+        const candidates  = all.filter(c => c.key !== identity.key);
+
+        picker.innerHTML = '';
+        _buildCollectionPickerContents(picker, candidates, async (title, target) => {
+            try {
+                let targetIdentity, targetItems, targetPublishedUrls;
+                if (target) {
+                    if (await _wouldCreateCycle(target.id, identity.id, token, encKey)) {
+                        showErrorModal(`Can't add "${col.name}" to "${target.title}" — "${target.title}" is already nested inside "${col.name}".`);
+                        return;
+                    }
+                    targetIdentity      = _resolveCollectionIdentity(target.key, target.id);
+                    targetItems         = target.items || [];
+                    targetPublishedUrls = target.publishedUrls || [];
+                } else {
+                    targetIdentity      = _newCollectionIdentity();
+                    targetItems         = [];
+                    targetPublishedUrls = [];
+                }
+                targetItems.push({ membershipId: crypto.randomUUID(), role: 'contains', collectionId: identity.id, title: col.name });
+                await _kvSaveItems(targetIdentity.key, targetIdentity.id, title, targetItems, token, encKey, targetPublishedUrls);
+                picker.remove();
+                showStatusMessage(`Added "${col.name}" to "${title}".`);
+            } catch (e) {
+                console.error('[collection nest] add failed', e);
+                showStatusMessage('Could not add to collection: ' + e.message);
+            }
+        }, anchorEl);
+    } catch (e) {
+        console.error('[collection nest] picker error', e);
+        picker.innerHTML = `<p class="feed-status-message">Could not load collections: ${e.message}</p>`;
+    }
 }
 
 // Open a single collection in a detail view, replacing the collection list.
@@ -561,11 +773,20 @@ function _showCollectionDetail(col, token, encKey) {
     collabBtn.className = 'clist-action-btn';
     collabBtn.title     = 'Open in Collab';
     collabBtn.innerHTML = '<span class="material-icons md-18 md-light">edit_note</span>';
-    collabBtn.onclick   = () => {
-        if (typeof window.openCollabWithCollection === 'function') {
-            window.openCollabWithCollection(col.name, col.items);
-        } else {
+    collabBtn.onclick   = async () => {
+        if (typeof window.openCollabWithCollection !== 'function') {
             showStatusMessage('Collab editor not available.');
+            return;
+        }
+        try {
+            // Nested role:'contains' members have no url — expand them to their
+            // actual leaf items, same as export/publish, instead of silently
+            // dropping the nested branch.
+            const flat = encKey ? await _flattenForExport(col.items, col.id, token, encKey) : col.items.filter(i => i.url);
+            window.openCollabWithCollection(col.name, flat);
+        } catch (e) {
+            console.error('[collection collab] flatten failed', e);
+            showStatusMessage('Could not open collection in Collab: ' + e.message);
         }
     };
 
@@ -573,13 +794,26 @@ function _showCollectionDetail(col, token, encKey) {
     shareBtn.className = 'clist-action-btn chat-only-btn';
     shareBtn.title     = 'Share to chat';
     shareBtn.innerHTML = '<span class="material-icons md-18 md-light">chat</span>';
-    shareBtn.onclick   = () => {
-        const items = col.items.map(i => ({ title: _collectionItemDisplayTitle(i), url: i.url }));
-        sendShareMessage('collection', null, col.name, null, { items });
+    shareBtn.onclick   = async () => {
+        try {
+            const flat  = encKey ? await _flattenForExport(col.items, col.id, token, encKey) : col.items.filter(i => i.url);
+            const items = flat.map(i => ({ title: _collectionItemDisplayTitle(i), url: i.url }));
+            sendShareMessage('collection', null, col.name, null, { items });
+        } catch (e) {
+            console.error('[collection share] flatten failed', e);
+            showStatusMessage('Could not share collection: ' + e.message);
+        }
     };
+
+    const nestBtn = document.createElement('button');
+    nestBtn.className = 'clist-action-btn';
+    nestBtn.title     = 'Add to another collection';
+    nestBtn.innerHTML = '<span class="material-icons md-18 md-light">playlist_add</span>';
+    nestBtn.onclick   = () => _showAddToCollectionPicker(col, token, encKey, nestBtn);
 
     rightZone.appendChild(collabBtn);
     rightZone.appendChild(shareBtn);
+    rightZone.appendChild(nestBtn);
     rightZone.appendChild(loadBtn);
 
     header.appendChild(leftZone);
@@ -1749,6 +1983,12 @@ window.playCollectionSave = async function playCollectionSave() {
     };
     _refreshIdDisplay();
 
+    // Fetched once up front (not per-button) so "Save to file" can flatten any
+    // nested role:'contains' members the same way the editor's own kvstore
+    // record does — the export formats only care about items with a url.
+    const token  = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
+    const encKey = token ? await getEncKey(window.CList.config.flaskSiteUrl).catch(() => null) : null;
+
     const saveOptionsDiv = document.getElementById('save-options');
     saveOptionsDiv.innerHTML = '';
 
@@ -1764,10 +2004,11 @@ window.playCollectionSave = async function playCollectionSave() {
     const fileBtn = document.createElement('button');
     fileBtn.className = 'account-button';
     fileBtn.innerHTML = '<span class="material-icons">download</span><span>Save to file</span>';
-    fileBtn.addEventListener('click', () => {
+    fileBtn.addEventListener('click', async () => {
         const fmt = collectionFormats[formatId];
         if (!fmt) { showStatusMessage('Unknown format.'); return; }
-        const content = fmt.serialize(name, items, identity.id);
+        const flatItems = encKey ? await _flattenForExport(items, identity.id, token, encKey) : items;
+        const content = fmt.serialize(name, flatItems, identity.id);
         const blob    = new Blob([content], { type: fmt.mimeType });
         const url     = URL.createObjectURL(blob);
         const a       = document.createElement('a');
@@ -1781,8 +2022,8 @@ window.playCollectionSave = async function playCollectionSave() {
     });
     list.appendChild(fileBtn);
 
-    // ── Save to kvstore ──
-    const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
+    // ── Save to kvstore ── (keeps the raw, unflattened items — role:'contains'
+    // stubs are only expanded at export/publish time, not in the stored record)
     if (token) {
         const kvBtn = document.createElement('button');
         kvBtn.className = 'account-button';
@@ -1791,7 +2032,6 @@ window.playCollectionSave = async function playCollectionSave() {
         kvBtn.addEventListener('click', async () => {
             kvBtn.disabled = true;
             try {
-                const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
                 // Always update the record this collection was loaded from, no
                 // matter what the title now reads. Identity was already resolved
                 // above, at the top of playCollectionSave.
@@ -1839,7 +2079,10 @@ window.republishCollection = async function republishCollection() {
         return;
     }
     const name = (document.getElementById('write-title')?.textContent || '').trim();
-    const content = fmt.serialize(name, _draftItems || [], page.id);
+    const token   = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
+    const encKey  = token ? await getEncKey(window.CList.config.flaskSiteUrl).catch(() => null) : null;
+    const items   = encKey ? await _flattenForExport(_draftItems || [], page.id, token, encKey) : (_draftItems || []);
+    const content = fmt.serialize(name, items, page.id);
 
     try {
         await adapter.update(page.serviceId, content, fmt.mimeType, account);
@@ -2192,7 +2435,11 @@ window.playCollectionPublish = async function playCollectionPublish() {
         const newPublishedUrls = [];
         let primaryBinAccount  = null;
         const token  = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
-        const encKey = fullContent.length ? await getEncKey(window.CList.config.flaskSiteUrl).catch(() => null) : null;
+        // Always fetched (not just when fullContent.length) — the link-only
+        // fallback-content path below also serializes, and needs encKey to
+        // resolve any nested role:'contains' members during flattening.
+        const encKey    = await getEncKey(window.CList.config.flaskSiteUrl).catch(() => null);
+        const flatItems = encKey ? await _flattenForExport(items, identity.id, token, encKey) : items;
 
         // ── Full-content destinations first ──
         for (const accountData of fullContent) {
@@ -2210,7 +2457,7 @@ window.playCollectionPublish = async function playCollectionPublish() {
                     if (doOverwrite && accountData === overwriteMatch) {
                         // Overwrite the single destination this collection was loaded from —
                         // in place, no new publishedUrls entry.
-                        const result = await adapter.update(currentLoadedPage.serviceId, fmt.serialize(name, items, identity.id), fmt.mimeType, accountData);
+                        const result = await adapter.update(currentLoadedPage.serviceId, fmt.serialize(name, flatItems, identity.id), fmt.mimeType, accountData);
                         const url = (result && result.url) || currentLoadedPage.url;
                         if (!primaryUrl) primaryUrl = url;
                         if (!primaryBinAccount && accountData.type === 'CListBin') primaryBinAccount = accountData;
@@ -2218,7 +2465,7 @@ window.playCollectionPublish = async function playCollectionPublish() {
                         continue;
                     }
 
-                    const result = await adapter.publish(fmt.serialize(name, items, identity.id), fmt.mimeType, filename, accountData);
+                    const result = await adapter.publish(fmt.serialize(name, flatItems, identity.id), fmt.mimeType, filename, accountData);
                     if (!primaryUrl) primaryUrl = result.url;
                     if (!primaryBinAccount && accountData.type === 'CListBin') primaryBinAccount = accountData;
                     newPublishedUrls.push({ url: result.url, serviceId: result.serviceId, format: fmtId, service: accountData.type, accountInstance: accountData.instance, publishedAt: new Date().toISOString() });
@@ -2230,7 +2477,7 @@ window.playCollectionPublish = async function playCollectionPublish() {
                     const fmtId   = _resolvePublishFormat(handler.acceptedFormats, formatId);
                     const fmt     = collectionFormats[fmtId];
                     if (!fmt) continue;
-                    const content = fmt.serialize(name, items, identity.id);
+                    const content = fmt.serialize(name, flatItems, identity.id);
                     const url     = await handler.publish(accountData, name, content, []);
                     if (!primaryUrl && url) primaryUrl = url;
                     if (url) newPublishedUrls.push({ url, format: fmtId, service: accountData.type, accountInstance: accountData.instance, publishedAt: new Date().toISOString() });
@@ -2254,7 +2501,7 @@ window.playCollectionPublish = async function playCollectionPublish() {
                     // No primary yet — post text summary truncated to limit
                     const fmtId = _resolvePublishFormat(handler.acceptedFormats, formatId);
                     const fmt   = collectionFormats[fmtId] || collectionFormats.text;
-                    content     = fmt.serialize(name, items, identity.id).slice(0, maxLen);
+                    content     = fmt.serialize(name, flatItems, identity.id).slice(0, maxLen);
                 }
                 await handler.publish(accountData, name, content, []);
             } catch (e) {
@@ -2364,7 +2611,10 @@ async function postCollectionToWebPage() {
     };
     _refreshIdDisplay();
 
-    const content = fmt.serialize(name, items, identity.id);
+    const token     = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
+    const encKey    = token ? await getEncKey(window.CList.config.flaskSiteUrl).catch(() => null) : null;
+    const flatItems = encKey ? await _flattenForExport(items, identity.id, token, encKey) : items;
+    const content   = fmt.serialize(name, flatItems, identity.id);
 
     // If this collection's content is the one previously loaded from this same
     // CListBin destination in this format, ask whether to overwrite it in place
@@ -2584,7 +2834,8 @@ function _renderEntryRow(item, idx, draftItems, refresh) {
 
     const labelEl   = document.createElement('span');
     labelEl.className   = 'collection-editor-entry-label';
-    labelEl.textContent = _collectionItemDisplayTitle(item) || '(untitled)';
+    const isNested  = item.role === 'contains' && item.collectionId;
+    labelEl.textContent = (_collectionItemDisplayTitle(item) || '(untitled)') + (isNested ? ' (nested collection)' : '');
 
     bar.appendChild(upBtn);
     bar.appendChild(downBtn);
@@ -2604,7 +2855,7 @@ function _renderEntryRow(item, idx, draftItems, refresh) {
     });
 
     _renderEntryFields(item, fields, () => {
-        labelEl.textContent = _collectionItemDisplayTitle(item) || '(untitled)';
+        labelEl.textContent = (_collectionItemDisplayTitle(item) || '(untitled)') + (isNested ? ' (nested collection)' : '');
     });
 
     row.appendChild(bar);
@@ -2612,8 +2863,34 @@ function _renderEntryRow(item, idx, draftItems, refresh) {
     return row;
 }
 
-// Render editable fields for a single entry.
+// Render editable fields for a single entry. A role:'contains' item is a
+// nested-collection reference, not a feed item — it has no url/author/feed/
+// summary, so it only gets a Title field (plus a note identifying it).
 function _renderEntryFields(item, container, onTitleChange) {
+    if (item.role === 'contains' && item.collectionId) {
+        const note = document.createElement('p');
+        note.className   = 'feed-status-message';
+        note.textContent = 'Nested collection — its items are included when this collection is exported or published.';
+        container.appendChild(note);
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'collection-editor-field';
+        const labelEl  = document.createElement('label');
+        labelEl.textContent = 'Title';
+        wrapper.appendChild(labelEl);
+        const input = document.createElement('input');
+        input.type      = 'text';
+        input.value     = item.title || '';
+        input.className = 'collection-editor-input';
+        input.addEventListener('input', () => {
+            item.title = input.value;
+            if (onTitleChange) onTitleChange();
+        });
+        wrapper.appendChild(input);
+        container.appendChild(wrapper);
+        return;
+    }
+
     [
         { key: 'title',       label: 'Title',       tag: 'input',    type: 'text' },
         { key: 'url',         label: 'URL',         tag: 'input',    type: 'url'  },
