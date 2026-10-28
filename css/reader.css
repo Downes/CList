@@ -790,6 +790,9 @@ html.dark-mode .write-tags-new-col { border-top-color: #2a2a2a; color: #ccc; }
     margin-bottom: 4px;
     background: #fff;
 }
+.collection-editor-add-row {
+    margin-top: 8px;
+}
 .collection-editor-entry-bar {
     display: flex;
     align-items: center;

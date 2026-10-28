@@ -1,9 +1,14 @@
- CList Canonical Collection Model — Version 1.08
+ CList Canonical Collection Model — Version 1.09
 
 **Status:** Accepted conceptual model  
-**Version:** 1.08  
-**Date:** 2026-10-26  
+**Version:** 1.09  
+**Date:** 2026-10-27  
 **Scope:** Conceptual model; not a storage schema or migration plan
+
+**Changes from 1.08:**
+- Resolved the storage-schema migration that was left "still to be scheduled" in 1.04: a Collection's memberships no longer live in one `items` array inside a single KV blob. See "Storage split: `collection:*` and `membership:*`" below. Driven by `storage-architecture-plan.md`'s KV semantics (whole-value add/update/delete, no partial update) making a single growing blob both a lost-update race and an unnecessary rewrite cost at realistic scale (100+ entries).
+- Folded the editor's reference system (`references.js`, `window.CList.state.references`) into this model instead of declaring it unrelated. See "Editor references as a page-scoped collection" below. Introduces the `cites` membership role.
+- Documented referential-membership resolution across storage boundaries (a membership's member living in another `collection:*` record or in PageStore) — see "Referential membership resolution," below the storage-split section.
 
 **Changes from 1.07:**
 - Added a note to the Properties/Capabilities/Permissions/Functions section flagging that the existing account-level `permissions` flags are self-asserted, client-side UI-list gating rather than true authorization — and that reader dispatch (`window.CList.readers[accountData.type]`) is the one place CList already does real duck typing. No rename of the existing flag/field — just naming the distinction for anyone implementing the finer-grained layer this section describes.
@@ -73,7 +78,7 @@ A **member** is an independently identified resource referred to by a membership
 
 This model reuses two words that already have different, established meanings elsewhere in CList:
 
-- **"Reference"** here means *a membership referencing a member*. It is unrelated to the editor's existing reference system (`references.js`, `window.CList.state.references`) — the items pulled in as writing context for a composition, independent of any collection.
+- **"Reference"** here means *a membership referencing a member*. As of 1.09 this is no longer disjoint from the editor's reference system — see "Editor references as a page-scoped collection" below, which models `references.js`'s pulled-in writing-context items explicitly as this kind of reference.
 - **"Entry"** here means *the read-pane presentation of a member within a particular membership*. Elsewhere (e.g. `collection-publishing.md`, `accounts-structure.md`) "entry" is used loosely for any stored kvstore record (`page:{uuid}`, an account entry). The two senses are unrelated.
 
 ### Ephemeral and persisted collections
@@ -176,7 +181,7 @@ A **referential** membership is different: its member is resolved live, by deref
 Not every membership whose member happens to be a collection means "contains." A membership's existing `role` property (see Membership properties, above) distinguishes:
 
 - **`role: "contains"`** — a true containment edge (e.g. a book's membership pointing at one of its section-collections). Traversal (rendering, export, summarize, search) follows these.
-- any other role, or no role (e.g. a "related collections" listing) — a flat mention. Traversal does not recurse through it.
+- `role: "cites"` (used by editor references — see "Editor references as a page-scoped collection"), any other role, or no role (e.g. a "related collections" listing) — a flat mention. Traversal does not recurse through it.
 
 Only `"contains"` edges are part of the containment graph the rules below apply to.
 
@@ -202,6 +207,27 @@ Maintain the current traversal **path**, not a global visited set, as a `Set` of
 
 Collections are personal-scale, not web-scale, so a plain recursive walk with an ancestor-guard is sufficient for both checks — no precomputed reachability index is needed.
 
+## Storage split: `collection:*` and `membership:*`
+
+The embedded storage shape (resolved in 1.04) keeps a `member` snapshot attached to its `membership`, but does not require both to live in the same KV record as every other membership in the collection. As of 1.09, they don't:
+
+- **`collection:{id}`** — the Collection's own properties only (`title`, `type`, `author`, `capabilities`, …). Small, rewritten only when these change.
+- **`membership:{collectionId}:{membershipId}`** — one KV record per entry: the Membership's properties plus its embedded `member` snapshot. Added, updated, or removed independently of every other membership in the same collection.
+
+This changes nothing about the conceptual model — a collection's content is still the set of memberships identifying it as their container — only how that content is persisted. Adding one member becomes one new KV record instead of a decrypt-modify-reencrypt-rewrite of the whole collection; two concurrent writers adding *different* members no longer race on the same KV row. Keys are plaintext metadata (values are what's encrypted), so `membership:{collectionId}:*` also gives any future server-side prefix filter a ready-made structure, without requiring one now.
+
+## Referential membership resolution
+
+A membership's `member` field is either the embedded snapshot (default) or a reference: `{ "ref": "collection:{id}" }` (nesting another collection) or `{ "ref": "page:{uuid}" }` (a locally stored page). Resolving a `ref` means calling the owning store's existing `get()` — `CList.storage.kv.get(key)` for a collection, `CList.pageStore.get(id)` for a page — and this dereferencing happens in `collections.js`'s rendering/traversal code, never inside the storage facade or the page store themselves. KVStore and PageStore remain mutually unaware of each other; only the code that renders a collection knows how to walk a `ref`.
+
+## Editor references as a page-scoped collection
+
+The editor's pulled-in writing-context items (`references.js`, `window.CList.state.references`) are a Collection under this model: an ephemeral one (per "Ephemeral and persisted collections") while composing, persisted alongside the Page once the page is saved. Each pulled-in item is a Membership with **`role: "cites"`** — a mention-style role, never `"contains"` — referencing a Member that may be embedded (a cached snapshot of the cited source) or referential (another page, a feed item, a URL, or even a whole collection cited as a source).
+
+Because `cites` is not `"contains"`, these memberships are never part of the containment graph the cycle-guard walks (see "Containment vs. mention") — a Page's reference list cannot introduce a cycle regardless of what it cites.
+
+Because its lifecycle is bound to one page, this collection is persisted as part of that page's own PageStore record (see `storage-architecture-plan.md` §6's `references` field), not as an independently addressable `collection:*` KVStore record — it has no identity of its own unless a user explicitly promotes it into a standalone, shareable collection. That promotion is a distinct, deliberate future feature, not something this revision designs or does automatically.
+
 ## Decisions and deferred matters
 
 ### Resolved in this revision (v1.04)
@@ -213,6 +239,12 @@ Collections are personal-scale, not web-scale, so a plain recursive walk with an
 - **Function registry interfaces and dispatch conventions** — to be generalized from the per-type dispatch pattern CList already uses for reader and publisher accounts (`window.CList.readers`, `window.CList.binPublishers`), extended to cover Collection/Membership/Member-level functions (refresh, reorder, remove, etc.), rather than designed from scratch.
 - **Capability representation and authorization enforcement** — narrower in scope than originally framed. CList has no shared-collection permission model to design here: collaborative editing (`collab.js`/Hocuspocus) is access-controlled at the editing surface itself — anyone with access to that editor may edit — and that authorization is managed separately, in the server apps, outside this model. Once content leaves a collaborative session it is saved as an individually owned collection, at which point ordinary single-owner semantics apply: only that individual is authorized to edit it. This model does not need its own authorization layer for sharing.
 - **Ordering and nested-collection traversal semantics, including cycles** — elevated from "defer until needed" to a planned core feature (nested collections, e.g. book → sections, are a first-class use case). Traversal and cycle-prevention rules are designed in "Nesting and cycle-guard rules" above, alongside the storage schema work: cycle-guarding is scoped to referential `"contains"` memberships, with both a write-time preventive check and a read-time ancestor-stack check. Implemented in `collections.js`: `_wouldCreateCycle` (write-time, global-visited reachability search) and `_flattenForExport` (read-time export/publish traversal, ancestor-stack) — see that file for the current call sites. Not yet browser-tested.
+
+### Resolved in this revision (v1.09)
+
+- **Concrete migration from the flat `items` array**, left scheduled in 1.04, is resolved: see "Storage split: `collection:*` and `membership:*`" above.
+- **Cross-store referential membership** (a member living in PageStore rather than embedded) is resolved: see "Referential membership resolution" above.
+- **The editor's reference system's relationship to this model**, previously declared unrelated, is resolved: see "Editor references as a page-scoped collection" above.
 
 ### Still deferred — no current need
 

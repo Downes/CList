@@ -18,6 +18,10 @@
         initialize: async () => {
             currentEditor = 'collection';
 
+            // Whether we got here via "Back to collection" or by switching to it
+            // any other way, the bar no longer applies once we're actually here.
+            if (typeof _showCollectionReturnBar === 'function') _showCollectionReturnBar(false);
+
             const writeTagsEl = document.getElementById('write-tags');
             if (writeTagsEl) writeTagsEl.style.display = 'none';
 

@@ -1816,18 +1816,14 @@ function kvstoreAccountsPanel() {
     }
 
     async function getSite(flaskSiteUrl) {
-        const token = getSiteSpecificCookie(flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
+        const kvList = div.querySelector('#kvList');
 
         try {
-            const response = await fetch(`${flaskSiteUrl}/get_kvs/`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': 'Bearer ' + token
-                }
-            });
+            // Reuse getAccounts() rather than re-fetching/re-decrypting /get_kvs/ independently —
+            // it already applies the one definitive system/collection/following-key exclusion list.
+            const accounts = await getAccounts(flaskSiteUrl);
+            if (!accounts) return; // getAccounts() already called loginRequired() in this case
 
-            const data = await response.json();
-            const kvList = div.querySelector('#kvList');
             kvList.innerHTML = '';  // Clear previous entries
 
             const accountList = document.createElement('div');
@@ -1837,33 +1833,26 @@ function kvstoreAccountsPanel() {
             tip.textContent = 'Select an account to manage';
             accountList.appendChild(tip);
 
-            const kvItems = data.filter(k => !k.key.startsWith('_') && !k.key.startsWith('social:following:') && !k.key.startsWith('collection:'));
             let decryptFailCount = 0;
-            for (const kv of kvItems) {
-                let parsedValue = null;
-                try {
-                    const encKey = await getEncKey(flaskSiteUrl);
-                    const decryptedString = await decryptWithKey(encKey, kv.value);
-                    parsedValue = decryptedString ? JSON.parse(decryptedString) : null;
-                } catch (error) {
-                    decryptFailCount++;
-                    console.error(`Decryption failed for key "${kv.key}" — entry may be unreadable or from a different key.`, error);
-                }
+            for (const account of accounts) {
+                const parsedValue = JSON.parse(account.value);
+                const unreadable = parsedValue.type === 'bad'; // getAccounts()'s marker for a failed decrypt
+                if (unreadable) decryptFailCount++;
 
                 const item = document.createElement('div');
                 item.className = 'account-list-item';
                 const button = document.createElement('button');
-                button.className = 'account-button' + (parsedValue ? '' : ' account-button--unreadable');
-                button.appendChild(accountIcon(parsedValue?.type || ''));
+                button.className = 'account-button' + (unreadable ? ' account-button--unreadable' : '');
+                button.appendChild(accountIcon(unreadable ? '' : parsedValue.type));
                 const name = document.createElement('span');
-                name.textContent = parsedValue?.title || kv.key;
+                name.textContent = unreadable ? account.key : (parsedValue.title || account.key);
                 button.appendChild(name);
-                button.onclick = () => openEdit(kv.key, item);
+                button.onclick = () => openEdit(account.key, item);
                 item.appendChild(button);
                 accountList.appendChild(item);
             }
             kvList.appendChild(accountList);
-            if (kvItems.length > 0 && decryptFailCount === kvItems.length) {
+            if (accounts.length > 0 && decryptFailCount === accounts.length) {
                 const errBanner = document.createElement('p');
                 errBanner.className = 'list-tip';
                 errBanner.style.color = '#c44';
@@ -1873,7 +1862,6 @@ function kvstoreAccountsPanel() {
 
         } catch (error) {
             console.error('Error fetching account list:', error);
-            const kvList = div.querySelector('#kvList');
             if (kvList) kvList.innerHTML = `<p class="list-tip" style="color:#c44;">Could not load accounts — ${error.message}. Try logging out and back in.</p>`;
         }
     }
@@ -3515,7 +3503,6 @@ window.addEventListener('popstate', (e) => {
                 return;
             }
 
-            console.log('Tring using access token ' + token);
             try {
                 const response = await fetch(`${window.CList.config.flaskSiteUrl}/get_kvs/`, {
                     method: 'GET',
@@ -3539,7 +3526,7 @@ window.addEventListener('popstate', (e) => {
 
                 const accounts = await Promise.all(
                     data
-                        .filter(kv => !kv.key.startsWith('_') && !kv.key.startsWith('collection:') && !kv.key.startsWith('clist:'))  // exclude system and collection keys
+                        .filter(kv => !kv.key.startsWith('_') && !kv.key.startsWith('collection:') && !kv.key.startsWith('clist:') && !kv.key.startsWith('social:following:'))  // exclude system, collection, and following keys
                         .map(async kv => {
 
                     try {
