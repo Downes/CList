@@ -166,6 +166,14 @@ function openLeftPane() {
     return leftPane;
 }
 
+function toggleLeftPane() {
+    if (isLeftPaneOpen) {
+        closeLeftPane();
+    } else {
+        openLeftPane();
+    }
+}
+
 
 function openRightPane() {
     const isMobile = window.innerWidth <= 768; // Define mobile breakpoint
@@ -277,246 +285,246 @@ function snapPanes(direction) {
 
 // Set up the feed menus differently for different services
 
-    function setupFeedButtons(instanceType) {
+function setupFeedButtons(instanceType) {
 
-        // Find the place to put the buttons
-        const buttonsContainer = window.CList.ui.view.feedMenu;
-        if (!buttonsContainer) {
-            console.error('Error: The element with ID "feed-menu" does not exist, so there is no place to put the feed buttons.');
-            showStatusMessage('Error loading feed — feed menu element not found.');
-            return;
-        }
-        buttonsContainer.innerHTML = ''; // Removes all child elements     
+    // Find the place to put the buttons
+    const buttonsContainer = window.CList.ui.view.feedMenu;
+    if (!buttonsContainer) {
+        console.error('Error: The element with ID "feed-menu" does not exist, so there is no place to put the feed buttons.');
+        showStatusMessage('Error loading feed — feed menu element not found.');
+        return;
+    }
+    buttonsContainer.innerHTML = ''; // Removes all child elements
 
-        // Access feed functions for the given instance type
-        const handler = window.CList.readers[instanceType];
-        if (!handler || !handler.feedFunctions || Object.keys(handler.feedFunctions).length === 0) {
-            console.error(`No feed functions defined for instance type: ${instanceType}`);
-            return;
-        }
-        const feedFunctions = handler.feedFunctions;
-
-   
-        // For each function, place a button
-        for (const [feedType, feedAction] of Object.entries(feedFunctions)) {
-            const button = document.createElement('button');
-            button.className = 'btn';
-            button.textContent = feedType;
-            button.onclick = feedAction;
-            buttonsContainer.appendChild(button);
-        }
-
-        // Translation toggle — persists across account switches
-        const translateBtn = document.createElement('button');
-        translateBtn.id = 'translation-toggle-btn';
-        translateBtn.className = 'btn btn-small';
-        translateBtn.textContent = 'Translate: ' + (translationEnabled ? 'ON' : 'OFF');
-        translateBtn.onclick = toggleTranslation;
-        buttonsContainer.appendChild(translateBtn);
+    // Access feed functions for the given instance type
+    const handler = window.CList.readers[instanceType];
+    if (!handler || !handler.feedFunctions || Object.keys(handler.feedFunctions).length === 0) {
+        console.error(`No feed functions defined for instance type: ${instanceType}`);
+        return;
+    }
+    const feedFunctions = handler.feedFunctions;
 
 
+    // For each function, place a button
+    for (const [feedType, feedAction] of Object.entries(feedFunctions)) {
+        const button = document.createElement('button');
+        button.className = 'btn';
+        button.textContent = feedType;
+        button.onclick = feedAction;
+        buttonsContainer.appendChild(button);
     }
 
-    // Open the left pane, clear it, and display content in a standard container.
-    // content may be a DOM Element or an HTML string.
-    function openLeftInterface(content) {
-        openLeftPane();
-        // Hide overlay sections that float above left-content (audio, chat).
-        document.getElementById('audio-section').style.display = 'none';
-        document.getElementById('chat-section').style.display  = 'none';
-        const leftContent = document.getElementById('left-content');
-        leftContent.innerHTML = '';
+    // Translation toggle — persists across account switches
+    const translateBtn = document.createElement('button');
+    translateBtn.id = 'translation-toggle-btn';
+    translateBtn.className = 'btn btn-small';
+    translateBtn.textContent = 'Translate: ' + (translationEnabled ? 'ON' : 'OFF');
+    translateBtn.onclick = toggleTranslation;
+    buttonsContainer.appendChild(translateBtn);
 
-        const panel = document.createElement('div');
-        panel.id = 'left-interface';
-        panel.className = 'left-interface';
 
-        if (typeof content === 'string') {
-            panel.innerHTML = content;
-        } else if (content instanceof Element) {
-            panel.appendChild(content);
-        }
+}
 
-        leftContent.appendChild(panel);
+// Open the left pane, clear it, and display content in a standard container.
+// content may be a DOM Element or an HTML string.
+function openLeftInterface(content) {
+    openLeftPane();
+    // Hide overlay sections that float above left-content (audio, chat).
+    document.getElementById('audio-section').style.display = 'none';
+    document.getElementById('chat-section').style.display  = 'none';
+    const leftContent = document.getElementById('left-content');
+    leftContent.innerHTML = '';
+
+    const panel = document.createElement('div');
+    panel.id = 'left-interface';
+    panel.className = 'left-interface';
+
+    if (typeof content === 'string') {
+        panel.innerHTML = content;
+    } else if (content instanceof Element) {
+        panel.appendChild(content);
     }
 
-    function openRightInterface(panelId) {
-        openRightPane();
-        const rightContent = document.getElementById('right-content');
-        Array.from(rightContent.children).forEach(child => { child.style.display = 'none'; });
-        const panel = document.getElementById(panelId);
-        if (panel) panel.style.display = 'block';
+    leftContent.appendChild(panel);
+}
+
+function openRightInterface(panelId) {
+    openRightPane();
+    const rightContent = document.getElementById('right-content');
+    Array.from(rightContent.children).forEach(child => { child.style.display = 'none'; });
+    const panel = document.getElementById(panelId);
+    if (panel) panel.style.display = 'block';
+}
+
+function toggleFormDisplay(formId,column,on) {
+
+    const form = document.getElementById(formId);
+    if (column === 'left') { openLeftPane(); }
+    form.style.display = form.style.display === 'block' ? 'none' : 'block';
+    if (on) { form.style.display = 'block'; }
+}
+
+// Acceping a div or an ID, toggle the display style
+// (Got tired of always checking)
+function toggleDiv(divOrId,column,on) {
+    // Check if the argument is a string (ID) or a DOM element (object)
+    const div = typeof divOrId === 'string' ? document.getElementById(divOrId) : divOrId;
+    if (column === 'left') { openLeftPane(); }
+    else if (column === 'right') { openRightPane(); }
+    // If the div exists, toggle its display style
+    if (div) {
+        const currentDisplay = window.getComputedStyle(div).display;
+        div.style.display = currentDisplay === 'none' ? 'block' : 'none';
+        if (on) { div.style.display = 'block'; }
+    } else {
+        console.error('Div not found');
     }
 
-    function toggleFormDisplay(formId,column,on) {
+}
 
-        const form = document.getElementById(formId);
-        if (column === 'left') { openLeftPane(); }
-        form.style.display = form.style.display === 'block' ? 'none' : 'block';
-        if (on) { form.style.display = 'block'; }
+
+// ---- Feed entry expand/collapse + j/k/x navigation ----
+//
+// Single source of truth for expanding/collapsing a feed entry's full
+// content (replaces the old pattern of toggling '-content'/'-summary'
+// separately from each service's Expand/Collapse button and from the
+// entry title). Centralizing it here is what makes "collapse every
+// other entry" and "scroll the headline to the top" work no matter
+// which of those three triggers (button, title click, 'x' key) fired.
+
+let currentEntryEl = null; // the .status-box currently selected via j/k/x
+
+function _feedEntries() {
+    const fc = document.getElementById('feed-container');
+    return fc ? Array.from(fc.querySelectorAll('.status-box')) : [];
+}
+
+function setCurrentEntry(el) {
+    if (!el) return;
+    document.querySelectorAll('.status-box.current-entry').forEach(b => {
+        if (b !== el) b.classList.remove('current-entry');
+    });
+    el.classList.add('current-entry');
+    currentEntryEl = el;
+    el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+}
+
+// j/k: move the current-entry highlight. If the entry being left was
+// expanded, collapse it and expand the destination in its place
+// (positioning it at its headline, same as any other expand).
+function navigateEntry(direction) {
+    const entries = _feedEntries();
+    if (!entries.length) return;
+    const currentContent = currentEntryEl?.querySelector('.entry-full-content');
+    const wasExpanded = currentContent && currentContent.style.display === 'block';
+    let idx = currentEntryEl ? entries.indexOf(currentEntryEl) : -1;
+    idx = Math.min(Math.max(idx + direction, 0), entries.length - 1);
+    const nextEl = entries[idx];
+
+    if (wasExpanded) {
+        const specific = nextEl.querySelector('.statusSpecific');
+        if (specific && expandEntry(specific.id)) return; // already positioned
+        collapseAllEntries(); // destination has nothing to expand — just collapse the old one
     }
+    setCurrentEntry(nextEl);
+}
 
-    // Acceping a div or an ID, toggle the display style
-    // (Got tired of always checking)
-    function toggleDiv(divOrId,column,on) {
-        // Check if the argument is a string (ID) or a DOM element (object)
-        const div = typeof divOrId === 'string' ? document.getElementById(divOrId) : divOrId;
-        if (column === 'left') { openLeftPane(); }    
-        else if (column === 'right') { openRightPane(); }
-        // If the div exists, toggle its display style
-        if (div) {
-            const currentDisplay = window.getComputedStyle(div).display;
-            div.style.display = currentDisplay === 'none' ? 'block' : 'none';
-            if (on) { div.style.display = 'block'; }
-        } else {
-            console.error('Div not found');
-        }
-
-    }
-
-
-    // ---- Feed entry expand/collapse + j/k/x navigation ----
-    //
-    // Single source of truth for expanding/collapsing a feed entry's full
-    // content (replaces the old pattern of toggling '-content'/'-summary'
-    // separately from each service's Expand/Collapse button and from the
-    // entry title). Centralizing it here is what makes "collapse every
-    // other entry" and "scroll the headline to the top" work no matter
-    // which of those three triggers (button, title click, 'x' key) fired.
-
-    let currentEntryEl = null; // the .status-box currently selected via j/k/x
-
-    function _feedEntries() {
-        const fc = document.getElementById('feed-container');
-        return fc ? Array.from(fc.querySelectorAll('.status-box')) : [];
-    }
-
-    function setCurrentEntry(el) {
-        if (!el) return;
-        document.querySelectorAll('.status-box.current-entry').forEach(b => {
-            if (b !== el) b.classList.remove('current-entry');
-        });
-        el.classList.add('current-entry');
-        currentEntryEl = el;
-        el.scrollIntoView({ block: 'start', behavior: 'smooth' });
-    }
-
-    // j/k: move the current-entry highlight. If the entry being left was
-    // expanded, collapse it and expand the destination in its place
-    // (positioning it at its headline, same as any other expand).
-    function navigateEntry(direction) {
-        const entries = _feedEntries();
-        if (!entries.length) return;
-        const currentContent = currentEntryEl?.querySelector('.entry-full-content');
-        const wasExpanded = currentContent && currentContent.style.display === 'block';
-        let idx = currentEntryEl ? entries.indexOf(currentEntryEl) : -1;
-        idx = Math.min(Math.max(idx + direction, 0), entries.length - 1);
-        const nextEl = entries[idx];
-
-        if (wasExpanded) {
-            const specific = nextEl.querySelector('.statusSpecific');
-            if (specific && expandEntry(specific.id)) return; // already positioned
-            collapseAllEntries(); // destination has nothing to expand — just collapse the old one
-        }
-        setCurrentEntry(nextEl);
-    }
-
-    // Collapses every expanded entry's full content back to its summary.
-    function collapseAllEntries() {
-        document.querySelectorAll('.entry-full-content').forEach(content => {
-            if (content.style.display === 'block') {
-                content.style.display = 'none';
-                const summary = document.getElementById(content.id.replace(/-content$/, '-summary'));
-                if (summary) summary.style.display = 'block';
-            }
-        });
-    }
-
-    // Expands itemID's full content, collapsing all other entries first.
-    // Returns false (no-op) if this item has no full content to expand.
-    function expandEntry(itemID) {
-        const content = document.getElementById(`${itemID}-content`);
-        if (!content) return false; // no full_content for this item — nothing to expand
-        const summary = document.getElementById(`${itemID}-summary`);
-
-        collapseAllEntries();
-        content.style.display = 'block';
-        if (summary) summary.style.display = 'none';
-
-        const box = content.closest('.status-box');
-        if (box) setCurrentEntry(box);
-        else content.scrollIntoView({ block: 'start', behavior: 'smooth' });
-        return true;
-    }
-
-    // Expands itemID's full content if it isn't already expanded; collapses
-    // it back to the summary if it is.
-    function toggleEntryExpanded(itemID) {
-        const content = document.getElementById(`${itemID}-content`);
-        if (!content) return; // no full_content for this item — nothing to expand
+// Collapses every expanded entry's full content back to its summary.
+function collapseAllEntries() {
+    document.querySelectorAll('.entry-full-content').forEach(content => {
         if (content.style.display === 'block') {
             content.style.display = 'none';
-            const summary = document.getElementById(`${itemID}-summary`);
+            const summary = document.getElementById(content.id.replace(/-content$/, '-summary'));
             if (summary) summary.style.display = 'block';
-            return;
         }
-        expandEntry(itemID);
+    });
+}
+
+// Expands itemID's full content, collapsing all other entries first.
+// Returns false (no-op) if this item has no full content to expand.
+function expandEntry(itemID) {
+    const content = document.getElementById(`${itemID}-content`);
+    if (!content) return false; // no full_content for this item — nothing to expand
+    const summary = document.getElementById(`${itemID}-summary`);
+
+    collapseAllEntries();
+    content.style.display = 'block';
+    if (summary) summary.style.display = 'none';
+
+    const box = content.closest('.status-box');
+    if (box) setCurrentEntry(box);
+    else content.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    return true;
+}
+
+// Expands itemID's full content if it isn't already expanded; collapses
+// it back to the summary if it is.
+function toggleEntryExpanded(itemID) {
+    const content = document.getElementById(`${itemID}-content`);
+    if (!content) return; // no full_content for this item — nothing to expand
+    if (content.style.display === 'block') {
+        content.style.display = 'none';
+        const summary = document.getElementById(`${itemID}-summary`);
+        if (summary) summary.style.display = 'block';
+        return;
     }
+    expandEntry(itemID);
+}
 
-    function toggleCurrentEntry() {
-        if (!currentEntryEl) {
-            const entries = _feedEntries();
-            if (!entries.length) return;
-            currentEntryEl = entries[0];
-        }
-        const specific = currentEntryEl.querySelector('.statusSpecific');
-        if (specific) toggleEntryExpanded(specific.id);
+function toggleCurrentEntry() {
+    if (!currentEntryEl) {
+        const entries = _feedEntries();
+        if (!entries.length) return;
+        currentEntryEl = entries[0];
     }
+    const specific = currentEntryEl.querySelector('.statusSpecific');
+    if (specific) toggleEntryExpanded(specific.id);
+}
 
-    function _typingInField() {
-        const ae = document.activeElement;
-        return !!ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' ||
-                        ae.tagName === 'SELECT' || ae.isContentEditable);
-    }
+function _typingInField() {
+    const ae = document.activeElement;
+    return !!ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' ||
+        ae.tagName === 'SELECT' || ae.isContentEditable);
+}
 
-    // j = next entry, k = previous entry, x = toggle expand on the current entry.
-    document.addEventListener('keydown', (e) => {
-        if (e.ctrlKey || e.altKey || e.metaKey || _typingInField()) return;
-        const key = e.key.toLowerCase();
-        if (key === 'j') { e.preventDefault(); navigateEntry(1); }
-        else if (key === 'k') { e.preventDefault(); navigateEntry(-1); }
-        else if (key === 'x') { e.preventDefault(); toggleCurrentEntry(); }
-    });
+// j = next entry, k = previous entry, x = toggle expand on the current entry.
+document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey || e.altKey || e.metaKey || _typingInField()) return;
+    const key = e.key.toLowerCase();
+    if (key === 'j') { e.preventDefault(); navigateEntry(1); }
+    else if (key === 'k') { e.preventDefault(); navigateEntry(-1); }
+    else if (key === 'x') { e.preventDefault(); toggleCurrentEntry(); }
+});
 
-    // Mobile: double-tap an entry to expand/collapse it (native dblclick,
-    // which browsers synthesize from two quick taps on touch devices too).
-    document.getElementById('feed-container')?.addEventListener('dblclick', (e) => {
-        if (e.target.closest('a, button, img')) return; // let links/buttons/images handle their own taps
-        const box = e.target.closest('.status-box');
-        if (!box) return;
-        const specific = box.querySelector('.statusSpecific');
-        if (specific) toggleEntryExpanded(specific.id);
-    });
+// Mobile: double-tap an entry to expand/collapse it (native dblclick,
+// which browsers synthesize from two quick taps on touch devices too).
+document.getElementById('feed-container')?.addEventListener('dblclick', (e) => {
+    if (e.target.closest('a, button, img')) return; // let links/buttons/images handle their own taps
+    const box = e.target.closest('.status-box');
+    if (!box) return;
+    const specific = box.querySelector('.statusSpecific');
+    if (specific) toggleEntryExpanded(specific.id);
+});
 
-    // Mobile: short vertical swipe over the feed = j/k (down = next, up = previous).
-    // Distinguished from an ordinary scroll drag by requiring both a short
-    // distance and a short duration (a quick flick, not a sustained drag).
-    let _feedTouchStartY = 0;
-    let _feedTouchStartT = 0;
-    document.getElementById('feed-container')?.addEventListener('touchstart', (e) => {
-        _feedTouchStartY = e.touches[0].clientY;
-        _feedTouchStartT = Date.now();
-    });
-    document.getElementById('feed-container')?.addEventListener('touchend', (e) => {
-        const dy = e.changedTouches[0].clientY - _feedTouchStartY;
-        const dt = Date.now() - _feedTouchStartT;
-        if (dt > 250) return; // not a quick flick
-        if (dy > 30 && dy < 120) navigateEntry(1);       // short downswipe -> j
-        else if (dy < -30 && dy > -120) navigateEntry(-1); // short upswipe -> k
-    });
+// Mobile: short vertical swipe over the feed = j/k (down = next, up = previous).
+// Distinguished from an ordinary scroll drag by requiring both a short
+// distance and a short duration (a quick flick, not a sustained drag).
+let _feedTouchStartY = 0;
+let _feedTouchStartT = 0;
+document.getElementById('feed-container')?.addEventListener('touchstart', (e) => {
+    _feedTouchStartY = e.touches[0].clientY;
+    _feedTouchStartT = Date.now();
+});
+document.getElementById('feed-container')?.addEventListener('touchend', (e) => {
+    const dy = e.changedTouches[0].clientY - _feedTouchStartY;
+    const dt = Date.now() - _feedTouchStartT;
+    if (dt > 250) return; // not a quick flick
+    if (dy > 30 && dy < 120) navigateEntry(1);       // short downswipe -> j
+    else if (dy < -30 && dy > -120) navigateEntry(-1); // short upswipe -> k
+});
 
-    window.toggleEntryExpanded = toggleEntryExpanded;
-    
+window.toggleEntryExpanded = toggleEntryExpanded;
+
 
 
 // Swipe gesture detection for mobile devices
@@ -535,63 +543,63 @@ let currentPane = 'read-pane'; // Track the currently active pane
 
 // Map swipe behaviors for each pane
 const swipeActions = {
-  'left-pane': {
-    'right-to-left': 'mobShowRead',
-  },
-  'read-pane': {
-    'left-to-right': 'mobShowLeft',
-    'right-to-left': 'mobShowWrite',
-  },
-  'write-pane': {
-    'left-to-right': 'mobShowRead',
-    'right-to-left': 'mobShowRight',
-  },
-  'right-pane': {
-    'left-to-right': 'mobShowWrite',
-  },
+    'left-pane': {
+        'right-to-left': 'mobShowRead',
+    },
+    'read-pane': {
+        'left-to-right': 'mobShowLeft',
+        'right-to-left': 'mobShowWrite',
+    },
+    'write-pane': {
+        'left-to-right': 'mobShowRead',
+        'right-to-left': 'mobShowRight',
+    },
+    'right-pane': {
+        'left-to-right': 'mobShowWrite',
+    },
 };
 
 // Handle swipe start
 document.addEventListener('touchstart', (e) => {
-  startX = e.touches[0].clientX;
+    startX = e.touches[0].clientX;
 });
 
 // Handle swipe end
 document.addEventListener('touchend', (e) => {
-  const endX = e.changedTouches[0].clientX;
-  const direction = startX - endX > 50 ? 'right-to-left' : startX - endX < -50 ? 'left-to-right' : null;
+    const endX = e.changedTouches[0].clientX;
+    const direction = startX - endX > 50 ? 'right-to-left' : startX - endX < -50 ? 'left-to-right' : null;
 
-  if (direction) {
-    const action = swipeActions[currentPane]?.[direction];
-    if (action && typeof window[action] === 'function') {
-      window[action](); // Call the appropriate function
+    if (direction) {
+        const action = swipeActions[currentPane]?.[direction];
+        if (action && typeof window[action] === 'function') {
+            window[action](); // Call the appropriate function
+        }
     }
-  }
 });
 
 // Stub functions for pane switching
 function mobShowRead() {
 
-  mainWindow.style.transform = 'translateX(-0vw)';
-  mainWindow.style.transition = 'transform 0.5s ease'; // Smooth transition
-  closeLeftPane();
+    mainWindow.style.transform = 'translateX(-0vw)';
+    mainWindow.style.transition = 'transform 0.5s ease'; // Smooth transition
+    closeLeftPane();
 }
 
 function mobShowWrite() {
 
-  mainWindow.style.transform = 'translateX(-100vw)';
-  mainWindow.style.transition = 'transform 0.5s ease'; // Smooth transition
-  closeRightPane();
+    mainWindow.style.transform = 'translateX(-100vw)';
+    mainWindow.style.transition = 'transform 0.5s ease'; // Smooth transition
+    closeRightPane();
 }
 
 function mobShowLeft() {
 
-  openLeftPane();
+    openLeftPane();
 }
 
 function mobShowRight() {
 
-  openRightPane();
+    openRightPane();
 
 }
 
@@ -644,9 +652,9 @@ function showModal(content, opts = {}) {
 function showLoader() {
     const loader = window.CList.ui.view.loadingIndicator;
     if (loader) {
-      loader.style.display = 'flex'; // Change display to flex
-      // Force reflow
-      loader.offsetHeight; // Access a layout property to trigger reflow
-      console.log('Loader shown');
+        loader.style.display = 'flex'; // Change display to flex
+        // Force reflow
+        loader.offsetHeight; // Access a layout property to trigger reflow
+        console.log('Loader shown');
     }
-  }
+}

@@ -1,403 +1,373 @@
-
-        /* Style for the status box */
-        .status-box {
-            margin-left: 10px;
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: space-between;
-            border: 1px solid #ddd;
-            padding: 10px;
-            margin-bottom: 10px;
-            border-radius: 5px;
-            background-color: #f9f9f9;
-        }
-
-        .annotation-item {
-            padding: 5px 0;
-            border-bottom: 1px solid #f0f0f0;
-            font-size: 0.85rem;
-        }
-
-        .annotation-item:last-child {
-            border-bottom: none;
-        }
-
-        .annotation-creator {
-            font-weight: 500;
-            color: #555;
-            margin-right: 8px;
-        }
-
-        .annotation-date {
-            color: #aaa;
-            font-size: 0.78rem;
-        }
-
-        .annotation-body {
-            margin: 3px 0 2px;
-            color: #333;
-        }
-
-        .annotation-tags {
-            color: #999;
-            font-size: 0.75rem;
-        }
-
-        .clist-actions button.action-active .material-icons,
-        .status-actions button.action-active .material-icons {
-            color: rgb(220, 130, 20);
-        }
-
-        /* Style for the status content */
-        .status-content {
-            flex: 1;
-            margin-right: 20px;
-        }
-
-        .status-reblog {
-            padding: 0;
-        }
-
-        .reblog-info {
-            border-bottom: 1px solid #ddd;
-            margin-bottom: 5px;
-            padding-bottom: 3px;
-        }
-
-        .status-images-container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px; /* Optional spacing between images */
-            align-content: flex-start;
-        }
-        
-        .image-item {
-            display: flex;
-            justify-content: left;
-            align-items: left;
-            flex: 1;
-        }
-        
-        .image-item img {
-            max-height:150px;
-            width: auto;         /* let width scale automatically */
-            max-width: 100%;     /* keep it from overflowing horizontally */
-            object-fit: contain; /* ensures the image is 'letterboxed' if necessary */
-
-        }
-
-
-        /* Style for the action buttons */
-        .status-actions {
-            display: flex;
-            flex-direction: row;
-            justify-content: left;
-        }
-
-        .status-actions button {
-            margin-bottom: 5px;
-            padding: 5px 10px;
-            border: none;
-            background-color: rgb(249, 249, 249);
-            color: rgb(32, 104, 186);
-            border-radius: 3px;
-            cursor: pointer;
-        }
-
-
-        .status-actions button:hover {
-            background-color: #efede9;
-        }
-
-
-        /* Style for the clist action buttons */
-        .clist-actions {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            gap: 4px;
-        }
-
-        .clist-actions button {
-            margin-bottom: 5px;
-            padding: 5px 10px;
-            border: none;
-            background-color: rgb(249, 249, 249);
-            color: rgb(32, 104, 186);
-            border-radius: 3px;
-            cursor: pointer;
-        }
-
-
-        .clist-actions button:hover {
-            background-color: #efede9;
-        }
-
-        .visually-hidden {
-            position: absolute;
-            width: 1px;
-            height: 1px;
-            padding: 0;
-            margin: -1px;
-            overflow: hidden;
-            clip: rect(0, 0, 0, 0);
-            border: 0;
-        }
-
-        .clistImage {
-        /* Limit images to fit within the column */
-            float: left;
-            max-width: 300px;
-            height: auto; /* Maintains the aspect ratio */
-            display: block;
-            margin: 0 auto; /* Center-aligns the image within the div */
-        }
-
-        #accountSection {
-            padding: 10px;padding: 5px 10px;    /* 5px top & bottom, 10px left & right */  
-
-        }
-
-        #feed-section {
-            display: flex;
-            flex-direction: column;
-            height: calc(100dvh - 50px); /* 100% of the viewport height minus 50px */
-            overflow: hidden;           /* Prevent scrolling on the parent */
-        }
-        
-        #feed-menu {
-            min-height: 41px;           /* Grows to fit wrapped buttons */
-            padding: 5px 10px;
-            flex-shrink: 0;
-            border-bottom: 1px solid lightgray;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 4px;
-            align-items: center;
-        }
-        
-        #feed-container {
-            flex-grow: 1;               /* Take remaining space */
-            overflow-y: scroll;         /* Always show vertical scrollbar */
-        }
-
-        .feed-status-message {
-            margin: 10px;
-            padding: 8px 12px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            color: #555;
-        }
-
-        .error-message {
-            margin: 10px;
-            padding: 8px 12px;
-            border: 1px solid #f5c6cb;
-            border-radius: 4px;
-            color: #c00;
-            background-color: #fff5f5;
-        }
-
-        .feed-header {
-
-            margin-left: 10px;
-            display: flex;
-            justify-content: space-between;
-            border: 1px solid #ddd;
-            padding: 10px;
-            margin-bottom: 10px;
-            border-radius: 5px;
-            background-color: #f9f9f9;
-
-
-        }
-        
-        .feed-header h2 {
-            margin: 0;
-            font-size: 1.5em;
-            color: #333;
-        }
-        
-        .feed-header p {
-            margin: 5px 0 0;
-            font-size: 0.9em;
-            color: #666;
-        }
-
-        /*  Audio List (From feed) */
-
-        #audio-section audio {
-            background-color: var(--highlight-color);
-            margin: 0 10px 0 0;
-        }
-
-        /* Input fields */
-        audio {
-            background-color: var(--highlight-color);  /* Green background */
-            color: white;               /* White text */
-            width: 100%;                /* Full width */
-        }
-
-        #accounts-header,#audio-header, #chat-header, #read-header, #find-header, #save-header, #post-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border: 1px solid #ccc;      /* Light border */
-            border-radius: 4px;          /* Rounded corners */
-            background-color: #f5f5f5;
-        }
-        
-        #accounts-header h2,#audio-header h2,#chat-header h2,#read-header h2, #find-header h2, #save-header h2, #post-header h2 {
-            margin: 0;
-            flex-grow: 1;
-            text-align: center;
-
-        }
-        
-        #audio-left-close-button,#chat-left-close-button {
-            padding: 5px 10px;
-            border-radius: 3px;
-            font-size: 0.875rem;
-            margin-right: 3px;
-            color: #333;
-        }
-        
-        #accounts-left-close-button:hover,#audio-left-close-button:hover,#chat-left-close-button:hover,#read-left-close-button:hover,#find-left-close-button:hover,#save-right-close-button:hover,#post-right-close-button:hover {
-            color: var(--highlight-color);
-        }
-
-        #chat-messages {
-            overflow:auto;
-            height:500px;
-            max-height:80%;
-            padding: 5px 10px 5px 10px;              /* Margin between elements */
-            border: 1px solid #ccc;      /* Light border */
-            box-sizing: border-box;      /* Ensures padding doesn’t affect width */
-            border-radius: 4px;          /* Rounded corners */
-        }
-
-        #chat-messages .chat-event {
-            text-align: center;
-            font-style: italic;
-            font-size: 0.82em;
-            color: #888;
-            margin: 8px 0;
-        }
-
-        #accounts-section,#chat-section, #audio-section, #read-section, #find-section {
-            width: 100%;                /* Full width */
-            margin: 0;              /* Padding inside the input */
-            padding: 5px 0px 5px 0px;              /* Margin between elements */
-            box-sizing: border-box;      /* Ensures padding doesn’t affect width */
-            border-radius: 4px;          /* Rounded corners */
-        }
-
-        #audio-list p {
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            background-color: #f9f9f9;
-            padding: 10px;
-            margin: 0 10px 10px 0;
-        }
-
-        #audio-list p.audio-playing {
-            background-color: #e8e8e8;
-            border-color: #bbb;
-        }
-
-        #audio-list a {
-            text-decoration: none;
-            color: inherit;
-        }
-
-        /* Pads (Basically a clone of audio */
-
-        #padList p, #padList a,  #padList li {
-            width: 100%;                /* Full width */
-            padding: 2px;              /* Padding inside the input */
-            margin:  0;              /* Margin between elements */
-            box-sizing: border-box;      /* Ensures padding doesn’t affect width */
-            margin-top: 1px;    /* Light border */
-            background-color: var(--highlight-color);  /* Green background */
-            text-decoration: none;
-            color: white;               /* White text */
-            list-style: none;
-        }
-
-
-        /*  Posts   */
-
-        .post { 
-            border-top: 1px solid #ccc; padding: 10px; 
-            padding: 0.5em;
-        }
-
-        .post p, ul, textarea, img, h1, h2, h3 {
-            margin-bottom: 0.75em;
-        }
-
-
-        .post li {
-            margin-left:1.4em;
-        }
-
-        .post img {
-            max-width: min(500px, 100%);
-            max-height: 500px;
-            height: auto;
-            object-fit: contain;
-        }
-
-        .post figure, .post wp-block-image {
-            max-width:100%;
-            height: auto;
-        }
-
-        /* Embedded video (YouTube, PeerTube, ...) in expanded entries — drag the
-           bottom-right corner to resize; starts at a 16:9, 500px-wide default. */
-        .video-embed-wrapper {
-            width: 500px;
-            max-width: 100%;
-            height: 281px;
-            resize: both;
-            overflow: auto;
-            margin-bottom: 0.75em;
-        }
-
-        .video-embed-wrapper iframe {
-            width: 100%;
-            height: 100%;
-            display: block;
-            border: none;
-        }
-
-
-        .post:last-child { border-bottom: none; }
-        
-
-        /* Mobile Styles */
-        @media (max-width: 768px) {
-
-            body {
-                font-size: 1rem;            /* Slightly larger text */
-            }
-            
-    
-            h1,h2,h3 {
-                font-size: 1.5rem;            /* Slightly larger text */
-
-            }
-    
-      
-            /* Style for buttons */
-            button {
-                font-size: 1rem;            /* Slightly larger text */
-            }
-
-        }
-
-/* ── Annotation read button (orange icon + count, injected into status-actions) ─ */
+  /* Style for the status box */
+.status-box {
+  margin: 0 10px 10px 10px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  border: 1px solid #ddd;
+  padding: 10px;
+  border-radius: 5px;
+  background-color: #f9f9f9;
+}
+
+.status-box:first-child,
+#feed-summary:first-child + .status-box {
+    margin-top: 10px;
+}
+
+.annotation-item {
+    padding: 5px 0;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 0.85rem;
+}
+
+.annotation-item:last-child {
+    border-bottom: none;
+}
+
+.annotation-creator {
+    font-weight: 500;
+    color: #555;
+    margin-right: 8px;
+}
+
+.annotation-date {
+    color: #aaa;
+    font-size: 0.78rem;
+}
+
+.annotation-body {
+    margin: 3px 0 2px;
+    color: #333;
+}
+
+.annotation-tags {
+    color: #999;
+    font-size: 0.75rem;
+}
+
+.clist-actions button.action-active .material-icons,
+.status-actions button.action-active .material-icons {
+    color: rgb(220, 130, 20);
+}
+
+.status-content {
+    flex: 1;
+    margin-right: 20px;
+}
+
+.status-reblog {
+    padding: 0;
+}
+
+.reblog-info {
+    border-bottom: 1px solid #ddd;
+    margin-bottom: 5px;
+    padding-bottom: 3px;
+}
+
+.status-images-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-content: flex-start;
+}
+
+.image-item {
+    display: flex;
+    justify-content: left;
+    align-items: left;
+    flex: 1;
+}
+
+.image-item img {
+    max-height: 150px;
+    width: auto;
+    max-width: 100%;
+    object-fit: contain;
+}
+
+.status-actions {
+    display: flex;
+    flex-direction: row;
+    justify-content: left;
+}
+
+.status-actions button {
+    margin-bottom: 5px;
+    padding: 5px 10px;
+    border: none;
+    background-color: rgb(249, 249, 249);
+    color: rgb(32, 104, 186);
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.status-actions button:hover {
+    background-color: #efede9;
+}
+
+.clist-actions {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+}
+
+.clist-actions button {
+    margin-bottom: 5px;
+    padding: 5px 10px;
+    border: none;
+    background-color: rgb(249, 249, 249);
+    color: rgb(32, 104, 186);
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.clist-actions button:hover {
+    background-color: #efede9;
+}
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    border: 0;
+}
+
+.clistImage {
+    float: left;
+    max-width: 300px;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+}
+
+#accountSection {
+    padding: 5px 10px;
+}
+
+#feed-section {
+    display: flex;
+    flex-direction: column;
+    height: calc(100dvh - 50px);
+    overflow: hidden;
+}
+
+#feed-menu {
+    min-height: 41px;
+    padding: 5px 10px;
+    flex-shrink: 0;
+    border-bottom: 1px solid lightgray;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+}
+
+#feed-container {
+    flex-grow: 1;
+    overflow-y: scroll;
+}
+
+.feed-status-message {
+    margin: 10px;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    color: #555;
+}
+
+.error-message {
+    margin: 10px;
+    padding: 8px 12px;
+    border: 1px solid #f5c6cb;
+    border-radius: 4px;
+    color: #c00;
+    background-color: #fff5f5;
+}
+
+.feed-header {
+    margin: 10px;
+    display: flex;
+    justify-content: space-between;
+    border: 1px solid #ddd;
+    padding: 10px;
+    border-radius: 5px;
+    background-color: #f9f9f9;
+}
+
+.feed-header h2 {
+    margin: 0;
+    font-size: 1.5em;
+    color: #333;
+}
+
+.feed-header p {
+    margin: 5px 0 0;
+    font-size: 0.9em;
+    color: #666;
+}
+
+#audio-section audio {
+    background-color: var(--highlight-color);
+    margin: 0 10px 0 0;
+}
+
+audio {
+    background-color: var(--highlight-color);
+    color: white;
+    width: 100%;
+}
+
+#accounts-header, #audio-header, #chat-header, #read-header, #find-header, #save-header, #post-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: #f5f5f5;
+}
+
+#accounts-header h2, #audio-header h2, #chat-header h2, #read-header h2, #find-header h2, #save-header h2, #post-header h2 {
+    margin: 0;
+    flex-grow: 1;
+    text-align: center;
+}
+
+#audio-left-close-button, #chat-left-close-button {
+    padding: 5px 10px;
+    border-radius: 3px;
+    font-size: 0.875rem;
+    margin-right: 3px;
+    color: #333;
+}
+
+#accounts-left-close-button:hover, #audio-left-close-button:hover, #chat-left-close-button:hover,
+#read-left-close-button:hover, #find-left-close-button:hover, #save-right-close-button:hover,
+#post-right-close-button:hover {
+    color: var(--highlight-color);
+}
+
+#chat-messages {
+    overflow: auto;
+    height: 500px;
+    max-height: 80%;
+    padding: 5px 10px;
+    border: 1px solid #ccc;
+    box-sizing: border-box;
+    border-radius: 4px;
+}
+
+#chat-messages .chat-event {
+    text-align: center;
+    font-style: italic;
+    font-size: 0.82em;
+    color: #888;
+    margin: 8px 0;
+}
+
+#accounts-section, #chat-section, #audio-section, #read-section, #find-section {
+    width: 100%;
+    margin: 0;
+    padding: 5px 0;
+    box-sizing: border-box;
+    border-radius: 4px;
+}
+
+#audio-list p {
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    background-color: #f9f9f9;
+    padding: 10px;
+    margin: 0 10px 10px 0;
+}
+
+#audio-list p.audio-playing {
+    background-color: #e8e8e8;
+    border-color: #bbb;
+}
+
+#audio-list a {
+    text-decoration: none;
+    color: inherit;
+}
+
+#padList p, #padList a, #padList li {
+    width: 100%;
+    padding: 2px;
+    margin: 0;
+    box-sizing: border-box;
+    margin-top: 1px;
+    background-color: var(--highlight-color);
+    text-decoration: none;
+    color: white;
+    list-style: none;
+}
+
+.post {
+    border-top: 1px solid #ccc;
+    padding: 0.5em;
+}
+
+.post p, ul, textarea, img, h1, h2, h3 {
+    margin-bottom: 0.75em;
+}
+
+.post li {
+    margin-left: 1.4em;
+}
+
+.post img {
+    max-width: min(500px, 100%);
+    max-height: 500px;
+    height: auto;
+    object-fit: contain;
+}
+
+.post figure, .post wp-block-image {
+    max-width: 100%;
+    height: auto;
+}
+
+.video-embed-wrapper {
+    width: 500px;
+    max-width: 100%;
+    height: 281px;
+    resize: both;
+    overflow: auto;
+    margin-bottom: 0.75em;
+}
+
+.video-embed-wrapper iframe {
+    width: 100%;
+    height: 100%;
+    display: block;
+    border: none;
+}
+
+.post:last-child {
+    border-bottom: none;
+}
+
+@media (max-width: 768px) {
+    body {
+        font-size: 1rem;
+    }
+
+    h1, h2, h3 {
+        font-size: 1.5rem;
+    }
+
+    button {
+        font-size: 1rem;
+    }
+}
 
 .status-actions .anno-read-btn {
     background: none;
@@ -423,8 +393,6 @@
     background: #fff5e6;
 }
 
-/* ── DID profile link in annotation entries ─────────────────────────────────── */
-
 .did-profile-link {
     color: #777;
     vertical-align: middle;
@@ -440,8 +408,6 @@
 .did-profile-link:hover {
     color: #e67300;
 }
-
-/* ── Annotation thread overlay ────────────────────────────────────────────────── */
 
 .annotation-thread-overlay {
     position: absolute;
@@ -511,20 +477,33 @@
     margin-bottom: 6px;
 }
 
-/* ── Dark mode ─────────────────────────────────────────────────────────────── */
 html.dark-mode select,
 html.dark-mode input[type="text"],
 html.dark-mode input[type="password"],
 html.dark-mode textarea {
-    background-color: #2d2d2d; border-color: #3a3a3a; color: #e0e0e0;
+    background-color: #2d2d2d;
+    border-color: #3a3a3a;
+    color: #e0e0e0;
 }
-html.dark-mode .status-box { background-color: #252525; border-color: #3a3a3a; }
 
-.entry-title-toggle { cursor: pointer; }
+html.dark-mode .status-box {
+    background-color: #252525;
+    border-color: #3a3a3a;
+}
 
-/* j/k keyboard navigation: highlight whichever entry is "current" */
-.status-box.current-entry { border-color: rgb(81,177,88); box-shadow: 0 0 0 2px rgba(81,177,88,0.35); }
-html.dark-mode .status-box.current-entry { border-color: rgb(81,177,88); box-shadow: 0 0 0 2px rgba(81,177,88,0.45); }
+.entry-title-toggle {
+    cursor: pointer;
+}
+
+.status-box.current-entry {
+    border-color: rgb(81,177,88);
+    box-shadow: 0 0 0 2px rgba(81,177,88,0.35);
+}
+
+html.dark-mode .status-box.current-entry {
+    border-color: rgb(81,177,88);
+    box-shadow: 0 0 0 2px rgba(81,177,88,0.45);
+}
 
 html.dark-mode .annotation-item { border-bottom-color: #2f2f2f; }
 html.dark-mode .annotation-creator { color: #ccc; }
@@ -535,15 +514,21 @@ html.dark-mode .annotation-tags    { color: #777; }
 html.dark-mode .reblog-info { border-bottom-color: #3a3a3a; }
 html.dark-mode .status-actions button,
 html.dark-mode .clist-actions button {
-    background-color: #2d2d2d; color: #7eb8f7;
+    background-color: #2d2d2d;
+    color: #7eb8f7;
 }
 html.dark-mode .status-actions button:hover,
 html.dark-mode .clist-actions button:hover { background-color: #333; }
 html.dark-mode .feed-status-message { border-color: #3a3a3a; color: #999; }
 html.dark-mode .error-message {
-    border-color: #7a3030; color: #ff8080; background-color: #2d1515;
+    border-color: #7a3030;
+    color: #ff8080;
+    background-color: #2d1515;
 }
-html.dark-mode .feed-header { border-color: #3a3a3a; background-color: #252525; }
+html.dark-mode .feed-header {
+    border-color: #3a3a3a;
+    background-color: #252525;
+}
 html.dark-mode .feed-header h2 { color: #e0e0e0; }
 html.dark-mode #write-load-header h2 { color: #e0e0e0; }
 html.dark-mode .feed-header p  { color: #999; }
@@ -554,7 +539,10 @@ html.dark-mode #chat-header,
 html.dark-mode #read-header,
 html.dark-mode #find-header,
 html.dark-mode #save-header,
-html.dark-mode #post-header { background-color: #2a2a2a; border-color: #3a3a3a; }
+html.dark-mode #post-header {
+    background-color: #2a2a2a;
+    border-color: #3a3a3a;
+}
 html.dark-mode #audio-left-close-button,
 html.dark-mode #chat-left-close-button { color: #ccc; }
 html.dark-mode #chat-messages { border-color: #3a3a3a; }
@@ -569,15 +557,18 @@ html.dark-mode .did-profile-link { color: #777; }
 html.dark-mode .did-profile-link:hover { color: #e67300; }
 html.dark-mode .annotation-thread-overlay { background: #1e1e1e; }
 html.dark-mode .annotation-thread-header {
-    background: #252525; border-bottom-color: #3a3a3a; color: #ccc;
+    background: #252525;
+    border-bottom-color: #3a3a3a;
+    color: #ccc;
 }
 html.dark-mode .annotation-thread-close { border-color: #555; color: #999; }
 html.dark-mode .annotation-thread-close:hover { background: #333; }
 html.dark-mode .annotation-feed-author-banner {
-    background: #1a2035; border-left-color: #3060a0; color: #ccc;
+    background: #1a2035;
+    border-left-color: #3060a0;
+    color: #ccc;
 }
 
-/* ── Collection picker (inline dropdown) ─────────────────────────────────── */
 .collection-picker {
     background: #fff;
     border: 1px solid #ccc;
@@ -622,7 +613,6 @@ html.dark-mode .annotation-feed-author-banner {
     margin: 0;
 }
 
-/* ── Collection panel (My Collections feed view) ─────────────────────────── */
 .feed-panel-header { padding: 8px 12px; border-bottom: 1px solid #ddd; }
 .feed-panel-header h3 { margin: 0; font-size: 1rem; }
 
@@ -663,23 +653,24 @@ html.dark-mode .collection-detail-header { border-bottom-color: #2a2a2a; backgro
 .collection-items-expanded { padding: 0 0 8px; }
 .collection-items-expanded .btn { margin: 8px 12px 4px; }
 
-
-/* Legacy alias — existing delete-confirmation code uses this class. */
-.collection-confirm-btn   { padding: 3px 10px; font-size: 0.8rem; margin: 0; }
+.collection-confirm-btn { padding: 3px 10px; font-size: 0.8rem; margin: 0; }
 
 html.dark-mode .collection-picker {
-    background: #1e1e1e; border-color: #444; box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    background: #1e1e1e;
+    border-color: #444;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
 }
 html.dark-mode .collection-picker-list li { border-bottom-color: #2a2a2a; }
 html.dark-mode .collection-pick-btn:hover { background: #2a2a2a; }
 html.dark-mode .collection-picker-new .input-field {
-    background: #2a2a2a; border-color: #555; color: #ccc;
+    background: #2a2a2a;
+    border-color: #555;
+    color: #ccc;
 }
 html.dark-mode .feed-panel-header { border-bottom-color: #3a3a3a; }
 html.dark-mode .saved-collection-wrapper { border-bottom-color: #2a2a2a; }
 html.dark-mode .saved-collection-count { color: #666; }
 
-/* ── Write-pane tag field ─────────────────────────────────────────────────── */
 #write-tags {
     display: flex;
     align-items: center;
@@ -773,12 +764,6 @@ html.dark-mode .write-tags-dropdown-item { color: #ccc; }
 html.dark-mode .write-tags-dropdown-item:hover { background: #2a2a2a; }
 html.dark-mode .write-tags-new-col { border-top-color: #2a2a2a; color: #ccc; }
 
-
-
-
-
-/* ── Collection editor (write-pane) ─────────────────────────────────────────── */
-
 .collection-editor-list {
     padding: 8px 12px;
     overflow-y: auto;
@@ -849,7 +834,6 @@ textarea.collection-editor-input {
     resize: vertical;
 }
 
-/* Dark mode */
 html.dark-mode .collection-editor-entry  { background: #1e1e1e; border-color: #3a3a3a; }
 html.dark-mode .collection-editor-entry-bar:hover { background: #272727; }
 html.dark-mode .collection-editor-entry-fields { border-top-color: #2a2a2a; }
