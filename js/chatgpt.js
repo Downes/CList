@@ -37,7 +37,7 @@ async function generateNewTemplateFromChatGPT(templateType, outputFormat) {
             showErrorModal('Error getting Editor accounts: ' + error.message, { title: 'Account lookup failed' });
         }
     }
-    
+
     let API_KEY = null;
     let API_URL = null;
     const accounts = window.CList.accounts || [];
@@ -62,48 +62,48 @@ async function generateNewTemplateFromChatGPT(templateType, outputFormat) {
     }
 
 
-  const maxTokens = 2000; // Adjust based on your needs
+    const maxTokens = 2000; // Adjust based on your needs
 
-  let isComplete = false;
-  let fullTemplate = "";
-  let messages = [
-    { role: 'system', content: 'You are a helpful assistant that generates templates for various documents. The templates are detailed and expressive, providing help and suggestions for the user.' },
-    { role: 'user', content: `Create a detailed and expressive template in ${outputFormat}, for a ${templateType} type template, containing help and suggestions for the user. If it is a text type template, do not use HTML; still completely in markdown. Otherwise, it it's a HTML type template, style the template properly for the appropriate format. Use a string or 'lorem ipsum' to indicate a body of text. Use heading text only where headings would be appropriate in the document. It needs to be more than a very basic structure. The objective is to provide as much guidance as possible. Make sure instructions for the user can be read in the browser as italics text, and are not comments that are not displayed in browsers.` }
-  ];
+    let isComplete = false;
+    let fullTemplate = "";
+    let messages = [
+        { role: 'system', content: 'You are a helpful assistant that generates templates for various documents. The templates are detailed and expressive, providing help and suggestions for the user.' },
+        { role: 'user', content: `Create a detailed and expressive template in ${outputFormat}, for a ${templateType} type template, containing help and suggestions for the user. If it is a text type template, do not use HTML; still completely in markdown. Otherwise, it it's a HTML type template, style the template properly for the appropriate format. Use a string or 'lorem ipsum' to indicate a body of text. Use heading text only where headings would be appropriate in the document. It needs to be more than a very basic structure. The objective is to provide as much guidance as possible. Make sure instructions for the user can be read in the browser as italics text, and are not comments that are not displayed in browsers.` }
+    ];
 
-  while (!isComplete) {
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: 'gpt-4',
-        messages: messages,
-        max_tokens: maxTokens,
-      }),
-    });
+    while (!isComplete) {
+        const response = await fetch(API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${API_KEY}`,
+            },
+            body: JSON.stringify({
+                model: 'gpt-4',
+                messages: messages,
+                max_tokens: maxTokens,
+            }),
+        });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! Status: ${response.status}`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const choice = data.choices[0];
+        fullTemplate += choice.message.content;
+
+        if (choice.finish_reason === "stop") {
+            isComplete = true;
+        } else if (choice.finish_reason === "length") {
+            // Add the assistant's current response to the conversation and continue
+            messages.push({ role: "assistant", content: choice.message.content });
+        } else {
+            throw new Error("Unexpected finish reason: " + choice.finish_reason);
+        }
     }
 
-    const data = await response.json();
-    const choice = data.choices[0];
-    fullTemplate += choice.message.content;
-
-    if (choice.finish_reason === "stop") {
-      isComplete = true;
-    } else if (choice.finish_reason === "length") {
-      // Add the assistant's current response to the conversation and continue
-      messages.push({ role: "assistant", content: choice.message.content });
-    } else {
-      throw new Error("Unexpected finish reason: " + choice.finish_reason);
-    }
-  }
-
-  return fullTemplate;
+    return fullTemplate;
 }
 
 
@@ -129,7 +129,8 @@ async function generateTemplateContent() {
                 <option value="text">Text</option>
                 <option value="html">HTML</option>
             </select><br><br>
-            <button id="generateTemplateButton" class="final-save-button">Generate Template</button>
+            <button id="generateTemplateButton" class="btn final-save-button">Generate Template</button>
+            <button id="generateTemplateBackBtn" class="btn btn-secondary final-save-button" style="margin-top: 6px;">Back</button>
         </div>
     `;
 
@@ -141,6 +142,15 @@ async function generateTemplateContent() {
 
     return new Promise(resolve => {
         const button = document.getElementById('generateTemplateButton');
+        const backBtn = document.getElementById('generateTemplateBackBtn');
+
+        backBtn.addEventListener('click', event => {
+            event.preventDefault();
+            if (formDiv.parentNode) formDiv.parentNode.removeChild(formDiv);
+            if (typeof populateLoadOptions === 'function') populateLoadOptions();
+            resolve(null);
+        });
+
         button.addEventListener('click', async event => {
             event.preventDefault();
             button.disabled = true;

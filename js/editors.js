@@ -138,7 +138,7 @@ const editorHandlers = {
                 textEditorReferences.className = 'allReferences';
                 writePaneContent.parentNode.insertBefore(textEditorReferences, writePaneContent.nextSibling);
             }
-            
+
             // Wire up auto-save once (guard against re-wiring on subsequent initialize calls)
             if (!textEditorDiv.dataset.draftWired) {
                 const ta = window.CList.ui.view.textColumn;
@@ -175,19 +175,19 @@ const editorHandlers = {
             if (textarea) {
                 // Get the current selection start position
                 const cursorPosition = textarea.selectionStart;
-        
+
                 // Split the text content into two parts based on the cursor position
                 const textBefore = textarea.value.substring(0, cursorPosition);
                 const textAfter = textarea.value.substring(cursorPosition);
-        
+
                 // Insert the new content at the cursor position
                 textarea.value = textBefore + itemContent + textAfter;
-        
+
                 // Update the cursor position to after the inserted content
                 const newCursorPosition = cursorPosition + itemContent.length;
                 textarea.setSelectionRange(newCursorPosition, newCursorPosition);
             }
-    
+
             // Add to references
             if (itemId) {
                 const editorDiv = document.getElementById('textEditorDiv');
@@ -400,7 +400,16 @@ function _offerEditorChoice(keys, content, page, renderTarget, onCancel) {
         requiresAccount: true,
         load:  async () => {
             const optionsDiv = window.CList.ui.view.loadOptions;
-            if (optionsDiv) optionsDiv.innerHTML = '<p class="list-tip">Template loading is not yet implemented.</p>';
+            if (optionsDiv) {
+                optionsDiv.innerHTML = '<p class="list-tip">Template loading is not yet implemented.</p>';
+                const backBtn = document.createElement('button');
+                backBtn.className = 'btn btn-secondary';
+                backBtn.style.marginTop = '10px';
+                backBtn.style.width = '100%';
+                backBtn.textContent = 'Back';
+                backBtn.onclick = () => populateLoadOptions();
+                optionsDiv.appendChild(backBtn);
+            }
             return null;
         }
     });
@@ -447,6 +456,14 @@ function playLoadBlank() {
     });
 
     optionsDiv.appendChild(list);
+
+    const backBtn = document.createElement('button');
+    backBtn.className = 'btn btn-secondary';
+    backBtn.style.marginTop = '10px';
+    backBtn.style.width = '100%';
+    backBtn.textContent = 'Back';
+    backBtn.onclick = () => populateLoadOptions();
+    optionsDiv.appendChild(backBtn);
 }
 
 // "Load blank" step 2: warn if the *current* editor (not the target) has content

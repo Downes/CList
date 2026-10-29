@@ -30,8 +30,8 @@
 //          (function () {
 //              const serviceHandler = {
 //                   initialize: async (instance,id) => {    // Initialize the reader    
-                                                             // Values for instance and id
-                                                             // are passed in from the accounts array               
+// Values for instance and id
+// are passed in from the accounts array
 //                   },
 //                   feedFunctions: {                        // Feed functions
 //                       'Funcname': function() { },           // Name of the function, which will appear as a button
@@ -117,7 +117,7 @@ function finderString() {
     return searchString;
 }
 
-  
+
 
 
 
@@ -266,7 +266,7 @@ function populateReadAccountList(accounts) {
 }
 
 
-    
+
 // Function to switch accounts
 async function switchReaderAccount(key) {
     const selectedAccount = window.CList.accounts.find(acc => acc.key === key);
@@ -307,4 +307,3 @@ async function switchReaderAccount(key) {
         selectedAccountDiv.appendChild(document.createTextNode(accountData.title));
     }
 }
-

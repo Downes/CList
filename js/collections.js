@@ -488,7 +488,7 @@ function _renderCollectionItems(col, token, encKey, countSpan, itemsDiv) {
 
         // For social items, build "Platform (@handle)" as the feed byline
         const isSocial   = item.service === 'Mastodon' || item.service === 'Bluesky'
-                        || item.title   === 'Mastodon' || item.title   === 'Bluesky';
+            || item.title   === 'Mastodon' || item.title   === 'Bluesky';
         const platform   = isSocial ? (item.title || item.service) : null;
         const handle     = isSocial && item.author_id ? `@${item.author_id}` : null;
         const feedDisplay = isSocial
@@ -1526,7 +1526,10 @@ window.showSavedCollections = async function() {
             const cancelBtn = document.createElement('button');
             cancelBtn.className   = 'btn btn-secondary';
             cancelBtn.textContent = 'Cancel';
-            cancelBtn.onclick     = () => { resolve(null); if (typeof closeRightPane === 'function') closeRightPane(); };
+            cancelBtn.onclick     = () => {
+                resolve(null);
+                if (typeof populateLoadOptions === 'function') populateLoadOptions();
+            };
 
             btnRow.appendChild(loadBtn);
             btnRow.appendChild(cancelBtn);
