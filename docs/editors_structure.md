@@ -32,17 +32,27 @@ The script tag for the new file goes in `index.html` alongside the other editor 
 |-------|------|-------------|
 | `label` | `string` | Human-readable name shown in the editor switcher (e.g. `'HTML (TinyMCE)'`) |
 | `icon` | `string` | Material Icons name shown beside the label (e.g. `'web'`, `'notes'`, `'group'`) |
-| `contentTypes` | `string[]` | MIME types the editor works with, in preference order. Use `['text/html']` for rich editors, `['text/plain']` for plain text, both for editors that handle either. Used to warn on lossy conversions when switching. |
+| `contentTypes` | `string[]` | MIME types the editor's `loadContent()` can genuinely accept, in preference order. Use `['text/html']` for rich editors, `['text/plain']` for plain text, both for editors that handle either. Drives editor routing/matching in `loadSavedPage()` and `populateLoadOptions()`'s auto-switch — see below. An empty array means "accepts no generic content at all" (see note below), never a wildcard. |
 | `requiresAccount` | `bool` | `true` if the editor needs a kvstore account with permission `'e'` (e.g. Etherpad). `false` for built-in editors. Account-backed editors only appear in the switcher when a matching account exists. |
 | `initialize()` | `function` | Set up and show the editor DOM. See contract below. |
 | `getContent()` | `function` | Return the current editor content as a string. May be `async`. |
 | `loadContent({ type, value }, itemId?)` | `function` | Insert content into the editor. `type` is a MIME type string. `itemId` is the feed item DOM id, used to attach a reference (optional). |
 
-### Optional handler field
+### Optional handler fields
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `setContent(value)` | `function` | **Optional, local editors only** (`requiresAccount: false`, content held in the browser — e.g. `texteditor`, `tinymce`). Fully replaces the editor body with `value`, unlike `loadContent()` which inserts at the cursor/selection. Not implemented by service/collaborative editors (Etherpad, collab, collection editor) — there is no sane "replace" semantics when other people's edits may be live in the document, so those editors are only ever offered Insert when routed through `loadSavedPage()` (below). |
+| `setContent(value)` | `function` | **Optional, local editors only** (`requiresAccount: false`, content held in the browser — e.g. `texteditor`, `tinymce`). Fully replaces the editor body with `value`, unlike `loadContent()` which inserts at the cursor/selection. Not implemented by service/collaborative editors (Etherpad, collab, collection editor) — there is no sane "replace" semantics when other people's edits may be live in the document, so those editors are only ever offered Insert when routed through `loadSavedPage()` (below) or `_offerContentTransfer()` (manual switch — see below). |
+| `isActive()` | `function` | `requiresAccount` editors only: returns `true` if there's a live connection to resume even without a matching saved account (e.g. an active guest Etherpad session). Lets the switcher and "Load blank" list offer a way back in without a saved account. Also used by `editorHasActiveContent()` in preference to `getContent()` for these editors, since "active" means "has a live connection", not "has text". |
+| `visible()` | `function` | Returns `false` to hide this editor from the switcher/"Load blank" list entirely (e.g. not registered or logged in). |
+| `formats` | `{id, label}[]` | Populates the `#write-format` `<select>` in the write-pane toolbar (shown only when non-empty). Used by the collection editor (`collection-editor.js`) for its export-format picker. |
+
+### Required-field note — `contentTypes: []`
+
+An empty `contentTypes` array (the collection editor) means "doesn't support generic
+file/page content at all" — never a wildcard. It's excluded from every `contentTypes`-matching
+path (`loadSavedPage()`, `populateLoadOptions()`'s auto-switch) and only ever reached through
+its own structured My Collections flow.
 
 ---
 
@@ -68,11 +78,85 @@ Content is passed into a newly initialized editor via the module-level variable 
 { type: 'text/html' | 'text/plain', value: string }
 ```
 
-**Set by:** `switchToEditor()` when carrying content from the previous editor, or by `populateEditorAccountList()` for account-backed editors.
+**Set by:** `switchToEditor(editorType, carriedContent)`'s `carriedContent` parameter. Callers: `_offerEditorChoice()`, `loadSavedPage()` (switching-editor branch), the three transfer buttons in `_offerContentTransfer()` ("Insert" only — see below), and a few service files that deliver loaded file/URL content directly (`dropbox.js`, `collections.js`).
 
 **Consumed by:** `loadPredefinedContent(editorType)` inside `initialize()`. It reads `pendingContent`, clears it, and calls `handler.loadContent(content)`. After this call `pendingContent` is always `null`.
 
 If `pendingContent` is `null` when `initialize()` runs, the editor starts empty (or restores a draft — see below).
+
+**Caution:** delivering content this way does **not** by itself clear the target editor's
+parked page/references (see "Running per-editor state" below) — `switchToEditor()` restores
+whatever was last parked for that editor *before* `pendingContent` is consumed. Callers that
+load content unrelated to any previously-tracked page must call `setLoadedPage(null)` (and,
+if appropriate, `clearReferences()`) themselves afterward, the way `loadSavedPage()` and
+`_offerEditorChoice()` already do. `dropbox.js` and `collections.js`'s direct
+`switchToEditor('tinymce'/'texteditor', { type, value })` calls (loading a dropped file or a
+fetched URL straight into an editor) now do this too.
+
+---
+
+## Running per-editor state
+
+Each editor keeps its own independent "page" and "references" state, so switching away from
+an editor and back resumes exactly what was there before — switching editors no longer wipes
+anything. This is tracked in `editors.js` by:
+
+- **`editorStates`** — a plain object keyed by `editorStateKey(editorType, account)`
+  (`` `${editorType}:${account.key}` `` for account-backed editors, so two different accounts
+  on the same editor type — e.g. two Etherpad logins — get separate entries; otherwise just the
+  bare `editorType`). Each entry holds `{ page, references }`. **In-memory only** — lost on
+  reload, same as `currentEditor`/`currentLoadedPage` always have been.
+- **`_parkCurrentEditorState()`** — snapshots `currentLoadedPage` and the current references
+  list (`getReferences().slice()`) into `editorStates` under the *outgoing* editor's key.
+- **`_restoreEditorState(editorType, account)`** — looks up the *target* editor's entry and
+  calls `setLoadedPage(parked.page)` / `setReferences(parked.references)`, or resets both to a
+  blank slate (`null` / `[]`) if the target has never been visited.
+
+Both are called from inside `switchToEditor()` itself (park the outgoing editor, then restore
+the target) — see below. Callers that want to set a specific page right after switching
+(`loadSavedPage()`, `_offerEditorChoice()`) call `setLoadedPage()` again immediately afterward,
+overriding whatever got restored.
+
+### References are a single global list, swapped on switch
+
+`references.js` was **not** rearchitected to be per-editor-aware — `window.CList.state.references`
+and the `#clist-references-panel` DOM stay a single global array/panel, exactly as before. The
+eight existing call sites of `pushReference()`/`getReferences()`/`clearReferences()`
+(`tinymce.js`, `ui.js`, `publish.js`, `hypothesis.js`, `dynamicp2p.js`, `annotate.js`,
+`collab.js`, `collections.js`) are untouched and have no editor-awareness at all. Instead,
+`editors.js` swaps the array's *contents* wholesale via a new function:
+
+```js
+setReferences(list)   // references.js — replaces window.CList.state.references,
+                       // re-renders the panel, shows/hides the References button
+```
+
+So "per-editor references" works by park/restore swapping the same single list in and out as
+you switch editors — not by maintaining N separate lists live at once. A **page** switch
+*within* the same editor (e.g. `loadSavedPage()` loading a different saved page into the
+currently-open editor) does **not** swap references — the list is only swapped on an *editor*
+switch, matching the per-*editor* (not per-*page*) granularity this was built to.
+
+### Manual switch: content-transfer prompt
+
+The editor-switch picker (`_populateBuiltInEditors()` / `_populateAccountEditors()`) routes its
+button clicks through `_switchToEditorFromPicker(editorType, account)` instead of calling
+`switchToEditor()` directly:
+
+- If the outgoing editor has no content worth asking about (`editorHasActiveContent()`
+  returns false), it switches straight through — no prompt.
+- Otherwise it calls `_offerContentTransfer(targetKey, account)`, which renders into the
+  editor-switch overlay: **Overwrite** (only if the target has `setContent`) replaces the
+  target's content *and* references with the source's; **Insert** (only if the target has
+  `loadContent`) appends the source's content at the cursor and **unions** references
+  (deduped by `url`, the same rule `pushReference()` uses); **Don't transfer** switches with
+  no content change, leaving whatever `_restoreEditorState()` resumed for the target intact;
+  **Cancel** reopens the picker without switching.
+
+This prompt is deliberately scoped to the picker only. Forced, content-type-driven switches
+(`_offerEditorChoice()`, `loadSavedPage()`'s switching-editor branch, `_doLoadBlank()`) call
+`switchToEditor()` directly and skip it — in those cases the source editor can't even hold the
+new content, so there's nothing to ask about.
 
 ---
 
@@ -185,13 +269,20 @@ Republish and the Post-time overwrite/new-version prompt both key off of.
 `#loaded-page-indicator` (inside `#write-title-row`, at the top of the write pane) and
 also toggles `#republish-button`'s visibility — both follow `currentLoadedPage` as a
 single unit, so there's no separate wiring for "show the filename" vs. "show the
-Republish button".
+Republish button". The label also shows the **publication URL** and **format** when
+known: `currentLoadedPage.publicationUrl || currentLoadedPage.url` (the latter is set
+directly on remote `'page'`-kind records; the former is stamped onto local-page
+records by `publish.js` right after `recordPublication()` succeeds, since those
+records don't otherwise carry a URL/format of their own) and `currentLoadedPage.format`.
 
-Cleared (`setLoadedPage(null)`) whenever the editor stops representing a known
-published page: at the top of every `switchToEditor()` call, by the "Load blank"
-loader, and by the two collection load paths that pull in an *external* collection
-(not one of ours) — the "Load from URL" dialog and `window.loadCollectionText` — so a
-stale filename/Republish button from a previously-loaded page doesn't linger.
+Cleared (`setLoadedPage(null)`) by the "Load blank" loader (`_doLoadBlank()`) and by
+the two collection load paths that pull in an *external* collection (not one of ours)
+— the "Load from URL" dialog and `window.loadCollectionText`. **Not** cleared by
+switching editors any more: `switchToEditor()` now *parks* the outgoing editor's page
+(and restores the target editor's own previously-parked page, or `null` if the target
+has never been visited) — see "Running per-editor state" above. Callers that need a
+specific page set right after a switch (`loadSavedPage()`, `_offerEditorChoice()`) call
+`setLoadedPage()` again immediately afterward to override whatever got restored.
 
 ### Republish button — `#republish-button` / `playRepublish()`
 
@@ -317,7 +408,7 @@ if (!hasPending) offerDraftRestore('myeditor', 'text/plain');
 
 **3. Clear on Load blank** — handled centrally
 
-`clearDraft(currentEditor)` is called automatically in `playEditors()` when the user picks "Load blank". No per-editor code needed.
+`clearDraft(targetKey)` is called automatically in `_doLoadBlank()` when the user picks "Load blank" (via `playLoadBlank()` → `_confirmAndLoadBlank()` → `_doLoadBlank()`). No per-editor code needed.
 
 ### Draft helpers (defined in `editors.js`)
 
@@ -346,13 +437,20 @@ These are handled by `editors.js` and do not need to be implemented per editor:
 | Feature | How it works |
 |---------|--------------|
 | **Editor switcher UI** | `populateEditorList()` builds the right-pane list from `editorHandlers` automatically. Runs on page load and after every `switchToEditor()` call. New editors appear immediately. |
-| **Content carry-over on switch** | `switchToEditor(editorType, carriedContent)` captures content from the current editor, warns if the conversion is lossy (HTML → plain text strips tags), stashes it in `pendingContent`, then calls `initializeEditor()`. |
+| **Per-editor state park/restore** | `switchToEditor()` parks the outgoing editor's page/references and restores the target editor's own previously-parked state (or a blank slate) — see "Running per-editor state" above. No per-editor code needed. |
+| **Manual-switch content-transfer prompt** | Picker clicks route through `_switchToEditorFromPicker()`, which offers Overwrite/Insert/Don't transfer when the outgoing editor has content — see above. No per-editor code needed; editors only need `getContent`/`loadContent` (and optionally `setContent`) as usual. |
 | **Indicator button** | `updateEditorIndicator()` is called by `initializeEditor()` after every successful init. It reads `handler.label` and updates both the command-bar button and the `#editor-status` div in the right pane. |
-| **Load blank clears draft** | The "Load blank" entry in `window.CList.loaders` calls `clearDraft(currentEditor)` before returning empty content. |
+| **Load blank clears draft** | The "Load blank" entry in `window.CList.loaders` opens `playLoadBlank()`'s type picker; `_doLoadBlank()` calls `clearDraft(targetKey)` once a type is chosen (and confirmed, if the current editor had content). |
 | **Account-backed editor listing** | Editors with `requiresAccount: true` appear in the switcher only when the user has a kvstore account with permission `'e'` and a matching `type` field. No extra code needed. |
 
 ---
 
 ## Known gaps
 
-- **Etherpad pending content**: Etherpad's `initialize()` does not call `loadPredefinedContent()`, so if content is waiting in `pendingContent` when Etherpad is selected, it is silently dropped. Fix: call `loadPredefinedContent('etherpad')` at the end of Etherpad's `initialize()`, or move the call into `initializeEditor()` centrally.
+- **References are per-editor, not per-page-within-editor**: loading a *different* saved page
+  into the editor that's already current (`loadSavedPage()`'s same-editor branches) does not
+  swap the references list — only switching *editors* does. A page's own `references[]`
+  (persisted in its `PageRecord`) is not re-loaded into the live panel when that page is
+  reopened in the same editor. This matches the in-memory, per-editor (not per-page) scope
+  agreed for this design, but is worth knowing if page-level reference restoration is wanted
+  later.

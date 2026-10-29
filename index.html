@@ -362,7 +362,10 @@
   <script src="js/ui.js" defer></script>          <!-- CList.ui factory functions -->
   <script src="js/references.js" defer></script>  <!-- Reference list for convergence -->
   <script src="js/crypto_utils.js" defer></script>
-  <script src="js/kvstore.js" defer></script>     <!-- Loads usere and account data --> 
+  <script src="js/storage.js" defer></script>          <!-- window.CList.storage.kv.* facade; defines KvStoreError, must load before the two adapters below -->
+  <script src="js/kvstore-remote.js" defer></script>  <!-- storage.js facade: HTTP adapter -->
+  <script src="js/kvstore-local.js" defer></script>   <!-- storage.js facade: IndexedDB adapter; must load after local-kvstore.js and storage.js -->
+  <script src="js/kvstore.js" defer></script>     <!-- Loads usere and account data -->
   <script src="js/editors.js" defer></script>   <!-- Major function handlers-->
   <script src="js/reader.js?v=5" defer></script>
 
@@ -386,7 +389,9 @@
   
   <!--script src="js/audio.js" defer></script -->          <!-- Audio -->   
 
-  <script src="js/files.js" defer></script>          <!-- Save / Load -->
+  <script src="js/page-store-idb.js" defer></script>  <!-- Save / Load --> <!-- Local IndexedDB layer for PageStore -->
+  <script src="js/page-store.js" defer></script>      <!-- PageStore public API + its savers/loaders registry entries -->
+  <script src="js/files.js" defer></script>
 
   <script src="js/wordpress.js" defer></script>      <!-- Posts -->
   <script src="js/blogger.js" defer></script>
@@ -396,6 +401,7 @@
   <script src="js/collab.js" defer></script>
   <script src="js/tags.js" defer></script>         <!-- Write-pane tag field -->
   <script src="js/annotate.js" defer></script>   <!-- Annotation store -->
+  <script src="js/collection-formats.js" defer></script> <!-- Collection format interpreters -->
   <script src="js/collections.js" defer></script> <!-- Collections -->
   <script src="js/collection-editor.js" defer></script>
   <script src="js/jsonbin.js" defer></script>    <!-- Bin publishers -->

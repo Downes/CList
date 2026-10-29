@@ -65,6 +65,18 @@ function clearReferences() {
     if (refsBtn) refsBtn.style.display = 'none';
 }
 
+// Replace the entire reference list wholesale and re-render — used by editors.js's
+// per-editor state park/restore (switching editors) and content-transfer prompt
+// (Overwrite/Insert), where the caller has already built the exact list it wants
+// (parked state, or a deduped union) rather than appending one deduped-by-url entry
+// the way pushReference() does.
+function setReferences(list) {
+    window.CList.state.references = Array.isArray(list) ? list : [];
+    _renderReferencesPanel();
+    const refsBtn = window.CList.ui.view.referencesButton;
+    if (refsBtn) refsBtn.style.display = window.CList.state.references.length ? '' : 'none';
+}
+
 // Render the references panel in the write pane.
 function _renderReferencesPanel() {
     const refs = window.CList.state.references;

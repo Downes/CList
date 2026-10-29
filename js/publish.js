@@ -365,6 +365,31 @@ async function _performWebPagePublish(adapter, content, mimeType, title, binAcco
         return;
     }
 
+    // A local-page keeps its local identity when published — annotate the existing
+    // PageStore record (docs/storage-model.md "recordPublication") instead of
+    // forking a My Pages record. Every other case (no loaded page, or a page
+    // loaded from My Pages but published under a fresh id) keeps the My Pages
+    // behavior below unchanged.
+    if (currentLoadedPage && currentLoadedPage.kind === 'local-page') {
+        try {
+            await window.CList.pageStore.recordPublication(currentLoadedPage.id, {
+                service: 'CListBin',
+                accountId: binAccount.instance || null,
+                url: result.url,
+            });
+            // Mirror the new publication onto the live pointer too — recordPublication
+            // only wrote it into the persisted PageRecord, and local-page records (unlike
+            // 'page'-kind ones) don't otherwise carry a url/format for the editor's
+            // running-state indicator (updateLoadedPageUI()) to show.
+            currentLoadedPage.publicationUrl = result.url;
+            currentLoadedPage.format = (mimeType.split('/')[1] || '').toUpperCase();
+        } catch (e) {
+            console.error('[postToWebPage] failed to record publication', e);
+            showStatusMessage("Published, but could not update the local page's publication status: " + e.message);
+        }
+        return;
+    }
+
     // Record the page in kvstore so it shows up in Load → My Pages. The page is
     // already live even if this fails, so a failure here is reported separately
     // rather than made to look like the publish itself failed.
@@ -404,33 +429,25 @@ async function _performWebPagePublish(adapter, content, mimeType, title, binAcco
     }
 }
 
-// Encrypt and upsert a page record to kvstore (add_kv, fallback update_kv on 409) —
-// same pattern as collections.js's _kvSaveItems, under a separate `page:*` key
+// Encrypt and upsert a page record to kvstore (via storage.kv.put) — same pattern
+// as collections.js's _kvSaveItems, under a separate `page:*` key
 // namespace so standalone pages can't collide with `collection:*` entries.
 // Returns the kvstore key the record was saved under, so the caller can track it
 // (e.g. via setLoadedPage) for later Republish/overwrite calls. The key is always
 // derived from record.id (minting one if the caller omitted it) so the kvstore
 // key and the record's own identity share the same uuid, mirroring collections.
 async function _saveWebPageRecord(record) {
-    const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
-    if (!token) throw new Error('Not logged in');
     const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
     if (!encKey) throw new Error('Encryption key not available');
 
     if (!record.id) record.id = `urn:uuid:${crypto.randomUUID()}`;
     const key = `page:${record.id.replace(/^urn:uuid:/, '')}`;
     const encrypted = await encryptWithKey(encKey, JSON.stringify(record));
-    const kvPayload = { key, value: encrypted };
-    const kvHeaders = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
-    let resp = await fetch(`${window.CList.config.flaskSiteUrl}/add_kv/`, {
-        method: 'POST', headers: kvHeaders, body: JSON.stringify(kvPayload),
-    });
-    if (resp.status === 409) {
-        resp = await fetch(`${window.CList.config.flaskSiteUrl}/update_kv/`, {
-            method: 'POST', headers: kvHeaders, body: JSON.stringify(kvPayload),
-        });
+    try {
+        await window.CList.storage.kv.put(key, encrypted);
+    } catch (err) {
+        throw new Error(err.code === 'NotAuthenticated' ? 'Not logged in' : `kvstore error: ${err.message}`);
     }
-    if (!resp.ok) throw new Error(`kvstore error ${resp.status}`);
     return key;
 }
 
@@ -513,8 +530,8 @@ async function _findAccountForPage(page) {
     return account || null;
 }
 
-// Patches the page's own kvstore record in place — same fetch/decrypt/patch/
-// re-encrypt/update_kv shape as _saveWebPageRecord — when the current session
+// Patches the page's own kvstore record in place — same list/decrypt/patch/
+// re-encrypt/update shape as _saveWebPageRecord — when the current session
 // is the same author (or a verified alias of the record's authorDid via
 // alsoKnownAs). When it's a different, unverified author, forks instead:
 // mints a new urn:uuid, writes a brand-new `page:<uuid>` record carrying
@@ -524,12 +541,8 @@ async function _findAccountForPage(page) {
 // Returns { pageKey, id, forked } so callers can repoint currentLoadedPage/
 // page at the record that actually got written.
 async function _touchOrForkWebPageRecord(pageKey, id, extra = {}) {
-    const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
     const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
-    const resp = await fetch(`${window.CList.config.flaskSiteUrl}/get_kvs/`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-    });
-    const kvs = await resp.json();
+    const kvs = await window.CList.storage.kv.list();
     const kv = (kvs || []).find(k => k.key === pageKey);
     if (!kv) return { pageKey, id, forked: false };
     const rec = JSON.parse(await decryptWithKey(encKey, kv.value));
@@ -557,11 +570,7 @@ async function _touchOrForkWebPageRecord(pageKey, id, extra = {}) {
     if (currentDid) rec.authorDid = currentDid;
     Object.assign(rec, extra);
     const encrypted = await encryptWithKey(encKey, JSON.stringify(rec));
-    await fetch(`${window.CList.config.flaskSiteUrl}/update_kv/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ key: pageKey, value: encrypted }),
-    });
+    await window.CList.storage.kv.update(pageKey, encrypted);
     return { pageKey, id: rec.id, forked: false };
 }
 
@@ -683,6 +692,27 @@ async function postAll() {
             p.className = 'feed-status-message';
             p.innerHTML = `Published to ${accountData.title || accountData.type}: <a href="${url}" target="_blank">${url}</a>`;
             resultDiv.appendChild(p);
+
+            // A local-page keeps its local identity when published to a social
+            // account too — annotate the existing PageStore record instead of
+            // forking it (docs/storage-model.md "recordPublication").
+            if (currentLoadedPage && currentLoadedPage.kind === 'local-page') {
+                try {
+                    await window.CList.pageStore.recordPublication(currentLoadedPage.id, {
+                        service: accountData.type,
+                        accountId: accountData.id || null,
+                        url,
+                    });
+                    // See postToWebPage()'s matching comment — mirror onto the live
+                    // pointer for the running-state indicator. No file format here
+                    // (a social status post, not a published file), so format is left
+                    // whatever it already was.
+                    currentLoadedPage.publicationUrl = url;
+                } catch (e) {
+                    console.error('[postAll] failed to record publication', e);
+                    showPostMessage(resultDiv, "Published, but could not update the local page's publication status: " + e.message);
+                }
+            }
         }
     }
 

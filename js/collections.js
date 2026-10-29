@@ -2,7 +2,9 @@ console.log('[collections] collections.js loading');
 // collections.js — kvstore-backed collections for CList
 // Depends on: utilities.js (escapeHtml, getSiteSpecificCookie, showStatusMessage),
 //             kvstore.js (getEncKey), crypto_utils.js (encryptWithKey, decryptWithKey),
-//             editors.js (currentEditor), tinymce.js (displayReferences)
+//             editors.js (currentEditor), tinymce.js (displayReferences),
+//             collection-editor.js (_renderCollectionEditor, _showCollectionReturnBar —
+//             editor-rendering layer; loads after this file but only called at runtime)
 // window.CList.config.flaskSiteUrl is a global set in index.html
 
 // ── Collections ──────────────────────────────────────────────────────────────
@@ -13,134 +15,6 @@ const _COLLECTION_NAME_RE = /^[a-zA-Z0-9#\-_ ]+$/;
 
 let _collectionsPopstateHandler = null;
 let _activeCollection = null; // set by load button; read by showCollectionEditorPanel
-let _draftItems = null;       // live reference to the editor's item array; set by _renderCollectionEditor
-let _refreshEditor = null;    // callback to re-render the entry list; set by _renderCollectionEditor
-let _idDisplayEl   = null;    // the UUID-display element; set by _renderCollectionEditor
-
-// Refresh the UUID-display element from _activeCollection — called whenever
-// Save/Publish assigns a fresh identity to a collection that didn't have one yet.
-function _refreshIdDisplay() {
-    if (!_idDisplayEl) return;
-    const id = _activeCollection?.col?.id;
-    _idDisplayEl.textContent = id ? `ID: ${id}` : 'Not yet saved — an ID will be assigned on first save.';
-}
-
-// Format registry — add an entry here to expose a new output format in the collection editor.
-// Each entry: { label, ext, mimeType, serialize(name, items, id) → string }
-// `id` is the collection's own urn:uuid identity (see docs/identification-model-v1.01.md) —
-// embedded per format using the most standard mechanism each one supports, so a page keeps
-// its identity when read back without CList's own kvstore record (see _collectionFormatParsers
-// below for the matching read side). Falsy id → identity field/element is simply omitted.
-const collectionFormats = {
-    rss: {
-        label: 'RSS', ext: 'xml', mimeType: 'application/rss+xml',
-        serialize(name, items, id) {
-            const safe = items.filter(i => i.url);
-            const itemsXml = safe.map(item => {
-                const t = escapeHtml(_collectionItemDisplayTitle(item) || item.url);
-                const l = escapeHtml(item.url);
-                const d = item.summary    ? `\n    <description>${escapeHtml(item.summary)}</description>`       : '';
-                const a = item.author_name ? `\n    <author>${escapeHtml(item.author_name)}</author>`            : '';
-                return `  <item>\n    <title>${t}</title>\n    <link>${l}</link>${d}${a}\n  </item>`;
-            }).join('\n');
-            // Dublin Core RSS extension — dc:identifier is the standard way to carry a
-            // persistent identifier on an RSS channel.
-            const idXml = id ? `\n    <dc:identifier>${escapeHtml(id)}</dc:identifier>` : '';
-            return `<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/">\n  <channel>\n    <title>${escapeHtml(name)}</title>\n    <link></link>\n    <description>${escapeHtml(name)}</description>${idXml}\n${itemsXml}\n  </channel>\n</rss>`;
-        },
-    },
-    opml: {
-        label: 'OPML', ext: 'opml', mimeType: 'text/x-opml',
-        serialize(name, items, id) {
-            const safe = items.filter(i => i.url);
-            const outlines = safe.map(item => {
-                const t = escapeHtml(_collectionItemDisplayTitle(item) || item.url);
-                const u = escapeHtml(item.url);
-                return `    <outline text="${t}" type="rss" xmlUrl="${u}" htmlUrl="${u}"/>`;
-            }).join('\n');
-            // OPML 2.0 has no native document-identity field. <id> is a documented
-            // CList-specific extension inside <head> — unknown elements are ignored by
-            // conforming OPML parsers, so this is safe to add.
-            const idXml = id ? `\n    <id>${escapeHtml(id)}</id>` : '';
-            return `<?xml version="1.0" encoding="UTF-8"?>\n<opml version="2.0">\n  <head>\n    <title>${escapeHtml(name)}</title>\n    <dateCreated>${new Date().toUTCString()}</dateCreated>${idXml}\n  </head>\n  <body>\n${outlines}\n  </body>\n</opml>`;
-        },
-    },
-    json: {
-        label: 'JSON', ext: 'json', mimeType: 'application/json',
-        serialize(name, items, id) {
-            return JSON.stringify({
-                ...(id ? { id } : {}),
-                title: name,
-                publishedAt: new Date().toISOString(),
-                items: items.filter(i => i.url).map(item => ({
-                    title:      _collectionItemDisplayTitle(item) || '',
-                    url:        item.url,
-                    author:     item.author_name || '',
-                    summary:    item.summary     || '',
-                    created_at: item.created_at  || '',
-                })),
-            }, null, 2);
-        },
-    },
-    html: {
-        label: 'HTML', ext: 'html', mimeType: 'text/html',
-        serialize(name, items, id) {
-            const rows = items.filter(i => i.url).map(item => {
-                const t = escapeHtml(_collectionItemDisplayTitle(item) || item.url);
-                const u = escapeHtml(item.url);
-                const a = item.author_name ? ` — ${escapeHtml(item.author_name)}` : '';
-                return `  <li><a href="${u}">${t}</a>${a}</li>`;
-            }).join('\n');
-            // Dublin Core meta + link rel="identifier" — the convention EPUB/Portable
-            // Web Publications use for a document's own persistent identifier.
-            const idHtml = id
-                ? `\n  <meta name="dcterms.identifier" content="${escapeHtml(id)}">\n  <link rel="identifier" href="${escapeHtml(id)}">`
-                : '';
-            return `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8">\n  <title>${escapeHtml(name)}</title>${idHtml}\n</head>\n<body>\n<h1>${escapeHtml(name)}</h1>\n<ul>\n${rows}\n</ul>\n</body>\n</html>`;
-        },
-    },
-    md: {
-        label: 'Markdown', ext: 'md', mimeType: 'text/markdown',
-        serialize(name, items, id) {
-            const lines = items.filter(i => i.url).map(item => {
-                const t = _collectionItemDisplayTitle(item) || item.url;
-                const a = item.author_name ? ` — ${item.author_name}` : '';
-                return `- [${t}](${item.url})${a}`;
-            });
-            // YAML front matter — the de facto standard for Markdown document metadata
-            // (Jekyll/Hugo/etc.).
-            const front = id ? `---\nid: ${id}\ntitle: ${name}\n---\n\n` : '';
-            return `${front}# ${name}\n\n${lines.join('\n')}\n`;
-        },
-    },
-    text: {
-        label: 'Text', ext: 'txt', mimeType: 'text/plain',
-        serialize(name, items, id) {
-            const lines = items.filter(i => i.url).map(item => {
-                const t = _collectionItemDisplayTitle(item) || item.url;
-                const a = item.author_name ? ` (${item.author_name})` : '';
-                return `${t}${a}\n${item.url}`;
-            });
-            // Plain text has no metadata standard at all — this leading line is an
-            // acknowledged CList-specific convention, not a real standard.
-            const idLine = id ? `ID: ${id}\n\n` : '';
-            return `${idLine}${name}\n${'='.repeat(name.length || 10)}\n\n${lines.join('\n\n')}\n`;
-        },
-    },
-};
-
-// Returns a human-readable display title for a collection item.
-// Social platform items (Mastodon, Bluesky) show "Platform (@handle)" instead
-// of the bare service name stored in item.title.
-function _collectionItemDisplayTitle(item) {
-    const isSocial = item.service === 'Mastodon' || item.service === 'Bluesky'
-                  || item.title   === 'Mastodon' || item.title   === 'Bluesky';
-    if (!isSocial) return item.title || item.url || '';
-    const platform = item.title || item.service || 'Social';
-    if (item.author_id)   return `${platform} (@${item.author_id})`;
-    if (item.author_name) return `${platform} (${item.author_name})`;
-    return platform;
-}
 
 // Called from collect buttons on all feed item types.
 window.collectItem = function(itemId, opts) {
@@ -174,34 +48,23 @@ async function _showCollectionPicker(itemId, opts = {}) {
         const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
         if (!encKey) throw new Error('Encryption key not available — please log in again.');
 
-        const resp = await fetch(`${window.CList.config.flaskSiteUrl}/get_kvs/`, {
-            headers: { 'Authorization': `Bearer ${token}` },
-        });
-        if (!resp.ok) throw new Error(`kvstore error ${resp.status}`);
-        const kvs = await resp.json();
-
-        const collections = [];
-        for (const kv of (kvs || [])) {
-            if (!kv.key.startsWith('collection:')) continue;
-            let colData = { id: null, title: null, items: [], publishedUrls: [] };
-            try { colData = _parseCollectionData(JSON.parse(await decryptWithKey(encKey, kv.value))); } catch {}
-            collections.push({ key: kv.key, title: colData.title || kv.key.replace(/^collection:/, ''), colData });
-        }
+        const collections = await _fetchAllCollections(token, encKey);
 
         picker.innerHTML = '';
         _buildCollectionPickerContents(picker, collections, async (title, col) => {
             try {
-                const colData = col ? col.colData : { items: [], publishedUrls: [] };
+                const items         = col ? col.items : [];
+                const publishedUrls = col ? col.publishedUrls : [];
                 const specificEl = document.getElementById(itemId);
                 const ref   = specificEl?.reference || {};
                 const url   = ref.url   || '';
                 const itemTitle = ref.title || url || itemId;
                 // Duplicate memberships are allowed (e.g. the same track twice in a
                 // playlist) — each membership gets its own id, so this is just a nudge.
-                const alreadyIn = url && colData.items.some(i => i.url === url);
-                colData.items.push({ membershipId: crypto.randomUUID(), id: itemId, title: itemTitle, url, ...ref });
-                const identity = col ? _resolveCollectionIdentity(col.key, colData.id) : _newCollectionIdentity();
-                await _kvSaveItems(identity.key, identity.id, title, colData.items, token, encKey, colData.publishedUrls);
+                const alreadyIn = url && items.some(i => i.url === url);
+                items.push({ membershipId: crypto.randomUUID(), id: itemId, title: itemTitle, url, ...ref });
+                const identity = col ? _resolveCollectionIdentity(col.key, col.id) : _newCollectionIdentity();
+                await _kvSaveItems(identity.key, identity.id, title, items, token, encKey, publishedUrls);
                 document.getElementById(`collect-btn-${itemId}`)?.classList.add('action-active');
                 picker.remove();
                 showStatusMessage(alreadyIn ? `Already in "${title}" — added again.` : `Added to "${title}".`);
@@ -255,11 +118,12 @@ function _resolveCollectionIdentity(key, id) {
 // of those needs a slightly different parsed shape) rather than refactoring
 // those pre-existing call sites.
 async function _fetchAllCollections(token, encKey) {
-    const resp = await fetch(`${window.CList.config.flaskSiteUrl}/get_kvs/`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-    });
-    if (!resp.ok) throw new Error(`kvstore error ${resp.status}`);
-    const kvs = await resp.json();
+    let kvs;
+    try {
+        kvs = await window.CList.storage.kv.list();
+    } catch (err) {
+        throw new Error(err.code === 'NotAuthenticated' ? 'Not logged in' : `kvstore error: ${err.message}`);
+    }
 
     const collections = [];
     for (const kv of (kvs || [])) {
@@ -276,11 +140,12 @@ async function _fetchAllCollections(token, encKey) {
 // leaf-page half of the collection editor's "+ From page or collection"
 // picker. Mirrors _fetchAllCollections but for page: records.
 async function _fetchAllPublishedPages(token, encKey) {
-    const resp = await fetch(`${window.CList.config.flaskSiteUrl}/get_kvs/`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-    });
-    if (!resp.ok) throw new Error(`kvstore error ${resp.status}`);
-    const kvs = await resp.json();
+    let kvs;
+    try {
+        kvs = await window.CList.storage.kv.list();
+    } catch (err) {
+        throw new Error(err.code === 'NotAuthenticated' ? 'Not logged in' : `kvstore error: ${err.message}`);
+    }
 
     const pages = [];
     for (const kv of (kvs || [])) {
@@ -359,22 +224,16 @@ async function _flattenForExport(items, rootId, token, encKey, ancestors) {
     return out;
 }
 
-// Encrypt items and upsert to kvstore under an explicit key (add_kv, fallback
-// update_kv on 409). Collections are identified by this key, not by title —
-// renaming the title and saving must always target the same key.
+// Encrypt items and upsert to kvstore under an explicit key via storage.kv.put().
+// Collections are identified by this key, not by title — renaming the title and
+// saving must always target the same key.
 async function _kvSaveItems(key, id, title, items, token, encKey, publishedUrls = []) {
     const encrypted = await encryptWithKey(encKey, JSON.stringify({ id, title, items, publishedUrls }));
-    const kvPayload = { key, value: encrypted };
-    const kvHeaders = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
-    let resp = await fetch(`${window.CList.config.flaskSiteUrl}/add_kv/`, {
-        method: 'POST', headers: kvHeaders, body: JSON.stringify(kvPayload),
-    });
-    if (resp.status === 409) {
-        resp = await fetch(`${window.CList.config.flaskSiteUrl}/update_kv/`, {
-            method: 'POST', headers: kvHeaders, body: JSON.stringify(kvPayload),
-        });
+    try {
+        await window.CList.storage.kv.put(key, encrypted);
+    } catch (err) {
+        throw new Error(err.code === 'NotAuthenticated' ? 'Not logged in' : `kvstore error: ${err.message}`);
     }
-    if (!resp.ok) throw new Error(`kvstore error ${resp.status}`);
 }
 
 // Populate a .collection-picker div with existing collection buttons + new-name row.
@@ -551,12 +410,11 @@ async function _removeItemFromCollection(col, item, token, encKey, countSpan, it
         col.items = col.items.filter(i =>
             item.membershipId ? i.membershipId !== item.membershipId : i !== item);
         const encrypted = await encryptWithKey(encKey, JSON.stringify({ id: col.id, title: col.name, items: col.items, publishedUrls: col.publishedUrls || [] }));
-        const resp = await fetch(`${window.CList.config.flaskSiteUrl}/update_kv/`, {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body:    JSON.stringify({ key: col.key, value: encrypted }),
-        });
-        if (!resp.ok) throw new Error(`kvstore error ${resp.status}`);
+        try {
+            await window.CList.storage.kv.update(col.key, encrypted);
+        } catch (err) {
+            throw new Error(err.code === 'NotAuthenticated' ? 'Not logged in' : `kvstore error: ${err.message}`);
+        }
         countSpan.textContent = `${col.items.length} item${col.items.length !== 1 ? 's' : ''}`;
         _renderCollectionItems(col, token, encKey, countSpan, itemsDiv);
         showStatusMessage('Item removed.');
@@ -854,97 +712,6 @@ function _showCollectionDetail(col, token, encKey) {
 
 // ── Collection import ────────────────────────────────────────────────────────
 
-// Only a well-formed urn:uuid identifier is trusted as an identity — anything else
-// (missing, malformed, someone else's unrelated scheme) is ignored and a fresh
-// identity is minted instead, same as a page with no id at all.
-const _URN_UUID_RE = /^urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-function _validUrnUuid(value) {
-    return typeof value === 'string' && _URN_UUID_RE.test(value) ? value : undefined;
-}
-
-function _parseCollectionJSON(text) {
-    const data  = JSON.parse(text);
-    const items = (data.items || [])
-        .map(i => ({ title: i.title || i.url || '', url: i.url || '', author_name: i.author || '', summary: i.summary || '' }))
-        .filter(i => i.url);
-    return { title: data.title || 'Imported collection', items, id: _validUrnUuid(data.id) };
-}
-
-function _parseCollectionOPML(text) {
-    const doc      = new DOMParser().parseFromString(text, 'text/xml');
-    const titleEl  = doc.querySelector('head > title');
-    const title    = titleEl?.textContent?.trim() || 'Imported collection';
-    const id       = _validUrnUuid(doc.querySelector('head > id')?.textContent?.trim());
-    const items    = [...doc.querySelectorAll('body > outline')]
-        .map(o => ({
-            title: o.getAttribute('text') || o.getAttribute('title') || '',
-            url:   o.getAttribute('xmlUrl') || o.getAttribute('htmlUrl') || '',
-        }))
-        .filter(i => i.url);
-    return { title, items, id };
-}
-
-function _parseCollectionHTML(text) {
-    const doc   = new DOMParser().parseFromString(text, 'text/html');
-    const title = doc.querySelector('h1')?.textContent?.trim()
-               || doc.querySelector('title')?.textContent?.trim()
-               || 'Imported collection';
-    const id    = _validUrnUuid(doc.querySelector('link[rel="identifier"]')?.getAttribute('href')?.trim())
-               || _validUrnUuid(doc.querySelector('meta[name="dcterms.identifier"]')?.getAttribute('content')?.trim());
-    const items = [...doc.querySelectorAll('ul li a')]
-        .map(a => ({ title: a.textContent.trim(), url: a.href }))
-        .filter(i => i.url && !i.url.startsWith('javascript'));
-    return { title, items, id };
-}
-
-function _parseCollectionRSS(text) {
-    const doc   = new DOMParser().parseFromString(text, 'text/xml');
-    const titleEl = doc.querySelector('channel > title, feed > title');
-    const title   = titleEl?.textContent?.trim() || 'Imported feed';
-    const id      = _validUrnUuid(
-        doc.querySelector('channel > dc\\:identifier, feed > dc\\:identifier')?.textContent?.trim()
-    );
-    const rssItems  = [...doc.querySelectorAll('item')].map(item => ({
-        title:       item.querySelector('title')?.textContent?.trim() || '',
-        url:         item.querySelector('link')?.textContent?.trim() || '',
-        author_name: item.querySelector('author')?.textContent?.trim()
-                  || item.querySelector('dc\\:creator')?.textContent?.trim() || '',
-        summary:     item.querySelector('description')?.textContent?.trim() || '',
-    }));
-    const atomItems = [...doc.querySelectorAll('entry')].map(entry => ({
-        title:       entry.querySelector('title')?.textContent?.trim() || '',
-        url:         entry.querySelector('link')?.getAttribute('href') || '',
-        author_name: entry.querySelector('author > name')?.textContent?.trim() || '',
-        summary:     entry.querySelector('summary, content')?.textContent?.trim() || '',
-    }));
-    const items = (rssItems.length ? rssItems : atomItems).filter(i => i.url);
-    return { title, items, id };
-}
-
-// Formats that round-trip back into collection items — used by My Pages' "Load into
-// collection editor" action. md/text are export-only (no parser), so they're left out.
-const _collectionFormatParsers = {
-    rss:  _parseCollectionRSS,
-    opml: _parseCollectionOPML,
-    json: _parseCollectionJSON,
-    html: _parseCollectionHTML,
-};
-
-function _detectFormat(contentType, url) {
-    if (contentType?.includes('json'))                         return 'json';
-    if (contentType?.includes('opml'))                         return 'opml';
-    if (contentType?.includes('html'))                         return 'html';
-    if (contentType?.includes('rss') || contentType?.includes('atom') || contentType?.includes('xml'))
-                                                               return 'rss';
-    const lower = (url || '').toLowerCase().split('?')[0];
-    if (lower.endsWith('.json'))                               return 'json';
-    if (lower.endsWith('.opml'))                               return 'opml';
-    if (lower.endsWith('.rss') || lower.endsWith('.atom') || lower.endsWith('.xml')) return 'rss';
-    if (lower.endsWith('.html') || lower.endsWith('.htm'))     return 'html';
-    if (lower.endsWith('.md') || lower.endsWith('.txt'))       return 'text';
-    return 'json'; // default guess
-}
-
 // Show a preview panel for a parsed {title, items} so the user can name and save it.
 function _showCollectionImportPreview(parsed, token, encKey) {
     const feedContainer = window.CList.ui.view.feedContainer;
@@ -1121,24 +888,10 @@ window.showSavedCollections = async function() {
     }
 
     try {
-        const resp = await fetch(`${window.CList.config.flaskSiteUrl}/get_kvs/`, {
-            headers: { 'Authorization': `Bearer ${token}` },
-        });
-        if (!resp.ok) throw new Error(`kvstore error ${resp.status}`);
-        const kvs = await resp.json();
-
         const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
         if (!encKey) throw new Error('Encryption key not available — please log in again.');
 
-        const collections = [];
-        for (const kv of (kvs || [])) {
-            if (!kv.key.startsWith('collection:')) continue;
-            try {
-                const raw = JSON.parse(await decryptWithKey(encKey, kv.value));
-                const colData = _parseCollectionData(raw);
-                collections.push({ key: kv.key, id: colData.id, name: colData.title || kv.key.replace(/^collection:/, ''), items: colData.items, publishedUrls: colData.publishedUrls });
-            } catch { /* skip corrupt entries */ }
-        }
+        const collections = await _fetchAllCollections(token, encKey);
 
         feedContainer.innerHTML = '';
         const header = document.createElement('div');
@@ -1164,7 +917,7 @@ window.showSavedCollections = async function() {
 
             const nameSpan = document.createElement('span');
             nameSpan.className   = 'saved-collection-name';
-            nameSpan.textContent = col.name;
+            nameSpan.textContent = col.title;
             nameSpan.title       = 'View / edit items';
             nameSpan.onclick     = () => _showCollectionDetail(col, token, encKey);
 
@@ -1189,24 +942,19 @@ window.showSavedCollections = async function() {
             confirmRow.style.display = 'none';
 
             const confirmLabel = document.createElement('span');
-            confirmLabel.textContent = `Delete "${col.name}"? `;
+            confirmLabel.textContent = `Delete "${col.title}"? `;
 
             const yesBtn = document.createElement('button');
             yesBtn.className   = 'btn collection-confirm-btn';
             yesBtn.textContent = 'Delete';
             yesBtn.onclick     = async () => {
                 try {
-                    const delResp = await fetch(`${window.CList.config.flaskSiteUrl}/delete_kv/`, {
-                        method:  'POST',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                        body:    JSON.stringify({ key: col.key }),
-                    });
-                    if (!delResp.ok) throw new Error(`kvstore error ${delResp.status}`);
-                    showStatusMessage(`Collection "${col.name}" deleted.`);
+                    await window.CList.storage.kv.remove(col.key);
+                    showStatusMessage(`Collection "${col.title}" deleted.`);
                     window.showSavedCollections();
-                } catch (e) {
-                    console.error('[collection] delete failed', e);
-                    showStatusMessage('Could not delete: ' + e.message);
+                } catch (err) {
+                    console.error('[collection] delete failed', err);
+                    showStatusMessage('Could not delete: ' + (err.code === 'NotAuthenticated' ? 'Not logged in' : err.message));
                 }
             };
 
@@ -1369,11 +1117,12 @@ window.showSavedCollections = async function() {
                 const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
                 if (!encKey) throw new Error('Encryption key not available');
 
-                const resp = await fetch(`${window.CList.config.flaskSiteUrl}/get_kvs/`, {
-                    headers: { 'Authorization': `Bearer ${token}` },
-                });
-                if (!resp.ok) throw new Error(`kvstore error ${resp.status}`);
-                const kvs = await resp.json();
+                let kvs;
+                try {
+                    kvs = await window.CList.storage.kv.list();
+                } catch (err) {
+                    throw new Error(err.code === 'NotAuthenticated' ? 'Not logged in' : `kvstore error: ${err.message}`);
+                }
 
                 const pages = [];
                 for (const kv of (kvs || [])) {
@@ -1606,46 +1355,33 @@ window.showSavedCollections = async function() {
                         if (page.kind === 'page') {
                             // Standalone page — remove its own page:* kvstore entry.
                             try {
-                                const delResp = await fetch(`${window.CList.config.flaskSiteUrl}/delete_kv/`, {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                                    body: JSON.stringify({ key: page.pageKey }),
-                                });
-                                if (!delResp.ok) throw new Error(`kvstore error ${delResp.status}`);
+                                await window.CList.storage.kv.remove(page.pageKey);
                                 pages.splice(pages.indexOf(page), 1);
                                 renderBody();
                                 showStatusMessage('Page removed.');
-                            } catch (e) {
-                                console.error('[mypages] kvstore delete failed', e);
-                                showStatusMessage('Could not remove: ' + e.message);
+                            } catch (err) {
+                                console.error('[mypages] kvstore delete failed', err);
+                                showStatusMessage('Could not remove: ' + (err.code === 'NotAuthenticated' ? 'Not logged in' : err.message));
                             }
                             return;
                         }
                         // Published collection — remove this URL from the collection's publishedUrls array
                         try {
-                            const getResp = await fetch(`${window.CList.config.flaskSiteUrl}/get_kvs/`, {
-                                headers: { 'Authorization': `Bearer ${token}` },
-                            });
-                            if (!getResp.ok) throw new Error(`kvstore ${getResp.status}`);
-                            const allKvs = await getResp.json();
+                            const allKvs = await window.CList.storage.kv.list();
                             const colKv  = (allKvs || []).find(k => k.key === page.collectionKey);
                             if (colKv) {
                                 const raw = JSON.parse(await decryptWithKey(encKey, colKv.value));
                                 const col = _parseCollectionData(raw);
                                 col.publishedUrls = (col.publishedUrls || []).filter(p => p.url !== page.url);
                                 const encrypted = await encryptWithKey(encKey, JSON.stringify({ id: col.id, title: col.title, items: col.items, publishedUrls: col.publishedUrls }));
-                                await fetch(`${window.CList.config.flaskSiteUrl}/update_kv/`, {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                                    body: JSON.stringify({ key: colKv.key, value: encrypted }),
-                                });
+                                await window.CList.storage.kv.update(colKv.key, encrypted);
                             }
                             pages.splice(pages.indexOf(page), 1);
                             renderBody();
                             showStatusMessage('Page removed.');
-                        } catch (e) {
-                            console.error('[mypages] kvstore update failed', e);
-                            showStatusMessage('Could not remove: ' + e.message);
+                        } catch (err) {
+                            console.error('[mypages] kvstore update failed', err);
+                            showStatusMessage('Could not remove: ' + (err.code === 'NotAuthenticated' ? 'Not logged in' : err.message));
                         }
                     };
 
@@ -1827,14 +1563,15 @@ window.showSavedCollections = async function() {
                         if (typeof setLoadedPage === 'function') setLoadedPage(null);
                         if (typeof closeRightPane   === 'function') closeRightPane();
                         resolve(null);
-                    } else if (format === 'html') {
-                        if (typeof switchToEditor === 'function') {
-                            await switchToEditor('tinymce', { type: 'text/html', value: text });
-                        }
-                        resolve(null);
                     } else {
-                        if (typeof switchToEditor === 'function') {
-                            await switchToEditor('texteditor', { type: 'text/plain', value: text });
+                        // Route through the shared loadSavedPage() path — same as "Load
+                        // from file" — instead of forcing switchToEditor() directly: it
+                        // picks the right editor, checks for existing content, and offers
+                        // Replace/Insert/Cancel instead of silently cursor-inserting into
+                        // whatever's already there.
+                        if (typeof loadSavedPage === 'function') {
+                            const contentType = (format === 'html') ? 'text/html' : 'text/plain';
+                            await loadSavedPage({ type: contentType, value: text }, null, optionsDiv, () => populateLoadOptions());
                         }
                         resolve(null);
                     }
@@ -1892,32 +1629,20 @@ window.importCollectionFromChat = async function(items, anchorEl) {
     try {
         const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
         if (!encKey) throw new Error('Encryption key not available — please log in again.');
-        const resp = await fetch(`${window.CList.config.flaskSiteUrl}/get_kvs/`, {
-            headers: { 'Authorization': `Bearer ${token}` },
-        });
-        if (!resp.ok) throw new Error(`kvstore error ${resp.status}`);
-        const kvs = await resp.json();
-        const collections = [];
-        for (const kv of (kvs || [])) {
-            if (!kv.key.startsWith('collection:')) continue;
-            let colData = { id: null, title: null, items: [], publishedUrls: [] };
-            try { colData = _parseCollectionData(JSON.parse(await decryptWithKey(encKey, kv.value))); } catch {}
-            collections.push({ key: kv.key, title: colData.title || kv.key.replace(/^collection:/, ''), colData });
-        }
+        const collections = await _fetchAllCollections(token, encKey);
 
         picker.innerHTML = '';
 
         async function onPickerSelect(title, col) {
             if (col) {
                 // Existing collection — show conflict dialog
-                const existing = col.colData;
-                const existingUrls = new Set(existing.items.map(i => i.url).filter(Boolean));
+                const existingUrls = new Set(col.items.map(i => i.url).filter(Boolean));
                 const toAdd = items.filter(i => i.url && !existingUrls.has(i.url));
-                const identity = _resolveCollectionIdentity(col.key, existing.id);
+                const identity = _resolveCollectionIdentity(col.key, col.id);
                 _buildCollectionConflictUI(picker, title,
                     async () => {
                         try {
-                            await _kvSaveItems(identity.key, identity.id, title, items, token, encKey, existing.publishedUrls);
+                            await _kvSaveItems(identity.key, identity.id, title, items, token, encKey, col.publishedUrls);
                             picker.remove();
                             showStatusMessage(`Saved as "${title}".`);
                         } catch (e) {
@@ -1927,7 +1652,7 @@ window.importCollectionFromChat = async function(items, anchorEl) {
                     },
                     async () => {
                         try {
-                            await _kvSaveItems(identity.key, identity.id, title, [...existing.items, ...toAdd], token, encKey, existing.publishedUrls);
+                            await _kvSaveItems(identity.key, identity.id, title, [...col.items, ...toAdd], token, encKey, col.publishedUrls);
                             picker.remove();
                             showStatusMessage(`Added ${toAdd.length} item${toAdd.length !== 1 ? 's' : ''} to "${title}".`);
                         } catch (e) {
@@ -2118,15 +1843,11 @@ window.republishCollection = async function republishCollection() {
 };
 
 // Bump publishedAt on one entry inside a collection's publishedUrls array — same
-// fetch/decrypt/patch/re-encrypt/update_kv shape as _recordPublishedUrls above,
+// list/decrypt/patch/re-encrypt/storage.kv.update() shape as _recordPublishedUrls above,
 // but patching an existing entry in place rather than appending a new one.
 async function _touchPublishedUrlEntry(collectionKey, serviceId) {
-    const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
     const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
-    const resp = await fetch(`${window.CList.config.flaskSiteUrl}/get_kvs/`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-    });
-    const kvs = await resp.json();
+    const kvs = await window.CList.storage.kv.list();
     const kv = (kvs || []).find(k => k.key === collectionKey);
     if (!kv) return;
     const raw = JSON.parse(await decryptWithKey(encKey, kv.value));
@@ -2134,23 +1855,19 @@ async function _touchPublishedUrlEntry(collectionKey, serviceId) {
     const entry = (col.publishedUrls || []).find(p => p.serviceId === serviceId);
     if (entry) entry.publishedAt = new Date().toISOString();
     const encrypted = await encryptWithKey(encKey, JSON.stringify({ id: col.id, title: col.title, items: col.items, publishedUrls: col.publishedUrls }));
-    await fetch(`${window.CList.config.flaskSiteUrl}/update_kv/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ key: collectionKey, value: encrypted }),
-    });
+    await window.CList.storage.kv.update(collectionKey, encrypted);
 }
 
 // Regenerate the OPML and ActivityPub outbox catalog files on CListBin.
 // Silent on failure — catalog update must not interrupt the publish flow.
 async function _updatePagesCatalog(token, encKey, binAccount) {
     try {
-        const kvHeaders = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
-        const resp = await fetch(`${window.CList.config.flaskSiteUrl}/get_kvs/`, {
-            headers: { 'Authorization': `Bearer ${token}` },
-        });
-        if (!resp.ok) return;
-        const kvs = await resp.json();
+        let kvs;
+        try {
+            kvs = await window.CList.storage.kv.list();
+        } catch {
+            return;
+        }
 
         // Load existing catalog serviceIds (so we can update in place)
         let catalogMeta = {};
@@ -2223,16 +1940,7 @@ async function _updatePagesCatalog(token, encKey, binAccount) {
 
         // Save catalog meta so the next publish can update in place and DID update can read the URLs
         const encrypted = await encryptWithKey(encKey, JSON.stringify(catalogMeta));
-        let saveResp = await fetch(`${window.CList.config.flaskSiteUrl}/add_kv/`, {
-            method: 'POST', headers: kvHeaders,
-            body: JSON.stringify({ key: 'clist:pages-catalog', value: encrypted }),
-        });
-        if (saveResp.status === 409) {
-            saveResp = await fetch(`${window.CList.config.flaskSiteUrl}/update_kv/`, {
-                method: 'POST', headers: kvHeaders,
-                body: JSON.stringify({ key: 'clist:pages-catalog', value: encrypted }),
-            });
-        }
+        await window.CList.storage.kv.put('clist:pages-catalog', encrypted);
     } catch (e) {
         console.error('[pages catalog] update failed:', e);
     }
@@ -2772,480 +2480,6 @@ async function _performCollectionWebPagePublish(adapter, content, fmtId, fmt, na
     } catch (e) {
         console.error('[postCollectionToWebPage] failed to save to My Pages', e);
         showStatusMessage('Published, but could not save to My Pages: ' + e.message);
-    }
-}
-
-// ── Collection editor panel (opened by collection-editor.js in the write-pane) ──
-
-window.showCollectionEditorPanel = async function showCollectionEditorPanel(container) {
-    const titleEl = document.getElementById('write-title');
-    if (_activeCollection) {
-        const { col, token, encKey } = _activeCollection;
-        if (titleEl) titleEl.textContent = col.name || '';
-        _renderCollectionEditor(container, col, token, encKey);
-    } else {
-        if (titleEl) titleEl.textContent = '';
-        // A brand-new, never-loaded collection still needs the real session
-        // token/encKey (not null) — otherwise every feature that checks them
-        // (add-from-file, add-from-existing-picker, etc.) wrongly reports
-        // "please log in" for a user who is in fact logged in.
-        const token  = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
-        const encKey = token ? await getEncKey(window.CList.config.flaskSiteUrl).catch(() => null) : null;
-        _renderCollectionEditor(container, { name: '', items: [] }, token, encKey);
-    }
-};
-
-// Render the main collection editor into container.
-function _renderCollectionEditor(container, col, token, encKey) {
-    container.innerHTML = '';
-    const draftItems = col.items.map(i => ({ ...i }));
-    _draftItems    = draftItems;
-    _refreshEditor = null; // will be set after renderEntries is defined
-
-    // ── UUID identity display ── so it's always visible which kvstore record
-    // Save/Republish/Publish will update, regardless of the current title text.
-    const idRow = document.createElement('div');
-    idRow.className = 'list-tip';
-    idRow.textContent = col.id ? `ID: ${col.id}` : 'Not yet saved — an ID will be assigned on first save.';
-    container.appendChild(idRow);
-    _idDisplayEl = idRow;
-
-    // ── Entry list ──
-    const list = document.createElement('div');
-    list.className = 'collection-editor-list';
-    container.appendChild(list);
-
-    function renderEntries() {
-        list.innerHTML = '';
-        draftItems.forEach((item, idx) =>
-            list.appendChild(_renderEntryRow(item, idx, draftItems, renderEntries, token, encKey))
-        );
-
-        // "Add entry" row — styled like a normal entry's bar (small icon
-        // buttons) rather than full-size text buttons, so it reads as part
-        // of the list instead of a separate action area.
-        const addRow = document.createElement('div');
-        addRow.className = 'collection-editor-entry collection-editor-add-row';
-
-        const addBar = document.createElement('div');
-        addBar.className = 'collection-editor-entry-bar';
-        addRow.appendChild(addBar);
-
-        const addBtn = document.createElement('button');
-        addBtn.className = 'clist-action-btn';
-        addBtn.title     = 'Add a blank entry';
-        addBtn.innerHTML = '<span class="material-icons md-18 md-light">add</span>';
-        addBtn.onclick   = () => { draftItems.push({ title: '', url: '' }); renderEntries(); };
-        addBar.appendChild(addBtn);
-
-        // Hidden file input behind the "from file" button — a recognized
-        // collection export (rss/opml/json/html) becomes a nested collection,
-        // same parsers used by the "Import collection" flow; anything else
-        // becomes a local-only leaf entry via a blob: URL (see _addEntryFromFile).
-        const fileInput = document.createElement('input');
-        fileInput.type = 'file';
-        fileInput.style.display = 'none';
-        fileInput.onchange = async () => {
-            const file = fileInput.files[0];
-            fileInput.value = '';
-            if (!file) return;
-            await _addEntryFromFile(file, draftItems, col, token, encKey, renderEntries);
-        };
-        addBar.appendChild(fileInput);
-
-        const fromFileBtn = document.createElement('button');
-        fromFileBtn.className = 'clist-action-btn';
-        fromFileBtn.title     = 'Add entry from a file';
-        fromFileBtn.innerHTML = '<span class="material-icons md-18 md-light">upload_file</span>';
-        fromFileBtn.onclick   = () => fileInput.click();
-        addBar.appendChild(fromFileBtn);
-
-        const fromExistingBtn = document.createElement('button');
-        fromExistingBtn.className = 'clist-action-btn';
-        fromExistingBtn.title     = 'Add entry from a saved page or collection';
-        fromExistingBtn.innerHTML = '<span class="material-icons md-18 md-light">library_add</span>';
-        fromExistingBtn.onclick   = () => _showAddEntryFromExistingPicker(draftItems, col, token, encKey, renderEntries, fromExistingBtn);
-        addBar.appendChild(fromExistingBtn);
-
-        list.appendChild(addRow);
-    }
-    _refreshEditor = renderEntries;
-    renderEntries();
-}
-
-// Render a single collapsible entry row.
-function _renderEntryRow(item, idx, draftItems, refresh, token, encKey) {
-    const row      = document.createElement('div');
-    row.className  = 'collection-editor-entry';
-
-    const bar      = document.createElement('div');
-    bar.className  = 'collection-editor-entry-bar';
-
-    const upBtn    = document.createElement('button');
-    upBtn.className = 'clist-action-btn';
-    upBtn.title     = 'Move up';
-    upBtn.innerHTML = '<span class="material-icons md-18 md-light">arrow_upward</span>';
-    upBtn.onclick   = (e) => { e.stopPropagation(); if (idx > 0) { [draftItems[idx-1], draftItems[idx]] = [draftItems[idx], draftItems[idx-1]]; refresh(); } };
-
-    const downBtn   = document.createElement('button');
-    downBtn.className = 'clist-action-btn';
-    downBtn.title     = 'Move down';
-    downBtn.innerHTML = '<span class="material-icons md-18 md-light">arrow_downward</span>';
-    downBtn.onclick   = (e) => { e.stopPropagation(); if (idx < draftItems.length-1) { [draftItems[idx], draftItems[idx+1]] = [draftItems[idx+1], draftItems[idx]]; refresh(); } };
-
-    const delBtn    = document.createElement('button');
-    delBtn.className = 'clist-action-btn';
-    delBtn.title     = 'Remove entry';
-    delBtn.innerHTML = '<span class="material-icons md-18 md-light">delete_outline</span>';
-    delBtn.onclick   = (e) => { e.stopPropagation(); draftItems.splice(idx, 1); refresh(); };
-
-    const chevron   = document.createElement('span');
-    chevron.className   = 'material-icons collection-editor-chevron';
-    chevron.textContent = 'expand_more';
-
-    const labelEl   = document.createElement('span');
-    labelEl.className   = 'collection-editor-entry-label';
-    const isNested    = item.role === 'contains' && item.collectionId;
-    const isLocalLeaf  = !!item.localOnly && !!item.url && item.url.startsWith('blob:');
-    const entryLabel   = () => (_collectionItemDisplayTitle(item) || '(untitled)')
-        + (isNested ? ' (nested collection)' : '')
-        + (isLocalLeaf ? ' (local only)' : '');
-    labelEl.textContent = entryLabel();
-
-    // "Edit" — opens this entry in its appropriate editor exactly as the
-    // existing "Load into editor" / "Load into collection editor" buttons do
-    // elsewhere (My Pages, collection detail view). A blank/never-populated
-    // entry has nothing to open yet, so it gets no button.
-    let editBtn = null;
-    if (isNested || item.url) {
-        editBtn = document.createElement('button');
-        editBtn.className = 'clist-action-btn';
-        editBtn.title     = isNested ? 'Edit nested collection' : 'Edit this page';
-        editBtn.innerHTML = '<span class="material-icons md-18 md-light">edit</span>';
-        editBtn.onclick   = (e) => { e.stopPropagation(); _openEntryForEdit(item, token, encKey); };
-    }
-
-    // "Publish" — only for a local-only (blob:) entry added via "+ From file".
-    let publishBtn = null;
-    if (isLocalLeaf) {
-        publishBtn = document.createElement('button');
-        publishBtn.className = 'clist-action-btn';
-        publishBtn.title     = 'Publish this local page';
-        publishBtn.innerHTML = '<span class="material-icons md-18 md-light">publish</span>';
-        publishBtn.onclick   = (e) => { e.stopPropagation(); _publishLocalEntry(item, refresh); };
-    }
-
-    bar.appendChild(upBtn);
-    bar.appendChild(downBtn);
-    bar.appendChild(chevron);
-    bar.appendChild(labelEl);
-    if (editBtn)    bar.appendChild(editBtn);
-    if (publishBtn) bar.appendChild(publishBtn);
-    bar.appendChild(delBtn);
-
-    const fields    = document.createElement('div');
-    fields.className = 'collection-editor-entry-fields';
-    fields.style.display = 'none';
-
-    bar.addEventListener('click', (e) => {
-        if (e.target.closest('button')) return;
-        const open = fields.style.display !== 'none';
-        fields.style.display    = open ? 'none' : 'block';
-        chevron.textContent     = open ? 'expand_more' : 'expand_less';
-    });
-
-    _renderEntryFields(item, fields, () => {
-        labelEl.textContent = entryLabel();
-    });
-
-    row.appendChild(bar);
-    row.appendChild(fields);
-    return row;
-}
-
-// Render editable fields for a single entry. A role:'contains' item is a
-// nested-collection reference, not a feed item — it has no url/author/feed/
-// summary, so it only gets a Title field (plus a note identifying it).
-function _renderEntryFields(item, container, onTitleChange) {
-    if (item.role === 'contains' && item.collectionId) {
-        const note = document.createElement('p');
-        note.className   = 'feed-status-message';
-        note.textContent = 'Nested collection — its items are included when this collection is exported or published.';
-        container.appendChild(note);
-
-        const wrapper = document.createElement('div');
-        wrapper.className = 'collection-editor-field';
-        const labelEl  = document.createElement('label');
-        labelEl.textContent = 'Title';
-        wrapper.appendChild(labelEl);
-        const input = document.createElement('input');
-        input.type      = 'text';
-        input.value     = item.title || '';
-        input.className = 'collection-editor-input';
-        input.addEventListener('input', () => {
-            item.title = input.value;
-            if (onTitleChange) onTitleChange();
-        });
-        wrapper.appendChild(input);
-        container.appendChild(wrapper);
-        return;
-    }
-
-    [
-        { key: 'title',       label: 'Title',       tag: 'input',    type: 'text' },
-        { key: 'url',         label: 'URL',         tag: 'input',    type: 'url'  },
-        { key: 'author_name', label: 'Author',      tag: 'input',    type: 'text' },
-        { key: 'feed',        label: 'Feed',        tag: 'input',    type: 'url'  },
-        { key: 'summary',     label: 'Description', tag: 'textarea', type: null   },
-    ].forEach(({ key, label, tag, type }) => {
-        const wrapper   = document.createElement('div');
-        wrapper.className = 'collection-editor-field';
-
-        const labelEl   = document.createElement('label');
-        labelEl.textContent = label;
-        wrapper.appendChild(labelEl);
-
-        const input     = document.createElement(tag);
-        if (type) input.type = type;
-        input.value     = item[key] || '';
-        input.className = 'collection-editor-input';
-        input.addEventListener('input', () => {
-            item[key] = input.value;
-            if (key === 'title' && onTitleChange) onTitleChange();
-        });
-        wrapper.appendChild(input);
-        container.appendChild(wrapper);
-    });
-}
-
-// "+ From file" handler. A recognized collection export (rss/opml/json/html)
-// is imported exactly like the existing "Import collection" flow and added as
-// a nested-collection membership; anything else (plain text/markdown, or a
-// file whose content doesn't actually parse as a collection) becomes a
-// local-only leaf entry via a blob: URL, which the user can later Publish to
-// get a real URL.
-async function _addEntryFromFile(file, draftItems, col, token, encKey, refresh) {
-    const format = _detectFormat(file.type, file.name);
-    if (_collectionFormatParsers[format]) {
-        if (!token || !encKey) {
-            showStatusMessage('Please log in to add a collection file.');
-            return;
-        }
-        try {
-            const text   = await file.text();
-            const parsed = _collectionFormatParsers[format](text);
-            if (parsed && parsed.items && parsed.items.length) {
-                const identity = _resolveCollectionIdentity(null, parsed.id);
-                await _kvSaveItems(identity.key, identity.id, parsed.title || file.name, parsed.items, token, encKey);
-                draftItems.push({ membershipId: crypto.randomUUID(), role: 'contains', collectionId: identity.id, title: parsed.title || file.name });
-                refresh();
-                showStatusMessage(`Imported "${parsed.title || file.name}" as a nested collection.`);
-                return;
-            }
-        } catch (e) {
-            console.error('[collection add-entry] file is not a recognized collection export, adding as a local page', e);
-        }
-    }
-
-    const blobUrl = URL.createObjectURL(file);
-    draftItems.push({
-        membershipId: crypto.randomUUID(),
-        title:        file.name,
-        url:          blobUrl,
-        mimeType:     file.type || 'text/plain',
-        localOnly:    true,
-    });
-    refresh();
-    showStatusMessage(`Added "${file.name}" as a local-only entry — use Publish to give it a real URL.`);
-}
-
-// "+ From page or collection" picker. Mirrors _showAddToCollectionPicker's
-// structure/CSS but lists both saved collections and standalone published
-// pages (page: kvstore records), and adds whichever one is picked as a
-// membership on this entry list.
-async function _showAddEntryFromExistingPicker(draftItems, col, token, encKey, refresh, anchorEl) {
-    if (!token || !encKey) { showStatusMessage('Please log in to pick a saved page or collection.'); return; }
-
-    const PICKER_CLASS = 'collection-picker';
-    const pickerId      = 'collection-add-entry-picker';
-    document.querySelectorAll('.' + PICKER_CLASS).forEach(el => el.remove());
-
-    const picker = document.createElement('div');
-    picker.id        = pickerId;
-    picker.className = PICKER_CLASS;
-    picker.innerHTML = '<p class="feed-status-message">Loading…</p>';
-    anchorEl.parentElement.insertBefore(picker, anchorEl.nextSibling);
-
-    const outsideHandler = (e) => {
-        if (!picker.contains(e.target) && e.target !== anchorEl) {
-            picker.remove();
-            document.removeEventListener('click', outsideHandler, true);
-        }
-    };
-    setTimeout(() => document.addEventListener('click', outsideHandler, true), 0);
-
-    try {
-        const [collections, pages] = await Promise.all([
-            _fetchAllCollections(token, encKey),
-            _fetchAllPublishedPages(token, encKey),
-        ]);
-        const candidateCollections = collections.filter(c => !col?.id || c.id !== col.id);
-
-        picker.innerHTML = '';
-        if (!candidateCollections.length && !pages.length) {
-            const msg = document.createElement('p');
-            msg.className   = 'feed-status-message';
-            msg.textContent = 'No saved collections or published pages yet.';
-            picker.appendChild(msg);
-            return;
-        }
-
-        const list = document.createElement('ul');
-        list.className = 'collection-picker-list';
-
-        candidateCollections.forEach(c => {
-            const li  = document.createElement('li');
-            const btn = document.createElement('button');
-            btn.className   = 'collection-pick-btn';
-            btn.textContent = `${c.title} (collection)`;
-            btn.addEventListener('click', async () => {
-                try {
-                    if (col?.id && await _wouldCreateCycle(col.id, c.id, token, encKey)) {
-                        showErrorModal(`Can't add "${c.title}" — it already contains this collection.`);
-                        return;
-                    }
-                    draftItems.push({ membershipId: crypto.randomUUID(), role: 'contains', collectionId: c.id, title: c.title });
-                    picker.remove();
-                    refresh();
-                } catch (e) {
-                    console.error('[collection add-entry] add collection failed', e);
-                    showStatusMessage('Could not add collection: ' + e.message);
-                }
-            });
-            li.appendChild(btn);
-            list.appendChild(li);
-        });
-
-        pages.forEach(p => {
-            const li  = document.createElement('li');
-            const btn = document.createElement('button');
-            btn.className   = 'collection-pick-btn';
-            btn.textContent = p.title || p.url;
-            btn.addEventListener('click', () => {
-                draftItems.push({ membershipId: crypto.randomUUID(), title: p.title || p.url, url: p.url, mimeType: p.mimeType });
-                picker.remove();
-                refresh();
-            });
-            li.appendChild(btn);
-            list.appendChild(li);
-        });
-
-        picker.appendChild(list);
-    } catch (e) {
-        console.error('[collection add-entry] picker error', e);
-        picker.innerHTML = `<p class="feed-status-message">Could not load list: ${escapeHtml(e.message)}</p>`;
-    }
-}
-
-// "Edit" button handler — opens an entry exactly as if it had been loaded
-// directly via the Load button: a nested collection goes through
-// _loadCollectionIntoEditor (same as My Pages' "Load into collection editor"),
-// a leaf page's content is fetched and handed to loadSavedPage (same as the
-// single-page Load button).
-async function _openEntryForEdit(item, token, encKey) {
-    try {
-        if (item.role === 'contains' && item.collectionId) {
-            if (!token || !encKey) { showStatusMessage('Please log in to open nested collections.'); return; }
-            const nested = await _resolveCollectionById(item.collectionId, token, encKey);
-            if (!nested) { showStatusMessage('Nested collection not found.'); return; }
-            await _loadCollectionIntoEditor({ key: nested.key, id: nested.id, name: nested.title, items: nested.items }, token, encKey);
-            return;
-        }
-        if (!item.url) { showStatusMessage('This entry has no content to open yet.'); return; }
-        const resp = await fetch(item.url);
-        if (!resp.ok) throw new Error(`fetch error ${resp.status}`);
-        const text = await resp.text();
-
-        // Snapshot the live, unsaved draft into _activeCollection before leaving —
-        // showCollectionEditorPanel() re-renders from _activeCollection.col, so
-        // without this, "Back to collection" would silently drop any edits made
-        // since the last Save. _activeCollection is null for a brand-new,
-        // never-saved collection, so this must set it unconditionally rather
-        // than only patching an existing one.
-        const liveName = document.getElementById('write-title')?.textContent?.trim();
-        _activeCollection = {
-            ..._activeCollection,
-            col:   { ..._activeCollection?.col, name: liveName || _activeCollection?.col?.name || '', items: _draftItems || [] },
-            token, encKey,
-        };
-        _showCollectionReturnBar(true);
-
-        await loadSavedPage({ type: item.mimeType || 'text/plain', value: text }, null, null);
-    } catch (e) {
-        console.error('[collection entry] open for edit failed', e);
-        showStatusMessage('Could not open for editing: ' + e.message);
-    }
-}
-
-// Shows/hides the "Back to collection" bar at the top of the write pane —
-// set by _openEntryForEdit before leaving the collection editor for a member's
-// own editor, and cleared whenever the collection editor becomes current again
-// (see collection-editor.js's initialize()).
-function _showCollectionReturnBar(show) {
-    const bar = document.getElementById('collection-return-bar');
-    if (bar) bar.style.display = show ? '' : 'none';
-}
-
-// "Back to collection" button handler — returns to the collection editor,
-// restoring exactly what was on screen (via the _activeCollection snapshot
-// taken in _openEntryForEdit) rather than the last-saved version.
-window.backToCollectionEditor = async function backToCollectionEditor() {
-    if (!_activeCollection) { showStatusMessage('No collection to return to.'); return; }
-    await initializeEditor('collection');
-};
-
-// "Publish" button handler for a local-only (blob:) leaf entry — reuses the
-// same CListBin single-page publish pipeline as the regular "Publish" action
-// elsewhere, then rewrites the entry's url to the real published URL and
-// clears localOnly so it's eligible for export/share/Collab going forward.
-async function _publishLocalEntry(item, refresh) {
-    if (!item.url || !item.url.startsWith('blob:')) return;
-    try {
-        const adapter = window.CList.binPublishers?.['CListBin'];
-        if (!adapter) { showStatusMessage('Web-page publishing is not available.'); return; }
-
-        let accounts = window.CList.accounts;
-        if (!Array.isArray(accounts) || accounts.length === 0) {
-            accounts = window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl);
-        }
-        const binAccount = accounts.map(parseAccountValue).filter(Boolean)
-            .find(v => v.type === 'CListBin' && (v.permissions || '').includes('b'));
-        if (!binAccount) { showStatusMessage('No web-page destination set up yet — log out and back in to add one.'); return; }
-
-        const resp = await fetch(item.url);
-        if (!resp.ok) throw new Error(`blob fetch error ${resp.status}`);
-        const rawContent = await resp.text();
-        const mimeType    = item.mimeType || 'text/plain';
-        const id          = `urn:uuid:${crypto.randomUUID()}`;
-        const content     = _embedWebPageIdentity(rawContent, mimeType, item.title, id);
-
-        const result = await adapter.publish(content, mimeType, item.title || 'Untitled', binAccount);
-
-        const publishedAt = new Date().toISOString();
-        await _saveWebPageRecord({
-            id, title: item.title || 'Untitled', url: result.url, serviceId: result.serviceId,
-            service: 'CListBin', mimeType, accountInstance: binAccount.instance, publishedAt,
-            authorDid: _currentAuthorDid(),
-        });
-
-        URL.revokeObjectURL(item.url);
-        item.url       = result.url;
-        item.localOnly = false;
-        showStatusMessage(`Published "${item.title}".`);
-        refresh();
-    } catch (e) {
-        console.error('[collection entry] publish failed', e);
-        showStatusMessage('Could not publish: ' + e.message);
     }
 }
 

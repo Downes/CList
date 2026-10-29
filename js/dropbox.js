@@ -62,9 +62,6 @@ document.addEventListener('DOMContentLoaded', async function () {
 });
 
 async function _saveDropboxAccount(title, appKey, folder, permissions, accessToken, refreshToken) {
-    const kvToken = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
-    if (!kvToken) { showStatusMessage('Please log in to kvstore before authorizing Dropbox.'); return; }
-
     const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
     if (!encKey) { showStatusMessage('Encryption key missing — please log in again.'); return; }
 
@@ -78,22 +75,13 @@ async function _saveDropboxAccount(title, appKey, folder, permissions, accessTok
         return;
     }
 
-    const kvKey = title;
-
-    let response = await fetch(`${window.CList.config.flaskSiteUrl}/add_kv/`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + kvToken },
-        body:    JSON.stringify({ key: kvKey, value: encryptedValue }),
-    });
-    if (!response.ok && response.status === 409) {
-        // Key already exists — update instead
-        response = await fetch(`${window.CList.config.flaskSiteUrl}/update_kv/`, {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + kvToken },
-            body:    JSON.stringify({ key: kvKey, value: encryptedValue }),
-        });
+    try {
+        await window.CList.storage.kv.put(title, encryptedValue);
+    } catch (err) {
+        if (err.code === 'NotAuthenticated') showStatusMessage('Please log in to kvstore before authorizing Dropbox.');
+        else showStatusMessage('Failed to save Dropbox account to kvstore.');
+        return;
     }
-    if (!response.ok) { showStatusMessage('Failed to save Dropbox account to kvstore.'); return; }
 
     try {
         window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl);
@@ -341,16 +329,19 @@ async function _dropboxDownloadFile(token, path) {
 
     async function _openInEditor(text, filename) {
         const fmt = _detectFormatByName(filename);
-        if (fmt === 'html') {
-            if (typeof switchToEditor === 'function')
-                await switchToEditor('tinymce', { type: 'text/html', value: text });
+        if (fmt === 'html' || fmt === 'text') {
+            // Route through the shared loadSavedPage() path — same as "Load from
+            // file" — instead of forcing switchToEditor() directly: it picks the
+            // right editor, checks for existing content, and offers Replace/Insert/
+            // Cancel instead of silently cursor-inserting into whatever's already there.
+            if (typeof loadSavedPage === 'function') {
+                const content    = { type: fmt === 'html' ? 'text/html' : 'text/plain', value: text };
+                const optionsDiv = window.CList.ui.view.loadOptions;
+                await loadSavedPage(content, null, optionsDiv, () => populateLoadOptions());
+            }
         } else if (fmt === 'opml' || fmt === 'rss') {
             if (typeof window.loadCollectionText === 'function')
                 await window.loadCollectionText(text, filename);
-        } else {
-            // .md, .txt, unknown
-            if (typeof switchToEditor === 'function')
-                await switchToEditor('texteditor', { type: 'text/plain', value: text });
         }
     }
 

@@ -386,7 +386,6 @@ function kvstoreAccountsPanel() {
 
     async function addOrUpdateKeyValue() {
         if (!currentSchema) { showStatusMessage('No account type selected.'); return; }
-        const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
 
         const keyEl = div.querySelector('#_keyInput');
         const key = keyEl ? keyEl.value.trim() : '';
@@ -454,15 +453,7 @@ function kvstoreAccountsPanel() {
             return;
         }
 
-        const matchingAccount = accounts.find(account => account.key === key);
-        const endpoint = matchingAccount ? 'update_kv/' : 'add_kv/';
-
-        fetch(`${window.CList.config.flaskSiteUrl}/${endpoint}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-            body: JSON.stringify({ key: key, value: encryptedValue })
-        })
-        .then(response => response.json())
+        window.CList.storage.kv.put(key, encryptedValue)
         .then(() => {
             (async () => {
                 try {
@@ -973,14 +964,7 @@ function kvstoreAccountsPanel() {
             if (!encKey) throw new Error('Encryption key not found — please log in again.');
             const encryptedValue = await encryptWithKey(encKey, JSON.stringify(instanceData));
 
-            const matchingAccount = accounts.find(a => a.key === wsUrl);
-            const endpoint = matchingAccount ? 'update_kv/' : 'add_kv/';
-            const saveResp = await fetch(`${window.CList.config.flaskSiteUrl}/${endpoint}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-                body: JSON.stringify({ key: wsUrl, value: encryptedValue })
-            });
-            if (!saveResp.ok) throw new Error('Account save failed: ' + saveResp.status);
+            await window.CList.storage.kv.put(wsUrl, encryptedValue);
 
             accounts = await getAccounts(window.CList.config.flaskSiteUrl);
             statusEl.textContent = `✓ Registered as ${data.username} on ${base.replace('https://', '')}`;
@@ -1031,14 +1015,7 @@ function kvstoreAccountsPanel() {
             const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
             if (!encKey) throw new Error('Encryption key not found — please log in again.');
             const encryptedValue = await encryptWithKey(encKey, JSON.stringify(instanceData));
-            const matchingAccount = accounts.find(a => a.key === url);
-            const endpoint = matchingAccount ? 'update_kv/' : 'add_kv/';
-            const saveResp = await fetch(`${window.CList.config.flaskSiteUrl}/${endpoint}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-                body: JSON.stringify({ key: url, value: encryptedValue })
-            });
-            if (!saveResp.ok) throw new Error('Account save failed: ' + saveResp.status);
+            await window.CList.storage.kv.put(url, encryptedValue);
             accounts = await getAccounts(window.CList.config.flaskSiteUrl);
             statusEl.style.color = '#2a7a2a';
             statusEl.textContent = `✓ Registered and account added for ${url.replace('https://', '')}`;
@@ -1108,29 +1085,18 @@ function kvstoreAccountsPanel() {
 
     async function toggleDiscordChannel(channelName, flow) {
         const statusEl = flow.querySelector('#discord-select-status');
-        const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
         statusEl.style.color = '#555';
         try {
             const existingKey = findDiscordAccountKey(channelName);
             if (existingKey) {
-                const resp = await fetch(`${window.CList.config.flaskSiteUrl}/delete_kv/`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-                    body: JSON.stringify({ key: existingKey })
-                });
-                if (!resp.ok) throw new Error('Could not remove subscription: HTTP ' + resp.status);
+                await window.CList.storage.kv.remove(existingKey);
                 statusEl.textContent = `Unsubscribed from "${channelName}".`;
             } else {
                 const instanceData = { type: 'Discord', title: channelName, permissions: 'rw', channel: channelName, bot_token: '' };
                 const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
                 if (!encKey) throw new Error('Encryption key not found — please log in again.');
                 const encryptedValue = await encryptWithKey(encKey, JSON.stringify(instanceData));
-                const resp = await fetch(`${window.CList.config.flaskSiteUrl}/add_kv/`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-                    body: JSON.stringify({ key: channelName, value: encryptedValue })
-                });
-                if (!resp.ok) throw new Error('Could not add subscription: HTTP ' + resp.status);
+                await window.CList.storage.kv.add(channelName, encryptedValue);
                 statusEl.textContent = `Subscribed to "${channelName}".`;
             }
             accounts = await getAccounts(window.CList.config.flaskSiteUrl);
@@ -1485,14 +1451,8 @@ function kvstoreAccountsPanel() {
             return;
         }
         if (btn) { btn.dataset.confirm = ''; btn.textContent = 'Delete Collection'; btn.style.background = ''; }
-        const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
         try {
-            const resp = await fetch(`${window.CList.config.flaskSiteUrl}/delete_kv/`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-                body: JSON.stringify({ key: _rssEditKey }),
-            });
-            if (!resp.ok) throw new Error('Delete failed: ' + resp.status);
+            await window.CList.storage.kv.remove(_rssEditKey);
             accounts = await getAccounts(window.CList.config.flaskSiteUrl);
             populatePostOptions(accounts);
             populateReadAccountList(accounts);
@@ -1604,18 +1564,11 @@ function kvstoreAccountsPanel() {
     // Save _rssEditFeeds to kvstore. Returns true on success.
     async function _rssSaveCollection() {
         try {
-            const kvToken = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
-            if (!kvToken) { showStatusMessage('Please log in first.'); return false; }
             const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
             if (!encKey) throw new Error('Encryption key not found — please log in again.');
             const collectionData = { type: 'RSS', instance: _rssEditKey, title: _rssEditTitle || _rssEditKey, feeds: _rssEditFeeds, permissions: 'r' };
             const encryptedValue = await encryptWithKey(encKey, JSON.stringify(collectionData));
-            const resp = await fetch(`${window.CList.config.flaskSiteUrl}/update_kv/`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + kvToken },
-                body: JSON.stringify({ key: _rssEditKey, value: encryptedValue }),
-            });
-            if (!resp.ok) throw new Error('Save failed: ' + resp.status);
+            await window.CList.storage.kv.update(_rssEditKey, encryptedValue);
             try {
                 const accts = await getAccounts(window.CList.config.flaskSiteUrl);
                 if (accts) {
@@ -1640,20 +1593,11 @@ function kvstoreAccountsPanel() {
         const name = div.querySelector('#rss-collection-name').value.trim();
         if (!name) { showStatusMessage('Please enter a collection name.'); return; }
         try {
-            const kvToken = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
-            if (!kvToken) { showStatusMessage('Please log in first.'); return; }
             const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
             if (!encKey) throw new Error('Encryption key not found — please log in again.');
             const collectionData = { type: 'RSS', instance: name, title: name, feeds: [], permissions: 'r' };
             const encryptedValue = await encryptWithKey(encKey, JSON.stringify(collectionData));
-            const existing = accounts.find(a => a.key === name);
-            const endpoint = existing ? 'update_kv/' : 'add_kv/';
-            const resp = await fetch(`${window.CList.config.flaskSiteUrl}/${endpoint}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + kvToken },
-                body: JSON.stringify({ key: name, value: encryptedValue }),
-            });
-            if (!resp.ok) throw new Error('Save failed: ' + resp.status);
+            await window.CList.storage.kv.put(name, encryptedValue);
             accounts = await getAccounts(window.CList.config.flaskSiteUrl);
             populatePostOptions(accounts);
             populateReadAccountList(accounts);
@@ -1678,20 +1622,11 @@ function kvstoreAccountsPanel() {
         const instanceData = { type: 'Blogger', id: clientId, title: title || blogId, permissions: 'w' };
 
         try {
-            const kvToken = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
-            if (!kvToken) { showStatusMessage('Please log in to your account server first.'); return; }
             const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
             if (!encKey) throw new Error('Encryption key not found — please log in again.');
             const encryptedValue = await encryptWithKey(encKey, JSON.stringify(instanceData));
 
-            const existing = accounts.find(a => a.key === blogId);
-            const endpoint = existing ? 'update_kv/' : 'add_kv/';
-            const resp = await fetch(`${window.CList.config.flaskSiteUrl}/${endpoint}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + kvToken },
-                body: JSON.stringify({ key: blogId, value: encryptedValue }),
-            });
-            if (!resp.ok) throw new Error('Save failed: ' + resp.status);
+            await window.CList.storage.kv.put(blogId, encryptedValue);
 
             window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl);
             populatePostOptions(window.CList.accounts);
@@ -1748,20 +1683,11 @@ function kvstoreAccountsPanel() {
         };
 
         try {
-            const kvToken = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
-            if (!kvToken) { showStatusMessage('Please log in to your account server first.'); return; }
             const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
             if (!encKey) throw new Error('Encryption key not found — please log in again.');
             const encryptedValue = await encryptWithKey(encKey, JSON.stringify(instanceData));
 
-            const matchingAccount = accounts.find(a => a.key === username);
-            const endpoint = matchingAccount ? 'update_kv/' : 'add_kv/';
-            const resp = await fetch(`${window.CList.config.flaskSiteUrl}/${endpoint}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + kvToken },
-                body: JSON.stringify({ key: username, value: encryptedValue })
-            });
-            if (!resp.ok) throw new Error('Save failed: ' + resp.status);
+            await window.CList.storage.kv.put(username, encryptedValue);
 
             accounts = await getAccounts(window.CList.config.flaskSiteUrl);
             populateReadAccountList(accounts);
@@ -1872,18 +1798,9 @@ function kvstoreAccountsPanel() {
         const titleEl = div.querySelector('#titleInput');
         const title = (titleEl ? titleEl.value : '') || key;
         if (!confirm(`Delete "${title}"? This cannot be undone.`)) return;
-        const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
 
         if (key) {
-            fetch(`${window.CList.config.flaskSiteUrl}/delete_kv/`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': 'Bearer '+token  // Include the token in the Authorization header
-                },
-                body: JSON.stringify({ key: key })
-            })
-            .then(response => response.json())
+            window.CList.storage.kv.remove(key)
             .then(async () => {
                 try {
                     accounts = await getAccounts(window.CList.config.flaskSiteUrl);
@@ -2022,17 +1939,8 @@ function kvstoreFollowingPanel() {
     div.querySelector('#following-back-btn').onclick = () => history.back();
 
     async function unfollowDid(kvKey, rowEl) {
-        const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
         try {
-            const resp = await fetch(`${window.CList.config.flaskSiteUrl}/delete_kv/`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ' + token,
-                },
-                body: JSON.stringify({ key: kvKey }),
-            });
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            await window.CList.storage.kv.remove(kvKey);
             if (typeof _clistAnnotateInvalidateFollowCache === 'function') {
                 _clistAnnotateInvalidateFollowCache();
             }
@@ -2057,11 +1965,7 @@ function kvstoreFollowingPanel() {
         }
         let kvs;
         try {
-            const res = await fetch(`${window.CList.config.flaskSiteUrl}/get_kvs/`, {
-                headers: { 'Authorization': 'Bearer ' + token }
-            });
-            if (!res.ok) throw new Error(`Server returned ${res.status}`);
-            kvs = await res.json();
+            kvs = await window.CList.storage.kv.list();
         } catch (err) {
             console.error('loadFollowing fetch failed:', err);
             listEl.textContent = `Could not load data (${err.message}). Check your connection or log in again.`;
@@ -2221,11 +2125,7 @@ function kvstoreDidPanel() {
 
         let kvs;
         try {
-            const res = await fetch(`${window.CList.config.flaskSiteUrl}/get_kvs/`, {
-                headers: { 'Authorization': 'Bearer ' + token }
-            });
-            if (!res.ok) throw new Error(`Server returned ${res.status}`);
-            kvs = await res.json();
+            kvs = await window.CList.storage.kv.list();
         } catch (err) {
             console.error('loadAccounts fetch failed:', err);
             listEl.textContent = `Could not load accounts (${err.message}). Check your connection or log in again.`;
@@ -2293,11 +2193,7 @@ function kvstoreDidPanel() {
 
         let kvs = [];
         try {
-            const res = await fetch(`${window.CList.config.flaskSiteUrl}/get_kvs/`, {
-                headers: { 'Authorization': 'Bearer ' + token }
-            });
-            if (!res.ok) throw new Error(`Server returned ${res.status}`);
-            kvs = await res.json();
+            kvs = await window.CList.storage.kv.list();
         } catch (err) {
             console.error('updateDid fetch failed:', err);
             statusEl.textContent = `Could not load accounts (${err.message}). Try again or log in again.`;
@@ -2329,11 +2225,13 @@ function kvstoreDidPanel() {
 
             data.public = isPublic;
             const encrypted = await encryptWithKey(encKey, JSON.stringify(data));
-            await fetch(`${window.CList.config.flaskSiteUrl}/update_kv/`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-                body: JSON.stringify({ key, value: encrypted })
-            });
+            try {
+                await window.CList.storage.kv.update(key, encrypted);
+            } catch (err) {
+                // Preserve prior fire-and-forget behavior: a failed per-account
+                // visibility update must not abort the rest of the DID update.
+                console.warn(`Could not update visibility for "${key}":`, err);
+            }
 
             if (!isPublic) continue;
 
@@ -2408,21 +2306,10 @@ function kvstoreDidPanel() {
 
             statusEl.textContent = 'Storing private key…';
             const encryptedPrivKey = await encryptIdentityPrivateKey(keyPair.privateKey, encKey);
-            const storeRes = await fetch(`${window.CList.config.flaskSiteUrl}/add_kv/`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-                body: JSON.stringify({ key: '_did_identity_key', value: encryptedPrivKey })
-            });
-            if (!storeRes.ok && storeRes.status !== 409) {
-                throw new Error(`Could not store private key (server returned ${storeRes.status}). Your session may have expired — try logging out and back in.`);
-            }
-            if (storeRes.status === 409) {
-                const updateRes = await fetch(`${window.CList.config.flaskSiteUrl}/update_kv/`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-                    body: JSON.stringify({ key: '_did_identity_key', value: encryptedPrivKey })
-                });
-                if (!updateRes.ok) throw new Error(`Could not update private key (server returned ${updateRes.status}). Your session may have expired — try logging out and back in.`);
+            try {
+                await window.CList.storage.kv.put('_did_identity_key', encryptedPrivKey);
+            } catch (err) {
+                throw new Error(`Could not store private key (${err.message}). Your session may have expired — try logging out and back in.`);
             }
 
             // Preserve existing services and alsoKnownAs (minus old did:key) across key rotation
@@ -2466,11 +2353,13 @@ function kvstoreDidPanel() {
             return;
         }
         try {
-            await fetch(`${window.CList.config.flaskSiteUrl}/delete_kv/`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-                body: JSON.stringify({ key: '_did_identity_key' })
-            });
+            try {
+                await window.CList.storage.kv.remove('_did_identity_key');
+            } catch (e) {
+                // Preserve prior fire-and-forget behavior: a missing/failed kv delete
+                // here must not block removing the DID document below.
+                console.warn('Could not remove DID private key from kvstore:', e);
+            }
             const res = await fetch(`${window.CList.config.flaskSiteUrl}/auth/did`, {
                 method: 'DELETE',
                 headers: { 'Authorization': 'Bearer ' + token }
@@ -3504,18 +3393,7 @@ window.addEventListener('popstate', (e) => {
             }
 
             try {
-                const response = await fetch(`${window.CList.config.flaskSiteUrl}/get_kvs/`, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': 'Bearer ' + token
-                    }
-                });
-        
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-        
-                const data = await response.json();
+                const data = await window.CList.storage.kv.list();
 
                 // Load encKey from sessionStorage once, before decrypting all values
                 const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
@@ -3524,10 +3402,8 @@ window.addEventListener('popstate', (e) => {
                     return;
                 }
 
-                const accounts = await Promise.all(
-                    data
-                        .filter(kv => !kv.key.startsWith('_') && !kv.key.startsWith('collection:') && !kv.key.startsWith('clist:') && !kv.key.startsWith('social:following:'))  // exclude system, collection, and following keys
-                        .map(async kv => {
+                const accounts = (await Promise.all(
+                    data.map(async kv => {
 
                     try {
                         // ===========================
@@ -3536,6 +3412,14 @@ window.addEventListener('popstate', (e) => {
                         const decryptedString = await decryptWithKey(encKey, kv.value);
 
                         const accountData = JSON.parse(decryptedString);
+
+                        // Allowlist: only records whose decrypted type matches a registered
+                        // account schema are accounts — everything else (collections, the
+                        // following list, the DID private key, future non-account data kinds)
+                        // decrypts fine but has no matching schema, so it's excluded here rather
+                        // than via a hand-maintained list of known non-account key prefixes.
+                        if (!window.CList.schemas[accountData.type]) return null;
+
                         return {
                             key: kv.key,
                             value: JSON.stringify({
@@ -3562,8 +3446,8 @@ window.addEventListener('popstate', (e) => {
                             })
                         };
                     }
-                }));
-        
+                }))).filter(a => a !== null);
+
                 const failedCount = accounts.filter(a => {
                     try { return JSON.parse(a.value).type === 'bad'; } catch(e) { return true; }
                 }).length;
@@ -3662,12 +3546,7 @@ window.addEventListener('popstate', (e) => {
             const instanceData = { type: 'Collab', instance: COLLAB_DEFAULT, title: 'collab.mooc.ca', permissions: 'e' };
             const encryptedValue = await encryptWithKey(encKey, JSON.stringify(instanceData));
 
-            const saveResp = await fetch(`${window.CList.config.flaskSiteUrl}/add_kv/`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-                body: JSON.stringify({ key: COLLAB_DEFAULT, value: encryptedValue })
-            });
-            if (!saveResp.ok) throw new Error('Collab account save failed: ' + saveResp.status);
+            await window.CList.storage.kv.add(COLLAB_DEFAULT, encryptedValue);
         }
 
         // Silently register the current user on the matching annotations server and save
@@ -3697,12 +3576,7 @@ window.addEventListener('popstate', (e) => {
             const instanceData = { type: 'Annotate', instance: annoUrl, title: annoUrl.replace('https://', ''), permissions: 'rw' };
             const encryptedValue = await encryptWithKey(encKey, JSON.stringify(instanceData));
 
-            const saveResp = await fetch(`${window.CList.config.flaskSiteUrl}/add_kv/`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-                body: JSON.stringify({ key: annoUrl, value: encryptedValue })
-            });
-            if (!saveResp.ok) throw new Error('Annotations account save failed: ' + saveResp.status);
+            await window.CList.storage.kv.add(annoUrl, encryptedValue);
 
             // Refresh accounts and update UI so the Post button appears immediately
             window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl);
@@ -3727,12 +3601,7 @@ window.addEventListener('popstate', (e) => {
             const instanceData = { type: 'OPML2JSON', instance: OPML2JSON_DEFAULT, title: 'RSS Relay', permissions: 's' };
             const encryptedValue = await encryptWithKey(encKey, JSON.stringify(instanceData));
 
-            const saveResp = await fetch(`${window.CList.config.flaskSiteUrl}/add_kv/`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-                body: JSON.stringify({ key: OPML2JSON_DEFAULT, value: encryptedValue })
-            });
-            if (!saveResp.ok) throw new Error('RSS Relay account save failed: ' + saveResp.status);
+            await window.CList.storage.kv.add(OPML2JSON_DEFAULT, encryptedValue);
         }
 
         async function autoSeedCListBin() {
@@ -3751,12 +3620,7 @@ window.addEventListener('popstate', (e) => {
             const instanceData = { type: 'CListBin', instance: CLISTBIN_DEFAULT, title: 'pastebin.mooc.ca', permissions: 'b' };
             const encryptedValue = await encryptWithKey(encKey, JSON.stringify(instanceData));
 
-            const saveResp = await fetch(`${window.CList.config.flaskSiteUrl}/add_kv/`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-                body: JSON.stringify({ key: CLISTBIN_DEFAULT, value: encryptedValue })
-            });
-            if (!saveResp.ok) throw new Error('CListBin account save failed: ' + saveResp.status);
+            await window.CList.storage.kv.add(CLISTBIN_DEFAULT, encryptedValue);
         }
 
         // Re-register on all saved Collab servers to push an updated DID.
@@ -3818,18 +3682,29 @@ async function KVloginWithCredentials(uname, password) {
         deriveAuthHash(password, uname)
     ]);
 
-    const response = await fetch(`${window.CList.config.flaskSiteUrl}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: uname, auth_hash: authHash })
-    });
+    let data;
+    if (window.CList.isLocalMode()) {
+        // Local mode: go straight to IndexedDB, never through the window.fetch sentinel
+        // interception (docs/storage-architecture-plan.md §8 step 5(b)).
+        try {
+            data = await window.CList._localKvStore.loginUser(uname, authHash);
+        } catch (err) {
+            throw new Error(err.message || 'Login failed');
+        }
+    } else {
+        const response = await fetch(`${window.CList.config.flaskSiteUrl}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: uname, auth_hash: authHash })
+        });
 
-    if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.error || `Login failed (${response.status})`);
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.error || `Login failed (${response.status})`);
+        }
+
+        data = await response.json();
     }
-
-    const data = await response.json();
 
     // Store token and expiry in persistent cookies (365-day lifetime matches server)
     setSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN, data.token, 365);
@@ -3854,6 +3729,17 @@ async function KVloginWithCredentials(uname, password) {
  */
 async function KVregisterWithCredentials(uname, password) {
     const authHash = await deriveAuthHash(password, uname.toLowerCase());
+
+    if (window.CList.isLocalMode()) {
+        // Local mode: go straight to IndexedDB, never through the window.fetch sentinel
+        // interception (docs/storage-architecture-plan.md §8 step 5(b)).
+        try {
+            await window.CList._localKvStore.registerUser(uname.toLowerCase(), authHash);
+        } catch (err) {
+            throw new Error(err.message || 'Registration failed');
+        }
+        return;
+    }
 
     const response = await fetch(`${window.CList.config.flaskSiteUrl}/auth/register`, {
         method: 'POST',

@@ -905,9 +905,6 @@ document.addEventListener('DOMContentLoaded', async function () {
 });
 
 async function saveMastodonAccount(title, username, accessToken, permissions) {
-    const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
-    if (!token) { showStatusMessage('Please log in to kvstore before authorizing Mastodon.'); return; }
-
     const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
     if (!encKey) { showStatusMessage('Encryption key missing — please log in again.'); return; }
 
@@ -921,16 +918,13 @@ async function saveMastodonAccount(title, username, accessToken, permissions) {
         return;
     }
 
-    const existing = Array.isArray(window.CList.accounts) && window.CList.accounts.find(a => a.key === username);
-    const endpoint = existing ? 'update_kv/' : 'add_kv/';
-
-    const response = await fetch(`${window.CList.config.flaskSiteUrl}/${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body: JSON.stringify({ key: username, value: encryptedValue })
-    });
-
-    if (!response.ok) { showStatusMessage('Failed to save Mastodon account to kvstore.'); return; }
+    try {
+        await window.CList.storage.kv.put(username, encryptedValue);
+    } catch (err) {
+        if (err.code === 'NotAuthenticated') showStatusMessage('Please log in to kvstore before authorizing Mastodon.');
+        else showStatusMessage('Failed to save Mastodon account to kvstore.');
+        return;
+    }
 
     try {
         window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl);

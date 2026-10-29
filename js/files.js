@@ -121,7 +121,9 @@ function parseHtmlContent(content, mimeType) {
     }
 
     const titleContent = doc.querySelector("#post-title")?.innerHTML || "Untitled";
-    const mainContent = doc.querySelector("#post-content")?.innerHTML || "default content";
+    // #post-content is CList's own round-trip export marker — a generic HTML file
+    // won't have it, so fall back to the whole document body rather than a placeholder.
+    const mainContent = doc.querySelector("#post-content")?.innerHTML || doc.body.innerHTML || "";
     const referencesContent = doc.querySelector("#post-references")?.innerHTML || "";
 
     const titleInput = window.CList.ui.view.writeTitle;

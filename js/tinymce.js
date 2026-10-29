@@ -33,6 +33,9 @@ let pendingTinymceDraftOffer = false;
                 writePaneContent.style.display = 'block'; // Show the content area
                 let tinymceEditorDiv = document.getElementById('tinymceEditorDiv');
                 tinymceEditorDiv.style.display = 'block'; // Show the editor
+                // Editor instance already exists, so there's no init callback coming to
+                // deliver pendingContent the way a first-time init does — consume it here.
+                loadPredefinedContent('tinymce');
                 return true;
             }
 

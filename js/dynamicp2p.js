@@ -1157,20 +1157,15 @@ function findEtherpadLink(content, sender) {
 // for users who have not generated an identity key.
 
 async function loadIdentityKey() {
-  const token  = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
   const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
-  if (!token || !encKey) return null;
+  if (!encKey) return null;
   try {
-    const res = await fetch(`${window.CList.config.flaskSiteUrl}/get_kvs/`, {
-      headers: { 'Authorization': 'Bearer ' + token }
-    });
-    if (!res.ok) return null;
-    const kvs   = await res.json();
+    const kvs   = await window.CList.storage.kv.list();
     const entry = kvs.find(kv => kv.key === '_did_identity_key');
     if (!entry) return null;
     return await decryptIdentityPrivateKey(entry.value, encKey);
   } catch (err) {
-    console.error('loadIdentityKey failed:', err);
+    if (err.code !== 'NotAuthenticated') console.error('loadIdentityKey failed:', err);
     return null;
   }
 }

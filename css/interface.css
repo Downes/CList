@@ -749,6 +749,16 @@
     margin-bottom: 4px;
   }
 
+  /* Heading line for a decision prompt rendered via .list-tip (e.g. content-
+     transfer/overwrite dialogues) — states the question being asked, since the
+     .list-tip text right after it is explanatory detail, not the question itself. */
+  .list-tip-title {
+    padding: 8px 10px 0;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: #333;
+  }
+
   #loaded-page-indicator {
     display: flex;
     align-items: center;
@@ -1277,6 +1287,7 @@ html.dark-mode .find-input {
 }
 html.dark-mode .find-input:focus { background: #333; }
 html.dark-mode .list-tip { color: #999; border-bottom-color: #3a3a3a; }
+html.dark-mode .list-tip-title { color: #e0e0e0; }
 html.dark-mode .account-button { color: #e0e0e0; border-bottom-color: #2f2f2f; }
 html.dark-mode .account-button .material-icons { color: #777; }
 html.dark-mode .account-icon-img,

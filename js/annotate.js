@@ -397,16 +397,10 @@ async function _offerCollectAfterAnnotation(ref) {
     const itemId = ref.statusID || ref.id;
     if (!itemId) return;
 
-    const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN) || '';
-    if (!token) return;
-
     try {
         const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
         if (!encKey) return;
-        const resp = await fetch(`${window.CList.config.flaskSiteUrl}/get_kvs/`,
-            { headers: { Authorization: 'Bearer ' + token } });
-        if (!resp.ok) return;
-        const kvs = await resp.json();
+        const kvs = await window.CList.storage.kv.list();
         for (const kv of kvs.filter(k => k.key.startsWith('collection:'))) {
             try {
                 const items = JSON.parse(await decryptWithKey(encKey, kv.value)) || [];
@@ -414,7 +408,7 @@ async function _offerCollectAfterAnnotation(ref) {
             } catch { continue; }
         }
     } catch (e) {
-        console.error('[annotations] collection check error', e);
+        if (e.code !== 'NotAuthenticated') console.error('[annotations] collection check error', e);
         return;
     }
 
@@ -492,18 +486,15 @@ async function _getFederatedAnnotationAccounts() {
         return _federatedCache;
     }
 
-    const token  = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
-    const encKey = token ? await getEncKey(window.CList.config.flaskSiteUrl) : null;
+    const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
     if (!encKey) { _federatedCache = []; return []; }
 
     // Fetch all KV pairs and find follow entries
     let kvs = [];
     try {
-        const resp = await fetch(`${window.CList.config.flaskSiteUrl}/get_kvs/`,
-            { headers: { Authorization: 'Bearer ' + token } });
-        if (resp.ok) kvs = await resp.json();
+        kvs = await window.CList.storage.kv.list();
     } catch (e) {
-        console.error('Federated annotation: KV fetch failed', e);
+        if (e.code !== 'NotAuthenticated') console.error('Federated annotation: KV fetch failed', e);
     }
 
     const followKvs = kvs.filter(kv => kv.key.startsWith('social:following:'));
@@ -556,15 +547,12 @@ async function _getFollowedDids() {
     if (_followedDidsCache && Date.now() - _followedDidsCacheTime < _FEDERATED_TTL) {
         return _followedDidsCache;
     }
-    const token  = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
-    const encKey = token ? await getEncKey(window.CList.config.flaskSiteUrl) : null;
+    const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
     if (!encKey) { _followedDidsCache = new Set(); return _followedDidsCache; }
     let kvs = [];
     try {
-        const resp = await fetch(`${window.CList.config.flaskSiteUrl}/get_kvs/`,
-            { headers: { Authorization: 'Bearer ' + token } });
-        if (resp.ok) kvs = await resp.json();
-    } catch (e) { console.error('_getFollowedDids: KV fetch failed', e); }
+        kvs = await window.CList.storage.kv.list();
+    } catch (e) { if (e.code !== 'NotAuthenticated') console.error('_getFollowedDids: KV fetch failed', e); }
     const dids = new Set((await Promise.all(
         kvs.filter(kv => kv.key.startsWith('social:following:'))
            .map(async kv => {
@@ -878,24 +866,12 @@ async function _followUser(did, token, btn) {
     btn.disabled = true;
     try {
         const encryptedValue = await encryptWithKey(encKey, JSON.stringify(value));
-        const resp = await fetch(`${window.CList.config.flaskSiteUrl}/add_kv/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-            body: JSON.stringify({ key, value: encryptedValue }),
-        });
-        if (resp.ok || resp.status === 409) {
-            btn.innerHTML = '<span class="material-icons md-18 md-light">how_to_reg</span>';
-            btn.title = 'Following';
-            if (resp.ok) {
-                showStatusMessage('Now following ' + did.replace(/^did:web:[^:]+:users:/, ''));
-                _followedDidsCache = null;
-                _federatedCache    = null;
-            }
-        } else {
-            showStatusMessage('Follow failed (server error ' + resp.status + ') — try again or re-add your account.');
-            console.error('Follow failed', resp.status);
-            btn.disabled = false;
-        }
+        await window.CList.storage.kv.put(key, encryptedValue);
+        btn.innerHTML = '<span class="material-icons md-18 md-light">how_to_reg</span>';
+        btn.title = 'Following';
+        showStatusMessage('Now following ' + did.replace(/^did:web:[^:]+:users:/, ''));
+        _followedDidsCache = null;
+        _federatedCache    = null;
     } catch (e) {
         showStatusMessage('Error following user — check your connection and try again.');
         console.error('Follow error', e);

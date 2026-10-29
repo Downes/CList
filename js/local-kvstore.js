@@ -41,8 +41,30 @@ window.CList.LOCAL_KVSTORE_URL = 'http://local.clist';
                     db.createObjectStore('sessions', { keyPath: 'token' });
                 }
             };
-            req.onsuccess = () => resolve(req.result);
-            req.onerror = () => reject(req.error);
+            // A stale connection from another tab blocking this upgrade, or the open request
+            // itself failing, must not hang silently (docs/storage-architecture-plan.md §5) —
+            // reset dbPromise so a later call can retry instead of being stuck on a dead promise.
+            req.onblocked = () => {
+                dbPromise = null;
+                reject(new Error('IndexedDB open blocked — another tab still has an older version open'));
+            };
+            req.onsuccess = () => {
+                const db = req.result;
+                // Another tab upgraded the schema out from under this connection — close it and
+                // force a reload rather than letting the next request fail opaquely (§5).
+                db.onversionchange = () => {
+                    db.close();
+                    dbPromise = null;
+                    if (typeof showStatusMessage === 'function') {
+                        showStatusMessage('CList local storage was updated in another tab — reload to pick up the change.');
+                    }
+                };
+                resolve(db);
+            };
+            req.onerror = () => {
+                dbPromise = null;
+                reject(req.error);
+            };
         });
         return dbPromise;
     }
@@ -64,11 +86,80 @@ window.CList.LOCAL_KVSTORE_URL = 'http://local.clist';
         }));
     }
 
+    // Create-only write: relies on IndexedDB's native key-collision failure (ConstraintError)
+    // instead of a separate get()-then-put(), so there's no gap between the check and the write
+    // for another tab to race into (docs/storage-architecture-plan.md §5).
+    function idbAdd(storeName, value) {
+        return openDb().then(db => new Promise((resolve, reject) => {
+            const tx = db.transaction(storeName, 'readwrite');
+            tx.objectStore(storeName).add(value);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        }));
+    }
+
     function idbDelete(storeName, key) {
         return openDb().then(db => new Promise((resolve, reject) => {
             const tx = db.transaction(storeName, 'readwrite');
             tx.objectStore(storeName).delete(key);
             tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        }));
+    }
+
+    // Thrown by idbUpdateIfExists/idbDeleteIfExists when the key doesn't exist. Callers (e.g.
+    // kvstore-local.js's run()) detect it via the `notFound` flag rather than instanceof, the same
+    // duck-typed way LocalAuthError's `status` field is read across the file boundary below.
+    class LocalNotFoundError extends Error {
+        constructor(message) {
+            super(message || 'Key not found');
+            this.notFound = true;
+        }
+    }
+
+    // Existence-gated write: the get() and the conditional put() happen against the SAME
+    // read-write transaction, so no other write can land between the check and the write
+    // (docs/storage-architecture-plan.md §5) — unlike a separate idbGet() then idbPut(), which
+    // would reopen the exact TOCTOU gap idbAdd() above was added to close for add().
+    function idbUpdateIfExists(storeName, key, value) {
+        return openDb().then(db => new Promise((resolve, reject) => {
+            const tx = db.transaction(storeName, 'readwrite');
+            const store = tx.objectStore(storeName);
+            let missing = false;
+            const getReq = store.get(key);
+            getReq.onsuccess = () => {
+                if (getReq.result === undefined) {
+                    missing = true;
+                    tx.abort();
+                    return;
+                }
+                store.put(value);
+            };
+            getReq.onerror = () => reject(getReq.error);
+            tx.oncomplete = () => resolve();
+            tx.onabort = () => reject(missing ? new LocalNotFoundError() : (tx.error || new Error('Transaction aborted')));
+            tx.onerror = () => reject(tx.error);
+        }));
+    }
+
+    // Same same-transaction existence gate as idbUpdateIfExists, for delete().
+    function idbDeleteIfExists(storeName, key) {
+        return openDb().then(db => new Promise((resolve, reject) => {
+            const tx = db.transaction(storeName, 'readwrite');
+            const store = tx.objectStore(storeName);
+            let missing = false;
+            const getReq = store.get(key);
+            getReq.onsuccess = () => {
+                if (getReq.result === undefined) {
+                    missing = true;
+                    tx.abort();
+                    return;
+                }
+                store.delete(key);
+            };
+            getReq.onerror = () => reject(getReq.error);
+            tx.oncomplete = () => resolve();
+            tx.onabort = () => reject(missing ? new LocalNotFoundError() : (tx.error || new Error('Transaction aborted')));
             tx.onerror = () => reject(tx.error);
         }));
     }
@@ -92,6 +183,40 @@ window.CList.LOCAL_KVSTORE_URL = 'http://local.clist';
         return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
     }
 
+    // Thrown by registerUser/loginUser below so both the fetch-interception path (which turns
+    // it back into a Response) and direct callers (kvstore.js, in local mode) get the same
+    // status/message without either side knowing about the other's transport.
+    class LocalAuthError extends Error {
+        constructor(status, message) {
+            super(message);
+            this.status = status;
+        }
+    }
+
+    // Local-mode register/login, callable either via the fetch interception below or directly
+    // from kvstore.js (window.CList._localKvStore.registerUser/loginUser) when in local mode —
+    // see docs/storage-architecture-plan.md §8 step 5(b). Only ever sees the already-derived
+    // auth_hash, never a plaintext password or the encKey (see file header).
+    async function registerUser(username, authHash) {
+        username = (username || '').toLowerCase();
+        if (!username || !authHash) throw new LocalAuthError(400, 'Missing username or auth_hash');
+        if (await idbGet('users', username)) throw new LocalAuthError(409, 'Username already taken');
+        const authHashDigest = await sha256Hex(authHash);
+        await idbPut('users', { username, authHashDigest, createdAt: new Date().toISOString() });
+        return { username };
+    }
+
+    async function loginUser(username, authHash) {
+        username = (username || '').toLowerCase();
+        const user = username ? await idbGet('users', username) : null;
+        const digest = authHash ? await sha256Hex(authHash) : null;
+        if (!user || !digest || user.authHashDigest !== digest) throw new LocalAuthError(401, 'Invalid credentials');
+        const token = crypto.randomUUID();
+        const expires = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+        await idbPut('sessions', { token, username, expires });
+        return { token, username, expires };
+    }
+
     function bearerToken(init) {
         const h = init && init.headers;
         if (!h) return null;
@@ -100,8 +225,7 @@ window.CList.LOCAL_KVSTORE_URL = 'http://local.clist';
         return auth.slice(7);
     }
 
-    async function requireUser(init) {
-        const token = bearerToken(init);
+    async function usernameForToken(token) {
         if (!token) return null;
         const session = await idbGet('sessions', token);
         if (!session) return null;
@@ -109,28 +233,30 @@ window.CList.LOCAL_KVSTORE_URL = 'http://local.clist';
         return session.username;
     }
 
+    async function requireUser(init) {
+        return usernameForToken(bearerToken(init));
+    }
+
     async function handleLocalRequest(path, init) {
         const method = ((init && init.method) || 'GET').toUpperCase();
         const body = (init && init.body) ? JSON.parse(init.body) : {};
 
         if (path === '/auth/register' && method === 'POST') {
-            const username = (body.username || '').toLowerCase();
-            if (!username || !body.auth_hash) return jsonResponse(400, { error: 'Missing username or auth_hash' });
-            if (await idbGet('users', username)) return jsonResponse(409, { error: 'Username already taken' });
-            const authHashDigest = await sha256Hex(body.auth_hash);
-            await idbPut('users', { username, authHashDigest, createdAt: new Date().toISOString() });
-            return jsonResponse(200, { username });
+            try {
+                return jsonResponse(200, await registerUser(body.username, body.auth_hash));
+            } catch (err) {
+                if (err instanceof LocalAuthError) return jsonResponse(err.status, { error: err.message });
+                throw err;
+            }
         }
 
         if (path === '/auth/login' && method === 'POST') {
-            const username = (body.username || '').toLowerCase();
-            const user = username ? await idbGet('users', username) : null;
-            const digest = body.auth_hash ? await sha256Hex(body.auth_hash) : null;
-            if (!user || !digest || user.authHashDigest !== digest) return jsonResponse(401, { error: 'Invalid credentials' });
-            const token = crypto.randomUUID();
-            const expires = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
-            await idbPut('sessions', { token, username, expires });
-            return jsonResponse(200, { token, username, expires });
+            try {
+                return jsonResponse(200, await loginUser(body.username, body.auth_hash));
+            } catch (err) {
+                if (err instanceof LocalAuthError) return jsonResponse(err.status, { error: err.message });
+                throw err;
+            }
         }
 
         // Every other endpoint needs a valid local session token
@@ -183,5 +309,15 @@ window.CList.LOCAL_KVSTORE_URL = 'http://local.clist';
     // URL, so other code checks this flag to hide those entry points rather than let them fail.
     window.CList.isLocalMode = function () {
         return !!(window.CList.config && window.CList.config.flaskSiteUrl === SENTINEL);
+    };
+
+    // Exposed so js/kvstore-local.js (the storage.js facade's local adapter) can talk to the
+    // same IndexedDB store directly instead of round-tripping through the fetch interception
+    // above — see docs/storage-architecture-plan.md §3-§5. registerUser/loginUser are the same
+    // seam used by kvstore.js's KVregisterWithCredentials/KVloginWithCredentials when in local
+    // mode (§8 step 5(b)) — both throw LocalAuthError(status, message) on failure.
+    window.CList._localKvStore = {
+        idbGet, idbPut, idbAdd, idbDelete, idbUpdateIfExists, idbDeleteIfExists, idbGetAllByIndex,
+        usernameForToken, registerUser, loginUser
     };
 })();

@@ -28,7 +28,34 @@ let pendingContent = null;
 // the editor stop representing that exact page (switching editors, Load blank).
 // Shape: { url: string, title: string } | null.
 let currentLoadedPage = null;
-// 
+
+// Running per-editor state — parked when you switch away from an editor, restored
+// when you switch back to it, so each editor keeps its own page/cites independent
+// of whatever any other editor is doing, instead of the single shared
+// currentLoadedPage/references that switching used to reset on every call. Keyed by
+// editorStateKey() so two different accounts on the same account-backed editor type
+// (e.g. two Etherpad logins) get separate entries, matching the isCurrent check in
+// _populateAccountEditors() below. Not persisted — lost on reload, same as
+// currentEditor/currentLoadedPage always have been.
+const editorStates = {};
+
+function editorStateKey(editorType, account) {
+    return account?.key ? `${editorType}:${account.key}` : editorType;
+}
+
+function _parkCurrentEditorState() {
+    editorStates[editorStateKey(currentEditor, currentEditorAccount)] = {
+        page: currentLoadedPage,
+        references: getReferences().slice(),
+    };
+}
+
+function _restoreEditorState(editorType, account) {
+    const parked = editorStates[editorStateKey(editorType, account)];
+    setLoadedPage(parked ? parked.page : null);
+    setReferences(parked ? parked.references : []);
+}
+//
 // Define handlers for each editor
 //
 // Each handler object has the following fields:
@@ -269,8 +296,10 @@ function populateLoadOptions() {
 // current editor isn't one of them) — let the user pick instead of silently
 // guessing. Called only for keys that exclude currentEditor (loadSavedPage()
 // already routes a currentEditor match straight to the empty/replace-or-insert
-// check), so every choice here is a switch to a different, freshly-initialized
-// (and therefore empty) editor. Rendered in the same right-pane spot, mirroring
+// check). The chosen editor's DOM/content persists across switches (per-editor
+// state park/restore), so it may still hold old content from an earlier visit —
+// each choice below checks for that before switching, same as loadSavedPage()'s
+// own switch-branch. Rendered in the same right-pane spot, mirroring
 // playLoadBlank()'s list styling. page/renderTarget/onCancel mirror loadSavedPage()'s
 // own params — passed through so a choice offered mid-"Load a page" or mid-"Load
 // from file" lands back in the right place either way.
@@ -302,8 +331,33 @@ function _offerEditorChoice(keys, content, page, renderTarget, onCancel) {
         btn.appendChild(iconEl);
         btn.appendChild(nameEl);
         btn.addEventListener('click', async () => {
-            await switchToEditor(key, content); // fresh editor, empty by construction
-            setLoadedPage(page || null);
+            const targetHandler = editorHandlers[key];
+            let targetExisting = '';
+            if (typeof targetHandler.getContent === 'function') {
+                try {
+                    targetExisting = await targetHandler.getContent();
+                } catch (e) {
+                    // Target editor instance doesn't exist yet (never visited this
+                    // session) — treat as empty, same as a fresh editor.
+                    targetExisting = '';
+                }
+            }
+            const targetIsEmpty = !targetExisting || !removeHtml(targetExisting).trim();
+
+            if (targetIsEmpty) {
+                await switchToEditor(key, content);
+                setLoadedPage(page || null);
+                document.getElementById('generic-modal')?.remove();
+                return;
+            }
+
+            // Switch without carrying content, so it doesn't get auto-inserted during
+            // init — then offer the same Replace/Insert/Cancel choice as other loads.
+            // switchToEditor() calls closeRightPane() internally, so reopen it before
+            // rendering the dialogue or it ends up invisible in a width:0 pane.
+            await switchToEditor(key, null);
+            openRightPane();
+            offerReplaceOrInsert(key, targetHandler, content, page, renderTarget, onCancel);
             document.getElementById('generic-modal')?.remove();
         });
         list.appendChild(btn);
@@ -393,6 +447,15 @@ function playLoadBlank() {
 // that would be discarded by switching/clearing. Mirrors offerReplaceOrInsert's
 // button-row pattern below.
 function _confirmAndLoadBlank(targetKey, targetHandler) {
+    // Blanking a *different* editor now switches away first, which parks the
+    // current editor's content/cites for later resumption (switchToEditor()) rather
+    // than discarding them — nothing is lost, so there's nothing to warn about.
+    // Only blanking the editor you're actually in is destructive.
+    if (targetKey !== currentEditor) {
+        _doLoadBlank(targetKey);
+        return;
+    }
+
     const currentHandler = editorHandlers[currentEditor];
     const hasContent = currentHandler && editorHasActiveContent(currentHandler);
 
@@ -404,6 +467,11 @@ function _confirmAndLoadBlank(targetKey, targetHandler) {
     const optionsDiv = window.CList.ui.view.loadOptions;
     if (!optionsDiv) return;
     optionsDiv.innerHTML = '';
+
+    const title = document.createElement('p');
+    title.className = 'list-tip-title';
+    title.textContent = 'Discard unsaved content?';
+    optionsDiv.appendChild(title);
 
     const msg = document.createElement('p');
     msg.className = 'list-tip';
@@ -432,22 +500,26 @@ function _confirmAndLoadBlank(targetKey, targetHandler) {
 // "Load blank" step 3: actually load a blank instance of targetKey.
 async function _doLoadBlank(targetKey) {
     clearDraft(targetKey);
+
+    // Switch first when targetKey differs — this parks the editor being left (its
+    // page/cites get resumed later, same as any other switch) before any clearing
+    // below touches the *target's* own just-restored state, not the source's.
+    if (targetKey !== currentEditor) {
+        await switchToEditor(targetKey); // no carriedContent — resumes targetKey's own parked state
+    }
+
     window.clearWriteTags?.();
     clearReferences(); // global references list/panel
     document.querySelectorAll('.currentReference').forEach(el => el.remove()); // per-editor "last loaded" attribution block
     setLoadedPage(null);
 
-    if (targetKey === currentEditor) {
-        const handler = editorHandlers[targetKey];
-        if (typeof handler.setContent === 'function') {
-            handler.setContent('');
-        } else if (targetKey === 'collection') {
-            _activeCollection = null; // collection has no setContent — blank it directly
-        }
-        await initializeEditor(targetKey);
-    } else {
-        await switchToEditor(targetKey); // no carriedContent — fresh blank initialize()
+    const handler = editorHandlers[targetKey];
+    if (typeof handler.setContent === 'function') {
+        handler.setContent('');
+    } else if (targetKey === 'collection') {
+        _activeCollection = null; // collection has no setContent — blank it directly
     }
+    if (targetKey === currentEditor) await initializeEditor(targetKey);
 
     closeLoadSurfaces();
     updateEditorIndicator();
@@ -498,7 +570,7 @@ function _populateBuiltInEditors() {
         const isCurrent = key === currentEditor;
         const tag = isCurrent ? ' [Selected]' : (editorHasActiveContent(handler) ? ' [Active]' : '');
         const label = (handler.label || key) + tag;
-        const onClick = isCurrent ? closeEditorSwitchOverlay : () => switchToEditor(key);
+        const onClick = isCurrent ? closeEditorSwitchOverlay : () => _switchToEditorFromPicker(key);
         builtInOptions.appendChild(makeEditorButton(label, handler.icon, onClick));
     });
     document.getElementById('editor-switch-account-options').innerHTML = '';
@@ -521,7 +593,7 @@ async function _populateAccountEditors() {
         const isCurrent = editorType === currentEditor && currentEditorAccount?.key === account.key;
         const tag = isCurrent ? ' [Selected]' : (editorHasActiveContent(handler) ? ' [Active]' : '');
         const label = `${parsedValue.title} (${handler.label})` + tag;
-        const onClick = isCurrent ? closeEditorSwitchOverlay : () => switchToEditor(editorType, null, account);
+        const onClick = isCurrent ? closeEditorSwitchOverlay : () => _switchToEditorFromPicker(editorType, account);
         accountList.appendChild(makeEditorButton(label, handler.icon, onClick));
     });
 }
@@ -553,15 +625,113 @@ async function playEditorSwitch() {
 async function switchToEditor(editorType, carriedContent, account) {
     if (carriedContent) pendingContent = carriedContent;
 
-    // Any switch other than loadSavedPage() carrying a page forward (which re-sets
-    // this right after calling us) means the editor no longer represents that page.
-    setLoadedPage(null);
-
+    // Park the outgoing editor's page/cites, then resume whatever was parked for
+    // the target last time it was open (or a clean slate if it's never been visited).
+    // Callers carrying a page forward explicitly (loadSavedPage(), _offerEditorChoice())
+    // re-set it right after calling us, overriding whatever got restored here.
+    _parkCurrentEditorState();
     await initializeEditor(editorType, account ?? null);
+    _restoreEditorState(currentEditor, currentEditorAccount);
+
     closeRightPane();
     closeEditorSwitchOverlay();
     updateEditorIndicator();
     await populateEditorList();
+}
+
+
+// The one true "user manually picked a different editor" entry point — the
+// editor-switch picker's built-in and account-based buttons both call this instead
+// of switchToEditor() directly. switchToEditor() itself is also used for
+// content-type-driven forced switches (_offerEditorChoice, loadSavedPage) where the
+// source editor can't even hold the new content, so those keep calling it directly
+// and skip this prompt. Only offers a choice when the outgoing editor actually has
+// content worth asking about (editorHasActiveContent) — otherwise switches straight
+// through, same as before this existed.
+async function _switchToEditorFromPicker(editorType, account) {
+    const sourceHandler = editorHandlers[currentEditor];
+    if (!sourceHandler || !editorHasActiveContent(sourceHandler)) {
+        await switchToEditor(editorType, null, account);
+        return;
+    }
+    _offerContentTransfer(editorType, account);
+}
+
+// Rendered into the editor-switch overlay when the editor being left has content.
+// No automated transfer: Overwrite/Insert/Don't transfer/Cancel, mirroring
+// offerReplaceOrInsert()'s New/Replace/Insert pattern for the same reason — Overwrite
+// needs targetHandler.setContent, which collab/etherpad/collection editors don't have,
+// so it's omitted for those targets (Insert, via loadContent, is still offered).
+// Overwrite replaces the target's cites with the source's; Insert unions them
+// (deduped by url, same rule pushReference() already uses); Don't transfer leaves
+// whatever _restoreEditorState() just resumed for the target untouched.
+function _offerContentTransfer(targetKey, account) {
+    const sourceHandler = editorHandlers[currentEditor];
+    const sourceLabel = sourceHandler.label || currentEditor;
+    const targetHandler = editorHandlers[targetKey];
+    const targetLabel = targetHandler.label || targetKey;
+    const sourceType = (sourceHandler.contentTypes && sourceHandler.contentTypes[0]) || 'text/plain';
+    const sourceContent = (typeof sourceHandler.getContent === 'function') ? sourceHandler.getContent() : '';
+    const sourceRefs = getReferences().slice();
+
+    const optionsDiv = document.getElementById('editor-switch-options');
+    const accountOptionsDiv = document.getElementById('editor-switch-account-options');
+    if (!optionsDiv) return;
+    if (accountOptionsDiv) accountOptionsDiv.innerHTML = '';
+    optionsDiv.innerHTML = '';
+
+    const title = document.createElement('p');
+    title.className = 'list-tip-title';
+    title.textContent = 'Transfer content to the new editor?';
+    optionsDiv.appendChild(title);
+
+    const msg = document.createElement('p');
+    msg.className = 'list-tip';
+    msg.textContent = `The ${sourceLabel} editor has content. Carry it over to ${targetLabel}?`;
+    optionsDiv.appendChild(msg);
+
+    const row = document.createElement('div');
+    row.className = 'published-page-confirm';
+
+    if (typeof targetHandler.setContent === 'function') {
+        const overwriteBtn = document.createElement('button');
+        overwriteBtn.className = 'btn';
+        overwriteBtn.textContent = 'Overwrite';
+        overwriteBtn.onclick = async () => {
+            await switchToEditor(targetKey, null, account);
+            targetHandler.setContent(sourceContent);
+            setReferences(sourceRefs);
+        };
+        row.appendChild(overwriteBtn);
+    }
+
+    if (typeof targetHandler.loadContent === 'function') {
+        const insertBtn = document.createElement('button');
+        insertBtn.className = 'btn';
+        insertBtn.textContent = 'Insert';
+        insertBtn.onclick = async () => {
+            await switchToEditor(targetKey, null, account);
+            targetHandler.loadContent({ type: sourceType, value: sourceContent });
+            const merged = getReferences().slice();
+            sourceRefs.forEach(ref => { if (!merged.some(r => r.url === ref.url)) merged.push(ref); });
+            setReferences(merged);
+        };
+        row.appendChild(insertBtn);
+    }
+
+    const noneBtn = document.createElement('button');
+    noneBtn.className = 'btn btn-secondary';
+    noneBtn.textContent = "Don't transfer";
+    noneBtn.onclick = () => switchToEditor(targetKey, null, account);
+    row.appendChild(noneBtn);
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'btn btn-secondary';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.onclick = () => populateEditorList();
+    row.appendChild(cancelBtn);
+
+    optionsDiv.appendChild(row);
 }
 
 
@@ -593,8 +763,17 @@ function updateLoadedPageUI() {
     if (indicator) {
         if (currentLoadedPage) {
             if (filenameEl) {
-                filenameEl.textContent = `Loaded: ${currentLoadedPage.title || currentLoadedPage.url}`;
-                filenameEl.title = currentLoadedPage.url;
+                // publicationUrl covers local-page records (stamped by publish.js after
+                // recordPublication, since those don't carry url/format themselves);
+                // url/format are already set directly on 'page'-kind records (see
+                // setLoadedPage() calls in publish.js).
+                const pubUrl = currentLoadedPage.publicationUrl || currentLoadedPage.url || '';
+                const format = currentLoadedPage.format;
+                let label = `Loaded: ${currentLoadedPage.title || pubUrl || ''}`;
+                if (pubUrl) label += ` → ${pubUrl}`;
+                if (format) label += ` [${format}]`;
+                filenameEl.textContent = label;
+                filenameEl.title = pubUrl;
             }
             indicator.style.display = '';
         } else {
@@ -795,10 +974,37 @@ async function loadSavedPage(content, page, renderTarget, onCancel) {
     }
 
     if (targetKey !== currentEditor) {
-        // Freshly initialized editor is empty by construction. switchToEditor()
+        // The target editor's DOM/content persists across switches (per-editor state
+        // park/restore), so it may still hold old content from earlier in the session —
+        // check before switching, same as the same-editor branch below. switchToEditor()
         // already closes the right pane; the modal (if any) still needs closing.
-        await switchToEditor(targetKey, content);
-        setLoadedPage(page);
+        const targetHandler = editorHandlers[targetKey];
+        let targetExisting = '';
+        if (typeof targetHandler.getContent === 'function') {
+            try {
+                targetExisting = await targetHandler.getContent();
+            } catch (e) {
+                // Target editor instance doesn't exist yet (never visited this session) —
+                // treat as empty, same as a fresh editor.
+                targetExisting = '';
+            }
+        }
+        const targetIsEmpty = !targetExisting || !removeHtml(targetExisting).trim();
+
+        if (targetIsEmpty) {
+            await switchToEditor(targetKey, content);
+            setLoadedPage(page);
+            document.getElementById('generic-modal')?.remove();
+            return;
+        }
+
+        // Switch without carrying content, so it doesn't get auto-inserted during
+        // init — then offer the same Replace/Insert/Cancel choice as same-editor loads.
+        // switchToEditor() calls closeRightPane() internally, so reopen it before
+        // rendering the dialogue or it ends up invisible in a width:0 pane.
+        await switchToEditor(targetKey, null);
+        openRightPane();
+        offerReplaceOrInsert(targetKey, targetHandler, content, page, renderTarget, onCancel);
         document.getElementById('generic-modal')?.remove();
         return;
     }
@@ -826,6 +1032,11 @@ function offerReplaceOrInsert(targetKey, handler, content, page, renderTarget, o
     const optionsDiv = renderTarget || window.CList.ui.view.loadOptions;
     if (!optionsDiv) return;
     optionsDiv.innerHTML = '';
+
+    const title = document.createElement('p');
+    title.className = 'list-tip-title';
+    title.textContent = 'Content detected in the destination editor.';
+    optionsDiv.appendChild(title);
 
     const msg = document.createElement('p');
     msg.className = 'list-tip';

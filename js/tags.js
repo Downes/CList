@@ -116,13 +116,8 @@
     }
 
     async function _fetchCollections() {
-        const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
-        if (!token) { _collections = []; return; }
         try {
-            const resp = await fetch(`${window.CList.config.flaskSiteUrl}/get_kvs/`,
-                { headers: { Authorization: 'Bearer ' + token } });
-            if (!resp.ok) { _collections = []; return; }
-            const kvs = await resp.json();
+            const kvs = await window.CList.storage.kv.list();
             _collections = (kvs || [])
                 .filter(kv => kv.key.startsWith('collection:'))
                 .map(kv => kv.key.replace(/^collection:/, ''));
@@ -130,23 +125,17 @@
     }
 
     async function _createCollection(name) {
-        const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
-        if (!token) return;
+        const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
+        if (!encKey) return;
         try {
-            const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
-            if (!encKey) return;
             const encrypted = await encryptWithKey(encKey, JSON.stringify([]));
-            const payload = { key: `collection:${name}`, value: encrypted };
-            const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
-            const resp = await fetch(`${window.CList.config.flaskSiteUrl}/add_kv/`, {
-                method: 'POST', headers, body: JSON.stringify(payload)
-            });
-            // 409 = already exists, that's fine
-            if (!resp.ok && resp.status !== 409)
-                console.error('[tags] create collection error', resp.status);
-            else if (resp.ok && _collections !== null && !_collections.includes(name))
-                _collections.push(name);
-        } catch (e) { console.error('[tags] create collection error', e); }
+            await window.CList.storage.kv.add(`collection:${name}`, encrypted);
+            if (_collections !== null && !_collections.includes(name)) _collections.push(name);
+        } catch (err) {
+            // Already exists, or not logged in — both fine, matches pre-migration behavior
+            if (err.code === 'AlreadyExists' || err.code === 'NotAuthenticated') return;
+            console.error('[tags] create collection error', err);
+        }
     }
 
     function _openDropdown() {
