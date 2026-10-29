@@ -122,7 +122,7 @@
             <div id="read-pane">
                 <div id="left-main-command" class="command">
                     <div class="command-left-buttons">
-                        <button class="left icon-btn" onclick="playRead(); playMe();" title="Accounts"><span class="material-icons">person</span></button>
+                        <button class="left icon-btn" onclick="toggleLeftPane();" title="Menu"><span class="material-icons">menu</span></button>
                         <button id="openLeftButton" class="left btn" onclick="playRead();" style="display:none">Read</button>
                         <button id="openFindButton" class="left btn" onclick="playFind();">Find</button>
                         <button id="openChatButton" class="left btn" onclick="playChat();" style="display:none">Chat</button>
@@ -244,7 +244,6 @@
                 <button id="audioButton" class="btn" style="display:none;" onclick="toggleDiv('audio-section');">Audio</button>
                 <button id="chatButton" class="btn" style="display:none;" onclick="toggleDiv('chat-section');">Chat</button>
             </div>
-            <button id="left-close-button" onclick="closeLeftPane()">X</button>
         </div>
         <!-- Current login identity and selected read account -->
         <div id="current-status" class="pane-status">
@@ -434,12 +433,12 @@
 <script src="js/interface.js"></script>   <!-- keep last as it depends on the previous scripts -->
 
 <!-- Login / Register modal -->
-<div id="authModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
-    <div style="background:#fff; padding:2em; border-radius:8px; min-width:300px; max-width:360px; width:90%;">
+<div id="authModal" style="display:none; position:fixed; inset:0; background:var(--bg-modal-overlay); z-index:9999; align-items:center; justify-content:center;">
+    <div style="background:var(--bg-panel); color:var(--text-main); padding:2em; border-radius:var(--radius-modal); box-shadow:var(--shadow-modal); min-width:300px; max-width:360px; width:90%;">
         <h3 id="authModalTitle" style="margin-top:0;"></h3>
 
         <!-- Account server line -->
-        <div id="authServerLine" style="font-size:0.75em; color:#666; margin-bottom:.85em;">
+        <div id="authServerLine" style="font-size:0.75em; color:var(--text-muted); margin-bottom:.85em;">
             Account server: <span id="authServerUrl"></span>
             <a href="#" onclick="event.preventDefault(); openChangeServerPanel();" style="margin-left:.3em;">Change</a>
             <span id="authUsernameHint" style="display:none;">
@@ -452,14 +451,14 @@
             <label style="display:block; margin-bottom:.5em;">Username<br>
                 <input id="authUsername" type="text" autocomplete="username" style="width:100%; box-sizing:border-box; padding:.4em;">
             </label>
-            <div id="authUsernameRule" style="display:none; font-size:0.75em; color:#666; margin:-0.3em 0 .6em;">
+            <div id="authUsernameRule" style="display:none; font-size:0.75em; color:var(--text-muted); margin:-0.3em 0 .6em;">
                 3–32 characters: letters, digits, dots, hyphens, and underscores; must start with a letter or digit.
             </div>
             <label style="display:block; margin-bottom:.5em;">Password<br>
                 <div style="position:relative;">
                     <input id="authPassword" type="password" autocomplete="current-password" style="width:100%; box-sizing:border-box; padding:.4em; padding-right:2.2em;">
                     <span onclick="toggleAuthPassword('authPassword',this)" title="Show/hide password"
-                          style="position:absolute; right:.4em; top:50%; transform:translateY(-50%); cursor:pointer; user-select:none; font-size:1.1em;">👁</span>
+                          style="position:absolute; right:.4em; top:50%; transform:translateY(-50%); cursor:pointer; user-select:none; font-size:1.1em; color:var(--text-main);">👁</span>
                 </div>
             </label>
             <div id="authConfirmWrap" style="display:none;">
@@ -467,11 +466,11 @@
                     <div style="position:relative;">
                         <input id="authConfirm" type="password" autocomplete="new-password" style="width:100%; box-sizing:border-box; padding:.4em; padding-right:2.2em;">
                         <span onclick="toggleAuthPassword('authConfirm',this)" title="Show/hide password"
-                              style="position:absolute; right:.4em; top:50%; transform:translateY(-50%); cursor:pointer; user-select:none; font-size:1.1em;">👁</span>
+                              style="position:absolute; right:.4em; top:50%; transform:translateY(-50%); cursor:pointer; user-select:none; font-size:1.1em; color:var(--text-main);">👁</span>
                     </div>
                 </label>
             </div>
-            <div id="authError" style="color:red; margin-bottom:.5em; display:none;"></div>
+            <div id="authError" style="color:var(--color-error); margin-bottom:.5em; display:none;"></div>
             <div style="display:flex; gap:.5em; justify-content:flex-end;">
                 <button class="btn btn-secondary" onclick="closeAuthModal()">Cancel</button>
                 <button id="authSubmitBtn" class="btn" onclick="submitAuthModal()"></button>
@@ -486,7 +485,7 @@
                     <option value="https://kvstore.downes.ca">kvstore.downes.ca</option>
                     <option value="http://local.clist">Local — nothing leaves your computer</option>
                 </select>
-                <div style="font-size:0.75em; color:#666; margin-top:.4em;">
+                <div style="font-size:0.75em; color:var(--text-muted); margin-top:.4em;">
                     "Local" stores your account and credentials only in this browser — nothing is sent to any server.
                     Collab, shared annotations, following, and P2P chat need a real server to reach you, so those
                     aren't available in Local mode. You can't use the same Local account on another device or browser.
