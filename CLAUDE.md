@@ -12,6 +12,19 @@ See [README.md](README.md) for full architecture, kvstore/CORS details, and file
 - **Credential storage**: encrypted client-side via PBKDF2 + AES-GCM; server stores only ciphertext
 - kvstore URL is at `window.CList.config.flaskSiteUrl` (initialized in `index.html`)
 
+## Core Design Principles
+
+- **Capability over identity** — gate behavior and UI on what something can actually do or
+  actually has (does this account have this capability? does this item carry the required data
+  field?), never on hardcoded type/kind/service-name checks. This is why the Load/Save panels gate
+  on `requiresLogin`/`requiresAccount` rather than per-service `if` branches, and why UI elements
+  gate on actual fields in the Editor States Array rather than ad-hoc kind/type tags.
+- **Extend the existing registry, don't write a parallel path** — before adding new logic, check
+  whether a registry/handler pattern for this already exists (`window.CList.readers`,
+  `publishers`, `savers`, `loaders`, `editorHandlers`, helpers in `ui.js`). Register into it instead
+  of adding a new `case` branch, a new one-off function, or a second implementation of the same
+  idea elsewhere in the codebase.
+
 ## File Structure
 
 ```
