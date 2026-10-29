@@ -240,17 +240,6 @@
                 </div>
                 <input type="file" id="fileInput" style="display: none;" onchange="handleFileFallback(event)" />
                 <div id="writeReferences"></div>
-                <div id="write-load">
-                    <div id="write-load-header" class="flex-container">
-                        <h2>Select Editor</h2>
-                        <button id="write-load-close-button" onclick="closeEditorSwitchOverlay()">X</button>
-                    </div>
-                    <div id="write-load-content">
-                        <div class="list-tip">Select an editor to use</div>
-                        <div id="editor-switch-options"></div>
-                        <div id="editor-switch-account-options"></div>
-                    </div>
-                </div>
 
 
                 <div id="editor-state-row">
@@ -300,6 +289,13 @@
             </div>
             <div id="load-instructions" style="display: none;">
                 <div id="load-options"></div>
+            </div>
+            <div id="editor-instructions" style="display: none;">
+                <div class="account-list">
+                    <div class="list-tip">Select an editor to use</div>
+                    <div id="editor-switch-options"></div>
+                    <div id="editor-switch-account-options"></div>
+                </div>
             </div>
         </div>
     </div> <!-- /right-pane -->
