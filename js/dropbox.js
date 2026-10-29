@@ -259,6 +259,14 @@ function _promptDropboxOverwrite(statusEl, filename, doOverwrite) {
     window.CList.savers.push({
         label:   'Save to Dropbox',
         logoSrc: 'assets/icons/dropbox.svg',
+        // Declared for documentation; visible() below is the actual gate since it must
+        // also match the account TYPE (Dropbox specifically), which the flags alone can't express.
+        requiresLogin:   true,
+        requiresAccount: true,
+        visible: () => typeof isRegistered === 'function' && isRegistered() && (window.CList.accounts || []).some(a => {
+            const v = parseAccountValue(a);
+            return v && v.type === 'Dropbox' && (v.permissions || '').includes('b');
+        }),
         save: async () => {
             const accounts = window.CList.accounts || [];
             const account  = accounts.find(a => {
@@ -401,7 +409,11 @@ function _promptDropboxOverwrite(statusEl, filename, doOverwrite) {
     window.CList.loaders.push({
         label:   'Load from Dropbox',
         logoSrc: 'assets/icons/dropbox.svg',
-        visible: () => (window.CList.accounts || []).some(a => {
+        // Declared for documentation; visible() below is the actual gate since it must
+        // also match the account TYPE (Dropbox specifically), which the flags alone can't express.
+        requiresLogin:   true,
+        requiresAccount: true,
+        visible: () => typeof isRegistered === 'function' && isRegistered() && (window.CList.accounts || []).some(a => {
             const v = parseAccountValue(a);
             return v && v.type === 'Dropbox';
         }),

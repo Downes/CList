@@ -1082,7 +1082,8 @@ window.showSavedCollections = async function() {
     window.CList.loaders.push({
         label:   'My Pages',
         icon:    'cloud_done',
-        visible: () => !!getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN),
+        requiresLogin:   true,
+        requiresAccount: false,
         load:    async () => {
             const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
             if (!token) {
@@ -1494,6 +1495,8 @@ window.showSavedCollections = async function() {
     window.CList.loaders.push({
         label: 'From URL',
         icon:  'link',
+        requiresLogin:   false,
+        requiresAccount: false,
         load:  () => new Promise(resolve => {
             const optionsDiv = window.CList.ui.view.loadOptions;
             optionsDiv.innerHTML = '';
@@ -1764,12 +1767,12 @@ window.playCollectionSave = async function playCollectionSave() {
     });
     list.appendChild(fileBtn);
 
-    // ── Save to kvstore ── (keeps the raw, unflattened items — role:'contains'
+    // ── Save to CList ── (keeps the raw, unflattened items — role:'contains'
     // stubs are only expanded at export/publish time, not in the stored record)
     if (token) {
         const kvBtn = document.createElement('button');
         kvBtn.className = 'account-button';
-        kvBtn.innerHTML = '<span class="material-icons">storage</span><span>Save to kvstore</span>';
+        kvBtn.innerHTML = '<span class="material-icons">storage</span><span>Save to CList</span>';
 
         kvBtn.addEventListener('click', async () => {
             kvBtn.disabled = true;
@@ -1782,10 +1785,10 @@ window.playCollectionSave = async function playCollectionSave() {
                 await _kvSaveItems(key, id, name, items, token, encKey, publishedUrls);
                 _activeCollection = { col: { key, id, name, items, publishedUrls }, token, encKey };
                 _refreshIdDisplay();
-                showStatusMessage(`Collection "${name}" saved to kvstore.`);
+                showStatusMessage(`Collection "${name}" saved to CList.`);
                 if (typeof closeRightPane === 'function') closeRightPane();
             } catch (e) {
-                console.error('[collection save] kvstore failed', e);
+                console.error('[collection save] CList save failed', e);
                 showErrorModal('Save failed: ' + e.message, { title: 'Save failed' });
             } finally {
                 kvBtn.disabled = false;
@@ -1793,6 +1796,66 @@ window.playCollectionSave = async function playCollectionSave() {
         });
 
         list.appendChild(kvBtn);
+    }
+
+    // ── Save to Dropbox ── (same serialized output as "Save to file", uploaded
+    // in place of a browser download; mirrors dropbox.js's generic saver, which
+    // doesn't apply here since collections need format-specific serialization)
+    const dropboxAccount = token ? (window.CList.accounts || []).find(a => {
+        const v = parseAccountValue(a);
+        return v && v.type === 'Dropbox' && (v.permissions || '').includes('b');
+    }) : null;
+    if (dropboxAccount) {
+        const dbxBtn = document.createElement('button');
+        dbxBtn.className = 'account-button';
+        dbxBtn.innerHTML = '<span class="service-icon-img" style="-webkit-mask:url(\'assets/icons/dropbox.svg\') no-repeat center / contain;mask:url(\'assets/icons/dropbox.svg\') no-repeat center / contain"></span><span>Save to Dropbox</span>';
+
+        dbxBtn.addEventListener('click', async () => {
+            const fmt = collectionFormats[formatId];
+            if (!fmt) { showErrorModal('Unknown format.', { title: 'Unknown format' }); return; }
+            dbxBtn.disabled = true;
+
+            const statusEl = document.createElement('div');
+            statusEl.className = 'feed-status-message';
+            statusEl.style.cssText = 'margin:10px 8px 4px;font-size:0.85em;';
+            saveOptionsDiv.appendChild(statusEl);
+            statusEl.textContent = 'Checking Dropbox…';
+
+            try {
+                const flatItems = encKey ? await _flattenForExport(items, identity.id, token, encKey) : items;
+                const content   = fmt.serialize(name, flatItems, identity.id);
+                const filename  = `${name}.${fmt.ext}`;
+                const accountData = parseAccountValue(dropboxAccount);
+
+                let dbxToken = accountData.id;
+                async function _withRefresh(fn) {
+                    try { return await fn(dbxToken); } catch (err) {
+                        if (!accountData.refresh || !err.message.includes('401')) throw err;
+                        statusEl.textContent = 'Refreshing token…';
+                        dbxToken = await _dropboxRefreshAndPersist(dropboxAccount, accountData);
+                        return await fn(dbxToken);
+                    }
+                }
+
+                const exists = await _withRefresh(t => _dropboxFileExists(t, accountData.folder, filename));
+                const doOverwrite = () => _withRefresh(t => _dropboxUpload(t, accountData.folder, filename, content, 'overwrite'));
+
+                if (!exists) {
+                    statusEl.textContent = 'Saving…';
+                    const result = await _withRefresh(t => _dropboxUpload(t, accountData.folder, filename, content, 'add'));
+                    statusEl.textContent = 'Saved: ' + (result.path_display || filename);
+                } else {
+                    await _promptDropboxOverwrite(statusEl, filename, doOverwrite);
+                }
+            } catch (e) {
+                console.error('[collection save] Dropbox save failed', e);
+                statusEl.textContent = 'Save failed: ' + e.message;
+            } finally {
+                dbxBtn.disabled = false;
+            }
+        });
+
+        list.appendChild(dbxBtn);
     }
 
     saveOptionsDiv.appendChild(list);

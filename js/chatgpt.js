@@ -185,6 +185,10 @@ function extractCodeContent(template) {
     window.CList.loaders.push({
         label:   'Generate template',
         icon:    'auto_awesome',
+        // Declared for documentation; visible() below is the actual gate since it must
+        // also match the account TYPE (AI specifically), which the flags alone can't express.
+        requiresLogin:   true,
+        requiresAccount: true,
         visible: () => typeof hasAIAccount === 'function' && hasAIAccount(),
         load:    async () => await generateTemplateContent()
     });

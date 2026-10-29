@@ -187,17 +187,19 @@
                 </div>
 
 
-                <div id="collection-return-bar" class="list-tip" style="display:none">
-                    <button id="collection-back-button" class="btn btn-small" onclick="backToCollectionEditor()">&larr; Back to collection</button>
+                <div id="editor-state-row">
+                    <div id="collection-return-bar" class="list-tip" style="display:none">
+                        <button id="collection-back-button" class="btn btn-small" onclick="backToCollectionEditor()">&larr; Back to collection</button>
+                    </div>
+                    <div id="loaded-page-indicator" class="list-tip" style="display:none">
+                        <span id="loaded-page-filename"></span>
+                        <button id="republish-button" class="btn btn-small" onclick="playRepublish()" style="display:none">Republish</button>
+                        <span id="republish-status"></span>
+                    </div>
                 </div>
                 <div id="write-title-row">
                     <div id="write-title" contenteditable="true"></div>
                     <select id="write-format" title="Output format" style="display:none"></select>
-                </div>
-                <div id="loaded-page-indicator" class="list-tip" style="display:none">
-                    <span id="loaded-page-filename"></span>
-                    <button id="republish-button" class="btn btn-small" onclick="playRepublish()" style="display:none">Republish</button>
-                    <span id="republish-status"></span>
                 </div>
 
                 <div id="write-pane-content">

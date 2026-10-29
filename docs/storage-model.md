@@ -382,6 +382,8 @@ Two non-KV facilities, kept separate from generic KV storage (not touched by thi
   model, the `collection:*`/`membership:*` storage split, referential membership resolution, and
   editor references as a page-scoped `cites` collection.
 - `adding-a-service.md` — registry patterns (`schemas`, `publishers`, `readers`, `savers`,
-  `loaders`) that both the facade migration and PageStore's editor integration must follow.
+  `loaders`) that both the facade migration and PageStore's editor integration must follow,
+  including the `requiresLogin`/`requiresAccount` capability-flag contract ("Capability flags"
+  section) that gates what shows up in the Load/Save panes for the current login/account state.
 - `error-handling.md` — `showStatusMessage`/`showErrorModal`/`showServiceError` conventions that
   all new storage-layer error surfacing must use.

@@ -648,7 +648,8 @@ window.CList.schemas['Collab'] = {
         window.CList.loaders.push({
             label:   'Collab documents',
             icon:    'group',
-            visible: () => typeof isRegistered === 'function' && isRegistered(),
+            requiresLogin:   true,
+            requiresAccount: false,
             load:    async () => {
                 const optionsDiv = window.CList.ui.view.loadOptions
                 optionsDiv.innerHTML = '<p class="list-tip">Loading documents…</p>'

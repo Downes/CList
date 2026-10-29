@@ -28,7 +28,11 @@ body
 │               ├── #fileInput  (hidden file input)
 │               ├── #writeReferences
 │               ├── #write-load  (editor picker overlay)
-│               ├── #write-title  (contenteditable)
+│               ├── #editor-state-row  (current-editor-state bars, stacked)
+│               │   ├── #collection-return-bar  (.list-tip, hidden unless editing a collection member)
+│               │   └── #loaded-page-indicator  (.list-tip, hidden unless a page/file is loaded)
+│               ├── #write-title-row
+│               │   └── #write-title  (contenteditable)
 │               ├── #write-pane-content
 │               │   └── #textEditorDiv  (+ other editor divs added dynamically)
 │               └── #texteditor-references  (+ other reference divs added dynamically)
@@ -79,11 +83,38 @@ The right half of `#main-content`. Contains the active editor.
 | Element | Role |
 |---------|------|
 | `#right-main-command` (`.command`) | Command bar: Load, Save, Post, Refs, editor-indicator |
+| `#editor-state-row` | Current-editor-state bars (loaded page/file + Republish, "Back to collection"), above the title — see "Current-editor-state bars" below |
 | `#write-title` | Editable title field (above the editor) |
 | `#write-pane-content` | The active editor lives here; only one editor div is visible at a time |
 | `#<editor>-references` | Per-editor reference list, rendered below `#write-pane-content` |
 
 Options for the write pane open in **`#right-pane`**, which slides in from the right edge. Its panels (`#editor-list`, `#load-instructions`, `#save-instructions`, `#post-instructions`) are pre-declared children of `#right-content` and shown/hidden via `openRightInterface(panelId)`.
+
+### Current-editor-state bars — `#editor-state-row`
+
+A single standardized slot, directly above `#write-title-row`, for any bar that reports
+*state about the currently active editor* — as opposed to `#right-main-command`'s
+buttons (actions) or `#right-status`/`#editor-status` (which editor type is active).
+Each bar inside it:
+
+- is a `.list-tip` div, `display:none` by default, toggled by its own feature's code
+  (not a shared toggle function — each bar's visibility condition is feature-specific)
+- is only ever one of potentially several children of `#editor-state-row`, which just
+  stacks whichever are currently visible — there's no shared "only one at a time" rule,
+  since e.g. a loaded page and "editing a collection member" can both be true together
+
+Current bars:
+
+| Bar | Shown when | Toggled by |
+|---|---|---|
+| `#collection-return-bar` | Editing a collection member's own editor, outside the collection editor | `_showCollectionReturnBar()` (`collection-editor.js`) |
+| `#loaded-page-indicator` | `currentLoadedPage` is set (a page, collection, local-page, or file is loaded) — see `docs/editors_structure.md`'s "Currently loaded page" indicator section for the Republish-button visibility rule nested inside it | `updateLoadedPageUI()` (`editors.js`) |
+
+**Adding a new one:** add a `.list-tip` child div (`display:none` by default) inside
+`#editor-state-row` in `index.html`, and toggle its `style.display` from whichever
+feature owns the condition it reports. Do not add it as a sibling of
+`#editor-state-row` elsewhere in the write pane — this is the one place editor-state
+bars live, so they always read as a single consistent region above the title.
 
 ### Status messages — `#identityDiv`
 

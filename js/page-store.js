@@ -328,6 +328,8 @@ window.CList = window.CList || {};
     window.CList.savers.push({
         label: 'Save to CList (local)',
         icon: 'save',
+        requiresLogin:   false,
+        requiresAccount: false,
         save: async () => {
             const handler = editorHandlers[currentEditor];
             const content = (handler && typeof handler.getContent === 'function') ? await handler.getContent() : '';
@@ -503,6 +505,8 @@ function _showImportPagesPicker(renderTarget) {
     window.CList.loaders.push({
         label: 'CList (local)',
         icon: 'folder',
+        requiresLogin:   false,
+        requiresAccount: false,
         load: async () => {
             let summaries;
             try {

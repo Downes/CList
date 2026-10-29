@@ -591,6 +591,7 @@ function populateSaveOptions() {
     list.appendChild(tip);
 
     window.CList.savers.forEach(handler => {
+        if (!window.CList.ui.isHandlerVisible(handler)) return;
         const btn = document.createElement('button');
         btn.className = 'account-button';
 

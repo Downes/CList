@@ -287,6 +287,8 @@ Adds an entry to the **Save** right pane. Use for local or remote persistence th
         label: 'Save to MyService',
         icon:  'cloud_upload',          // Material Icons name
         // logoSrc: 'assets/myservice.svg', // alternative: masked SVG icon
+        requiresLogin:   true,          // see "Capability flags" below
+        requiresAccount: true,
         save: async () => {
             const token   = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, 'access_token') || '';
             const handler = editorHandlers[currentEditor];
@@ -314,6 +316,8 @@ Adds an entry to the **Load** right pane. Use to pull content from a remote sour
     window.CList.loaders.push({
         label: 'Load from MyService',
         icon:  'download',
+        requiresLogin:   true,          // see "Capability flags" below
+        requiresAccount: true,
         load: async () => {
             try {
                 const html = await myServiceFetch();
@@ -331,6 +335,73 @@ Adds an entry to the **Load** right pane. Use to pull content from a remote sour
 ```
 
 `load()` must return `{ type, value }` or `null`. The type is a MIME string; use `'text/html'` if the content has markup, `'text/plain'` otherwise. The editor's `loadContent()` method handles conversion.
+
+---
+
+## Capability flags: `requiresLogin` / `requiresAccount`
+
+The **Load** and **Save** right panes are both populated straight from the `window.CList.loaders`
+and `window.CList.savers` arrays — every registered entry, filtered by one shared gate:
+`window.CList.ui.isHandlerVisible(handler)` (defined in `js/ui.js`). Every loader and saver should
+declare its requirements with these two booleans:
+
+```javascript
+requiresLogin:   true,   // needs a logged-in kvstore session (checked via isRegistered())
+requiresAccount: true,   // needs at least one registered account of any kind
+```
+
+| Flag | `true` means | `false` means |
+|---|---|---|
+| `requiresLogin` | Hidden unless `isRegistered()` (kvstore.js) is true | Shown regardless of login state |
+| `requiresAccount` | Hidden unless `window.CList.accounts` has at least one entry | Shown regardless of accounts |
+
+**The default, when a flag is omitted, is `true` — fail closed.** A handler that forgets to declare
+its requirements stays hidden for a logged-out visitor instead of silently appearing for one. This is
+the opposite of the old convention (an undeclared `visible()` meant always-shown), which is what let
+several load/save options leak through for logged-out users before this contract existed. Declare
+both flags explicitly on every new handler, even when both are `false` — e.g. "Load from file" and
+"Load blank" need neither login nor an account, so they state `requiresLogin: false, requiresAccount:
+false` rather than relying on the default.
+
+**`visible()` is still supported, and takes priority over both flags**, for the one case the two
+booleans can't express: needing an account of a *specific type*, not just any account. Dropbox's
+saver/loader and the AI (ChatGPT) loader both need this — `requiresAccount: true` alone would show
+them for someone with, say, only a Mastodon account. These keep a custom `visible()` (typically
+built on a `hasXAccount()`-style helper from `kvstore.js`, e.g. `hasAIAccount()`) and declare the two
+flags anyway, purely as documentation of what that `visible()` enforces:
+
+```javascript
+window.CList.savers.push({
+    label:   'Save to Dropbox',
+    logoSrc: 'assets/icons/dropbox.svg',
+    requiresLogin:   true,   // documentation only — visible() below is the actual gate,
+    requiresAccount: true,   // since it must match account TYPE (Dropbox), not just any account
+    visible: () => typeof isRegistered === 'function' && isRegistered()
+        && (window.CList.accounts || []).some(a => {
+            const v = parseAccountValue(a);
+            return v && v.type === 'Dropbox' && (v.permissions || '').includes('b');
+        }),
+    save: async () => { /* ... */ },
+});
+```
+
+`isHandlerVisible()`'s precedence rule: if `visible` is a function, call it and return that result
+— the flags are ignored entirely in that case. Only when there's no `visible()` does it fall back to
+evaluating `requiresLogin`/`requiresAccount`.
+
+**The editor switcher and "Load blank" picker are a separate registry (`editorHandlers`, not
+`loaders`/`savers`)** with their own, older `requiresAccount` convention (combined with
+`handler.isActive()` to let an account-backed editor with a live guest session — e.g. an Etherpad
+session — resume without a saved account). Don't conflate the two: `isHandlerVisible()` applies only
+to `window.CList.loaders`/`window.CList.savers` entries.
+
+**Post/publish is not yet on this contract.** `populatePostOptions()` (`publish.js`) builds the
+**Post** pane directly from `window.CList.accounts` filtered by `permissions.includes('w')` — there's
+no `publishers` *registry entry* equivalent to `loaders`/`savers` for it to gate with flags, so by
+construction it already never shows a publish target with no matching account. If a future publishing
+service needs to be offered with *no* account at all (the mirror image of today's always-requires-an-
+account assumption), `publish.js` would need a real flag-aware registry first, the way `loaders` and
+`savers` have one today — that's a design gap, not something this contract covers yet.
 
 ---
 

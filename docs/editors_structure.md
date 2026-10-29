@@ -260,20 +260,43 @@ When content lands via `loadSavedPage()` through the empty-editor path, or the N
 Replace choice in the prompt (not Insert, and not the generic `populateLoadOptions()`
 flow) — or a collection is loaded into the Collection Editor from My Pages —
 `setLoadedPage(page)` stores the **whole** My Pages row object (`{...page}`, not just
-`{url, title}`): `kind` (`'page'` or `'collection'`), `url`, `title`, `serviceId`,
-`service`, `accountInstance`, `publishedAt`, and either `pageKey` + `mimeType`
-(standalone pages) or `collectionKey` + `format` (collections). This is the record
-Republish and the Post-time overwrite/new-version prompt both key off of.
+`{url, title}`): `kind` (`'page'`, `'collection'`, `'local-page'`, or `'file'`), `url`,
+`title`, `serviceId`, `service`, `accountInstance`, `publishedAt`, and either `pageKey`
++ `mimeType` (standalone pages) or `collectionKey` + `format` (collections). A `'file'`
+record (set when content is loaded from the local filesystem or Dropbox — see
+`files.js`'s `restorePostContent()`, `dropbox.js`'s `_openInEditor()`) only ever carries
+`kind` and `title` — never a publication-location field, by construction, since a
+loaded file has nowhere to republish to. This is the record Republish and the Post-time
+overwrite/new-version prompt both key off of.
 
 `updateLoadedPageUI()` (renamed from `updateLoadedPageIndicator()`) shows/hides
-`#loaded-page-indicator` (inside `#write-title-row`, at the top of the write pane) and
-also toggles `#republish-button`'s visibility — both follow `currentLoadedPage` as a
-single unit, so there's no separate wiring for "show the filename" vs. "show the
-Republish button". The label also shows the **publication URL** and **format** when
-known: `currentLoadedPage.publicationUrl || currentLoadedPage.url` (the latter is set
-directly on remote `'page'`-kind records; the former is stamped onto local-page
-records by `publish.js` right after `recordPublication()` succeeds, since those
-records don't otherwise carry a URL/format of their own) and `currentLoadedPage.format`.
+`#loaded-page-indicator` (inside `#editor-state-row`, directly above `#write-title-row`
+— see `docs/ui_components.md`'s "Current-editor-state bars" section) based
+on whether `currentLoadedPage` is set at all, and **separately** toggles
+`#republish-button`'s visibility based on whether `currentLoadedPage` actually carries a
+publication location (`currentLoadedPage.service || .serviceId || .url ||
+.publicationUrl`). These are two different conditions, not one unit: a `'file'` load (or
+a `'local-page'` that has been saved locally but never published) shows the indicator
+but not Republish, since there's `currentLoadedPage` data to display a label for but no
+publication location to republish to.
+
+**General principle:** any interface element whose state should depend on "does this
+editor's content have property X" must check for the actual data field on
+`currentLoadedPage` (the per-editor record in the Editor States Array — see "Running
+per-editor state" above), not an ad-hoc `kind` comparison. `kind` is appropriate for
+cosmetic/labelling choices only (e.g. the indicator's "Loaded file: …" vs. "Loaded: …"
+text prefix), never for gating whether a feature is available. The Republish button is
+the canonical example: it was originally gated on `kind !== 'file'`, which only happened
+to work for the one case it was written for; checking for an actual publication-location
+field instead also correctly handles the never-published `'local-page'` case, and will
+keep handling any future `kind` that has no publish target without needing a matching
+special case.
+
+The indicator's label also shows the **publication URL** and **format** when known:
+`currentLoadedPage.publicationUrl || currentLoadedPage.url` (the latter is set directly
+on remote `'page'`-kind records; the former is stamped onto local-page records by
+`publish.js` right after `recordPublication()` succeeds, since those records don't
+otherwise carry a URL/format of their own) and `currentLoadedPage.format`.
 
 Cleared (`setLoadedPage(null)`) by the "Load blank" loader (`_doLoadBlank()`) and by
 the two collection load paths that pull in an *external* collection (not one of ours)
@@ -286,7 +309,9 @@ specific page set right after a switch (`loadSavedPage()`, `_offerEditorChoice()
 
 ### Republish button — `#republish-button` / `playRepublish()`
 
-Shown next to `#post-button` whenever `currentLoadedPage` is set. `playRepublish()`
+Shown next to `#post-button` whenever `currentLoadedPage` carries a publication
+location (see "Currently loaded page" indicator above) — not merely whenever
+`currentLoadedPage` is set. `playRepublish()`
 (`js/publish.js`) dispatches the same way `playPost()` does: if
 `currentLoadedPage.kind === 'collection'`, it calls `window.republishCollection()`
 (`js/collections.js`); otherwise it republishes the standalone page directly via the

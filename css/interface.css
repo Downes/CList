@@ -759,6 +759,16 @@
     color: #333;
   }
 
+  /* Single standardized slot, above #write-title-row, for any "current editor
+     state" bar (loaded file/page + Republish, "Back to collection", and any
+     future one). Each bar keeps its own show/hide logic in its own file
+     (editors.js, collection-editor.js) and its .list-tip styling; this wrapper
+     just stacks whichever are visible so they always render in one place. */
+  #editor-state-row {
+    display: flex;
+    flex-direction: column;
+  }
+
   #loaded-page-indicator {
     display: flex;
     align-items: center;

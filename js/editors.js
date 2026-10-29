@@ -253,7 +253,7 @@ function populateLoadOptions() {
     list.appendChild(tip);
 
     window.CList.loaders.forEach(handler => {
-        if (typeof handler.visible === 'function' && !handler.visible()) return;
+        if (!window.CList.ui.isHandlerVisible(handler)) return;
         const btn = document.createElement('button');
         btn.className = 'account-button';
 
@@ -381,6 +381,8 @@ function _offerEditorChoice(keys, content, page, renderTarget, onCancel) {
     window.CList.loaders.push({
         label: 'Load blank',
         icon:  'note_add',
+        requiresLogin:   false,
+        requiresAccount: false,
         load:  async () => {
             // Self-managing: asks which editor type, warns if the current editor
             // would lose content, then loads a blank instance of the chosen type.
@@ -394,6 +396,8 @@ function _offerEditorChoice(keys, content, page, renderTarget, onCancel) {
     window.CList.loaders.push({
         label: 'Load template',
         icon:  'folder_open',
+        requiresLogin:   true,
+        requiresAccount: true,
         load:  async () => {
             const optionsDiv = window.CList.ui.view.loadOptions;
             if (optionsDiv) optionsDiv.innerHTML = '<p class="list-tip">Template loading is not yet implemented.</p>';

@@ -220,3 +220,86 @@ function _detectFormat(contentType, url) {
     if (lower.endsWith('.md') || lower.endsWith('.txt'))       return 'text';
     return 'json'; // default guess
 }
+
+// Formats whose identity alone already says "this is a collection" — an RSS or
+// OPML file is a feed/outline by definition, even an empty one, so it's always
+// classified as a collection. Add future unambiguous formats here as needed.
+// HTML/JSON are NOT in this set: both are also used for perfectly ordinary
+// non-collection content, so being that format isn't enough — see _collectionShape.
+const _unambiguousCollectionFormats = new Set(['rss', 'opml']);
+
+// A format being collection-parseable doesn't mean a given file actually IS a
+// collection — an ordinary HTML page or a JSON blob with no `items` in it should
+// never be offered a Collection editor just because its format happens to be one
+// that CAN carry a list. For those ambiguous formats, only a successful parse
+// with at least one item counts. Unambiguous formats (see
+// _unambiguousCollectionFormats above) skip that items check — their format
+// alone already identifies them as a collection, empty or not.
+function _collectionShape(text, format) {
+    const parser = _collectionFormatParsers[format];
+    if (!parser) return null;
+    try {
+        const parsed = parser(text);
+        if (!parsed) return null;
+        if (_unambiguousCollectionFormats.has(format)) return parsed;
+        return (parsed.items && parsed.items.length) ? parsed : null;
+    } catch (e) {
+        console.error('[_collectionShape] parse failed', e);
+        return null;
+    }
+}
+
+// Shared "Collection vs. native format" choice UI, used by every loader that
+// might receive collection-shaped content (Dropbox, "From URL", "Load from
+// file") so each isn't reimplementing its own detect-and-route logic. Mirrors
+// _offerEditorChoice()'s (editors.js) .list-tip/.account-list/.account-button
+// styling. `onNative` is supplied by the caller and runs its own pre-existing
+// native-format handling unchanged — this only inserts the extra decision point
+// ahead of it, for the genuine-collection case.
+function _offerCollectionChoice(parsed, format, { renderTarget, onCancel, onNative } = {}) {
+    const optionsDiv = renderTarget || window.CList.ui.view.loadOptions;
+    if (!optionsDiv) return onNative?.();
+    optionsDiv.innerHTML = '';
+
+    const count = parsed.items.length;
+    const nativeLabel = format === 'html' ? 'HTML' : (format === 'json' ? 'JSON' : 'plain text');
+    const tip = document.createElement('p');
+    tip.className = 'list-tip';
+    tip.textContent = `"${parsed.title || 'Untitled'}" contains ${count} item${count === 1 ? '' : 's'} — open as a collection, or as ${nativeLabel}?`;
+    optionsDiv.appendChild(tip);
+
+    const list = document.createElement('div');
+    list.className = 'account-list';
+
+    function makeButton(icon, label, onClick) {
+        const btn = document.createElement('button');
+        btn.className = 'account-button';
+        const iconEl = document.createElement('span');
+        iconEl.className = 'material-icons';
+        iconEl.textContent = icon;
+        const labelEl = document.createElement('span');
+        labelEl.textContent = label;
+        btn.appendChild(iconEl);
+        btn.appendChild(labelEl);
+        btn.addEventListener('click', onClick);
+        return btn;
+    }
+
+    list.appendChild(makeButton('list_alt', 'Open as Collection', async () => {
+        document.getElementById('generic-modal')?.remove();
+        if (typeof window.openParsedAsCollection === 'function') await window.openParsedAsCollection(parsed);
+    }));
+
+    list.appendChild(makeButton(format === 'html' ? 'article' : 'description', `Open as ${nativeLabel}`, async () => {
+        document.getElementById('generic-modal')?.remove();
+        await onNative?.();
+    }));
+
+    optionsDiv.appendChild(list);
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'btn btn-secondary';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.onclick = onCancel || (() => populateLoadOptions());
+    optionsDiv.appendChild(cancelBtn);
+}

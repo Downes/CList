@@ -529,6 +529,27 @@ window.CList.ui.showErrorModal = function(message, { title = 'Error' } = {}) {
     okBtn.focus();
 };
 
+// ── isHandlerVisible ──────────────────────────────────────────────────────────
+// Shared capability gate for the loaders/savers/editorHandlers registries (see
+// docs/storage-model.md "Capability flags"). A handler declares requiresLogin
+// and/or requiresAccount; either flag defaults to true (fail closed) when the
+// handler doesn't declare it at all, so a handler that forgets to state its
+// requirements stays hidden instead of silently showing up for a logged-out
+// visitor — the opposite of the old per-file visible()-or-nothing convention,
+// which defaulted to always-visible. A handler's own visible() — for checks
+// these two flags can't express, e.g. Dropbox needing a Dropbox-TYPED account,
+// not just any account — always wins outright over the flags.
+window.CList.ui.isHandlerVisible = function(handler) {
+    if (typeof handler.visible === 'function') return handler.visible();
+
+    const requiresLogin   = handler.requiresLogin   !== false;
+    const requiresAccount = handler.requiresAccount  !== false;
+
+    if (requiresLogin && !(typeof isRegistered === 'function' && isRegistered())) return false;
+    if (requiresAccount && !(window.CList.accounts || []).length) return false;
+    return true;
+};
+
 // ── renderFeed ────────────────────────────────────────────────────────────────
 // Clears container (unless appending), adds a feed header and #feed-summary div,
 // then calls normalize(rawItem) per item and appends the makeListing() result.
@@ -585,3 +606,4 @@ window.createFeedHeader    = window.CList.ui.feedHeader;
 window.showServiceError    = window.CList.ui.serviceError;
 window.showStatusMessage   = window.CList.ui.showStatusMessage;
 window.showErrorModal      = window.CList.ui.showErrorModal;
+window.isHandlerVisible    = window.CList.ui.isHandlerVisible;

@@ -258,6 +258,8 @@ function packageStatus(charlimit, input, publishedURL) {
     window.CList.loaders.push({
         label: 'Load from file',
         icon:  'upload_file',
+        requiresLogin:   false,
+        requiresAccount: false,
         load:  async () => await loadFile()
     });
 })();
@@ -267,6 +269,8 @@ function packageStatus(charlimit, input, publishedURL) {
     window.CList.savers.push({
         label: 'Save to local file',
         icon:  'save',
+        requiresLogin:   false,
+        requiresAccount: false,
         save:  async () => await saveContent()
     });
 })();
