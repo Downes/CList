@@ -1827,15 +1827,7 @@ window.playCollectionSave = async function playCollectionSave() {
                 const filename  = `${name}.${fmt.ext}`;
                 const accountData = parseAccountValue(dropboxAccount);
 
-                let dbxToken = accountData.id;
-                async function _withRefresh(fn) {
-                    try { return await fn(dbxToken); } catch (err) {
-                        if (!accountData.refresh || !err.message.includes('401')) throw err;
-                        statusEl.textContent = 'Refreshing token…';
-                        dbxToken = await _dropboxRefreshAndPersist(dropboxAccount, accountData);
-                        return await fn(dbxToken);
-                    }
-                }
+                const _withRefresh = _dropboxWithRefresh(dropboxAccount, accountData, statusEl);
 
                 const exists = await _withRefresh(t => _dropboxFileExists(t, accountData.folder, filename));
                 const doOverwrite = () => _withRefresh(t => _dropboxUpload(t, accountData.folder, filename, content, 'overwrite'));

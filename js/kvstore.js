@@ -476,7 +476,11 @@ function kvstoreAccountsPanel() {
     async function setFormValues(targetKey) {
         const matchingAccount = accounts.find(account => account.key === targetKey);
         if (!matchingAccount) { showErrorModal("Can't find account: " + targetKey, { title: 'Account not found' }); return; }
-        const valueData = JSON.parse(matchingAccount.value);
+        const valueData = parseAccountValue(matchingAccount);
+        if (!valueData) {
+            showErrorModal('Could not decrypt this account — please log out and log back in.', { title: 'Account decryption failed' });
+            return;
+        }
 
         if (valueData.type === 'bad') {
             showErrorModal('Could not decrypt this account — please log out and log back in.', { title: 'Account decryption failed' });

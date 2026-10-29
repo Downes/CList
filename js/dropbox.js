@@ -104,6 +104,22 @@ async function _dropboxRefreshAndPersist(account, accountData) {
     return newToken;
 }
 
+// Shared by this file's saver and collections.js's "Save to Dropbox" button —
+// returns a call wrapper that retries once, silently, after refreshing the
+// token on a 401. Callers do: const withRefresh = _dropboxWithRefresh(account, accountData, statusEl);
+// await withRefresh(t => _dropboxUpload(t, ...));
+function _dropboxWithRefresh(account, accountData, statusEl) {
+    let token = accountData.id;
+    return async function withRefresh(fn) {
+        try { return await fn(token); } catch (err) {
+            if (!accountData.refresh || !err.message.includes('401')) throw err;
+            statusEl.textContent = 'Refreshing token…';
+            token = await _dropboxRefreshAndPersist(account, accountData);
+            return await fn(token);
+        }
+    };
+}
+
 async function _dropboxRefresh(appKey, refreshToken) {
     const resp = await fetch('https://api.dropboxapi.com/oauth2/token', {
         method:  'POST',
@@ -289,7 +305,7 @@ function _promptDropboxOverwrite(statusEl, filename, doOverwrite) {
 
             let content, filename;
             if (isRawFileRoundTrip) {
-                content  = editorHandlers[currentEditor]?.getContent?.();
+                content  = await editorHandlers[currentEditor]?.getContent?.();
                 filename = currentLoadedPage.title; // exact original name, not slugified
             } else {
                 content = await packagePost();
@@ -319,15 +335,7 @@ function _promptDropboxOverwrite(statusEl, filename, doOverwrite) {
             statusEl.textContent = 'Checking Dropbox…';
 
             // Ensure a valid token, refreshing silently if needed.
-            let token = accountData.id;
-            async function _withRefresh(fn) {
-                try { return await fn(token); } catch (err) {
-                    if (!accountData.refresh || !err.message.includes('401')) throw err;
-                    statusEl.textContent = 'Refreshing token…';
-                    token = await _dropboxRefreshAndPersist(account, accountData);
-                    return await fn(token);
-                }
-            }
+            const _withRefresh = _dropboxWithRefresh(account, accountData, statusEl);
 
             let exists;
             try {

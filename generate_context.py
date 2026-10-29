@@ -35,7 +35,7 @@ IGNORE_DIRS = {
 # Bloated files and exports
 IGNORE_FILES = {
     "files.txt",
-    "generate-context.py",
+    "generate_context.py",
     # 717 KB Word export:
     "introduction.html",
     # ~500 KB Word exports:

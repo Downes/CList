@@ -560,6 +560,16 @@ function _showImportPagesPicker(renderTarget) {
                         return;
                     }
                     const page = { kind: 'local-page', id: record.id, title: record.title, revision: record.revision };
+                    // Restore the most recent publication (recordPublication()'s upsert-by-
+                    // service history) so updateLoadedPageUI()'s hasPublicationLocation check
+                    // and the Republish button survive a reload, not just the live session.
+                    const publications = Array.isArray(record.publications) ? record.publications : [];
+                    if (publications.length) {
+                        const latest = publications.reduce((a, b) => (a.publishedAt > b.publishedAt ? a : b));
+                        page.service         = latest.service;
+                        page.accountInstance = latest.accountId;
+                        page.publicationUrl  = latest.url;
+                    }
                     await loadSavedPage({ type: record.contentType, value: record.content }, page, optionsDiv, () => populateLoadOptions());
                 });
 
