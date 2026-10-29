@@ -21,7 +21,7 @@ function _makeMinimalRef(url, title) {
     let host = '';
     try { host = new URL(url).hostname; } catch (_) {}
     return { url, title: title || url, author_name: '', feed: host,
-             created_at: new Date().toISOString(), id: url };
+        created_at: new Date().toISOString(), id: url };
 }
 
 window.openInBrowser = function(url, itemId) {
@@ -390,29 +390,24 @@ window.CList.ui.feedHeader = function(type, typevalue) {
         home: "Home Feed",
         local: "Local Feed",
         bookmarks: "Bookmarks",
-        hashtag: "Hashtag Feed",
-        user: "User Feed",
+        hashtag: "Hashtag",
+        user: "User",
         Notifications: "Notifications",
     };
 
     const feedHeaderDiv = document.createElement("div");
     feedHeaderDiv.className = "feed-header";
 
-    const title = titles[type] || type;
+    let title = titles[type] || type;
+    if (type === 'hashtag' && typevalue) {
+        title = `Hashtag: #${typevalue}`;
+    } else if ((type === 'user' || type === 'username') && typevalue) {
+        title = `User: ${typevalue}`;
+    }
+
     const heading = document.createElement("h2");
     heading.textContent = title;
-
-    let description_text = `Viewing ${title.toLowerCase()}.`;
-    if (type === 'hashtag' && typevalue) {
-        description_text = `Viewing hashtag feed for #${typevalue}.`;
-    } else if ((type === 'user' || type === 'username') && typevalue) {
-        description_text = `Viewing posts by ${typevalue}.`;
-    }
-    const description = document.createElement("p");
-    description.textContent = description_text;
-
     feedHeaderDiv.appendChild(heading);
-    feedHeaderDiv.appendChild(description);
 
     if (type === 'thread') {
         const actions = document.createElement("p");

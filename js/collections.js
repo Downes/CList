@@ -134,7 +134,7 @@ const collectionFormats = {
 // of the bare service name stored in item.title.
 function _collectionItemDisplayTitle(item) {
     const isSocial = item.service === 'Mastodon' || item.service === 'Bluesky'
-                  || item.title   === 'Mastodon' || item.title   === 'Bluesky';
+        || item.title   === 'Mastodon' || item.title   === 'Bluesky';
     if (!isSocial) return item.title || item.url || '';
     const platform = item.title || item.service || 'Social';
     if (item.author_id)   return `${platform} (@${item.author_id})`;
@@ -461,7 +461,7 @@ function _renderCollectionItems(col, token, encKey, countSpan, itemsDiv) {
 
         // For social items, build "Platform (@handle)" as the feed byline
         const isSocial   = item.service === 'Mastodon' || item.service === 'Bluesky'
-                        || item.title   === 'Mastodon' || item.title   === 'Bluesky';
+            || item.title   === 'Mastodon' || item.title   === 'Bluesky';
         const platform   = isSocial ? (item.title || item.service) : null;
         const handle     = isSocial && item.author_id ? `@${item.author_id}` : null;
         const feedDisplay = isSocial
@@ -630,10 +630,10 @@ function _parseCollectionOPML(text) {
 function _parseCollectionHTML(text) {
     const doc   = new DOMParser().parseFromString(text, 'text/html');
     const title = doc.querySelector('h1')?.textContent?.trim()
-               || doc.querySelector('title')?.textContent?.trim()
-               || 'Imported collection';
+        || doc.querySelector('title')?.textContent?.trim()
+        || 'Imported collection';
     const id    = _validUrnUuid(doc.querySelector('link[rel="identifier"]')?.getAttribute('href')?.trim())
-               || _validUrnUuid(doc.querySelector('meta[name="dcterms.identifier"]')?.getAttribute('content')?.trim());
+        || _validUrnUuid(doc.querySelector('meta[name="dcterms.identifier"]')?.getAttribute('content')?.trim());
     const items = [...doc.querySelectorAll('ul li a')]
         .map(a => ({ title: a.textContent.trim(), url: a.href }))
         .filter(i => i.url && !i.url.startsWith('javascript'));
@@ -651,7 +651,7 @@ function _parseCollectionRSS(text) {
         title:       item.querySelector('title')?.textContent?.trim() || '',
         url:         item.querySelector('link')?.textContent?.trim() || '',
         author_name: item.querySelector('author')?.textContent?.trim()
-                  || item.querySelector('dc\\:creator')?.textContent?.trim() || '',
+            || item.querySelector('dc\\:creator')?.textContent?.trim() || '',
         summary:     item.querySelector('description')?.textContent?.trim() || '',
     }));
     const atomItems = [...doc.querySelectorAll('entry')].map(entry => ({
@@ -678,7 +678,7 @@ function _detectFormat(contentType, url) {
     if (contentType?.includes('opml'))                         return 'opml';
     if (contentType?.includes('html'))                         return 'html';
     if (contentType?.includes('rss') || contentType?.includes('atom') || contentType?.includes('xml'))
-                                                               return 'rss';
+        return 'rss';
     const lower = (url || '').toLowerCase().split('?')[0];
     if (lower.endsWith('.json'))                               return 'json';
     if (lower.endsWith('.opml'))                               return 'opml';
@@ -1530,7 +1530,10 @@ window.showSavedCollections = async function() {
             const cancelBtn = document.createElement('button');
             cancelBtn.className   = 'btn btn-secondary';
             cancelBtn.textContent = 'Cancel';
-            cancelBtn.onclick     = () => { resolve(null); if (typeof closeRightPane === 'function') closeRightPane(); };
+            cancelBtn.onclick     = () => {
+                resolve(null);
+                if (typeof populateLoadOptions === 'function') populateLoadOptions();
+            };
 
             btnRow.appendChild(loadBtn);
             btnRow.appendChild(cancelBtn);
