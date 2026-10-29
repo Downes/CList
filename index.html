@@ -1,28 +1,33 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <script> <!-- Beacuse my stupid server defaults to http -->
+    <script> <!-- Beacuse my stupid server defaults to http -->
     const _h = window.location.hostname;
     if (window.location.protocol === "http:" && _h !== "localhost" && _h !== "127.0.0.1") {
-      window.location.href = window.location.href.replace("http:", "https:");
+        window.location.href = window.location.href.replace("http:", "https:");
     }
-  </script>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CList</title>
-  <script>if (localStorage.getItem('clist-dark-mode') === '1') document.documentElement.classList.add('dark-mode');</script>
-  <link rel="stylesheet" href="css/interface.css">
-  <link rel="stylesheet" href="css/reader.css">
-  <link rel="stylesheet" href="css/kvlist.css">
-  <link rel="stylesheet" href="css/sidebar.css">
-  <link rel="icon" type="image/x-icon" href="assets/icons/CList.ico">
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CList</title>
+    <script>
+        const _savedTheme = localStorage.getItem('clist-dark-mode');
+        if (_savedTheme === '1' || (_savedTheme === null && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark-mode');
+        }
+    </script>
+    <link rel="stylesheet" href="css/interface.css">
+    <link rel="stylesheet" href="css/reader.css">
+    <link rel="stylesheet" href="css/kvlist.css">
+    <link rel="stylesheet" href="css/sidebar.css">
+    <link rel="icon" type="image/x-icon" href="assets/icons/CList.ico">
 
-  <!-- Google Fonts for the entire page -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-  <script src="https://www.downes.ca/assets/tinymce/tinymce.min.js" referrerpolicy="origin"></script>
-  
+    <!-- Google Fonts for the entire page -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <script src="https://www.downes.ca/assets/tinymce/tinymce.min.js" referrerpolicy="origin"></script>
+
     <!-- Desktop launcher injects kvstoreUrl via this file; browsers load it from the same origin -->
     <!-- onerror keeps the page working when the file is absent (normal browser use) -->
     <script src="runtime-config.js" onerror="void 0"></script>
@@ -61,66 +66,66 @@
          layout (read/write panes split 50/50) before interface.js's real restore runs
          on DOMContentLoaded. -->
     <script>
-    (function () {
-        try {
-            // Best-effort login guess just for this pre-paint layout — doesn't need to
-            // be exact, since interface.js's real hasValidSession() check still runs on
-            // DOMContentLoaded and corrects anything this gets wrong.
-            const siteUrl = window.CList.config.flaskSiteUrl;
-            const siteId = new URL(siteUrl).hostname.replace(/\./g, '_');
-            const useLocalStorage = window.location.protocol === 'file:';
-            let token = null;
-            if (useLocalStorage) {
-                token = localStorage.getItem(`access_token_${siteId}`);
-            } else {
-                const m = document.cookie.match(new RegExp(`(?:^|; )access_token_${siteId}=([^;]*)`));
-                token = m ? m[1] : null;
-            }
-            const key = token ? 'clist_pane_state_loggedin' : 'clist_pane_state';
+        (function () {
+            try {
+                // Best-effort login guess just for this pre-paint layout — doesn't need to
+                // be exact, since interface.js's real hasValidSession() check still runs on
+                // DOMContentLoaded and corrects anything this gets wrong.
+                const siteUrl = window.CList.config.flaskSiteUrl;
+                const siteId = new URL(siteUrl).hostname.replace(/\./g, '_');
+                const useLocalStorage = window.location.protocol === 'file:';
+                let token = null;
+                if (useLocalStorage) {
+                    token = localStorage.getItem(`access_token_${siteId}`);
+                } else {
+                    const m = document.cookie.match(new RegExp(`(?:^|; )access_token_${siteId}=([^;]*)`));
+                    token = m ? m[1] : null;
+                }
+                const key = token ? 'clist_pane_state_loggedin' : 'clist_pane_state';
 
-            let state = null;
-            try { state = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) {}
-            if (!state) state = { leftOpen: true, rightOpen: false, readFlex: '1', writeFlex: '0' };
+                let state = null;
+                try { state = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) {}
+                if (!state) state = { leftOpen: true, rightOpen: false, readFlex: '1', writeFlex: '0' };
 
-            const leftWidth  = state.leftOpen  ? '300px' : '0';
-            const rightWidth = state.rightOpen ? '300px' : '0';
+                const leftWidth  = state.leftOpen  ? '300px' : '0';
+                const rightWidth = state.rightOpen ? '300px' : '0';
 
-            const style = document.createElement('style');
-            style.id = 'pane-boot-style';
-            style.textContent = `@media (min-width: 769px) {
+                const style = document.createElement('style');
+                style.id = 'pane-boot-style';
+                style.textContent = `@media (min-width: 769px) {
                 #left-pane  { width: ${leftWidth}; }
                 #right-pane { width: ${rightWidth}; }
                 #main-window { left: ${leftWidth}; right: ${rightWidth}; }
                 #read-pane  { flex: ${state.readFlex  || '1'}; }
                 #write-pane { flex: ${state.writeFlex || '0'}; }
             }`;
-            document.head.appendChild(style);
-        } catch (e) {
-            // If anything goes wrong, just let the CSS defaults render and interface.js fix it up.
-            console.warn('Pane boot-state pre-paint skipped:', e);
-        }
-    })();
+                document.head.appendChild(style);
+            } catch (e) {
+                // If anything goes wrong, just let the CSS defaults render and interface.js fix it up.
+                console.warn('Pane boot-state pre-paint skipped:', e);
+            }
+        })();
     </script>
 
 </head>
 <body>
 
-    <!-- Hidden divs to store baseURL, accessToken, and instanceType from cookies -->
-    <div id="baseURL" style="display:none;"></div>
-    <div id="accessToken" style="display:none;"></div>
-    <div id="instanceType" style="display:none;"></div>
+<!-- Hidden divs to store baseURL, accessToken, and instanceType from cookies -->
+<div id="baseURL" style="display:none;"></div>
+<div id="accessToken" style="display:none;"></div>
+<div id="instanceType" style="display:none;"></div>
 
-    <div id="main-container">
+<div id="main-container">
     <div id="main-window">
         <div id="main-content" class="content">
 
             <div id="read-pane">
                 <div id="left-main-command" class="command">
                     <div class="command-left-buttons">
-                    <button class="left icon-btn" onclick="playRead(); playMe();" title="Accounts"><span class="material-icons">person</span></button>
-                    <button id="openLeftButton" class="left btn" onclick="playRead();" style="display:none">Read</button>
-                    <button id="openFindButton" class="left btn" onclick="playFind();">Find</button>
-                    <button id="openChatButton" class="left btn" onclick="playChat();" style="display:none">Chat</button>
+                        <button class="left icon-btn" onclick="playRead(); playMe();" title="Accounts"><span class="material-icons">person</span></button>
+                        <button id="openLeftButton" class="left btn" onclick="playRead();" style="display:none">Read</button>
+                        <button id="openFindButton" class="left btn" onclick="playFind();">Find</button>
+                        <button id="openChatButton" class="left btn" onclick="playChat();" style="display:none">Chat</button>
                     </div>
                     <button id="snapLeftBtn" class="pane-snap-btn" onclick="snapPanes('left')" title="Collapse/expand panes"><span class="material-icons">arrow_left</span></button>
                 </div>
@@ -158,20 +163,20 @@
                     </div>
                     <div class="command-left-buttons">
                         <!--button id="load-button" class="right" onclick="loadFile();">Load</button>-->
-                       <button id="load-button" class="right btn" onclick="playLoad();">Load</button>
-                         <button id="save-button" class="right btn" onclick="playSave()">Save</button>
-                         <button id="post-button" class="right btn" onclick="playPost()" style="display:none">Post</button>
-                         <button id="references-button" class="right btn" onclick="playRefs()" style="display:none">Refs</button>
-                         <button id="editor-indicator" class="btn" onclick="playEditorSwitch()" title="Switch editor">Editor</button>
+                        <button id="load-button" class="right btn" onclick="playLoad();">Load</button>
+                        <button id="save-button" class="right btn" onclick="playSave()">Save</button>
+                        <button id="post-button" class="right btn" onclick="playPost()" style="display:none">Post</button>
+                        <button id="references-button" class="right btn" onclick="playRefs()" style="display:none">Refs</button>
+                        <button id="editor-indicator" class="btn" onclick="playEditorSwitch()" title="Switch editor">Editor</button>
                     </div>
                 </div>
-                    <!-- Place to store Loaded file input while it is processed-->
-                    <input 
-                        type="file" 
-                        id="fileInput" 
-                        style="display: none;" 
-                        onchange="handleFileFallback(event)" 
-                    />
+                <!-- Place to store Loaded file input while it is processed-->
+                <input
+                        type="file"
+                        id="fileInput"
+                        style="display: none;"
+                        onchange="handleFileFallback(event)"
+                />
                 <div id="writeReferences"></div>
                 <div id="write-load">
                     <div id="write-load-header" class="flex-container">
@@ -203,7 +208,7 @@
                 </div>
 
                 <div id="write-pane-content">
-                   
+
                     <!-- Text Editor -->
                     <!-- currentEditor = 'texteditor' -->
                     <div id="textEditorDiv" style="display:block" class="editor">
@@ -222,7 +227,7 @@
                 <!-- Other references divs may be added here dynamically -->
 
             </div> <!-- /write-pane -->
-            
+
         </div> <!-- main-content -->
 
     </div> <!-- /main-window -->
@@ -249,72 +254,72 @@
 
         <div id="left-pane-body">
 
-        <!-- Audio player — overlays left-content, toggled by opml.js -->
-        <div id="audio-section" style="display: none;">
-            <div id="audio-header">
-                <h2>Audio</h2>
-                <button
-                    id="audio-left-close-button"
-                    onclick="document.getElementById('audio-section').style.display='none'; document.getElementById('audioButton').style.display='inline-block';">
-                    &times;
-                </button>
+            <!-- Audio player — overlays left-content, toggled by opml.js -->
+            <div id="audio-section" style="display: none;">
+                <div id="audio-header">
+                    <h2>Audio</h2>
+                    <button
+                            id="audio-left-close-button"
+                            onclick="document.getElementById('audio-section').style.display='none'; document.getElementById('audioButton').style.display='inline-block';">
+                        &times;
+                    </button>
+                </div>
+                <audio
+                        id="myAudioPlayer"
+                        controls>
+                    Your browser does not support the audio element.
+                </audio>
+                <div id="audio-list">
+                    <!-- Playlist will be dynamically inserted here -->
+                </div>
             </div>
-            <audio
-                id="myAudioPlayer"
-                controls>
-                Your browser does not support the audio element.
-            </audio>
-            <div id="audio-list">
-                <!-- Playlist will be dynamically inserted here -->
-            </div>
-        </div>
 
-        <!-- Chat — sibling of left-content so openLeftInterface() cannot clear it -->
-        <div id="chat-section" style="display: none;">
-            <div id="chat-header">
-                <h2>Chat</h2>
-                <button class="clist-action-btn" onclick="openChatPopup()" title="Pop out chat">
-                    <span class="material-icons md-18 md-light">open_in_new</span>
-                </button>
-                <button
-                    id="chat-left-close-button"
-                    onclick="document.getElementById('chat-section').style.display='none';">
-                    &times;
-                </button>
+            <!-- Chat — sibling of left-content so openLeftInterface() cannot clear it -->
+            <div id="chat-section" style="display: none;">
+                <div id="chat-header">
+                    <h2>Chat</h2>
+                    <button class="clist-action-btn" onclick="openChatPopup()" title="Pop out chat">
+                        <span class="material-icons md-18 md-light">open_in_new</span>
+                    </button>
+                    <button
+                            id="chat-left-close-button"
+                            onclick="document.getElementById('chat-section').style.display='none';">
+                        &times;
+                    </button>
+                </div>
+                <div id="discussion-button-div">
+                    <label for="discussionNameInput" class="visually-hidden">Discussion Name:</label>
+                    <input type="text" id="discussionNameInput" placeholder="Enter discussion name">
+                    <label style="font-size:0.85em;margin-left:4px"><input type="checkbox" id="discussionPublicCheckbox"> Public</label>
+                    <button id="advertiseDiscussionButton" class="btn" onClick="advertiseDiscussion()">Create</button>
+                    <button id="refreshDiscussionsButton" class="btn" onClick="refreshDiscussions()">Join</button>
+                    <button id="chat-advanced-button" class="btn btn-small" onclick="toggleDiv('chat-advanced')">Advanced</button>
+                </div>
+                <div id="discussionListDiv">
+                    <ul id="discussion-list"></ul>
+                </div>
+                <div id="end-discussion-div" style="display: none;">
+                    <button id="endDiscussionButton" class="btn" onClick="endDiscussion()">Leave Discussion</button>
+                    <button id="startDocButton" class="btn" onclick="startCollabFromChat()" title="Start a shared document from this discussion">Start document</button>
+                </div>
+                <div id="chat-messages"></div>
+                <input type="text" id="messageInput" placeholder="Type your message">
+                <button id="sendButton" class="btn">Send</button>
+                <div id="chat-advanced" style="display:none;margin-top:10px;">
+                    PeerID: <span id="my-peer-id"></span><br>
+                    <label for="peerIdInput" class="visually-hidden">Connect to Peer ID:</label>
+                    <input type="text" id="peerIdInput" placeholder="Connect to Peer ID:">
+                    <button id="connectButton" class="btn">Connect</button>
+                </div>
             </div>
-            <div id="discussion-button-div">
-                <label for="discussionNameInput" class="visually-hidden">Discussion Name:</label>
-                <input type="text" id="discussionNameInput" placeholder="Enter discussion name">
-                <label style="font-size:0.85em;margin-left:4px"><input type="checkbox" id="discussionPublicCheckbox"> Public</label>
-                <button id="advertiseDiscussionButton" class="btn" onClick="advertiseDiscussion()">Create</button>
-                <button id="refreshDiscussionsButton" class="btn" onClick="refreshDiscussions()">Join</button>
-                <button id="chat-advanced-button" class="btn btn-small" onclick="toggleDiv('chat-advanced')">Advanced</button>
-            </div>
-            <div id="discussionListDiv">
-                <ul id="discussion-list"></ul>
-            </div>
-            <div id="end-discussion-div" style="display: none;">
-                <button id="endDiscussionButton" class="btn" onClick="endDiscussion()">Leave Discussion</button>
-                <button id="startDocButton" class="btn" onclick="startCollabFromChat()" title="Start a shared document from this discussion">Start document</button>
-            </div>
-            <div id="chat-messages"></div>
-            <input type="text" id="messageInput" placeholder="Type your message">
-            <button id="sendButton" class="btn">Send</button>
-            <div id="chat-advanced" style="display:none;margin-top:10px;">
-                PeerID: <span id="my-peer-id"></span><br>
-                <label for="peerIdInput" class="visually-hidden">Connect to Peer ID:</label>
-                <input type="text" id="peerIdInput" placeholder="Connect to Peer ID:">
-                <button id="connectButton" class="btn">Connect</button>
-            </div>
-        </div>
 
-        <div id="left-content" class="content">
+            <div id="left-content" class="content">
 
-            <div id="response"></div>
-            <!-- List to display fetched key-value pairs -->
-            <div id="kvList"></div>
+                <div id="response"></div>
+                <!-- List to display fetched key-value pairs -->
+                <div id="kvList"></div>
 
-        </div> <!-- /left-content -->
+            </div> <!-- /left-content -->
 
         </div> <!-- /left-pane-body -->
     </div> <!-- /left-pane -->
@@ -346,154 +351,154 @@
 
 
     </div> <!-- /right-pane -->
-    </div> <!-- /main-container-->
+</div> <!-- /main-container-->
 
-    <div id="loading-indicator">
-        <p>Loading...</p>
-        <div class="loader"></div>
-    </div>
+<div id="loading-indicator">
+    <p>Loading...</p>
+    <div class="loader"></div>
+</div>
 
-  <!-- Not happy I have to include a Google JS script to make Blogger API work-->
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
-
-
+<!-- Not happy I have to include a Google JS script to make Blogger API work-->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 
 
-  <script src="js/local-kvstore.js" defer></script>  <!-- In-browser kvstore for "Local" account mode; must load before kvstore.js -->
-  <script src="js/utilities.js" defer></script>    <!-- Utility functions -->
-  <script src="js/ui.js" defer></script>          <!-- CList.ui factory functions -->
-  <script src="js/references.js" defer></script>  <!-- Reference list for convergence -->
-  <script src="js/crypto_utils.js" defer></script>
-  <script src="js/storage.js" defer></script>          <!-- window.CList.storage.kv.* facade; defines KvStoreError, must load before the two adapters below -->
-  <script src="js/kvstore-remote.js" defer></script>  <!-- storage.js facade: HTTP adapter -->
-  <script src="js/kvstore-local.js" defer></script>   <!-- storage.js facade: IndexedDB adapter; must load after local-kvstore.js and storage.js -->
-  <script src="js/kvstore.js" defer></script>     <!-- Loads usere and account data -->
-  <script src="js/editors.js" defer></script>   <!-- Major function handlers-->
-  <script src="js/reader.js?v=5" defer></script>
 
-                                                     <!-- handlers -->
-  
-  <script src="js/oauth-config.js" defer></script>      <!-- OAuth module -->
-  <script src="js/oauth-strategies.js" defer></script>
-  <script src="js/oauth-client.js" defer></script>
-  <script src="js/mastodon.js?v=3" defer></script>       <!-- Social Media -->
-  <script src="js/bluesky.js?v=3" defer></script>
-  <script src="js/discord.js?v=1" defer></script>
-  <script src="js/opml.js" defer></script>
-  <script src="js/rss.js" defer></script>
-  <script src="js/public-feeds.js" defer></script>  <!-- Public, no-login RSS collections (localrss_reader) -->
-  <script src="js/youtube.js" defer></script>   <!-- YouTube-specific helpers (video embed detection) -->
-  <script src="js/peertube.js" defer></script>  <!-- PeerTube-specific helpers (video embed detection) -->
 
-  <script src="js/googlesearch.js" defer></script>   <!-- Search-->
-  <script src="js/duckduckgo.js" defer></script>
-  <script src="js/oasis.js" defer></script>
-  
-  <!--script src="js/audio.js" defer></script -->          <!-- Audio -->   
+<script src="js/local-kvstore.js" defer></script>  <!-- In-browser kvstore for "Local" account mode; must load before kvstore.js -->
+<script src="js/utilities.js" defer></script>    <!-- Utility functions -->
+<script src="js/ui.js" defer></script>          <!-- CList.ui factory functions -->
+<script src="js/references.js" defer></script>  <!-- Reference list for convergence -->
+<script src="js/crypto_utils.js" defer></script>
+<script src="js/storage.js" defer></script>          <!-- window.CList.storage.kv.* facade; defines KvStoreError, must load before the two adapters below -->
+<script src="js/kvstore-remote.js" defer></script>  <!-- storage.js facade: HTTP adapter -->
+<script src="js/kvstore-local.js" defer></script>   <!-- storage.js facade: IndexedDB adapter; must load after local-kvstore.js and storage.js -->
+<script src="js/kvstore.js" defer></script>     <!-- Loads usere and account data -->
+<script src="js/editors.js" defer></script>   <!-- Major function handlers-->
+<script src="js/reader.js?v=5" defer></script>
 
-  <script src="js/page-store-idb.js" defer></script>  <!-- Save / Load --> <!-- Local IndexedDB layer for PageStore -->
-  <script src="js/page-store.js" defer></script>      <!-- PageStore public API + its savers/loaders registry entries -->
-  <script src="js/files.js" defer></script>
+<!-- handlers -->
 
-  <script src="js/wordpress.js" defer></script>      <!-- Posts -->
-  <script src="js/blogger.js" defer></script>
+<script src="js/oauth-config.js" defer></script>      <!-- OAuth module -->
+<script src="js/oauth-strategies.js" defer></script>
+<script src="js/oauth-client.js" defer></script>
+<script src="js/mastodon.js?v=3" defer></script>       <!-- Social Media -->
+<script src="js/bluesky.js?v=3" defer></script>
+<script src="js/discord.js?v=1" defer></script>
+<script src="js/opml.js" defer></script>
+<script src="js/rss.js" defer></script>
+<script src="js/public-feeds.js" defer></script>  <!-- Public, no-login RSS collections (localrss_reader) -->
+<script src="js/youtube.js" defer></script>   <!-- YouTube-specific helpers (video embed detection) -->
+<script src="js/peertube.js" defer></script>  <!-- PeerTube-specific helpers (video embed detection) -->
 
-  <script src="js/tinymce.js" defer></script>        <!-- Editors -->
-  <script src="js/etherpad.js" defer></script>
-  <script src="js/collab.js" defer></script>
-  <script src="js/tags.js" defer></script>         <!-- Write-pane tag field -->
-  <script src="js/annotate.js" defer></script>   <!-- Annotation store -->
-  <script src="js/collection-formats.js" defer></script> <!-- Collection format interpreters -->
-  <script src="js/collections.js" defer></script> <!-- Collections -->
-  <script src="js/collection-editor.js" defer></script>
-  <script src="js/jsonbin.js" defer></script>    <!-- Bin publishers -->
-  <script src="js/gist.js" defer></script>
-  <script src="js/0x0.js" defer></script>
-  <script src="js/clistbin.js" defer></script>
-  <script src="js/dropbox.js" defer></script>
-  <script src="js/hypothesis.js" defer></script>  <!-- Hypothes.is annotation account -->
+<script src="js/googlesearch.js" defer></script>   <!-- Search-->
+<script src="js/duckduckgo.js" defer></script>
+<script src="js/oasis.js" defer></script>
 
-  <script src="js/chatgpt.js" defer></script>          <!-- AI -->
-  <script src="js/summarize.js" defer></script>
-  <script src="js/translate.js" defer></script>
+<!--script src="js/audio.js" defer></script -->          <!-- Audio -->
 
-  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"
-          integrity="sha384-nlUQ8ZqCbvStErob+biJNzSgltf6urV3VGqhfIfzhmg9RXmpeRm76ELw0pYnKlTR"
-          crossorigin="anonymous" defer></script>       <!-- Chat -->
-  <script src="js/dynamicp2p.js?v=3" defer></script>      
+<script src="js/page-store-idb.js" defer></script>  <!-- Save / Load --> <!-- Local IndexedDB layer for PageStore -->
+<script src="js/page-store.js" defer></script>      <!-- PageStore public API + its savers/loaders registry entries -->
+<script src="js/files.js" defer></script>
 
- 
-   <!-- Keep these below functions so we can load handlers below -->
-  <script src="js/publish.js" defer></script>
-  <script src="js/webmention.js" defer></script>  <!-- WebMention sender (opt-in) -->
-  <script src="js/interface.js"></script>   <!-- keep last as it depends on the previous scripts -->
+<script src="js/wordpress.js" defer></script>      <!-- Posts -->
+<script src="js/blogger.js" defer></script>
+
+<script src="js/tinymce.js" defer></script>        <!-- Editors -->
+<script src="js/etherpad.js" defer></script>
+<script src="js/collab.js" defer></script>
+<script src="js/tags.js" defer></script>         <!-- Write-pane tag field -->
+<script src="js/annotate.js" defer></script>   <!-- Annotation store -->
+<script src="js/collection-formats.js" defer></script> <!-- Collection format interpreters -->
+<script src="js/collections.js" defer></script> <!-- Collections -->
+<script src="js/collection-editor.js" defer></script>
+<script src="js/jsonbin.js" defer></script>    <!-- Bin publishers -->
+<script src="js/gist.js" defer></script>
+<script src="js/0x0.js" defer></script>
+<script src="js/clistbin.js" defer></script>
+<script src="js/dropbox.js" defer></script>
+<script src="js/hypothesis.js" defer></script>  <!-- Hypothes.is annotation account -->
+
+<script src="js/chatgpt.js" defer></script>          <!-- AI -->
+<script src="js/summarize.js" defer></script>
+<script src="js/translate.js" defer></script>
+
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"
+        integrity="sha384-nlUQ8ZqCbvStErob+biJNzSgltf6urV3VGqhfIfzhmg9RXmpeRm76ELw0pYnKlTR"
+        crossorigin="anonymous" defer></script>       <!-- Chat -->
+<script src="js/dynamicp2p.js?v=3" defer></script>
+
+
+<!-- Keep these below functions so we can load handlers below -->
+<script src="js/publish.js" defer></script>
+<script src="js/webmention.js" defer></script>  <!-- WebMention sender (opt-in) -->
+<script src="js/interface.js"></script>   <!-- keep last as it depends on the previous scripts -->
 
 <!-- Login / Register modal -->
 <div id="authModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
-  <div style="background:#fff; padding:2em; border-radius:8px; min-width:300px; max-width:360px; width:90%;">
-    <h3 id="authModalTitle" style="margin-top:0;"></h3>
+    <div style="background:#fff; padding:2em; border-radius:8px; min-width:300px; max-width:360px; width:90%;">
+        <h3 id="authModalTitle" style="margin-top:0;"></h3>
 
-    <!-- Account server line -->
-    <div id="authServerLine" style="font-size:0.75em; color:#666; margin-bottom:.85em;">
-      Account server: <span id="authServerUrl"></span>
-      <a href="#" onclick="event.preventDefault(); openChangeServerPanel();" style="margin-left:.3em;">Change</a>
-      <span id="authUsernameHint" style="display:none;">
+        <!-- Account server line -->
+        <div id="authServerLine" style="font-size:0.75em; color:#666; margin-bottom:.85em;">
+            Account server: <span id="authServerUrl"></span>
+            <a href="#" onclick="event.preventDefault(); openChangeServerPanel();" style="margin-left:.3em;">Change</a>
+            <span id="authUsernameHint" style="display:none;">
         · <a href="https://github.com/Downes/CList/wiki/A1-%E2%80%90-Create-a-New-CList-Account" target="_blank" rel="noopener">About</a>
       </span>
-    </div>
-
-    <!-- Main login/register form -->
-    <div id="authMainForm">
-      <label style="display:block; margin-bottom:.5em;">Username<br>
-        <input id="authUsername" type="text" autocomplete="username" style="width:100%; box-sizing:border-box; padding:.4em;">
-      </label>
-      <div id="authUsernameRule" style="display:none; font-size:0.75em; color:#666; margin:-0.3em 0 .6em;">
-        3–32 characters: letters, digits, dots, hyphens, and underscores; must start with a letter or digit.
-      </div>
-      <label style="display:block; margin-bottom:.5em;">Password<br>
-        <div style="position:relative;">
-          <input id="authPassword" type="password" autocomplete="current-password" style="width:100%; box-sizing:border-box; padding:.4em; padding-right:2.2em;">
-          <span onclick="toggleAuthPassword('authPassword',this)" title="Show/hide password"
-                style="position:absolute; right:.4em; top:50%; transform:translateY(-50%); cursor:pointer; user-select:none; font-size:1.1em;">👁</span>
         </div>
-      </label>
-      <div id="authConfirmWrap" style="display:none;">
-        <label style="display:block; margin-bottom:.5em;">Confirm password<br>
-          <div style="position:relative;">
-            <input id="authConfirm" type="password" autocomplete="new-password" style="width:100%; box-sizing:border-box; padding:.4em; padding-right:2.2em;">
-            <span onclick="toggleAuthPassword('authConfirm',this)" title="Show/hide password"
-                  style="position:absolute; right:.4em; top:50%; transform:translateY(-50%); cursor:pointer; user-select:none; font-size:1.1em;">👁</span>
-          </div>
-        </label>
-      </div>
-      <div id="authError" style="color:red; margin-bottom:.5em; display:none;"></div>
-      <div style="display:flex; gap:.5em; justify-content:flex-end;">
-        <button class="btn btn-secondary" onclick="closeAuthModal()">Cancel</button>
-        <button id="authSubmitBtn" class="btn" onclick="submitAuthModal()"></button>
-      </div>
-    </div>
 
-    <!-- Change account server panel (hidden by default) -->
-    <div id="changeServerPanel" style="display:none;">
-      <label style="display:block; margin-bottom:.75em; font-size:0.9em;">Account server<br>
-        <select id="serverSelect" style="width:100%; box-sizing:border-box; padding:.4em; margin-top:.3em;">
-          <option value="https://kvstore.mooc.ca">kvstore.mooc.ca</option>
-          <option value="https://kvstore.downes.ca">kvstore.downes.ca</option>
-          <option value="http://local.clist">Local — nothing leaves your computer</option>
-        </select>
-        <div style="font-size:0.75em; color:#666; margin-top:.4em;">
-          "Local" stores your account and credentials only in this browser — nothing is sent to any server.
-          Collab, shared annotations, following, and P2P chat need a real server to reach you, so those
-          aren't available in Local mode. You can't use the same Local account on another device or browser.
+        <!-- Main login/register form -->
+        <div id="authMainForm">
+            <label style="display:block; margin-bottom:.5em;">Username<br>
+                <input id="authUsername" type="text" autocomplete="username" style="width:100%; box-sizing:border-box; padding:.4em;">
+            </label>
+            <div id="authUsernameRule" style="display:none; font-size:0.75em; color:#666; margin:-0.3em 0 .6em;">
+                3–32 characters: letters, digits, dots, hyphens, and underscores; must start with a letter or digit.
+            </div>
+            <label style="display:block; margin-bottom:.5em;">Password<br>
+                <div style="position:relative;">
+                    <input id="authPassword" type="password" autocomplete="current-password" style="width:100%; box-sizing:border-box; padding:.4em; padding-right:2.2em;">
+                    <span onclick="toggleAuthPassword('authPassword',this)" title="Show/hide password"
+                          style="position:absolute; right:.4em; top:50%; transform:translateY(-50%); cursor:pointer; user-select:none; font-size:1.1em;">👁</span>
+                </div>
+            </label>
+            <div id="authConfirmWrap" style="display:none;">
+                <label style="display:block; margin-bottom:.5em;">Confirm password<br>
+                    <div style="position:relative;">
+                        <input id="authConfirm" type="password" autocomplete="new-password" style="width:100%; box-sizing:border-box; padding:.4em; padding-right:2.2em;">
+                        <span onclick="toggleAuthPassword('authConfirm',this)" title="Show/hide password"
+                              style="position:absolute; right:.4em; top:50%; transform:translateY(-50%); cursor:pointer; user-select:none; font-size:1.1em;">👁</span>
+                    </div>
+                </label>
+            </div>
+            <div id="authError" style="color:red; margin-bottom:.5em; display:none;"></div>
+            <div style="display:flex; gap:.5em; justify-content:flex-end;">
+                <button class="btn btn-secondary" onclick="closeAuthModal()">Cancel</button>
+                <button id="authSubmitBtn" class="btn" onclick="submitAuthModal()"></button>
+            </div>
         </div>
-      </label>
-      <div style="display:flex; gap:.5em; justify-content:flex-end;">
-        <button class="btn btn-secondary" onclick="closeChangeServerPanel()">Cancel</button>
-        <button class="btn" onclick="selectAccountServer()">Select</button>
-      </div>
-    </div>
 
-  </div>
+        <!-- Change account server panel (hidden by default) -->
+        <div id="changeServerPanel" style="display:none;">
+            <label style="display:block; margin-bottom:.75em; font-size:0.9em;">Account server<br>
+                <select id="serverSelect" style="width:100%; box-sizing:border-box; padding:.4em; margin-top:.3em;">
+                    <option value="https://kvstore.mooc.ca">kvstore.mooc.ca</option>
+                    <option value="https://kvstore.downes.ca">kvstore.downes.ca</option>
+                    <option value="http://local.clist">Local — nothing leaves your computer</option>
+                </select>
+                <div style="font-size:0.75em; color:#666; margin-top:.4em;">
+                    "Local" stores your account and credentials only in this browser — nothing is sent to any server.
+                    Collab, shared annotations, following, and P2P chat need a real server to reach you, so those
+                    aren't available in Local mode. You can't use the same Local account on another device or browser.
+                </div>
+            </label>
+            <div style="display:flex; gap:.5em; justify-content:flex-end;">
+                <button class="btn btn-secondary" onclick="closeChangeServerPanel()">Cancel</button>
+                <button class="btn" onclick="selectAccountServer()">Select</button>
+            </div>
+        </div>
+
+    </div>
 </div>
 
 </body>
