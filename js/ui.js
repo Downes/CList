@@ -508,6 +508,7 @@ window.CList.ui.showErrorModal = function(message, { title = 'Error' } = {}) {
     const box = document.createElement('div');
 
     const heading = document.createElement('h2');
+    heading.className = 'error-modal-title';
     heading.textContent = title;
     box.appendChild(heading);
 

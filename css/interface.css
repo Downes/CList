@@ -966,6 +966,13 @@
   max-height: 80vh;
 }
 
+/* showErrorModal (ui.js) — title. Browser default h2 (~1.5em) read as oversized
+   next to the message body; keep it a step above body text, not a full heading. */
+.error-modal-title {
+  margin: 0 0 12px;
+  font-size: 1.15em;
+}
+
 /* showErrorModal (ui.js) — OK button row */
 .error-modal-actions {
   margin-top: 16px;

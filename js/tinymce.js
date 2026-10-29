@@ -85,10 +85,10 @@ let pendingTinymceDraftOffer = false;
                 writePaneContent.parentNode.insertBefore(tinymceReferences, writePaneContent.nextSibling);
             }
 
-            // Initialize the tinymce editor
-            // This is a placeholder function
+            // Content is loaded once the editor instance is actually ready — see
+            // init_instance_callback in tinymceConfig. Calling loadPredefinedContent here
+            // races tinymce.init()'s async setup and can crash in editor.focus().
             pendingTinymceDraftOffer = !pendingContent;
-            loadPredefinedContent('tinymce');
             TinyMCE_Intialized = true;
             console.log("TinyMCE editor initialized");
         },
@@ -230,6 +230,11 @@ tinymceConfig = {
         if (pendingTinymceDraftOffer) {
             pendingTinymceDraftOffer = false;
             offerDraftRestore('tinymce', 'text/html');
+        } else {
+            // Editor instance is fully ready here — safe to load content and focus it,
+            // unlike calling this right after tinymce.init() (which races setup and can
+            // crash in editor.focus() -> mceFocus -> getRng on an uninitialized selection).
+            loadPredefinedContent('tinymce');
         }
     },
     content_style: _dm ? `
