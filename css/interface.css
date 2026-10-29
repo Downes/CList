@@ -229,7 +229,7 @@ body a:hover, html a:hover { text-decoration: underline; }
 #main-window {
   height: 100vh;
   background-color: var(--bg-body);
-  transition: left 0.5s ease, right 0.5s ease;
+  transition: right 0.5s ease;
   position: absolute;
   top: 0;
   left: 0;
@@ -250,17 +250,50 @@ body a:hover, html a:hover { text-decoration: underline; }
   overflow: auto;
 }
 
+#read-pane {
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  background-color: var(--bg-body);
+  position: relative;
+}
+
+#read-pane-body {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
 #left-pane {
-  position: fixed;
-  top: 0;
-  left: 0;
-  height: 100dvh;
+  position: relative;
+  height: 100%;
   width: 0;
   background-color: var(--bg-pane);
-  border-right: 1px solid var(--border-main);
+  border-right: none;
   overflow: hidden;
   transition: width 0.5s ease;
-  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  z-index: 5;
+}
+
+#left-pane.pane-open {
+  border-right: 1px solid var(--border-main);
+}
+
+#feed-section {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 #right-pane {
@@ -277,13 +310,6 @@ body a:hover, html a:hover { text-decoration: underline; }
 }
 
 .pane-content { padding: 0px; }
-
-#read-pane {
-  height: 100%;
-  overflow: auto;
-  flex: 1;
-  background-color: var(--bg-body);
-}
 
 #write-pane {
   height: 100%;
@@ -477,18 +503,14 @@ body a:hover, html a:hover { text-decoration: underline; }
   overflow: hidden;
 }
 
-.command .command-left-buttons {
+.command .command-left-buttons,
+.command .command-right-buttons {
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
   gap: 6px;
   padding: 2px 0;
   overflow: hidden;
-}
-
-#left-pane.pane-open .command-left-buttons {
-  flex-wrap: wrap;
-  overflow: visible;
 }
 
 .icon-btn {
@@ -504,11 +526,6 @@ body a:hover, html a:hover { text-decoration: underline; }
 }
 
 .icon-btn:hover .material-icons { filter: brightness(0.85); }
-
-.command .left-close-button {
-  margin-left: auto;
-  font-size: 1.125rem;
-}
 
 #command-main {
   display: flex;
@@ -591,26 +608,7 @@ body a:hover, html a:hover { text-decoration: underline; }
   margin-right: 10px;
 }
 
-#left-pane, #right-pane {
-  position: absolute;
-  top: 0dvh;
-  bottom: 0;
-  background: var(--bg-pane);
-  transition: width 0.5s;
-  overflow: hidden;
-  z-index: 2;
-}
-
-#left-pane {
-  left: 0;
-  display: flex;
-  flex-direction: column;
-  border-right: 1px solid var(--border-main);
-}
-
-#left-command { flex: 0 0 auto; }
 #left-pane-body { position: relative; flex: 1; overflow: hidden; }
-#right-pane { border-left: 1px solid var(--border-main); }
 
 #audio-section, #chat-section {
   position: absolute;
@@ -958,12 +956,18 @@ body a:hover, html a:hover { text-decoration: underline; }
     flex: 1 0 auto;
   }
 
+  #left-pane.pane-open {
+    position: absolute;
+    inset: 0;
+    width: 100% !important;
+    z-index: 10;
+  }
+
   #divider { display: none; }
   .pane-snap-btn { display: none; }
   .active { transform: translateX(0); }
   .inactive { transform: translateX(100%); }
 
-  /* Firefox-Specific Fix */
   @supports (-moz-appearance: none) {
     #main-content, #main-window { width: 200vw; }
     #read-pane, #write-pane {
@@ -974,11 +978,9 @@ body a:hover, html a:hover { text-decoration: underline; }
     }
   }
 
-  /* Hide social-share buttons for unregistered users */
   body:not(.user-registered) .clist-action-btn { display: none; }
 }
 
-/* ── Icon action buttons ────────────────────────────────────────────────────── */
 .clist-action-btn {
   padding: var(--pad-v) var(--pad-h);
   border-radius: var(--radius-md);
@@ -986,7 +988,6 @@ body a:hover, html a:hover { text-decoration: underline; }
 }
 .clist-action-btn:hover { background-color: var(--bg-hover); }
 
-/* ── Toggle switch ──────────────────────────────────────────────────────────── */
 .admin-setting-switch {
   position: relative;
   display: inline-block;
@@ -1029,11 +1030,9 @@ body a:hover, html a:hover { text-decoration: underline; }
   cursor: default;
 }
 
-/* ── Chat-conditional buttons ────────────────────────────────────────────── */
 .chat-only-btn { display: none; }
 body.chat-active .chat-only-btn { display: inline-flex; }
 
-/* ── Chat share cards ─────────────────────────────────────────────────────── */
 .chat-share-card {
   display: inline-block;
   border: 1px solid var(--border-main);
@@ -1058,7 +1057,6 @@ body.chat-active .chat-only-btn { display: inline-flex; }
 .chat-share-card .chat-share-actions { margin-top: 6px; }
 .chat-share-card .chat-share-actions button { padding: 3px 10px; cursor: pointer; font-size: 0.75rem; }
 
-/* ── Collection publish editor ───────────────────────────────────────────── */
 .collection-publish-editor { padding: 0 8px 16px; }
 .collection-publish-editor h4 { margin: 12px 0 6px; font-size: 0.85rem; color: var(--text-muted); font-variant: small-caps; }
 
@@ -1081,7 +1079,6 @@ body.chat-active .chat-only-btn { display: inline-flex; }
 .collection-publish-result-url input[type="text"] { flex: 1; font-size: 0.82rem; padding: 4px 6px; border: 1px solid var(--border-main); background: var(--bg-input); color: var(--text-main); border-radius: 3px; min-width: 0; }
 .collection-publish-result-actions { margin-top: 8px; display: flex; gap: 6px; }
 
-/* ── My Pages (published pages registry) ─────────────────────────────────── */
 .published-page-row { display: flex; align-items: center; gap: 6px; padding: 6px 4px; border-bottom: 1px solid var(--border-light); flex-wrap: wrap; }
 .published-page-title { flex: 1; min-width: 0; font-size: 0.88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .published-page-title a { color: var(--text-main); text-decoration: none; }
@@ -1134,7 +1131,6 @@ body.chat-active .chat-only-btn { display: inline-flex; }
 }
 .published-pages-pagination select { font-size: 0.82rem; padding: 2px 4px; width: 5ch; background: var(--bg-input); border-color: var(--border-main); color: var(--text-main); }
 
-/* ── Collection picker (inline dropdown) ─────────────────────────────────── */
 .collection-picker {
   background: var(--bg-panel);
   border: 1px solid var(--border-main);
@@ -1162,7 +1158,6 @@ body.chat-active .chat-only-btn { display: inline-flex; }
   flex: 1; margin: 0; background: var(--bg-input); border-color: var(--border-main); color: var(--text-main);
 }
 
-/* ── Collection panel (My Collections feed view) ─────────────────────────── */
 .feed-panel-header { padding: 8px 12px; border-bottom: 1px solid var(--border-dark); }
 .feed-panel-header h3 { margin: 0; font-size: 1rem; }
 
@@ -1185,7 +1180,6 @@ body.chat-active .chat-only-btn { display: inline-flex; }
 .collection-items-expanded .btn { margin: 8px 12px 4px; }
 .collection-confirm-btn   { padding: 3px 10px; font-size: 0.8rem; margin: 0; }
 
-/* ── Write-pane tag field ─────────────────────────────────────────────────── */
 #write-tags {
   display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
   padding: 4px 8px; border-top: 1px solid var(--border-light);
@@ -1210,7 +1204,6 @@ body.chat-active .chat-only-btn { display: inline-flex; }
 .write-tags-dropdown-item:hover { background: var(--bg-hover); }
 .write-tags-col-offer { display: flex; align-items: center; gap: 6px; padding: 2px 4px; font-size: 0.8rem; width: 100%; flex-basis: 100%; }
 
-/* ── Collection editor (write-pane) ─────────────────────────────────────────── */
 .collection-editor-list { padding: 8px 12px; overflow-y: auto; }
 
 .collection-editor-entry {
@@ -1233,7 +1226,6 @@ body.chat-active .chat-only-btn { display: inline-flex; }
 .collection-editor-input:focus { outline: none; border-color: var(--highlight-color); }
 textarea.collection-editor-input { min-height: 60px; resize: vertical; }
 
-/* ── TinyMCE chrome styling (follows app themes) ───────────────────── */
 .tox-tinymce,
 .tox-edit-area { border-color: var(--border-main) !important; }
 .tox-editor-header,
@@ -1245,7 +1237,6 @@ textarea.collection-editor-input { min-height: 60px; resize: vertical; }
 .tox-tbtn:hover { background: var(--bg-hover) !important; }
 .tox-statusbar { background: var(--bg-pane) !important; border-color: var(--border-main) !important; color: var(--text-muted) !important; }
 
-/* ── Collab (TipTap) editor styling ───────────────────────────────────────── */
 #collab-editor-container { background: var(--bg-body); border-color: var(--border-main); }
 #tiptap-editor .ProseMirror { background: var(--bg-body); color: var(--text-main); }
 #tiptap-editor .ProseMirror blockquote { border-left-color: var(--text-muted); color: var(--text-muted); }

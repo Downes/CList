@@ -155,7 +155,7 @@
 #feed-section {
     display: flex;
     flex-direction: column;
-    height: calc(100dvh - 50px);
+    height: 100%;
     overflow: hidden;
 }
 

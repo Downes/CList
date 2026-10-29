@@ -29,7 +29,6 @@
     <script src="https://www.downes.ca/assets/tinymce/tinymce.min.js" referrerpolicy="origin"></script>
 
     <!-- Desktop launcher injects kvstoreUrl via this file; browsers load it from the same origin -->
-    <!-- onerror keeps the page working when the file is absent (normal browser use) -->
     <script src="runtime-config.js" onerror="void 0"></script>
 
     <!-- CList application namespace -->
@@ -58,19 +57,9 @@
             window.CList.config.flaskSiteUrl = window._launcherConfig.kvstoreUrl;
     </script>
 
-    <!-- Pre-paint pane layout (desktop only — mobile uses a different, transform-based
-         pane-switching mechanism; see mobShowRead/mobShowWrite in interface.js — so this
-         is wrapped in the same min-width:769px breakpoint interface.css uses and never
-         applies on mobile). Reads the saved pane state and injects it as CSS before the
-         pane elements are painted, so desktop doesn't flash through the CSS default
-         layout (read/write panes split 50/50) before interface.js's real restore runs
-         on DOMContentLoaded. -->
     <script>
         (function () {
             try {
-                // Best-effort login guess just for this pre-paint layout — doesn't need to
-                // be exact, since interface.js's real hasValidSession() check still runs on
-                // DOMContentLoaded and corrects anything this gets wrong.
                 const siteUrl = window.CList.config.flaskSiteUrl;
                 const siteId = new URL(siteUrl).hostname.replace(/\./g, '_');
                 const useLocalStorage = window.location.protocol === 'file:';
@@ -95,13 +84,12 @@
                 style.textContent = `@media (min-width: 769px) {
                 #left-pane  { width: ${leftWidth}; }
                 #right-pane { width: ${rightWidth}; }
-                #main-window { left: ${leftWidth}; right: ${rightWidth}; }
+                #main-window { right: ${rightWidth}; }
                 #read-pane  { flex: ${state.readFlex  || '1'}; }
                 #write-pane { flex: ${state.writeFlex || '0'}; }
             }`;
                 document.head.appendChild(style);
             } catch (e) {
-                // If anything goes wrong, just let the CSS defaults render and interface.js fix it up.
                 console.warn('Pane boot-state pre-paint skipped:', e);
             }
         })();
@@ -122,47 +110,127 @@
             <div id="read-pane">
                 <div id="left-main-command" class="command">
                     <div class="command-left-buttons">
-                        <button class="left icon-btn" onclick="toggleLeftPane();" title="Menu"><span class="material-icons">menu</span></button>
-                        <button id="openLeftButton" class="left btn" onclick="playRead();" style="display:none">Read</button>
-                        <button id="openFindButton" class="left btn" onclick="playFind();">Find</button>
-                        <button id="openChatButton" class="left btn" onclick="playChat();" style="display:none">Chat</button>
+                        <button class="icon-btn" onclick="toggleLeftPane();" title="Menu"><span class="material-icons">menu</span></button>
+                        <button id="openLeftButton" class="btn" onclick="playRead();" style="display:none">Read</button>
+                        <button id="openFindButton" class="btn" onclick="playFind();">Find</button>
+                        <button id="accountButton" class="btn" onclick="playAccounts();">Accounts</button>
+                        <button id="meButton" class="btn" onclick="playMe();" style="display:none">Me</button>
+                        <button id="openChatButton" class="btn" onclick="playChat();" style="display:none">Chat</button>
+                        <span id="chatButton" style="display:none;"></span>
+                        <button id="audioButton" class="btn" style="display:none;" onclick="toggleDiv('audio-section');">Audio</button>
                     </div>
-                    <button id="snapLeftBtn" class="pane-snap-btn" onclick="snapPanes('left')" title="Collapse/expand panes"><span class="material-icons">arrow_left</span></button>
+                    <div class="command-right-buttons">
+                        <button id="loginButton" class="btn" onclick="redirectToKVLogin()">Login</button>
+                        <button id="registerButton" class="btn" onclick="redirectToKVRegister()">Register</button>
+                        <button id="logoutButton" class="btn" onclick="KVlogout(window.CList.config.flaskSiteUrl);">Logout</button>
+                        <button id="snapLeftBtn" class="pane-snap-btn" onclick="snapPanes('left')" title="Collapse/expand panes"><span class="material-icons">arrow_left</span></button>
+                    </div>
                 </div>
-                <div id="feed-section">
-                    <!-- Dynamic buttons will be inserted here -->
-                    <div id="feed-menu"></div><!-- This div will display the feed menu -->
-                    <div id="feed-container">
-                        <div style="padding:8% 10%">
-                            <div style="margin-bottom:0.6em;">
-                                <img src="images/PTTP.png" style="width:80%; max-width:400px; display:block;">
-                                <h3 style="margin:0.4em 0 0;">Welcome to CList</h3>
-                            </div>
-                            <p style="margin:0.6em 0;">Your personal learning environment for reading feeds, writing content, and publishing to social platforms.</p>
-                            <h4 style="margin:1em 0 0.4em;">Getting started</h4>
-                            <ol style="margin-left:1.2em; line-height:1.8;">
-                                <li><strong>Register</strong> — create a free account using the left panel</li>
-                                <li><strong>Add services</strong> — connect Mastodon, Bluesky, RSS feeds, and more via Accounts</li>
-                                <li><strong>Read and write</strong> — browse your feeds, write content, and post</li>
-                            </ol>
-                            <p style="margin:1em 0 0;">No account needed to try it out — click <strong>Find</strong> to search right now.</p>
-                            <p style="margin:0.8em 0 0; font-size:0.85em;">
-                                <a href="about.html">About CList</a> &nbsp;&middot;&nbsp;
-                                <a href="https://github.com/Downes/CList/wiki" target="_blank">Documentation</a>
-                            </p>
+
+                <div id="read-pane-body">
+                    <div id="left-pane">
+                        <div id="current-status" class="pane-status">
+                            <div id="identityDiv" class="pane-status-item">Please login to Identity Server</div>
+                            <div id="selectedAccount"></div>
                         </div>
 
-                    </div><!-- This div will display the feed content -->
+                        <div id="left-pane-body">
+                            <!-- Audio player -->
+                            <div id="audio-section" style="display: none;">
+                                <div id="audio-header">
+                                    <h2>Audio</h2>
+                                    <button
+                                            id="audio-left-close-button"
+                                            onclick="document.getElementById('audio-section').style.display='none'; document.getElementById('audioButton').style.display='inline-block';">
+                                        &times;
+                                    </button>
+                                </div>
+                                <audio id="myAudioPlayer" controls>
+                                    Your browser does not support the audio element.
+                                </audio>
+                                <div id="audio-list"></div>
+                            </div>
+
+                            <!-- Chat -->
+                            <div id="chat-section" style="display: none;">
+                                <div id="chat-header">
+                                    <h2>Chat</h2>
+                                    <button class="clist-action-btn" onclick="openChatPopup()" title="Pop out chat">
+                                        <span class="material-icons md-18 md-light">open_in_new</span>
+                                    </button>
+                                    <button
+                                            id="chat-left-close-button"
+                                            onclick="document.getElementById('chat-section').style.display='none';">
+                                        &times;
+                                    </button>
+                                </div>
+                                <div id="discussion-button-div">
+                                    <label for="discussionNameInput" class="visually-hidden">Discussion Name:</label>
+                                    <input type="text" id="discussionNameInput" placeholder="Enter discussion name">
+                                    <label style="font-size:0.85em;margin-left:4px"><input type="checkbox" id="discussionPublicCheckbox"> Public</label>
+                                    <button id="advertiseDiscussionButton" class="btn" onClick="advertiseDiscussion()">Create</button>
+                                    <button id="refreshDiscussionsButton" class="btn" onClick="refreshDiscussions()">Join</button>
+                                    <button id="chat-advanced-button" class="btn btn-small" onclick="toggleDiv('chat-advanced')">Advanced</button>
+                                </div>
+                                <div id="discussionListDiv">
+                                    <ul id="discussion-list"></ul>
+                                </div>
+                                <div id="end-discussion-div" style="display: none;">
+                                    <button id="endDiscussionButton" class="btn" onClick="endDiscussion()">Leave Discussion</button>
+                                    <button id="startDocButton" class="btn" onclick="startCollabFromChat()" title="Start a shared document from this discussion">Start document</button>
+                                </div>
+                                <div id="chat-messages"></div>
+                                <input type="text" id="messageInput" placeholder="Type your message">
+                                <button id="sendButton" class="btn">Send</button>
+                                <div id="chat-advanced" style="display:none;margin-top:10px;">
+                                    PeerID: <span id="my-peer-id"></span><br>
+                                    <label for="peerIdInput" class="visually-hidden">Connect to Peer ID:</label>
+                                    <input type="text" id="peerIdInput" placeholder="Connect to Peer ID:">
+                                    <button id="connectButton" class="btn">Connect</button>
+                                </div>
+                            </div>
+
+                            <div id="left-content" class="content">
+                                <div id="response"></div>
+                                <div id="kvList"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="feed-section">
+                        <div id="feed-menu"></div>
+                        <div id="feed-container">
+                            <div style="padding:8% 10%">
+                                <div style="margin-bottom:0.6em;">
+                                    <img src="images/PTTP.png" style="width:80%; max-width:400px; display:block;">
+                                    <h3 style="margin:0.4em 0 0;">Welcome to CList</h3>
+                                </div>
+                                <p style="margin:0.6em 0;">Your personal learning environment for reading feeds, writing content, and publishing to social platforms.</p>
+                                <h4 style="margin:1em 0 0.4em;">Getting started</h4>
+                                <ol style="margin-left:1.2em; line-height:1.8;">
+                                    <li><strong>Register</strong> — create a free account using the left panel</li>
+                                    <li><strong>Add services</strong> — connect Mastodon, Bluesky, RSS feeds, and more via Accounts</li>
+                                    <li><strong>Read and write</strong> — browse your feeds, write content, and post</li>
+                                </ol>
+                                <p style="margin:1em 0 0;">No account needed to try it out — click <strong>Find</strong> to search right now.</p>
+                                <p style="margin:0.8em 0 0; font-size:0.85em;">
+                                    <a href="about.html">About CList</a> &nbsp;&middot;&nbsp;
+                                    <a href="https://github.com/Downes/CList/wiki" target="_blank">Documentation</a>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            </div> <!-- / read-pane -->
+            </div> <!-- /read-pane -->
+
             <div id="divider" class="draggable-border"></div>
+
             <div id="write-pane">
                 <div id="right-main-command" class="command">
                     <div class="command-left-buttons">
                         <button id="snapRightBtn" class="pane-snap-btn" onclick="snapPanes('right')" title="Collapse/expand panes"><span class="material-icons">arrow_right</span></button>
                     </div>
                     <div class="command-left-buttons">
-                        <!--button id="load-button" class="right" onclick="loadFile();">Load</button>-->
                         <button id="load-button" class="right btn" onclick="playLoad();">Load</button>
                         <button id="save-button" class="right btn" onclick="playSave()">Save</button>
                         <button id="post-button" class="right btn" onclick="playPost()" style="display:none">Post</button>
@@ -170,13 +238,7 @@
                         <button id="editor-indicator" class="btn" onclick="playEditorSwitch()" title="Switch editor">Editor</button>
                     </div>
                 </div>
-                <!-- Place to store Loaded file input while it is processed-->
-                <input
-                        type="file"
-                        id="fileInput"
-                        style="display: none;"
-                        onchange="handleFileFallback(event)"
-                />
+                <input type="file" id="fileInput" style="display: none;" onchange="handleFileFallback(event)" />
                 <div id="writeReferences"></div>
                 <div id="write-load">
                     <div id="write-load-header" class="flex-container">
@@ -188,9 +250,7 @@
                         <div id="editor-switch-options"></div>
                         <div id="editor-switch-account-options"></div>
                     </div>
-
                 </div>
-
 
                 <div id="write-title-row">
                     <div id="write-title" contenteditable="true"></div>
@@ -203,120 +263,18 @@
                 </div>
 
                 <div id="write-pane-content">
-
-                    <!-- Text Editor -->
-                    <!-- currentEditor = 'texteditor' -->
                     <div id="textEditorDiv" style="display:block" class="editor">
                         <textarea id="text-column"></textarea>
                         <div class="currentReferences"></div>
                     </div>
-
-                    <!-- Other editor windows may be added here dynamically -->
-                    <!-- Handlers defined in editors.js -->
-
                 </div>
 
                 <div id="write-tags"></div>
-
                 <div id="texteditor-references" class="allReferences"></div>
-                <!-- Other references divs may be added here dynamically -->
-
             </div> <!-- /write-pane -->
 
-        </div> <!-- main-content -->
-
+        </div> <!-- /main-content -->
     </div> <!-- /main-window -->
-
-
-    <div id="left-pane">
-        <div id="left-command" class="pane command">
-            <div class="command-left-buttons">
-                <button id="loginButton" class="btn" onclick="redirectToKVLogin()">Login</button>
-                <button id="registerButton" class="btn" onclick="redirectToKVRegister()">Register</button>
-                <button id="logoutButton" class="btn" onclick="KVlogout(window.CList.config.flaskSiteUrl);">Logout</button>
-                <button id="accountButton" class="btn" onclick="playAccounts();">Accounts</button>
-                <button id="meButton" class="btn" onclick="playMe();" style="display:none">Me</button>
-                <button id="audioButton" class="btn" style="display:none;" onclick="toggleDiv('audio-section');">Audio</button>
-                <button id="chatButton" class="btn" style="display:none;" onclick="toggleDiv('chat-section');">Chat</button>
-            </div>
-        </div>
-        <!-- Current login identity and selected read account -->
-        <div id="current-status" class="pane-status">
-            <div id="identityDiv" class="pane-status-item">Please login to Identity Server</div>
-            <div id="selectedAccount"></div>
-        </div>
-
-        <div id="left-pane-body">
-
-            <!-- Audio player — overlays left-content, toggled by opml.js -->
-            <div id="audio-section" style="display: none;">
-                <div id="audio-header">
-                    <h2>Audio</h2>
-                    <button
-                            id="audio-left-close-button"
-                            onclick="document.getElementById('audio-section').style.display='none'; document.getElementById('audioButton').style.display='inline-block';">
-                        &times;
-                    </button>
-                </div>
-                <audio
-                        id="myAudioPlayer"
-                        controls>
-                    Your browser does not support the audio element.
-                </audio>
-                <div id="audio-list">
-                    <!-- Playlist will be dynamically inserted here -->
-                </div>
-            </div>
-
-            <!-- Chat — sibling of left-content so openLeftInterface() cannot clear it -->
-            <div id="chat-section" style="display: none;">
-                <div id="chat-header">
-                    <h2>Chat</h2>
-                    <button class="clist-action-btn" onclick="openChatPopup()" title="Pop out chat">
-                        <span class="material-icons md-18 md-light">open_in_new</span>
-                    </button>
-                    <button
-                            id="chat-left-close-button"
-                            onclick="document.getElementById('chat-section').style.display='none';">
-                        &times;
-                    </button>
-                </div>
-                <div id="discussion-button-div">
-                    <label for="discussionNameInput" class="visually-hidden">Discussion Name:</label>
-                    <input type="text" id="discussionNameInput" placeholder="Enter discussion name">
-                    <label style="font-size:0.85em;margin-left:4px"><input type="checkbox" id="discussionPublicCheckbox"> Public</label>
-                    <button id="advertiseDiscussionButton" class="btn" onClick="advertiseDiscussion()">Create</button>
-                    <button id="refreshDiscussionsButton" class="btn" onClick="refreshDiscussions()">Join</button>
-                    <button id="chat-advanced-button" class="btn btn-small" onclick="toggleDiv('chat-advanced')">Advanced</button>
-                </div>
-                <div id="discussionListDiv">
-                    <ul id="discussion-list"></ul>
-                </div>
-                <div id="end-discussion-div" style="display: none;">
-                    <button id="endDiscussionButton" class="btn" onClick="endDiscussion()">Leave Discussion</button>
-                    <button id="startDocButton" class="btn" onclick="startCollabFromChat()" title="Start a shared document from this discussion">Start document</button>
-                </div>
-                <div id="chat-messages"></div>
-                <input type="text" id="messageInput" placeholder="Type your message">
-                <button id="sendButton" class="btn">Send</button>
-                <div id="chat-advanced" style="display:none;margin-top:10px;">
-                    PeerID: <span id="my-peer-id"></span><br>
-                    <label for="peerIdInput" class="visually-hidden">Connect to Peer ID:</label>
-                    <input type="text" id="peerIdInput" placeholder="Connect to Peer ID:">
-                    <button id="connectButton" class="btn">Connect</button>
-                </div>
-            </div>
-
-            <div id="left-content" class="content">
-
-                <div id="response"></div>
-                <!-- List to display fetched key-value pairs -->
-                <div id="kvList"></div>
-
-            </div> <!-- /left-content -->
-
-        </div> <!-- /left-pane-body -->
-    </div> <!-- /left-pane -->
 
     <div id="right-pane">
         <div id="right-command" class="command">
@@ -337,13 +295,7 @@
             <div id="load-instructions" style="display: none;">
                 <div id="load-options"></div>
             </div>
-
-
-
-
-        </div> <!-- right-content -->
-
-
+        </div>
     </div> <!-- /right-pane -->
 </div> <!-- /main-container-->
 
@@ -352,74 +304,55 @@
     <div class="loader"></div>
 </div>
 
-<!-- Not happy I have to include a Google JS script to make Blogger API work-->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-
-
-
-
-<script src="js/local-kvstore.js" defer></script>  <!-- In-browser kvstore for "Local" account mode; must load before kvstore.js -->
-<script src="js/utilities.js" defer></script>    <!-- Utility functions -->
-<script src="js/ui.js" defer></script>          <!-- CList.ui factory functions -->
-<script src="js/references.js" defer></script>  <!-- Reference list for convergence -->
+<script src="js/local-kvstore.js" defer></script>
+<script src="js/utilities.js" defer></script>
+<script src="js/ui.js" defer></script>
+<script src="js/references.js" defer></script>
 <script src="js/crypto_utils.js" defer></script>
-<script src="js/kvstore.js" defer></script>     <!-- Loads usere and account data -->
-<script src="js/editors.js" defer></script>   <!-- Major function handlers-->
+<script src="js/kvstore.js" defer></script>
+<script src="js/editors.js" defer></script>
 <script src="js/reader.js?v=5" defer></script>
-
-<!-- handlers -->
-
-<script src="js/oauth-config.js" defer></script>      <!-- OAuth module -->
+<script src="js/oauth-config.js" defer></script>
 <script src="js/oauth-strategies.js" defer></script>
 <script src="js/oauth-client.js" defer></script>
-<script src="js/mastodon.js?v=3" defer></script>       <!-- Social Media -->
+<script src="js/mastodon.js?v=3" defer></script>
 <script src="js/bluesky.js?v=3" defer></script>
 <script src="js/discord.js?v=1" defer></script>
 <script src="js/opml.js" defer></script>
 <script src="js/rss.js" defer></script>
-<script src="js/public-feeds.js" defer></script>  <!-- Public, no-login RSS collections (localrss_reader) -->
-<script src="js/youtube.js" defer></script>   <!-- YouTube-specific helpers (video embed detection) -->
-<script src="js/peertube.js" defer></script>  <!-- PeerTube-specific helpers (video embed detection) -->
-
-<script src="js/googlesearch.js" defer></script>   <!-- Search-->
+<script src="js/public-feeds.js" defer></script>
+<script src="js/youtube.js" defer></script>
+<script src="js/peertube.js" defer></script>
+<script src="js/googlesearch.js" defer></script>
 <script src="js/duckduckgo.js" defer></script>
 <script src="js/oasis.js" defer></script>
-
-<!--script src="js/audio.js" defer></script -->          <!-- Audio -->
-
-<script src="js/files.js" defer></script>          <!-- Save / Load -->
-
-<script src="js/wordpress.js" defer></script>      <!-- Posts -->
+<script src="js/files.js" defer></script>
+<script src="js/wordpress.js" defer></script>
 <script src="js/blogger.js" defer></script>
-
-<script src="js/tinymce.js" defer></script>        <!-- Editors -->
+<script src="js/tinymce.js" defer></script>
 <script src="js/etherpad.js" defer></script>
 <script src="js/collab.js" defer></script>
-<script src="js/tags.js" defer></script>         <!-- Write-pane tag field -->
-<script src="js/annotate.js" defer></script>   <!-- Annotation store -->
-<script src="js/collections.js" defer></script> <!-- Collections -->
+<script src="js/tags.js" defer></script>
+<script src="js/annotate.js" defer></script>
+<script src="js/collections.js" defer></script>
 <script src="js/collection-editor.js" defer></script>
-<script src="js/jsonbin.js" defer></script>    <!-- Bin publishers -->
+<script src="js/jsonbin.js" defer></script>
 <script src="js/gist.js" defer></script>
 <script src="js/0x0.js" defer></script>
 <script src="js/clistbin.js" defer></script>
 <script src="js/dropbox.js" defer></script>
-<script src="js/hypothesis.js" defer></script>  <!-- Hypothes.is annotation account -->
-
-<script src="js/chatgpt.js" defer></script>          <!-- AI -->
+<script src="js/hypothesis.js" defer></script>
+<script src="js/chatgpt.js" defer></script>
 <script src="js/summarize.js" defer></script>
 <script src="js/translate.js" defer></script>
-
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"
         integrity="sha384-nlUQ8ZqCbvStErob+biJNzSgltf6urV3VGqhfIfzhmg9RXmpeRm76ELw0pYnKlTR"
-        crossorigin="anonymous" defer></script>       <!-- Chat -->
+        crossorigin="anonymous" defer></script>
 <script src="js/dynamicp2p.js?v=3" defer></script>
-
-
-<!-- Keep these below functions so we can load handlers below -->
 <script src="js/publish.js" defer></script>
-<script src="js/webmention.js" defer></script>  <!-- WebMention sender (opt-in) -->
-<script src="js/interface.js"></script>   <!-- keep last as it depends on the previous scripts -->
+<script src="js/webmention.js" defer></script>
+<script src="js/interface.js"></script>
 
 <!-- Login / Register modal -->
 <div id="authModal" style="display:none; position:fixed; inset:0; background:var(--bg-modal-overlay); z-index:9999; align-items:center; justify-content:center;">
@@ -466,7 +399,7 @@
             </div>
         </div>
 
-        <!-- Change account server panel (hidden by default) -->
+        <!-- Change account server panel -->
         <div id="changeServerPanel" style="display:none;">
             <label style="display:block; margin-bottom:.75em; font-size:0.9em;">Account server<br>
                 <select id="serverSelect" style="width:100%; box-sizing:border-box; padding:.4em; margin-top:.3em;">
