@@ -8,7 +8,7 @@
 //
 //  This software carries NO WARRANTY OF ANY KIND.
 //  This software is provided "AS IS," and you, its user, assume all risks when using it.
-// 
+//
 
 
 
@@ -28,7 +28,7 @@ let pendingContent = null;
 // the editor stop representing that exact page (switching editors, Load blank).
 // Shape: { url: string, title: string } | null.
 let currentLoadedPage = null;
-// 
+//
 // Define handlers for each editor
 //
 // Each handler object has the following fields:
@@ -475,10 +475,7 @@ async function _doLoadBlank(targetKey) {
 // Close the editor-switch overlay and return to the editor, regardless of
 // whether the overlay is currently open — safe to call unconditionally.
 function closeEditorSwitchOverlay() {
-    const overlay = document.getElementById('write-load');
-    const content = document.getElementById('write-pane-content');
-    if (overlay) overlay.style.display = 'none';
-    if (content) content.style.display = 'block';
+    if (typeof closeRightPane === 'function') closeRightPane();
 }
 
 
@@ -549,14 +546,12 @@ async function populateEditorList() {
     await _populateAccountEditors();
 }
 
-// Open the editor switcher as an overlay on the write pane — opens immediately
-// with built-in editors, then appends account-based editors once accounts are fetched.
+// Open the editor switcher inside the right pane.
 // Switching editors never carries typed content across — each editor keeps its own
 // independent state (see initialize()'s resume contract above); this is purely a picker.
 async function playEditorSwitch() {
     _populateBuiltInEditors();
-    document.getElementById('write-load').style.display = 'block';
-    document.getElementById('write-pane-content').style.display = 'none';
+    openRightInterface('editor-instructions');
     await _populateAccountEditors();
 }
 
@@ -576,7 +571,6 @@ async function switchToEditor(editorType, carriedContent, account) {
 
     await initializeEditor(editorType, account ?? null);
     closeRightPane();
-    closeEditorSwitchOverlay();
     updateEditorIndicator();
     await populateEditorList();
 }

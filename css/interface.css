@@ -400,38 +400,6 @@ body a:hover, html a:hover { text-decoration: underline; }
   outline: none;
 }
 
-#write-load {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  padding: 10px;
-  overflow: auto;
-  background-color: var(--bg-body);
-  display: none;
-  z-index: 10;
-}
-
-#write-load-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-#write-load-header h2 {
-  margin: 0;
-  font-size: 1.5em;
-  color: var(--text-main);
-}
-
-#write-load-close-button {
-  font-size: 0.875rem;
-  margin: 0;
-  cursor: pointer;
-  color: var(--text-main);
-}
-
 #loadedContent { display: none; }
 
 .editor {
