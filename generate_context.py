@@ -261,9 +261,9 @@ def main():
             if changed_files is not None and rel_path not in changed_files and not rel_path.endswith(".md"):
                 continue
 
-            # Filter by --core-only
+# Filter by --core-only
             if args.core_only:
-                if not (rel_path in CORE_FILES or rel_path.startswith("js/")):
+                if not (rel_path in CORE_FILES or rel_path.startswith("js/") or rel_path.startswith("css/")):
                     continue
 
             # Filter by --include (glob patterns)
