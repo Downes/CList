@@ -147,7 +147,7 @@ window.hypothesisFetch = async function(acct, url) {
                 rows.push(...(data.rows || []));
             } else {
                 console.error('[hypothesis] search returned', resp.status, 'for', user);
-                showStatusMessage(`Hypothes.is: could not load annotations (HTTP ${resp.status}) — check your API key under Accounts.`);
+                showErrorModal(`Hypothes.is: could not load annotations (HTTP ${resp.status}) — check your API key under Accounts.`, { title: 'Could Not Load Annotations' });
             }
         } catch (e) {
             console.error('[hypothesis] search error for', user, e);
@@ -309,13 +309,13 @@ window.hypothesisCreate = async function(acct, payload) {
         },
         publish: async function(accountData, title, content) {
             if (!accountData.apiKey) {
-                showStatusMessage('No API key — add your Hypothes.is API token in Account Settings.');
+                showErrorModal('No API key — add your Hypothes.is API token in Account Settings.', { title: 'API Key Missing' });
                 return null;
             }
 
             const refs = getReferences();
             if (!refs.length) {
-                showStatusMessage('No target — load items into the editor before annotating.');
+                showErrorModal('No target — load items into the editor before annotating.', { title: 'No Target Selected' });
                 return null;
             }
 
@@ -333,7 +333,7 @@ window.hypothesisCreate = async function(acct, payload) {
                     if (!firstId) firstId = anno?.id || null;
                     successCount++;
                 } catch (e) {
-                    showStatusMessage('Hypothesis post failed: ' + e.message);
+                    showErrorModal('Hypothesis post failed: ' + e.message, { title: 'Annotation Post Failed' });
                     console.error('[hypothesis] publish error for', ref.url, e);
                     failCount++;
                 }
@@ -357,7 +357,11 @@ window.hypothesisCreate = async function(acct, payload) {
                     resultDiv.appendChild(p);
                 });
             }
-            showStatusMessage(`Annotation posted to ${successCount} items${failCount ? `, ${failCount} failed` : ''}.`);
+            if (failCount) {
+                showErrorModal(`Annotation posted to ${successCount} items, ${failCount} failed.`, { title: 'Some annotations failed' });
+            } else {
+                showStatusMessage(`Annotation posted to ${successCount} items.`);
+            }
             return null;
         }
     };

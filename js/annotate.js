@@ -60,13 +60,13 @@ function _serviceLabel(creatorId) {
 async function _submitAnnotation(panel, itemID, url, bodyText, tags, visibility, acct, token) {
     if (acct.type === 'Hypothesis') {
         if (typeof window.hypothesisCreate !== 'function') {
-            showStatusMessage('Hypothesis write support not loaded.');
+            showErrorModal('Hypothesis write support not loaded.', { title: 'Hypothesis unavailable' });
             return;
         }
         try {
             await window.hypothesisCreate(acct, { target_url: url, body: bodyText, tags, visibility });
         } catch (e) {
-            showStatusMessage('Failed to save to Hypothesis: ' + e.message);
+            showErrorModal('Failed to save to Hypothesis: ' + e.message, { title: 'Save failed' });
             console.error('[hypothesis] create error', e);
         }
         return;
@@ -95,14 +95,14 @@ async function _submitAnnotation(panel, itemID, url, bodyText, tags, visibility,
         } else {
             const err = await resp.json().catch(() => ({}));
             if (resp.status === 403 && (err.detail || '').includes('Not registered')) {
-                showStatusMessage('Not registered on this annotation server — please re-add the account in Account Settings.');
+                showErrorModal('Not registered on this annotation server — please re-add the account in Account Settings.', { title: 'Not registered' });
             } else {
-                showStatusMessage('Failed to save annotation: ' + (err.detail || resp.status));
+                showErrorModal('Failed to save annotation: ' + (err.detail || resp.status), { title: 'Save failed' });
             }
             console.error('Annotation POST failed', resp.status, err);
         }
     } catch (e) {
-        showStatusMessage('Error saving annotation — check your connection and try again.');
+        showErrorModal('Error saving annotation — check your connection and try again.', { title: 'Save failed' });
         console.error('Annotation POST error', e);
     }
 }
@@ -198,7 +198,7 @@ function _appendAddForm(panel, itemID, url, writeAccts, token) {
 
     submitBtn.addEventListener('click', async () => {
         const bodyText = textarea.value.trim();
-        if (!bodyText) { showStatusMessage('Annotation text is required.'); return; }
+        if (!bodyText) { showErrorModal('Annotation text is required.', { title: 'Annotation required' }); return; }
 
         const tags = tagsInput.value.split(',').map(t => t.trim()).filter(Boolean);
         const visibility = visSelect.value;
@@ -221,7 +221,7 @@ function _appendAddForm(panel, itemID, url, writeAccts, token) {
 window.clistAnnotate = function(itemId) {
     const el = document.getElementById(itemId);
     if (!el || !el.reference) {
-        showStatusMessage('No reference found for this item.');
+        showErrorModal('No reference found for this item.', { title: 'No reference' });
         return;
     }
     if (typeof currentEditor !== 'undefined' && currentEditor === 'collection') {
@@ -256,7 +256,7 @@ window.clistAnnotate = function(itemId) {
 window.openAnnotationEditor = function(itemId) {
     const el = document.getElementById(itemId);
     if (!el || !el.reference) {
-        showStatusMessage('No reference found for this item.');
+        showErrorModal('No reference found for this item.', { title: 'No reference' });
         return;
     }
     if (typeof currentEditor !== 'undefined' && currentEditor === 'collection') {
@@ -306,13 +306,13 @@ window.openAnnotationEditor = function(itemId) {
         publish: async function(accountData, title, content) {
             const refs = getReferences();
             if (!refs.length) {
-                showStatusMessage('No target — load items into the editor before annotating.');
+                showErrorModal('No target — load items into the editor before annotating.', { title: 'No target' });
                 return null;
             }
 
             const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN) || '';
             if (!token) {
-                showStatusMessage('Not logged in — cannot post annotation.');
+                showErrorModal('Not logged in — cannot post annotation.', { title: 'Not logged in' });
                 return null;
             }
 
@@ -353,15 +353,15 @@ window.openAnnotationEditor = function(itemId) {
                     } else {
                         const err = await resp.json().catch(() => ({}));
                         if (resp.status === 403 && (err.detail || '').includes('Not registered')) {
-                            showStatusMessage('Not registered on this annotation server — please re-add the account in Account Settings.');
+                            showErrorModal('Not registered on this annotation server — please re-add the account in Account Settings.', { title: 'Not registered' });
                         } else {
-                            showStatusMessage('Annotation failed: ' + (err.detail || resp.status));
+                            showErrorModal('Annotation failed: ' + (err.detail || resp.status), { title: 'Annotation failed' });
                         }
                         console.error('Annotation POST failed', resp.status, err, 'for', ref.url);
                         failCount++;
                     }
                 } catch (e) {
-                    showStatusMessage('Error posting annotation — check your connection and try again.');
+                    showErrorModal('Error posting annotation — check your connection and try again.', { title: 'Annotation failed' });
                     console.error('Annotation POST error for', ref.url, e);
                     failCount++;
                 }
@@ -386,7 +386,11 @@ window.openAnnotationEditor = function(itemId) {
                     resultDiv.appendChild(p);
                 });
             }
-            showStatusMessage(`Annotation posted to ${successCount} items (convergent annotation)${failCount ? `, ${failCount} failed` : ''}.`);
+            if (failCount) {
+                showErrorModal(`Annotation posted to ${successCount} items (convergent annotation), ${failCount} failed.`, { title: 'Some annotations failed' });
+            } else {
+                showStatusMessage(`Annotation posted to ${successCount} items (convergent annotation).`);
+            }
             return null;
         }
     };
@@ -721,7 +725,7 @@ window.checkAnnotationsBatch = async function() {
                     followBtn.innerHTML = '<span class="material-icons md-18 md-light">person_add</span>';
                     followBtn.addEventListener('click', () => {
                         _followUser(authorDid, batchToken, followBtn).catch(e => {
-                            showStatusMessage('Follow error: ' + e.message);
+                            showErrorModal('Follow error: ' + e.message, { title: 'Follow failed' });
                             console.error('Follow error', e);
                         });
                         // Remove buttons for all other items from the same feed
@@ -735,7 +739,7 @@ window.checkAnnotationsBatch = async function() {
         }
     } catch (e) {
         console.error('[annotations] checkAnnotationsBatch failed:', e);
-        showStatusMessage('Annotation check failed: ' + e.message);
+        showErrorModal('Annotation check failed: ' + e.message, { title: 'Annotation check failed' });
     }
 };
 
@@ -781,7 +785,7 @@ async function _flowAnnotation(anno, targetUrl, writeAccts, token, btn) {
         }
     }
     // All accounts tried and failed
-    showStatusMessage('Flow failed: ' + (lastErr?.detail || 'no writable annotation store succeeded'));
+    showErrorModal('Flow failed: ' + (lastErr?.detail || 'no writable annotation store succeeded'), { title: 'Flow failed' });
     console.error('Flow failed on all accounts', lastErr);
     btn.disabled = false;
 }
@@ -857,10 +861,10 @@ async function _followUser(did, token, btn) {
         encKey = await getEncKey(window.CList.config.flaskSiteUrl);
     } catch (e) {
         console.error('_followUser: getEncKey failed:', e);
-        showStatusMessage('Could not retrieve encryption key — please log in again.');
+        showErrorModal('Could not retrieve encryption key — please log in again.', { title: 'Encryption key unavailable' });
         return;
     }
-    if (!encKey) { showStatusMessage('Encryption key not available — please log in.'); return; }
+    if (!encKey) { showErrorModal('Encryption key not available — please log in.', { title: 'Encryption key unavailable' }); return; }
     const key   = `social:following:${did}`;
     const value = { did, since: new Date().toISOString() };
     btn.disabled = true;
@@ -873,7 +877,7 @@ async function _followUser(did, token, btn) {
         _followedDidsCache = null;
         _federatedCache    = null;
     } catch (e) {
-        showStatusMessage('Error following user — check your connection and try again.');
+        showErrorModal('Error following user — check your connection and try again.', { title: 'Follow failed' });
         console.error('Follow error', e);
         btn.disabled = false;
     }
@@ -967,7 +971,7 @@ function _buildAnnotationItem(anno, options = {}) {
         followBtn.disabled = alreadyFollowing;
         if (!alreadyFollowing) {
             followBtn.addEventListener('click', () => _followUser(creatorId, token, followBtn).catch(e => {
-                showStatusMessage('Follow error: ' + e.message);
+                showErrorModal('Follow error: ' + e.message, { title: 'Follow failed' });
                 console.error('Follow error', e);
             }));
         }
@@ -1107,7 +1111,7 @@ function _buildAnnotationItem(anno, options = {}) {
         flowBtn.title = 'Flow — add to your annotations';
         flowBtn.innerHTML = '<span class="material-icons md-18 md-light">forward</span>';
         flowBtn.addEventListener('click', () => _flowAnnotation(anno, flowUrl, writeAccts, token, flowBtn).catch(e => {
-            showStatusMessage('Flow error: ' + e.message);
+            showErrorModal('Flow error: ' + e.message, { title: 'Flow failed' });
             console.error('Flow error', e);
         }));
         clistActions.appendChild(flowBtn);
@@ -1228,7 +1232,7 @@ window.showAnnotationsForItem = async function(itemId) {
             followBtn.innerHTML = '<span class="material-icons md-18 md-light">person_add</span> Follow';
             followBtn.addEventListener('click', () => {
                 _followUser(authorDid, token, followBtn).catch(e => {
-                    showStatusMessage('Follow error: ' + e.message);
+                    showErrorModal('Follow error: ' + e.message, { title: 'Follow failed' });
                     console.error('Follow error', e);
                 });
                 label.textContent = 'Following ' + authorUsername;
@@ -1291,7 +1295,7 @@ window.showAnnotationsForItem = async function(itemId) {
             fc.scrollTop = _savedScrollTop;
             _savedFeedContent = null;
         }
-        showStatusMessage('Failed to load annotation thread: ' + e.message);
+        showErrorModal('Failed to load annotation thread: ' + e.message, { title: 'Thread load failed' });
     }
 };
 

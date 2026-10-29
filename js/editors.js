@@ -283,7 +283,9 @@ function populateLoadOptions() {
             // a choice when more than one editor qualifies, and a warn-before-overwrite
             // prompt when the target editor already has content. Cancel returns here
             // (this loader list) rather than My Pages' default.
-            await loadSavedPage(content, null, optionsDiv, () => populateLoadOptions());
+            // content.page (set by file-based loaders, e.g. files.js's restorePostContent())
+            // carries the loaded filename through to the "Loaded: …" indicator.
+            await loadSavedPage(content, content.page || null, optionsDiv, () => populateLoadOptions());
         });
 
         list.appendChild(btn);
@@ -580,7 +582,7 @@ function _populateBuiltInEditors() {
 async function _populateAccountEditors() {
     if (typeof isRegistered === 'function' && isRegistered()) {
         if (!Array.isArray(window.CList.accounts) || window.CList.accounts.length === 0) {
-            try { window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl); } catch(e) { showStatusMessage('Could not load accounts: ' + e.message); }
+            try { window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl); } catch(e) { showErrorModal('Could not load accounts: ' + e.message, { title: 'Could Not Load Accounts' }); }
         }
     }
     const accountList = document.getElementById('editor-switch-account-options');
@@ -769,7 +771,13 @@ function updateLoadedPageUI() {
                 // setLoadedPage() calls in publish.js).
                 const pubUrl = currentLoadedPage.publicationUrl || currentLoadedPage.url || '';
                 const format = currentLoadedPage.format;
-                let label = `Loaded: ${currentLoadedPage.title || pubUrl || ''}`;
+                // kind === 'file' (files.js's restorePostContent(), dropbox.js's
+                // _openInEditor()) has no republish target — labelled distinctly so
+                // it's not mistaken for a tracked My Pages/published record.
+                const isFile = currentLoadedPage.kind === 'file';
+                let label = isFile
+                    ? `Loaded file: ${currentLoadedPage.title || ''}`
+                    : `Loaded: ${currentLoadedPage.title || pubUrl || ''}`;
                 if (pubUrl) label += ` → ${pubUrl}`;
                 if (format) label += ` [${format}]`;
                 filenameEl.textContent = label;
@@ -780,7 +788,17 @@ function updateLoadedPageUI() {
             indicator.style.display = 'none';
         }
     }
-    if (republishBtn) republishBtn.style.display = currentLoadedPage ? '' : 'none';
+    // Republish is shown/hidden by whether the Editor States Array's record for
+    // this editor actually carries a publication location — not by its 'kind'.
+    // A 'file' load never has one; a 'local-page' doesn't either until publish.js
+    // stamps publicationUrl/url/service/serviceId onto it after a first publish.
+    const hasPublicationLocation = !!(currentLoadedPage && (
+        currentLoadedPage.service ||
+        currentLoadedPage.serviceId ||
+        currentLoadedPage.url ||
+        currentLoadedPage.publicationUrl
+    ));
+    if (republishBtn) republishBtn.style.display = hasPublicationLocation ? '' : 'none';
     if (statusEl) { statusEl.textContent = ''; statusEl.removeAttribute('data-state'); }
 }
 
@@ -795,7 +813,7 @@ async function initializeEditor(editorType, account) {
 
     const handler = editorHandlers[editorType];
     if (handler && typeof handler.visible === 'function' && !handler.visible()) {
-        showStatusMessage('That editor is not available. Please register or log in.');
+        showErrorModal('That editor is not available. Please register or log in.', { title: 'Editor unavailable' });
         return;
     }
 
@@ -835,7 +853,7 @@ async function initializeEditor(editorType, account) {
         });
     } else {
         console.error("Write pane content not found. Obviously a major programming error.");
-        showStatusMessage('Write pane not found — please reload the page.');
+        showErrorModal('Write pane not found — please reload the page.', { title: 'Write Pane Not Found' });
         return;
     }
 
@@ -849,7 +867,7 @@ async function initializeEditor(editorType, account) {
             updateEditorIndicator();
         } catch (error) {
             console.error(`Error initializing editor of type '${editorType}':`, error);
-            showStatusMessage(`Failed to initialize editor: ${error.message}`);
+            showErrorModal(`Failed to initialize editor: ${error.message}`, { title: 'Editor Initialization Failed' });
             return;
         }
     } else {
@@ -969,7 +987,7 @@ async function loadSavedPage(content, page, renderTarget, onCancel) {
     }
 
     if (!targetKey) {
-        showStatusMessage('No local editor is available for this content type.');
+        showErrorModal('No local editor is available for this content type.', { title: 'Editor Unavailable' });
         return;
     }
 

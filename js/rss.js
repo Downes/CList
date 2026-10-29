@@ -45,10 +45,10 @@ window.CList.schemas['RSS'] = {
         type: 'feed',
         initialize: async (accountData) => { await initializeRSS(accountData); },
         feedFunctions: {
-            'Unread':     () => { rssActiveFeedFilter = null; rssFilter = 'unread';     rssDisplayEntries().catch(e => { console.error(e); showStatusMessage('Could not display entries: ' + e.message); }); },
-            'All':        () => { rssActiveFeedFilter = null; rssFilter = 'all';        rssDisplayEntries().catch(e => { console.error(e); showStatusMessage('Could not display entries: ' + e.message); }); },
-            'Bookmarked': () => { rssActiveFeedFilter = null; rssFilter = 'bookmarked'; rssDisplayEntries().catch(e => { console.error(e); showStatusMessage('Could not display entries: ' + e.message); }); },
-            'Refresh':    () => rssRefresh().catch(e => { console.error(e); showStatusMessage('Refresh failed: ' + e.message); }),
+            'Unread':     () => { rssActiveFeedFilter = null; rssFilter = 'unread';     rssDisplayEntries().catch(e => { console.error(e); showErrorModal('Could not display entries: ' + e.message, { title: 'Could not display entries' }); }); },
+            'All':        () => { rssActiveFeedFilter = null; rssFilter = 'all';        rssDisplayEntries().catch(e => { console.error(e); showErrorModal('Could not display entries: ' + e.message, { title: 'Could not display entries' }); }); },
+            'Bookmarked': () => { rssActiveFeedFilter = null; rssFilter = 'bookmarked'; rssDisplayEntries().catch(e => { console.error(e); showErrorModal('Could not display entries: ' + e.message, { title: 'Could not display entries' }); }); },
+            'Refresh':    () => rssRefresh().catch(e => { console.error(e); showErrorModal('Refresh failed: ' + e.message, { title: 'Refresh failed' }); }),
         },
         onFeedClick:   (item) => rssFilterByFeed(item.feedUrl),
         onAuthorClick: null,
@@ -140,7 +140,7 @@ function _rssOpenDb() {
         req.onerror   = ()  => reject(req.error);
         req.onblocked = ()  => {
             console.warn('RSS DB upgrade blocked — close other CList tabs and reload.');
-            showStatusMessage('RSS: please close other CList tabs and reload to finish the database upgrade.');
+            showErrorModal('RSS: please close other CList tabs and reload to finish the database upgrade.', { title: 'Database upgrade blocked' });
         };
     });
 }
@@ -359,7 +359,7 @@ async function _rssFetchFeed(feedUrl, collectionKey, serviceUrl) {
 
 function rssFilterByFeed(feedUrl) {
     rssActiveFeedFilter = feedUrl;
-    rssDisplayEntries().catch(e => { console.error(e); showStatusMessage('Could not filter entries: ' + e.message); });
+    rssDisplayEntries().catch(e => { console.error(e); showErrorModal('Could not filter entries: ' + e.message, { title: 'Could not filter entries' }); });
 }
 
 async function initializeRSS(accountData) {
@@ -438,7 +438,7 @@ function rssBackgroundFetchAll(accounts) {
         if (_rssFetchState[data.instance]) continue; // already running or done
         _rssBgFetch(data).catch(e => {
             console.error(`RSS bg fetch failed (${data.instance}):`, e);
-            showStatusMessage(`RSS: could not fetch "${data.title || data.instance}" — ${e.message}`);
+            showErrorModal(`RSS: could not fetch "${data.title || data.instance}" — ${e.message}`, { title: 'Feed fetch failed' });
         });
     }
 }
@@ -576,7 +576,7 @@ async function rssToggleRead(entryId, btn) {
         if (rssFilter === 'unread' && e.readAt) btn?.closest('.status-box')?.remove();
     } catch (err) {
         console.error('RSS: could not toggle read state:', err);
-        showStatusMessage('Could not update read state: ' + err.message);
+        showErrorModal('Could not update read state: ' + err.message, { title: 'Could not update read state' });
     }
 }
 
@@ -593,7 +593,7 @@ async function rssToggleBookmark(entryId, btn) {
         if (rssFilter === 'bookmarked' && !e.bookmarked) btn?.closest('.status-box')?.remove();
     } catch (err) {
         console.error('RSS: could not toggle bookmark:', err);
-        showStatusMessage('Could not update bookmark: ' + err.message);
+        showErrorModal('Could not update bookmark: ' + err.message, { title: 'Could not update bookmark' });
     }
 }
 

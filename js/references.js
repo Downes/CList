@@ -47,7 +47,7 @@ function getReferences() {
 window.playRefs = function() {
     const panel = document.getElementById('clist-references-panel');
     if (!panel) {
-        if (typeof showStatusMessage === 'function') showStatusMessage('No references yet.');
+        if (typeof showErrorModal === 'function') showErrorModal('No references yet.', { title: 'No references' });
         return;
     }
     const hidden  = window.getComputedStyle(panel).display === 'none';
@@ -110,7 +110,7 @@ function _renderReferencesPanel() {
         if (typeof window.importCollectionFromChat === 'function') {
             window.importCollectionFromChat([...refs], saveBtn);
         } else {
-            showStatusMessage('Collection import not available.');
+            showErrorModal('Collection import not available.', { title: 'Import unavailable' });
         }
     });
     panel.appendChild(saveBtn);

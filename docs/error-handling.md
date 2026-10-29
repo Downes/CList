@@ -32,31 +32,35 @@ Parameters:
 
 ### `showStatusMessage(text)` — `ui.js`
 
-For **transient action feedback**: post results, validation messages, confirmations. Writes to `#identityDiv` (the login-identity bar) and auto-restores the identity label after 3 seconds.
+For **transient, non-error feedback only**: confirmations and background-operation results. Writes to `#identityDiv` (the login-identity bar) and auto-restores the identity label after 3 seconds. Easy to miss — it is never the right place for an error.
 
 ```javascript
-showStatusMessage('Failed to boost — server returned 422.');
 showStatusMessage('Name set to: Alice');
-showStatusMessage('No publish handler registered for type: Unknown');
+showStatusMessage('Account saved.');
+showStatusMessage('Copied to clipboard.');
 ```
 
 Use this for:
-- Social action results (bookmark, boost, favourite)
-- Lightweight form validation where missing the message briefly has no real cost (e.g. an inline "create" field)
-- Background operation feedback (account saved, name set)
+- Confirmation that something succeeded (account saved, name set, copied)
+- Non-error background-operation feedback the user doesn't strictly need to act on
+
+**Do not** use it for anything that went wrong — a failed fetch, a thrown error, a blocked action, a missing precondition. That belongs in `showErrorModal` below, even if it feels minor or "lightweight."
 
 ### `showErrorModal(message, { title })` — `ui.js`
 
-For errors that **block the user from completing an action** they just tried — e.g. a required-field check before save/publish. Unlike `showStatusMessage`, this can't be missed (it covers the screen) or auto-dismiss before being read. Built on `showModal()`; `title` defaults to `"Error"`.
+For **any error or failure** the user needs to know about — not just save/publish gating. Unlike `showStatusMessage`, this can't be missed (it covers the screen) or auto-dismiss before being read. Built on `showModal()`; `title` defaults to `"Error"` — always pass a specific, short `title` when the generic default wouldn't tell the user which action failed (e.g. `{ title: 'Editor unavailable' }`, `{ title: 'Registration failed' }`).
 
 ```javascript
+showErrorModal('Failed to boost — server returned 422.');
 showErrorModal('Please enter a collection title before publishing.');
 showErrorModal('That username is already taken.', { title: 'Registration failed' });
 ```
 
 Use this for:
-- Required-field checks that gate a save/publish/submit action
-- Any validation failure where silently losing the message (as `showStatusMessage`'s 3 s auto-dismiss can do) would leave the user confused about why the action didn't go through
+- Any caught error or failed action (a failed fetch, a thrown exception, an API error)
+- Required-field or other validation failures that block a save/publish/submit action
+- Any precondition that stops an action from completing (login required, feature unavailable, etc.)
+- Anything previously routed to `showStatusMessage` that reports a failure rather than a confirmation
 
 ### `parseAccountValue(account)` — `utilities.js`
 
@@ -70,7 +74,7 @@ if (!parsedValue) return;           // skip corrupt entry in a loop
 ```javascript
 const accountData = parseAccountValue(selectedAccount);
 if (!accountData) {                 // single-account context
-    showStatusMessage('Could not read account data — it may be corrupt.');
+    showErrorModal('Could not read account data — it may be corrupt.');
     return;
 }
 ```
@@ -112,34 +116,34 @@ async function loadSomeFeed(type) {
 
 ### Action errors (bookmark, boost, post)
 
-Use `showStatusMessage` — these are transient:
+Use `showErrorModal` — a failed action is an error, not a transient status:
 
 ```javascript
 } catch (error) {
     console.error('Error boosting:', error);
-    showStatusMessage('Failed to boost: ' + error.message);
+    showErrorModal('Failed to boost: ' + error.message);
     return false;
 }
 ```
 
 ### Form validation
 
-Use `showErrorModal` when the check gates a save/publish/submit action — the user needs to actually see why it didn't go through. Use `showStatusMessage` for lower-stakes inline checks. Use an inline `responseDiv` message for post forms where the response area is already visible:
+Use `showErrorModal` for any validation failure, whether or not it gates a save/publish/submit action — the user needs to see why it didn't go through, and `showStatusMessage`'s 3 s auto-dismiss is too easy to miss for that. The one exception is a post form with its own dedicated, already-visible result area — use that inline instead of a modal:
 
 ```javascript
-// Gates a save/publish action — must not be missed
+// Gates a save/publish action
 if (!name) {
     showErrorModal('Please enter a collection title before publishing.');
     return;
 }
 
-// Lightweight inline check
+// Still an error, even though it feels minor
 if (!inputValue) {
-    showStatusMessage('Please enter a value.');
+    showErrorModal('Please enter a value.');
     return;
 }
 
-// Post form with a dedicated result area
+// Post form with a dedicated result area — inline is fine here, it's already visible
 if (statusText === '') {
     responseDiv.innerHTML = `<p class="error-message">Please enter a status before posting.</p>`;
     return;
@@ -163,7 +167,7 @@ try {
 
 If `parsedValue` is `null` after the loop iteration, render the entry with a fallback label and an `account-button--unreadable` class so it's visually distinguishable but not blocking.
 
-**In a save operation**: catch and show `showStatusMessage` — the user must know the save failed.
+**In a save operation**: catch and show `showErrorModal` — the user must know the save failed, and must not miss it.
 
 ```javascript
 let encryptedValue;
@@ -171,7 +175,7 @@ try {
     encryptedValue = await encryptWithKey(encKey, JSON.stringify(data));
 } catch (err) {
     console.error('Encryption failed:', err);
-    showStatusMessage('Could not save — encryption failed. ' + err.message);
+    showErrorModal('Could not save — encryption failed. ' + err.message);
     return;
 }
 ```
@@ -189,7 +193,7 @@ Any `async` function called without `await` **must** have a `.catch()` — other
 fetchPinnedFeeds();
 
 // Correct
-fetchPinnedFeeds().catch(err => showStatusMessage('Could not load pinned feeds: ' + err.message));
+fetchPinnedFeeds().catch(err => showErrorModal('Could not load pinned feeds: ' + err.message));
 ```
 
 ### Session / credential setup functions

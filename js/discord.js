@@ -99,7 +99,7 @@ async function normalizeDiscordMessage(raw) {
         publish: async (accountData, title, content) => {
             if (!accountData.channel) {
                 console.error('Discord publish failed: no channel configured on this account.');
-                showStatusMessage('This Discord account has no channel configured.');
+                showErrorModal('This Discord account has no channel configured.', { title: 'Discord publish failed' });
                 return null;
             }
             try {
@@ -115,7 +115,7 @@ async function normalizeDiscordMessage(raw) {
                 return result.url || null;
             } catch (err) {
                 console.error('Discord publish failed:', err);
-                showStatusMessage('Discord publish failed: ' + err.message);
+                showErrorModal('Discord publish failed: ' + err.message, { title: 'Discord publish failed' });
                 return null;
             }
         },

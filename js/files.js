@@ -12,6 +12,30 @@
 
 
 
+// Shared by both file-picking paths below: decide whether the file's content is
+// collection-shaped (a genuine non-empty RSS/OPML/JSON/HTML item list) and, if
+// so, offer a Collection-vs-native choice before falling through to the normal
+// restorePostContent() handling — which stays untouched either way, so HTML's
+// #post-title/#post-content/#post-references extraction (parseHtmlContent())
+// still runs for the native path exactly as before this existed.
+function _decideFileLoad(content, mimeType, filename) {
+    if (typeof content !== 'string') {
+        // Binary content never carries a collection shape.
+        return restorePostContent(content, mimeType, filename);
+    }
+    const format = _detectFormat(mimeType, filename);
+    const parsed = _collectionShape(content, format);
+    if (!parsed) return restorePostContent(content, mimeType, filename);
+
+    return new Promise(resolve => {
+        _offerCollectionChoice(parsed, format, {
+            renderTarget: window.CList.ui.view.loadOptions,
+            onCancel: () => { resolve(null); if (typeof populateLoadOptions === 'function') populateLoadOptions(); },
+            onNative: () => resolve(restorePostContent(content, mimeType, filename)),
+        });
+    });
+}
+
 async function loadFile() {
     if (window.showOpenFilePicker) {
         try {
@@ -29,7 +53,7 @@ async function loadFile() {
                 content = await file.arrayBuffer(); // Read as ArrayBuffer
             }
 
-            return restorePostContent(content, mimeType);
+            return await _decideFileLoad(content, mimeType, file.name);
         } catch (err) {
             console.error("File load failed:", err);
             return null;
@@ -37,7 +61,7 @@ async function loadFile() {
     } else {
        // document.getElementById('fallbackMessage').style.display = 'block';
         const fileInput = document.getElementById('fileInput');
-        
+
         return new Promise((resolve, reject) => {
             fileInput.onchange = async () => {
                 const file = fileInput.files[0];
@@ -45,7 +69,7 @@ async function loadFile() {
                     try {
                         const mimeType = file.type || "unknown";
                         let con; // Define content in the proper scope
-        
+
                         if (mimeType.startsWith("text/") || mimeType === "application/json" || mimeType === "application/xml") {
                             // Read text-based content
                             con = await file.text();
@@ -53,8 +77,8 @@ async function loadFile() {
                             // Read binary content
                             con = await file.arrayBuffer();
                         }
-                        // Pass the content and MIME type to restorePostContent
-                        resolve(restorePostContent(con, mimeType));
+                        // Pass the content, MIME type and filename to restorePostContent
+                        resolve(await _decideFileLoad(con, mimeType, file.name));
                     } catch (err) {
                         console.error("Fallback file load failed:", err);
                         reject(err);
@@ -65,17 +89,22 @@ async function loadFile() {
             };
             fileInput.click(); // Trigger the file input
         });
-        
+
     }
 }
 
-function restorePostContent(content, mimeType) {
+function restorePostContent(content, mimeType, filename) {
     console.log("Processing content with MIME type:", mimeType);
+
+    // Loaded-page indicator metadata — lets the editor show which file this
+    // content came from (setLoadedPage()/updateLoadedPageUI() in editors.js),
+    // same as a page loaded from My Pages shows its title.
+    const page = filename ? { kind: 'file', title: filename } : null;
 
     // Handle string content
     if (typeof content === "string") {
         if (mimeType.startsWith("text/html")) {
-            return parseHtmlContent(content, mimeType);
+            return parseHtmlContent(content, mimeType, page);
         } else if (mimeType.startsWith("text/") || mimeType === "application/json") {
             // Trust the declared MIME type (from the file's own extension) as-is —
             // a .txt file loads as plain text even if its content happens to contain
@@ -83,14 +112,14 @@ function restorePostContent(content, mimeType) {
             if (mimeType === "application/json") {
                 try {
                     const json = JSON.parse(content);
-                    return { type: mimeType, value: json };
+                    return { type: mimeType, value: json, page };
                 } catch (err) {
                     console.error("Invalid JSON content:", err);
                     return { type: "invalid", value: "Invalid JSON content" };
                 }
             } else {
                 // Treat as plain text
-                return { type: mimeType, value: content };
+                return { type: mimeType, value: content, page };
             }
         } else {
             console.warn(`Unsupported MIME type: ${mimeType}`);
@@ -101,7 +130,7 @@ function restorePostContent(content, mimeType) {
     // Handle binary content
     if (content instanceof ArrayBuffer) {
         console.log("Binary content received.");
-        return { type: mimeType, value: content };
+        return { type: mimeType, value: content, page };
     }
 
     // Fallback for unexpected content types
@@ -110,7 +139,7 @@ function restorePostContent(content, mimeType) {
 }
 
 // Helper: Parse HTML Content
-function parseHtmlContent(content, mimeType) {
+function parseHtmlContent(content, mimeType, page) {
     const parser = new DOMParser();
     const doc = parser.parseFromString(content, "text/html");
 
@@ -132,7 +161,7 @@ function parseHtmlContent(content, mimeType) {
     const referencesDiv = document.getElementById("writeReferences");
     if (referencesDiv) referencesDiv.innerHTML = referencesContent;
 
-    return { type: mimeType, value: mainContent };
+    return { type: mimeType, value: mainContent, page };
 }
 
 // Save
@@ -151,7 +180,7 @@ async function packagePost() {
         contentValue = await handler.getContent(); // Assign value to the variable
     } else {
         console.error("Unable to initialize content editor handler for write");
-        showStatusMessage('Write error — could not read editor content.');
+        showErrorModal('Write error — could not read editor content.', { title: 'Write Error' });
     }
 
 
@@ -255,8 +284,16 @@ const _localFileHandles = {};
 
 async function saveContent() {
 
-    const content = await packagePost(); // Package the post content
+    // A loaded file (kind: 'file') with no references round-trips as raw,
+    // unwrapped content under its exact original filename — same rule as the
+    // Dropbox saver (js/dropbox.js). Anything else still gets packagePost()'s
+    // HTML wrapper.
+    const isRawFileRoundTrip = currentLoadedPage?.kind === 'file' && getReferences().length === 0;
+    const content = isRawFileRoundTrip
+        ? await editorHandlers[currentEditor]?.getContent?.()
+        : await packagePost();
     const fileContent = String(content); // Ensure content is treated as a string
+    const suggestedName = isRawFileRoundTrip ? currentLoadedPage.title : undefined;
 
     const loggedIn = !!(window.CList.state && window.CList.state.username);
     let targetId = null;
@@ -283,41 +320,52 @@ async function saveContent() {
                 }
             } catch (e) {
                 console.error('[saveContent] failed to update page record', e);
-                showStatusMessage('Saved locally, but could not update My Pages: ' + e.message);
+                showErrorModal('Saved locally, but could not update My Pages: ' + e.message, { title: 'My Pages Update Failed' });
             }
         } else {
             targetId = `urn:uuid:${crypto.randomUUID()}`;
+            // A raw file round-trip keeps its own kind/title/mimeType (the
+            // filename and its real content type) when indexed — it's still the
+            // same loaded file, just now also tracked in My Pages. Anything else
+            // (fresh content with no prior identity) is indexed as the HTML
+            // 'page' it's actually being saved as.
+            const indexTitle    = isRawFileRoundTrip ? currentLoadedPage.title : titleValue;
+            const indexMimeType = isRawFileRoundTrip
+                ? ((editorHandlers[currentEditor]?.contentTypes || [])[0] || 'text/plain')
+                : 'text/html';
             try {
                 const pageKey = await _saveWebPageRecord({
                     id: targetId,
-                    title: titleValue,
-                    mimeType: 'text/html',
+                    title: indexTitle,
+                    mimeType: indexMimeType,
                     authorDid: _currentAuthorDid(),
                     savedLocally: true,
                     savedLocallyAt: now,
                 });
                 setLoadedPage({
-                    kind: 'page',
+                    kind: isRawFileRoundTrip ? 'file' : 'page',
                     pageKey,
                     id: targetId,
-                    format: 'HTML',
-                    title: titleValue,
-                    mimeType: 'text/html',
+                    format: isRawFileRoundTrip ? (indexMimeType.split('/')[1] || '').toUpperCase() : 'HTML',
+                    title: indexTitle,
+                    mimeType: indexMimeType,
                     authorDid: _currentAuthorDid(),
                     savedLocally: true,
                     savedLocallyAt: now,
                 });
             } catch (e) {
                 console.error('[saveContent] failed to index page record', e);
-                showStatusMessage('Saved locally, but could not index in My Pages: ' + e.message);
+                showErrorModal('Saved locally, but could not index in My Pages: ' + e.message, { title: 'My Pages Indexing Failed' });
             }
         }
     }
 
-    await _writeLocalFile(fileContent, targetId);
+    await _writeLocalFile(fileContent, targetId, suggestedName);
 }
 
-async function _writeLocalFile(fileContent, id) {
+async function _writeLocalFile(fileContent, id, suggestedName) {
+    const name = suggestedName || "content.txt";
+    const ext  = (name.match(/\.([^./]+)$/)?.[1] || 'txt').toLowerCase();
     if (window.showSaveFilePicker) {
         // Modern Browsers: File System Access API
         try {
@@ -331,8 +379,8 @@ async function _writeLocalFile(fileContent, id) {
             }
             if (!fileHandle) {
                 fileHandle = await window.showSaveFilePicker({
-                    suggestedName: "content.txt",
-                    types: [{ description: "Text Files", accept: { "text/plain": [".txt"] } }]
+                    suggestedName: name,
+                    types: [{ description: "Text Files", accept: { "text/plain": ['.' + ext] } }]
                 });
                 if (id) _localFileHandles[id] = fileHandle;
             }
@@ -344,7 +392,7 @@ async function _writeLocalFile(fileContent, id) {
         } catch (err) {
             if (err.name !== 'AbortError') {
                 console.error("Save failed:", err);
-                showStatusMessage('Save failed: ' + err.message);
+                showErrorModal('Save failed: ' + err.message, { title: 'Save Failed' });
             }
         }
     } else {
@@ -352,13 +400,13 @@ async function _writeLocalFile(fileContent, id) {
         // showSaveFilePicker) — a plain Blob download. The browser's own download
         // manager decides whether to rename on conflict; there's no API here to
         // control or override that.
-        fallbackDownload(fileContent);
+        fallbackDownload(fileContent, name);
     }
 }
 
-function fallbackDownload(fileContent) {
+function fallbackDownload(fileContent, suggestedName) {
     // Prompt user for a filename
-    const fileName = prompt("Enter a file name:", "content.txt");
+    const fileName = prompt("Enter a file name:", suggestedName || "content.txt");
     if (!fileName) return; // Exit if the user cancels or doesn't provide a name
 
     const blob = new Blob([fileContent], { type: "text/plain" });

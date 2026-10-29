@@ -169,7 +169,7 @@ window.CList.schemas['Collab'] = {
             await connectToDoc(docId, mode, wsUrl)
         } catch (e) {
             console.error('openCollabUrl failed:', e)
-            showStatusMessage('Could not open collab link: ' + e.message)
+            showErrorModal('Could not open collab link: ' + e.message, { title: 'Could not open collab link' })
         }
     }
     window.openCollabUrl = openCollabUrl
@@ -269,7 +269,7 @@ window.CList.schemas['Collab'] = {
             setDocTitle(localPartOf(docId))
         } catch (e) {
             console.error('Collab connect error:', e)
-            showStatusMessage('Connection failed: ' + e.message)
+            showErrorModal('Connection failed: ' + e.message, { title: 'Collab connection failed' })
         }
     }
 
@@ -318,7 +318,7 @@ window.CList.schemas['Collab'] = {
                     await connectToDoc(docId, 'edit', null, null)
                     if (input) input.value = localPartOf(docId)
                 } catch (e) {
-                    showStatusMessage('Connection failed: ' + e.message)
+                    showErrorModal('Connection failed: ' + e.message, { title: 'Collab connection failed' })
                 }
             })
         } catch {
@@ -391,7 +391,7 @@ window.CList.schemas['Collab'] = {
     window.copyCollabLink = function(mode) {
         navigator.clipboard.writeText(getCollabShareLink(mode))
             .then(() => showStatusMessage('Link copied to clipboard.'))
-            .catch(() => showStatusMessage('Copy failed — select the link and copy manually.'))
+            .catch(() => showErrorModal('Copy failed — select the link and copy manually.', { title: 'Copy failed' }))
     }
 
     window.shareCollabViaChat = function(mode) {
@@ -406,7 +406,11 @@ window.CList.schemas['Collab'] = {
         }
         if (typeof window.sendCollabInvite === 'function') {
             const sent = window.sendCollabInvite(invite)
-            showStatusMessage(sent ? 'Invite sent to chat discussion.' : 'No connected peers to send to.')
+            if (sent) {
+                showStatusMessage('Invite sent to chat discussion.')
+            } else {
+                showErrorModal('No connected peers to send to.', { title: 'Could not send invite' })
+            }
         }
     }
 
@@ -492,7 +496,7 @@ window.CList.schemas['Collab'] = {
     }
 
     async function shareCollabDoc() {
-        if (!currentDocId) { showStatusMessage('Join a document first before sharing.'); return }
+        if (!currentDocId) { showErrorModal('Join a document first before sharing.', { title: 'No document to share' }); return }
 
         const base     = wsUrlToRestBase(currentWsUrl)
         const token    = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN) || ''
@@ -558,7 +562,7 @@ window.CList.schemas['Collab'] = {
                         : 'Login now required to read this document.')
                 } catch (e) {
                     console.error('allow_anonymous update failed:', e)
-                    showStatusMessage('Could not update sharing settings: ' + e.message)
+                    showErrorModal('Could not update sharing settings: ' + e.message, { title: 'Could not update sharing settings' })
                     check.checked = !check.checked
                 }
             })
@@ -612,7 +616,7 @@ window.CList.schemas['Collab'] = {
                 if (statusEl) statusEl.textContent = status
             },
             onAuthenticationFailed: () => {
-                showStatusMessage('Collaboration: authentication failed — make sure you are logged in.')
+                showErrorModal('Collaboration: authentication failed — make sure you are logged in.', { title: 'Collab authentication failed' })
             },
         })
 
@@ -686,7 +690,7 @@ window.CList.schemas['Collab'] = {
                             setDocTitle(localPartOf(doc.id))
                             currentDocTitle = doc.title || ''
                             try { await connectToDoc(doc.id) }
-                            catch (e) { showStatusMessage('Connection failed: ' + e.message) }
+                            catch (e) { showErrorModal('Connection failed: ' + e.message, { title: 'Collab connection failed' }) }
                             closeRightPane()
                         })
                         list.appendChild(btn)
@@ -790,7 +794,7 @@ window.CList.schemas['Collab'] = {
 
                 document.getElementById('collab-annotate-btn').addEventListener('click', () => {
                     if (!currentDocId) {
-                        showStatusMessage('Open a document first before annotating.')
+                        showErrorModal('Open a document first before annotating.', { title: 'No document to annotate' })
                         return
                     }
                     const url   = getCollabShareLink('read')
@@ -815,7 +819,7 @@ window.CList.schemas['Collab'] = {
                 await loadDeps()
             } catch (e) {
                 console.error('Failed to load collab dependencies:', e)
-                showStatusMessage('Could not load collaboration library — check your network connection.')
+                showErrorModal('Could not load collaboration library — check your network connection.', { title: 'Collab library failed to load' })
                 return
             }
 
@@ -830,7 +834,7 @@ window.CList.schemas['Collab'] = {
                     await initLocalEditor()
                 } catch (e) {
                     console.error('Failed to initialize local editor:', e)
-                    showStatusMessage('Could not start editor — check your network connection.')
+                    showErrorModal('Could not start editor — check your network connection.', { title: 'Editor failed to start' })
                 }
             }
             // else: resuming an already-active local (not-yet-connected) editor —
@@ -846,7 +850,7 @@ window.CList.schemas['Collab'] = {
 
         loadContent: ({ type, value }, itemId) => {
             if (!tiptapEditor) {
-                showStatusMessage('Join a document first, then load content into it.')
+                showErrorModal('Join a document first, then load content into it.', { title: 'No document loaded' })
                 return
             }
             const html = (type === 'text/html') ? value : `<p>${value}</p>`
@@ -917,7 +921,7 @@ window.CList.schemas['Collab'] = {
                 window.sendCollabInvite({ docId, title: collectionName || slug, mode: 'edit', server: currentWsUrl })
             }
         } catch (e) {
-            showStatusMessage('Failed to open collection in Collab: ' + e.message)
+            showErrorModal('Failed to open collection in Collab: ' + e.message, { title: 'Could not open collection' })
             console.error('openCollabWithCollection failed:', e)
         }
     }
@@ -953,7 +957,7 @@ window.CList.schemas['Collab'] = {
                 window.sendCollabInvite({ docId, title, mode: 'edit', server: currentWsUrl })
             }
         } catch (e) {
-            showStatusMessage('Failed to start document from chat: ' + e.message)
+            showErrorModal('Failed to start document from chat: ' + e.message, { title: 'Could not start document' })
             console.error('openCollabFromChat failed:', e)
         }
     }
@@ -968,7 +972,7 @@ window.CList.schemas['Collab'] = {
             currentDocTitle = invite.title || ''
             await connectToDoc(invite.docId, invite.mode || 'edit', invite.server || null)
         } catch (e) {
-            showStatusMessage('Failed to open collab document: ' + e.message)
+            showErrorModal('Failed to open collab document: ' + e.message, { title: 'Could not open collab document' })
         }
     }
 

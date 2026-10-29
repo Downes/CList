@@ -105,10 +105,11 @@ let accessToken = null;
             const mastodonRefs = (refs || []).filter(r => r.replyToken?.type === 'Mastodon');
             const replyToId = mastodonRefs[0]?.replyToken?.statusId || null;
             if (mastodonRefs.length > 1) {
-                showStatusMessage(
+                showErrorModal(
                     `Replying to "${mastodonRefs[0].author_name}" on Mastodon. ` +
                     `Cannot simultaneously reply to ${mastodonRefs.length - 1} other Mastodon ` +
-                    `post${mastodonRefs.length > 2 ? 's' : ''} — Mastodon only supports one reply target.`
+                    `post${mastodonRefs.length > 2 ? 's' : ''} — Mastodon only supports one reply target.`,
+                    { title: 'Multiple reply targets' }
                 );
             }
             await postMastodonStatus(accountData.id, extractBaseUrl(accountData.instance), responseDiv, cleanContent, replyToId);
@@ -235,7 +236,7 @@ async function loadMastodonLists(type) {
         openLeftInterface(createMastodonListDropdown(lists));
     } catch (error) {
         console.error('Error loading lists:', error);
-        showStatusMessage('Could not load Mastodon lists: ' + error.message);
+        showErrorModal('Could not load Mastodon lists: ' + error.message, { title: 'Could not load lists' });
     }
 }
 
@@ -688,7 +689,7 @@ async function displayMastodonPost(status, statusBox, headerHtml) {
         //const baseURL = document.getElementById('baseURL').value;
 
         if (!accessToken || !baseURL) {
-            showStatusMessage('Mastodon not initialized — select an account first.');
+            showErrorModal('Mastodon not initialized — select an account first.', { title: 'Mastodon not initialized' });
             return;
         }
 
@@ -718,11 +719,11 @@ async function displayMastodonPost(status, statusBox, headerHtml) {
             loadContentToEditor(statusId);
             actionSuccessMessage = 'Loaded item to write pane.';
         } else if (actionType === 'summarize') {
-            showStatusMessage('Summarize action not yet implemented here.');
+            showErrorModal('Summarize action not yet implemented here.', { title: 'Not implemented' });
             return;
         } else {
             console.error("Tried to perform action "+actionType+" but that's an invalid action");
-            showStatusMessage(`Unknown action: ${actionType}`);
+            showErrorModal(`Unknown action: ${actionType}`, { title: 'Invalid action' });
         }
         
 
@@ -749,13 +750,13 @@ async function displayMastodonPost(status, statusBox, headerHtml) {
                 showStatusMessage(action+" successful");
                 return true;
             } else {
-                showStatusMessage(`Failed to ${action} — server returned ${response.status}.`);
+                showErrorModal(`Failed to ${action} — server returned ${response.status}.`, { title: 'Mastodon action failed' });
                 return false;
             }
 
         } catch (error) {
             console.error(`Error ${action}ing status:`, error);
-            showStatusMessage(`Failed to ${action}: ${error.message}`);
+            showErrorModal(`Failed to ${action}: ${error.message}`, { title: 'Mastodon action failed' });
             return false;
         }
 
@@ -877,7 +878,7 @@ async function displayMastodonPost(status, statusBox, headerHtml) {
 async function mastodonOAuthStart(title, username, permissions) {
     const parts = username.split('@').filter(Boolean);
     if (parts.length < 2) {
-        showStatusMessage('Please enter your Mastodon username as user@instance.social');
+        showErrorModal('Please enter your Mastodon username as user@instance.social', { title: 'Invalid username' });
         return;
     }
     const instanceUrl = 'https://' + parts[parts.length - 1];
@@ -888,7 +889,7 @@ async function mastodonOAuthStart(title, username, permissions) {
             extra: { title: title || username, permissions: permissions || 'rw' },
         });
     } catch (e) {
-        showStatusMessage('Could not start Mastodon authorization: ' + e.message);
+        showErrorModal('Could not start Mastodon authorization: ' + e.message, { title: 'Authorization failed' });
     }
 }
 
@@ -906,7 +907,7 @@ document.addEventListener('DOMContentLoaded', async function () {
 
 async function saveMastodonAccount(title, username, accessToken, permissions) {
     const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
-    if (!encKey) { showStatusMessage('Encryption key missing — please log in again.'); return; }
+    if (!encKey) { showErrorModal('Encryption key missing — please log in again.', { title: 'Encryption key missing' }); return; }
 
     const instanceData = { type: 'Mastodon', id: accessToken, title: title, permissions: permissions || 'rw' };
     let encryptedValue;
@@ -914,15 +915,15 @@ async function saveMastodonAccount(title, username, accessToken, permissions) {
         encryptedValue = await encryptWithKey(encKey, JSON.stringify(instanceData));
     } catch (err) {
         console.error('Failed to encrypt Mastodon account data:', err);
-        showStatusMessage('Could not save Mastodon account — encryption failed. Try logging in again.');
+        showErrorModal('Could not save Mastodon account — encryption failed. Try logging in again.', { title: 'Save failed' });
         return;
     }
 
     try {
         await window.CList.storage.kv.put(username, encryptedValue);
     } catch (err) {
-        if (err.code === 'NotAuthenticated') showStatusMessage('Please log in to kvstore before authorizing Mastodon.');
-        else showStatusMessage('Failed to save Mastodon account to kvstore.');
+        if (err.code === 'NotAuthenticated') showErrorModal('Please log in to kvstore before authorizing Mastodon.', { title: 'Not logged in' });
+        else showErrorModal('Failed to save Mastodon account to kvstore.', { title: 'Save failed' });
         return;
     }
 
@@ -935,7 +936,7 @@ async function saveMastodonAccount(title, username, accessToken, permissions) {
         }
         showStatusMessage('Mastodon account authorized and saved.');
     } catch (error) {
-        showStatusMessage('Account saved — but could not refresh feed. Try reloading: ' + error.message);
+        showErrorModal('Account saved — but could not refresh feed. Try reloading: ' + error.message, { title: 'Feed refresh failed' });
     }
     playAccounts();
 }

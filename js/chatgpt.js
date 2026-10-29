@@ -34,7 +34,7 @@ async function generateNewTemplateFromChatGPT(templateType, outputFormat) {
             window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl);
 
         } catch (error) {
-            showStatusMessage('Error getting Editor accounts: ' + error.message);
+            showErrorModal('Error getting Editor accounts: ' + error.message, { title: 'Account lookup failed' });
         }
     }
     

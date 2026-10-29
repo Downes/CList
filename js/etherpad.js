@@ -54,7 +54,7 @@ function etherpadPadUrl(padName) {
     }
     const apiBase = currentEtherpadAccount?.instance;
     if (!apiBase) {
-        showStatusMessage('No Etherpad connection active — cannot build a pad URL.');
+        showErrorModal('No Etherpad connection active — cannot build a pad URL.', { title: 'Etherpad connection unavailable' });
         return null;
     }
     const webBase = apiBase.replace(/\/api\/[^/]+\/?$/, '');
@@ -198,9 +198,9 @@ function etherpadPadUrl(padName) {
                     console.log("HTML content imported into guest pad successfully.");
                 } catch (error) {
                     console.error("Error writing content into guest Etherpad pad:", error);
-                    showStatusMessage(isEtherpadConnectionError(error)
+                    showErrorModal(isEtherpadConnectionError(error)
                         ? 'Cannot connect to Etherpad server.'
-                        : 'Error writing content to the pad. Please check the console for more details.');
+                        : 'Error writing content to the pad. Please check the console for more details.', { title: 'Etherpad content write failed' });
                 }
 
                 if (itemId) {
@@ -232,9 +232,9 @@ function etherpadPadUrl(padName) {
                 console.log("HTML content appended successfully.");
             } catch (error) {
                 console.error("Error appending HTML content to Etherpad:", error);
-                showStatusMessage(isEtherpadConnectionError(error)
+                showErrorModal(isEtherpadConnectionError(error)
                     ? 'Cannot connect to Etherpad server.'
-                    : 'Error appending content to Etherpad. Please check the console for more details.');
+                    : 'Error appending content to Etherpad. Please check the console for more details.', { title: 'Etherpad content write failed' });
             }
    
             // Add to references
@@ -266,7 +266,7 @@ async function callEtherpadApi(endpoint, params) {
     // etherpadHandler.initialize()) — not just "the first Etherpad account found" —
     // so API calls target the instance the user actually picked.
     if (!currentEtherpadAccount) {
-        showStatusMessage('No Etherpad account selected.');
+        showErrorModal('No Etherpad account selected.', { title: 'No Etherpad account selected' });
         throw new Error('No Etherpad account selected.');
     }
     const { instance: etherpadBaseUrl, id: etherpadId } = currentEtherpadAccount;
@@ -319,7 +319,7 @@ async function setUserName() {
     const newUserName = userNameInput.value.trim();
 
     if (!newUserName) {
-        showStatusMessage('Please enter a valid name.');
+        showErrorModal('Please enter a valid name.', { title: 'Invalid name' });
         return;
     }
 
@@ -334,9 +334,9 @@ async function setUserName() {
         console.log(`Updated author ID for ${newUserName}: ${authorID}`);
     } catch (error) {
         console.error('Error setting user name:', error);
-        showStatusMessage(isEtherpadConnectionError(error)
+        showErrorModal(isEtherpadConnectionError(error)
             ? 'Cannot connect to Etherpad server.'
-            : 'Error setting name: ' + error.message);
+            : 'Error setting name: ' + error.message, { title: 'Could not set name' });
     }
 
     // Clear input field
@@ -385,9 +385,9 @@ async function initializeEtherpad() {
                 console.log('Initial content set successfully.');
             } catch (error) {
                 console.error('Failed to set initial content:', error);
-                showStatusMessage(isEtherpadConnectionError(error)
+                showErrorModal(isEtherpadConnectionError(error)
                     ? 'Cannot connect to Etherpad server.'
-                    : 'Failed to set initial pad content. Please check the console for more details.');
+                    : 'Failed to set initial pad content. Please check the console for more details.', { title: 'Could not set initial content' });
             }
 
         } else if (createPadData && createPadData.code === 1) {
@@ -411,9 +411,9 @@ async function initializeEtherpad() {
 
     } catch (error) {
         console.error('Error initializing pad:', error);
-        showStatusMessage(isEtherpadConnectionError(error)
+        showErrorModal(isEtherpadConnectionError(error)
             ? 'Cannot connect to Etherpad server.'
-            : 'Error initializing pad. Please check the console for more details.');
+            : 'Error initializing pad. Please check the console for more details.', { title: 'Etherpad session failed' });
     }
 }
 
@@ -441,11 +441,11 @@ function connectToThirdPartyEtherpadFromForm() {
     const padInput = document.getElementById('thirdPartyEtherpadPad').value.trim();
 
     if (!urlInput || !padInput) {
-        showStatusMessage('Please enter both a server address and a pad name.');
+        showErrorModal('Please enter both a server address and a pad name.', { title: 'Missing pad details' });
         return;
     }
     if (!/^[a-zA-Z0-9_-]+$/.test(padInput)) {
-        showStatusMessage('Pad names can only contain letters, numbers, underscores, and dashes.');
+        showErrorModal('Pad names can only contain letters, numbers, underscores, and dashes.', { title: 'Invalid pad name' });
         return;
     }
 
@@ -453,7 +453,7 @@ function connectToThirdPartyEtherpadFromForm() {
     try {
         origin = new URL(urlInput).origin;
     } catch (error) {
-        showStatusMessage('That does not look like a valid URL.');
+        showErrorModal('That does not look like a valid URL.', { title: 'Invalid URL' });
         return;
     }
 
@@ -593,9 +593,9 @@ async function listAllEtherpads() {
     } catch (error) {
         console.error('Error listing pads:', error);
         if (isEtherpadConnectionError(error)) {
-            showStatusMessage('Cannot connect to Etherpad server.');
+            showErrorModal('Cannot connect to Etherpad server.', { title: 'Etherpad connection failed' });
         } else {
-            showStatusMessage('Error listing pads. Please check the console for more details.');
+            showErrorModal('Error listing pads. Please check the console for more details.', { title: 'Could not list pads' });
         }
     }
 }
@@ -627,9 +627,9 @@ async function appendEtherpadContent() {
         alert('Content appended successfully!');
     } catch (error) {
         console.error('Error appending content:', error);
-        showStatusMessage(isEtherpadConnectionError(error)
+        showErrorModal(isEtherpadConnectionError(error)
             ? 'Cannot connect to Etherpad server.'
-            : 'Error appending content. Please check the console for more details.');
+            : 'Error appending content. Please check the console for more details.', { title: 'Could not append content' });
     }
 }
 
@@ -654,9 +654,9 @@ async function extractEtherpadContent(format) {
         return content;
     } catch (error) {
         console.error('Error extracting pad content:', error);
-        showStatusMessage(isEtherpadConnectionError(error)
+        showErrorModal(isEtherpadConnectionError(error)
             ? 'Cannot connect to Etherpad server.'
-            : 'Error extracting pad content. Please check the console for more details.');
+            : 'Error extracting pad content. Please check the console for more details.', { title: 'Could not extract content' });
         return null;
     }
 }
@@ -674,11 +674,11 @@ async function handleExtractContent() {
             const textArea = document.getElementById('extractedContent');
             textArea.value = content;
         } else {
-            showStatusMessage('Failed to extract content. Please try again.');
+            showErrorModal('Failed to extract content. Please try again.', { title: 'Content extraction failed' });
         }
     } catch (error) {
         console.error('Error extracting content:', error);
-        showStatusMessage('Error extracting content: ' + error.message);
+        showErrorModal('Error extracting content: ' + error.message, { title: 'Content extraction failed' });
     }
 }
 
@@ -713,7 +713,7 @@ function sharePad() {
 async function showPadShare(link) {
     const match = link.match(/^(https?:\/\/[^/]+)\/p\/([^/]+)\/?$/);
     if (!match) {
-        showStatusMessage('Could not parse the shared Etherpad link.');
+        showErrorModal('Could not parse the shared Etherpad link.', { title: 'Invalid pad link' });
         return;
     }
     const [, sharedBaseUrl, sharedPadName] = match;
@@ -723,7 +723,7 @@ async function showPadShare(link) {
         connectToThirdPartyEtherpad(sharedBaseUrl, sharedPadName);
     } catch (error) {
         console.error('Error opening shared pad:', error);
-        showStatusMessage('Error opening shared pad. Please check the console for more details.');
+        showErrorModal('Error opening shared pad. Please check the console for more details.', { title: 'Etherpad session failed' });
     }
 }
             // document.addEventListener('DOMContentLoaded', listAllEtherpads);

@@ -81,7 +81,7 @@ function playChat() {
       messageInput.value = '';
       sendMessage(message).catch(err => {
         console.error('sendMessage failed:', err);
-        showStatusMessage('Failed to send message — check your connection and try again.');
+        showErrorModal('Failed to send message — check your connection and try again.', { title: 'Message not sent' });
       });
     };
     sendButton.addEventListener('click', _doSend);
@@ -218,7 +218,7 @@ function playChat() {
           appendMessage('That peer is no longer available — they may have left the discussion.', false, true);
           break;
         case 'browser-incompatible':
-          showStatusMessage('Your browser does not support WebRTC. Try a modern browser such as Chrome or Firefox.');
+          showErrorModal('Your browser does not support WebRTC. Try a modern browser such as Chrome or Firefox.', { title: 'Browser not supported' });
           break;
         default:
           appendMessage(`Connection error (${err.type}): ${err.message}`);
@@ -335,11 +335,11 @@ function _appendJoinCard(data) {
     followBtn.addEventListener('click', () => {
       if (typeof window._followUser === 'function') {
         window._followUser(data.didWeb, token, followBtn).catch(e => {
-          showStatusMessage('Follow error: ' + e.message);
+          showErrorModal('Follow error: ' + e.message, { title: 'Follow failed' });
           console.error('Follow error', e);
         });
       } else {
-        showStatusMessage('Follow not available.');
+        showErrorModal('Follow not available.', { title: 'Follow unavailable' });
       }
     });
     wrapper.appendChild(followBtn);
@@ -378,7 +378,7 @@ window.getPeerAnnotationStores = function() {
  */
 function startCollabFromChat() {
   if (typeof window.openCollabFromChat !== 'function') {
-    showStatusMessage('Collab editor not available.');
+    showErrorModal('Collab editor not available.', { title: 'Collab unavailable' });
     return;
   }
   const msgs = document.getElementById('chat-messages');
@@ -583,7 +583,7 @@ function connectToPeer(peerId, discussionName) {
 function shareToChat(itemID) {
   const el = document.getElementById(itemID);
   if (!el || !el.reference) {
-    showStatusMessage('Could not find item to share.');
+    showErrorModal('Could not find item to share.', { title: 'Item not found' });
     return;
   }
   if (!p2pInitialized) {
@@ -610,7 +610,7 @@ function _shareTitleFromReference(ref) {
 // Creates a discussion named after the item (if none active) and sends text + link.
 function _executeShareToChat(itemID) {
   const el = document.getElementById(itemID);
-  if (!el || !el.reference) { showStatusMessage('Could not find item to share.'); return; }
+  if (!el || !el.reference) { showErrorModal('Could not find item to share.', { title: 'Item not found' }); return; }
   const ref = el.reference;
 
   if (!activeDiscussionName) {
@@ -670,7 +670,7 @@ function appendCollabInviteCard(invite, sender) {
   btn.textContent = 'Open in Collab';
   btn.addEventListener('click', () => {
     if (typeof window.openCollabInvite === 'function') window.openCollabInvite(invite);
-    else showStatusMessage('Collab editor not available.');
+    else showErrorModal('Collab editor not available.', { title: 'Collab unavailable' });
   });
   card.appendChild(btn);
   wrapper.appendChild(card);
@@ -763,7 +763,7 @@ function appendShareCard(data, sender) {
       if (typeof window.importCollectionFromChat === 'function') {
         window.importCollectionFromChat(data.items, importBtn);
       } else {
-        showStatusMessage('Collection import not available.');
+        showErrorModal('Collection import not available.', { title: 'Import unavailable' });
       }
     });
     actionsEl.appendChild(importBtn);
@@ -821,7 +821,7 @@ function appendShareCard(data, sender) {
  */
 function sendShareMessage(kind, url, title, excerpt, extra = {}) {
   if (!p2pInitialized || !peer || !peer.id) {
-    showStatusMessage('Open chat first to share.');
+    showErrorModal('Open chat first to share.', { title: 'Chat not open' });
     return;
   }
   const msgId = `${peer.id}-${Date.now()}-${Math.random()}`;
@@ -892,14 +892,14 @@ function advertiseDiscussion() {
   const discussionName = discussionNameInput.value.trim();
 
   if (!peer || !peer.id) {
-    showStatusMessage('Peer ID not available yet — please wait for the connection to establish.');
+    showErrorModal('Peer ID not available yet — please wait for the connection to establish.', { title: 'Peer ID unavailable' });
     return;
   }
 
   const peerId = peer.id;
 
   if (!discussionName) {
-    showStatusMessage('Please enter a discussion name.');
+    showErrorModal('Please enter a discussion name.', { title: 'Discussion name required' });
     return;
   }
 
@@ -933,7 +933,7 @@ function advertiseDiscussion() {
   })
   .catch((error) => {
     console.error('Error advertising discussion:', error.message);
-    showStatusMessage('Error advertising discussion: ' + error.message);
+    showErrorModal('Error advertising discussion: ' + error.message, { title: 'Could not advertise discussion' });
   });
 }
 
@@ -963,7 +963,7 @@ function startHeartbeat() {
     .then((response) => {
       if (response.status === 401) {
         console.warn('Heartbeat: session expired — discussion may expire soon.');
-        showStatusMessage('Your session has expired. Log in again to keep the discussion alive.');
+        showErrorModal('Your session has expired. Log in again to keep the discussion alive.', { title: 'Session expired' });
         stopHeartbeat();
       } else if (!response.ok) {
         console.warn('Heartbeat: server returned', response.status);
@@ -1054,7 +1054,7 @@ function endDiscussion() {
   // Use the active discussion name or the name from the input field.
   const discussionName = activeDiscussionName || document.getElementById('discussionNameInput').value.trim();
   if (!discussionName) {
-    showStatusMessage('No discussion name found.');
+    showErrorModal('No discussion name found.', { title: 'No discussion name' });
     return;
   }
 
@@ -1095,7 +1095,7 @@ function endDiscussion() {
   })
   .catch((error) => {
     console.error('Error ending discussion:', error);
-    showStatusMessage('Failed to end discussion: ' + error.message);
+    showErrorModal('Failed to end discussion: ' + error.message, { title: 'Could not end discussion' });
   });
 }
 

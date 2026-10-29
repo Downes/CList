@@ -85,10 +85,13 @@ Full reference: `docs/error-handling.md`. These rules apply to all new and modif
   appended to a feed container. Use for hard failures: feed loads, API errors, missing credentials.
   `container` can be a DOM element or an ID string.
 - **`showStatusMessage(text)`** — transient message in `#identityDiv` (the login-identity bar),
-  auto-restores after 3 s. Use for action feedback and background operation results.
+  auto-restores after 3 s. Use **only** for non-error feedback: confirmations and background-operation
+  results ("Account saved.", "Copied to clipboard."). Never use it for anything that went wrong.
 - **`showErrorModal(message, { title? })`** — full-screen modal (built on `showModal()`) with an
-  "OK" button to dismiss. Use for validation that blocks a save/publish/submit action — it can't be
-  missed or auto-dismiss unread, unlike `showStatusMessage`.
+  "OK" button to dismiss. Use for **any** error or failure — not just save/publish gating: a failed
+  fetch, a thrown exception, a blocked action, a missing precondition. It can't be missed or
+  auto-dismiss unread, unlike `showStatusMessage`. Pass a specific `title` when the default `"Error"`
+  wouldn't tell the user which action failed.
 - **`parseAccountValue(account)`** — safe `JSON.parse(account.value)`. Returns `null` on failure
   (logs `console.error`). **Always use this instead of bare `JSON.parse(account.value)`.**
 
@@ -97,7 +100,7 @@ Full reference: `docs/error-handling.md`. These rules apply to all new and modif
 1. Every `async` call must be in a `try/catch` **or** have a `.catch()` if called without `await`.
 2. Every `catch` block must produce visible feedback — never just `console.error` alone.
 3. `parseAccountValue()` in a loop: guard with `if (!parsedValue) return;` to skip corrupt entries.
-4. `parseAccountValue()` for a single account: guard with `if (!accountData) { showStatusMessage(...); return; }`.
+4. `parseAccountValue()` for a single account: guard with `if (!accountData) { showErrorModal(...); return; }`.
 5. Session/credential setup functions should `throw` on failure — let the feed-loading caller display the error via `showServiceError`.
 6. Keep `console.error()` alongside any UI message — don't remove it.
 

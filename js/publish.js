@@ -82,7 +82,7 @@ async function playPost() {
         try {
             window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl);
         } catch (error) {
-            showStatusMessage('Error getting accounts: ' + error.message);
+            showErrorModal('Error getting accounts: ' + error.message, { title: 'Could not load accounts' });
         }
     }
 
@@ -230,14 +230,14 @@ async function postToWebPage() {
     const handler = editorHandlers[currentEditor];
     const rawContent = (handler && typeof handler.getContent === 'function') ? await handler.getContent() : '';
     if (!rawContent || !rawContent.trim()) {
-        showStatusMessage('Nothing to publish — the editor is empty.');
+        showErrorModal('Nothing to publish — the editor is empty.', { title: 'Nothing to publish' });
         return;
     }
     const mimeType = (handler.contentTypes && handler.contentTypes[0]) || 'text/plain';
 
     const adapter = window.CList.binPublishers?.['CListBin'];
     if (!adapter) {
-        showStatusMessage('Web-page publishing is not available.');
+        showErrorModal('Web-page publishing is not available.', { title: 'Publishing unavailable' });
         return;
     }
 
@@ -246,14 +246,14 @@ async function postToWebPage() {
         try {
             accounts = window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl);
         } catch (e) {
-            showStatusMessage('Error getting accounts: ' + e.message);
+            showErrorModal('Error getting accounts: ' + e.message, { title: 'Could not load accounts' });
             return;
         }
     }
     const binAccount = accounts.map(parseAccountValue).filter(Boolean)
         .find(v => v.type === 'CListBin' && (v.permissions || '').includes('b'));
     if (!binAccount) {
-        showStatusMessage('No web-page destination set up yet — log out and back in to add one.');
+        showErrorModal('No web-page destination set up yet — log out and back in to add one.', { title: 'No destination set up' });
         return;
     }
 
@@ -347,7 +347,7 @@ async function _performWebPagePublish(adapter, content, mimeType, title, binAcco
             }
         } catch (e) {
             console.error('[postToWebPage] failed to update page record', e);
-            showStatusMessage('Published, but could not update My Pages: ' + e.message);
+            showErrorModal('Published, but could not update My Pages: ' + e.message, { title: 'My Pages update failed' });
         }
         return;
     }
@@ -385,7 +385,7 @@ async function _performWebPagePublish(adapter, content, mimeType, title, binAcco
             currentLoadedPage.format = (mimeType.split('/')[1] || '').toUpperCase();
         } catch (e) {
             console.error('[postToWebPage] failed to record publication', e);
-            showStatusMessage("Published, but could not update the local page's publication status: " + e.message);
+            showErrorModal("Published, but could not update the local page's publication status: " + e.message, { title: 'Publication status update failed' });
         }
         return;
     }
@@ -425,7 +425,7 @@ async function _performWebPagePublish(adapter, content, mimeType, title, binAcco
         });
     } catch (e) {
         console.error('[postToWebPage] failed to save page record', e);
-        showStatusMessage('Published, but could not save to My Pages: ' + e.message);
+        showErrorModal('Published, but could not save to My Pages: ' + e.message, { title: 'My Pages save failed' });
     }
 }
 
@@ -469,7 +469,11 @@ async function playRepublish() {
 // showStatusMessage().
 function showRepublishStatus(message, isError) {
     const el = document.getElementById('republish-status');
-    if (!el) { showStatusMessage(message); return; }
+    if (!el) {
+        if (isError) showErrorModal(message, { title: 'Republish failed' });
+        else showStatusMessage(message);
+        return;
+    }
     el.textContent = message;
     el.setAttribute('data-state', isError ? 'error' : 'success');
 }
@@ -739,7 +743,7 @@ function showPostMessage(div, text) {
 async function postContentByType(accountData, title, content) {
     const handler = window.CList.publishers[accountData.type];
     if (!handler || typeof handler.publish !== 'function') {
-        showStatusMessage('No publish handler registered for account type: ' + accountData.type);
+        showErrorModal('No publish handler registered for account type: ' + accountData.type, { title: 'No publish handler found' });
         return null;
     }
     return await handler.publish(accountData, title, content);

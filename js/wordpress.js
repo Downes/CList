@@ -74,7 +74,7 @@ async function publishPost(instance,username,password,title,content) {
       }
     } catch (error) {
       console.error('Failed to publish Wordpress post:', error);
-      showStatusMessage(`WordPress publish failed: ${error.message}`);
+      showErrorModal(`WordPress publish failed: ${error.message}`, { title: 'WordPress Publish Failed' });
       return null; // Return null on failure
     }
   }
@@ -124,7 +124,7 @@ document.addEventListener('DOMContentLoaded', async function () {
 
 async function saveWordPressAccount(siteUrl, userLogin, password) {
     const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
-    if (!encKey) { showStatusMessage('Encryption key missing — please log in again.'); return; }
+    if (!encKey) { showErrorModal('Encryption key missing — please log in again.', { title: 'Encryption Key Missing' }); return; }
 
     const host = new URL(siteUrl).host;
     const accountKey = `${userLogin}@${host}`;
@@ -135,15 +135,15 @@ async function saveWordPressAccount(siteUrl, userLogin, password) {
         encryptedValue = await encryptWithKey(encKey, JSON.stringify(instanceData));
     } catch (err) {
         console.error('Failed to encrypt WordPress account data:', err);
-        showStatusMessage('Could not save WordPress account — encryption failed. Try logging in again.');
+        showErrorModal('Could not save WordPress account — encryption failed. Try logging in again.', { title: 'Account Save Failed' });
         return;
     }
 
     try {
         await window.CList.storage.kv.put(accountKey, encryptedValue);
     } catch (err) {
-        if (err.code === 'NotAuthenticated') showStatusMessage('Please log in to kvstore before authorizing WordPress.');
-        else showStatusMessage('Failed to save WordPress account to kvstore.');
+        if (err.code === 'NotAuthenticated') showErrorModal('Please log in to kvstore before authorizing WordPress.', { title: 'Not Logged In' });
+        else showErrorModal('Failed to save WordPress account to kvstore.', { title: 'Account Save Failed' });
         return;
     }
 
@@ -155,7 +155,7 @@ async function saveWordPressAccount(siteUrl, userLogin, password) {
         }
         showStatusMessage('WordPress account authorized and saved.');
     } catch (error) {
-        showStatusMessage('Account saved — but could not refresh. Try reloading: ' + error.message);
+        showErrorModal('Account saved — but could not refresh. Try reloading: ' + error.message, { title: 'Account Refresh Failed' });
     }
     playAccounts();
 }

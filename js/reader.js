@@ -113,7 +113,7 @@ function accountIcon(type) {
 function finderString() {
     const findInput = document.getElementById('find-input');
     const searchString = findInput ? findInput.value.trim() : '';
-    if (!searchString) { showStatusMessage('Please enter a search term.'); return; }
+    if (!searchString) { showErrorModal('Please enter a search term.', { title: 'Search Term Required' }); return; }
     return searchString;
 }
 
@@ -150,7 +150,7 @@ async function playRead() {
         }
         populateReadAccountList(window.CList.accounts);
     } catch (error) {
-        showStatusMessage('Could not load accounts — try logging out and back in. ' + error.message);
+        showErrorModal('Could not load accounts — try logging out and back in. ' + error.message, { title: 'Could Not Load Accounts' });
     }
 }
 
@@ -199,7 +199,7 @@ function findPanel() {
         btn.className = 'account-button';
         btn.addEventListener('click', () => {
             Promise.resolve(handler.search()).catch(e => {
-                showStatusMessage('Search failed: ' + e.message);
+                showErrorModal('Search failed: ' + e.message, { title: 'Search Failed' });
                 console.error('Search error:', e);
             });
         });
@@ -271,13 +271,13 @@ function populateReadAccountList(accounts) {
 async function switchReaderAccount(key) {
     const selectedAccount = window.CList.accounts.find(acc => acc.key === key);
     const accountData = parseAccountValue(selectedAccount);
-    if (!accountData) { showStatusMessage('Could not read account data — it may be corrupt.'); return; }
+    if (!accountData) { showErrorModal('Could not read account data — it may be corrupt.', { title: 'Account Data Error' }); return; }
     const instanceType = accountData.type;
     const handler = window.CList.readers[instanceType];
 
     if (!handler) {
         console.error('Unsupported instance type:', instanceType);
-        showStatusMessage(`"${instanceType}" accounts are not supported as a reader — check your account type.`);
+        showErrorModal(`"${instanceType}" accounts are not supported as a reader — check your account type.`, { title: 'Unsupported Account Type' });
         return;
     }
 

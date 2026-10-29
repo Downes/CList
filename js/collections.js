@@ -31,7 +31,7 @@ async function _showCollectionPicker(itemId, opts = {}) {
     if (existing) return;
 
     const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
-    if (!token) { showStatusMessage('Please log in to save to a collection.'); return; }
+    if (!token) { showErrorModal('Please log in to save to a collection.', { title: 'Login required' }); return; }
 
     const specificEl = document.getElementById(itemId);
     if (!specificEl) return;
@@ -70,7 +70,7 @@ async function _showCollectionPicker(itemId, opts = {}) {
                 showStatusMessage(alreadyIn ? `Already in "${title}" — added again.` : `Added to "${title}".`);
             } catch (e) {
                 console.error('[collection] add failed', e);
-                showStatusMessage('Could not add to collection: ' + e.message);
+                showErrorModal('Could not add to collection: ' + e.message, { title: 'Add to collection failed' });
             }
         }, document.getElementById(`collect-btn-${itemId}`));
 
@@ -280,9 +280,9 @@ function _buildCollectionPickerContents(picker, collections, onSelect, anchorEl)
     createBtn.textContent = 'Create & add';
     createBtn.addEventListener('click', () => {
         const name = nameInput.value.trim();
-        if (!name) { showStatusMessage('Please enter a collection name.'); return; }
+        if (!name) { showErrorModal('Please enter a collection name.', { title: 'Collection name required' }); return; }
         if (!_COLLECTION_NAME_RE.test(name)) {
-            showStatusMessage('Name may only contain letters, digits, spaces, #, -, and _.');
+            showErrorModal('Name may only contain letters, digits, spaces, #, -, and _.', { title: 'Invalid collection name' });
             return;
         }
         onSelect(name, null);
@@ -296,7 +296,7 @@ function _buildCollectionPickerContents(picker, collections, onSelect, anchorEl)
 // Open a collection's items as editor references and open the write pane.
 async function _loadCollectionIntoEditor(col, token, encKey) {
     const items = col?.items || col; // accept col object or bare items array
-    if (!items?.length) { showStatusMessage('This collection is empty.'); return; }
+    if (!items?.length) { showErrorModal('This collection is empty.', { title: 'Collection is empty' }); return; }
 
     // ── Open the collection, as a collection, in the Collection editor ───────
     // (the only place its id/UUID is ever displayed — see _renderCollectionEditor).
@@ -386,7 +386,7 @@ async function _loadCollectionIntoEditor(col, token, encKey) {
         document.getElementById('generic-modal')?.remove();
         insertAsText().catch(e => {
             console.error('[collection load] insert as text failed', e);
-            showStatusMessage('Could not insert collection as text: ' + e.message);
+            showErrorModal('Could not insert collection as text: ' + e.message, { title: 'Insert as text failed' });
         });
     };
     row.appendChild(insertBtn);
@@ -420,7 +420,7 @@ async function _removeItemFromCollection(col, item, token, encKey, countSpan, it
         showStatusMessage('Item removed.');
     } catch (e) {
         console.error('[collection] remove item failed', e);
-        showStatusMessage('Could not remove item: ' + e.message);
+        showErrorModal('Could not remove item: ' + e.message, { title: 'Remove item failed' });
     }
 }
 
@@ -441,11 +441,11 @@ function _renderNestedCollectionRow(item, col, token, encKey, countSpan, itemsDi
     nameSpan.onclick     = async () => {
         try {
             const nested = await _resolveCollectionById(item.collectionId, token, encKey);
-            if (!nested) { showStatusMessage('That nested collection could not be found — it may have been deleted.'); return; }
+            if (!nested) { showErrorModal('That nested collection could not be found — it may have been deleted.', { title: 'Collection not found' }); return; }
             _showCollectionDetail({ ...nested, name: nested.title }, token, encKey);
         } catch (e) {
             console.error('[collection nest] open failed', e);
-            showStatusMessage('Could not open nested collection: ' + e.message);
+            showErrorModal('Could not open nested collection: ' + e.message, { title: 'Open nested collection failed' });
         }
     };
 
@@ -588,7 +588,7 @@ async function _showAddToCollectionPicker(col, token, encKey, anchorEl) {
                 showStatusMessage(`Added "${col.name}" to "${title}".`);
             } catch (e) {
                 console.error('[collection nest] add failed', e);
-                showStatusMessage('Could not add to collection: ' + e.message);
+                showErrorModal('Could not add to collection: ' + e.message, { title: 'Add to collection failed' });
             }
         }, anchorEl);
     } catch (e) {
@@ -656,7 +656,7 @@ function _showCollectionDetail(col, token, encKey) {
     collabBtn.innerHTML = '<span class="material-icons md-18 md-light">edit_note</span>';
     collabBtn.onclick   = async () => {
         if (typeof window.openCollabWithCollection !== 'function') {
-            showStatusMessage('Collab editor not available.');
+            showErrorModal('Collab editor not available.', { title: 'Collab unavailable' });
             return;
         }
         try {
@@ -667,7 +667,7 @@ function _showCollectionDetail(col, token, encKey) {
             window.openCollabWithCollection(col.name, flat);
         } catch (e) {
             console.error('[collection collab] flatten failed', e);
-            showStatusMessage('Could not open collection in Collab: ' + e.message);
+            showErrorModal('Could not open collection in Collab: ' + e.message, { title: 'Open in Collab failed' });
         }
     };
 
@@ -682,7 +682,7 @@ function _showCollectionDetail(col, token, encKey) {
             sendShareMessage('collection', null, col.name, null, { items });
         } catch (e) {
             console.error('[collection share] flatten failed', e);
-            showStatusMessage('Could not share collection: ' + e.message);
+            showErrorModal('Could not share collection: ' + e.message, { title: 'Share failed' });
         }
     };
 
@@ -796,9 +796,9 @@ function _showCollectionImportPreview(parsed, token, encKey) {
 
     saveBtn.addEventListener('click', async () => {
         const name = nameInput.value.trim();
-        if (!name) { showStatusMessage('Please enter a collection name.'); return; }
+        if (!name) { showErrorModal('Please enter a collection name.', { title: 'Collection name required' }); return; }
         if (!_COLLECTION_NAME_RE.test(name)) {
-            showStatusMessage('Name may only contain letters, digits, spaces, #, -, and _.');
+            showErrorModal('Name may only contain letters, digits, spaces, #, -, and _.', { title: 'Invalid collection name' });
             return;
         }
         saveBtn.disabled    = true;
@@ -812,7 +812,7 @@ function _showCollectionImportPreview(parsed, token, encKey) {
             window.showSavedCollections();
         } catch (e) {
             console.error('[collection] import save failed', e);
-            showStatusMessage('Could not save: ' + e.message);
+            showErrorModal('Could not save: ' + e.message, { title: 'Save failed' });
             saveBtn.disabled    = false;
             saveBtn.textContent = 'Save as collection';
         }
@@ -954,7 +954,7 @@ window.showSavedCollections = async function() {
                     window.showSavedCollections();
                 } catch (err) {
                     console.error('[collection] delete failed', err);
-                    showStatusMessage('Could not delete: ' + (err.code === 'NotAuthenticated' ? 'Not logged in' : err.message));
+                    showErrorModal('Could not delete: ' + (err.code === 'NotAuthenticated' ? 'Not logged in' : err.message), { title: 'Delete failed' });
                 }
             };
 
@@ -1018,7 +1018,7 @@ window.showSavedCollections = async function() {
         urlGoBtn.textContent = 'Import';
         urlGoBtn.addEventListener('click', () => {
             const url = urlInput.value.trim();
-            if (!url) { showStatusMessage('Please paste a URL to import.'); return; }
+            if (!url) { showErrorModal('Please paste a URL to import.', { title: 'URL required' }); return; }
             _importCollectionFromUrl(url, token, encKey);
         });
         urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') urlGoBtn.click(); });
@@ -1086,7 +1086,7 @@ window.showSavedCollections = async function() {
         load:    async () => {
             const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
             if (!token) {
-                showStatusMessage('Please log in to view your published pages.');
+                showErrorModal('Please log in to view your published pages.', { title: 'Login required' });
                 return null;
             }
 
@@ -1275,7 +1275,7 @@ window.showSavedCollections = async function() {
                                 }
                             } catch (e) {
                                 console.error('[mypages] load into editor failed', e);
-                                showStatusMessage('Could not load page: ' + e.message);
+                                showErrorModal('Could not load page: ' + e.message, { title: 'Load page failed' });
                             }
                         };
                         actions.appendChild(loadBtn);
@@ -1298,7 +1298,7 @@ window.showSavedCollections = async function() {
                                 if (typeof closeLoadSurfaces === 'function') closeLoadSurfaces();
                             } catch (e) {
                                 console.error('[mypages] load collection into editor failed', e);
-                                showStatusMessage('Could not load collection: ' + e.message);
+                                showErrorModal('Could not load collection: ' + e.message, { title: 'Load collection failed' });
                             }
                         };
                         actions.appendChild(loadBtn);
@@ -1319,7 +1319,7 @@ window.showSavedCollections = async function() {
                         copyBtn.onclick   = () => {
                             navigator.clipboard.writeText(page.url).then(
                                 () => showStatusMessage('URL copied.'),
-                                () => showStatusMessage('Could not copy URL.')
+                                () => showErrorModal('Could not copy URL.', { title: 'Copy failed' })
                             );
                         };
                         actions.appendChild(copyBtn);
@@ -1361,7 +1361,7 @@ window.showSavedCollections = async function() {
                                 showStatusMessage('Page removed.');
                             } catch (err) {
                                 console.error('[mypages] kvstore delete failed', err);
-                                showStatusMessage('Could not remove: ' + (err.code === 'NotAuthenticated' ? 'Not logged in' : err.message));
+                                showErrorModal('Could not remove: ' + (err.code === 'NotAuthenticated' ? 'Not logged in' : err.message), { title: 'Remove failed' });
                             }
                             return;
                         }
@@ -1381,7 +1381,7 @@ window.showSavedCollections = async function() {
                             showStatusMessage('Page removed.');
                         } catch (err) {
                             console.error('[mypages] kvstore update failed', err);
-                            showStatusMessage('Could not remove: ' + (err.code === 'NotAuthenticated' ? 'Not logged in' : err.message));
+                            showErrorModal('Could not remove: ' + (err.code === 'NotAuthenticated' ? 'Not logged in' : err.message), { title: 'Remove failed' });
                         }
                     };
 
@@ -1547,34 +1547,28 @@ window.showSavedCollections = async function() {
                     const text        = await resp.text();
                     const format      = _detectFormat(contentType, url);
 
-                    if (format === 'rss' || format === 'opml' || format === 'json') {
-                        let parsed;
-                        if (format === 'rss')       parsed = _parseCollectionRSS(text);
-                        else if (format === 'opml') parsed = _parseCollectionOPML(text);
-                        else                        parsed = _parseCollectionJSON(text);
-
-                        // Reuse an identity already embedded in the fetched content
-                        // (Part B) instead of discarding it — otherwise a page that
-                        // already carries a recognized UUID would silently lose it
-                        // the moment it's loaded straight into the editor.
-                        const { key, id } = _resolveCollectionIdentity(null, parsed.id);
-                        _activeCollection = { col: { key, id, name: parsed.title, items: parsed.items }, token: null, encKey: null };
-                        if (typeof initializeEditor === 'function') await initializeEditor('collection');
-                        if (typeof setLoadedPage === 'function') setLoadedPage(null);
-                        if (typeof closeRightPane   === 'function') closeRightPane();
-                        resolve(null);
-                    } else {
-                        // Route through the shared loadSavedPage() path — same as "Load
-                        // from file" — instead of forcing switchToEditor() directly: it
-                        // picks the right editor, checks for existing content, and offers
-                        // Replace/Insert/Cancel instead of silently cursor-inserting into
-                        // whatever's already there.
+                    // Route through the shared loadSavedPage() path — same as "Load
+                    // from file" — instead of forcing switchToEditor() directly: it
+                    // picks the right editor, checks for existing content, and offers
+                    // Replace/Insert/Cancel instead of silently cursor-inserting into
+                    // whatever's already there.
+                    async function loadNative() {
                         if (typeof loadSavedPage === 'function') {
-                            const contentType = (format === 'html') ? 'text/html' : 'text/plain';
-                            await loadSavedPage({ type: contentType, value: text }, null, optionsDiv, () => populateLoadOptions());
+                            const nativeType = (format === 'html') ? 'text/html' : 'text/plain';
+                            await loadSavedPage({ type: nativeType, value: text }, null, optionsDiv, () => populateLoadOptions());
                         }
-                        resolve(null);
                     }
+
+                    // Only offer the Collection editor when the content actually parses
+                    // into a genuine non-empty list of items — not just because its
+                    // format happens to be one that CAN carry a collection.
+                    const parsed = _collectionShape(text, format);
+                    if (parsed) {
+                        _offerCollectionChoice(parsed, format, { renderTarget: optionsDiv, onNative: loadNative });
+                    } else {
+                        await loadNative();
+                    }
+                    resolve(null);
                 } catch (e) {
                     console.error('[load from URL]', e);
                     status.textContent   = 'Failed: ' + e.message;
@@ -1593,11 +1587,11 @@ window.showSavedCollections = async function() {
 
 window.addItemToCollectionEditor = function addItemToCollectionEditor(reference) {
     if (!Array.isArray(_draftItems)) {
-        showStatusMessage('No collection is open in the editor.');
+        showErrorModal('No collection is open in the editor.', { title: 'No collection open' });
         return;
     }
     const url = reference?.url || '';
-    if (!url) { showStatusMessage('This item has no URL and cannot be added to a collection.'); return; }
+    if (!url) { showErrorModal('This item has no URL and cannot be added to a collection.', { title: 'Missing URL' }); return; }
     const item = {
         title:       reference.title       || '',
         url,
@@ -1619,7 +1613,7 @@ window.importCollectionFromChat = async function(items, anchorEl) {
         return;
     }
     const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
-    if (!token) { showStatusMessage('Please log in to save to a collection.'); return; }
+    if (!token) { showErrorModal('Please log in to save to a collection.', { title: 'Login required' }); return; }
 
     const picker = document.createElement('div');
     picker.className = 'collection-picker';
@@ -1647,7 +1641,7 @@ window.importCollectionFromChat = async function(items, anchorEl) {
                             showStatusMessage(`Saved as "${title}".`);
                         } catch (e) {
                             console.error('[collection] overwrite failed', e);
-                            showStatusMessage('Could not save: ' + e.message);
+                            showErrorModal('Could not save: ' + e.message, { title: 'Save failed' });
                         }
                     },
                     async () => {
@@ -1657,7 +1651,7 @@ window.importCollectionFromChat = async function(items, anchorEl) {
                             showStatusMessage(`Added ${toAdd.length} item${toAdd.length !== 1 ? 's' : ''} to "${title}".`);
                         } catch (e) {
                             console.error('[collection] merge failed', e);
-                            showStatusMessage('Could not merge: ' + e.message);
+                            showErrorModal('Could not merge: ' + e.message, { title: 'Merge failed' });
                         }
                     },
                     () => {
@@ -1674,7 +1668,7 @@ window.importCollectionFromChat = async function(items, anchorEl) {
                     showStatusMessage(`Saved as "${title}".`);
                 } catch (e) {
                     console.error('[collection] chat import failed', e);
-                    showStatusMessage('Could not save: ' + e.message);
+                    showErrorModal('Could not save: ' + e.message, { title: 'Save failed' });
                 }
             }
         }
@@ -1754,7 +1748,7 @@ window.playCollectionSave = async function playCollectionSave() {
     fileBtn.innerHTML = '<span class="material-icons">download</span><span>Save to file</span>';
     fileBtn.addEventListener('click', async () => {
         const fmt = collectionFormats[formatId];
-        if (!fmt) { showStatusMessage('Unknown format.'); return; }
+        if (!fmt) { showErrorModal('Unknown format.', { title: 'Unknown format' }); return; }
         const flatItems = encKey ? await _flattenForExport(items, identity.id, token, encKey) : items;
         const content = fmt.serialize(name, flatItems, identity.id);
         const blob    = new Blob([content], { type: fmt.mimeType });
@@ -1792,7 +1786,7 @@ window.playCollectionSave = async function playCollectionSave() {
                 if (typeof closeRightPane === 'function') closeRightPane();
             } catch (e) {
                 console.error('[collection save] kvstore failed', e);
-                showStatusMessage('Save failed: ' + e.message);
+                showErrorModal('Save failed: ' + e.message, { title: 'Save failed' });
             } finally {
                 kvBtn.disabled = false;
             }
@@ -2056,7 +2050,7 @@ window.playCollectionPublish = async function playCollectionPublish() {
     // Ensure accounts are loaded
     if (!Array.isArray(window.CList.accounts) || !window.CList.accounts.length) {
         try { window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl); }
-        catch (e) { showStatusMessage('Could not load accounts: ' + e.message); return; }
+        catch (e) { showErrorModal('Could not load accounts: ' + e.message, { title: 'Load accounts failed' }); return; }
     }
 
     const postOptionsDiv = document.getElementById('post-options');
@@ -2065,7 +2059,11 @@ window.playCollectionPublish = async function playCollectionPublish() {
     if (postResultDiv) postResultDiv.innerHTML = '';
 
     function _addPublishResult(text, isError = false) {
-        if (!postResultDiv) { showStatusMessage(text); return; }
+        if (!postResultDiv) {
+            if (isError) showErrorModal(text, { title: 'Publish failed' });
+            else showStatusMessage(text);
+            return;
+        }
         const p = document.createElement('p');
         p.className   = isError ? 'error-message' : 'feed-status-message';
         p.style.margin = '4px 0';
@@ -2316,21 +2314,21 @@ async function postCollectionToWebPage() {
     const items = _draftItems || [];
 
     const adapter = window.CList.binPublishers?.['CListBin'];
-    if (!adapter) { showStatusMessage('Web-page publishing is not available.'); return; }
+    if (!adapter) { showErrorModal('Web-page publishing is not available.', { title: 'Publishing unavailable' }); return; }
 
     let accounts = window.CList.accounts;
     if (!Array.isArray(accounts) || accounts.length === 0) {
         try { accounts = window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl); }
-        catch (e) { showStatusMessage('Error getting accounts: ' + e.message); return; }
+        catch (e) { showErrorModal('Error getting accounts: ' + e.message, { title: 'Load accounts failed' }); return; }
     }
     const binAccount = accounts.map(parseAccountValue).filter(Boolean)
         .find(v => v.type === 'CListBin' && (v.permissions || '').includes('b'));
-    if (!binAccount) { showStatusMessage('No web-page destination set up yet — log out and back in to add one.'); return; }
+    if (!binAccount) { showErrorModal('No web-page destination set up yet — log out and back in to add one.', { title: 'No destination configured' }); return; }
 
     const formatId = document.getElementById('write-format')?.value || 'rss';
     const fmtId = _resolvePublishFormat(adapter.acceptedFormats, formatId);
     const fmt = collectionFormats[fmtId];
-    if (!fmt) { showStatusMessage('Unknown format.'); return; }
+    if (!fmt) { showErrorModal('Unknown format.', { title: 'Unknown format' }); return; }
 
     // Resolve this collection's identity once, up front, so the published
     // content embeds the same UUID as the kvstore record (same rule as Save
@@ -2414,7 +2412,7 @@ async function _performCollectionWebPagePublish(adapter, content, fmtId, fmt, na
         } catch (e) {
             console.error('[postCollectionToWebPage] overwrite failed', e);
             if (resultDiv) showPostMessage(resultDiv, `Failed to publish to web page: ${e.message}`);
-            else showStatusMessage('Failed to publish to web page: ' + e.message);
+            else showErrorModal('Failed to publish to web page: ' + e.message, { title: 'Publish failed' });
             return;
         }
 
@@ -2422,7 +2420,7 @@ async function _performCollectionWebPagePublish(adapter, content, fmtId, fmt, na
             await _touchPublishedUrlEntry(currentLoadedPage.collectionKey, currentLoadedPage.serviceId);
         } catch (e) {
             console.error('[postCollectionToWebPage] failed to update pages catalog', e);
-            showStatusMessage('Published, but could not update My Pages: ' + e.message);
+            showErrorModal('Published, but could not update My Pages: ' + e.message, { title: 'Update My Pages failed' });
         }
         return;
     }
@@ -2439,7 +2437,7 @@ async function _performCollectionWebPagePublish(adapter, content, fmtId, fmt, na
     } catch (e) {
         console.error('[postCollectionToWebPage] publish failed', e);
         if (resultDiv) showPostMessage(resultDiv, `Failed to publish to web page: ${e.message}`);
-        else showStatusMessage('Failed to publish to web page: ' + e.message);
+        else showErrorModal('Failed to publish to web page: ' + e.message, { title: 'Publish failed' });
         return;
     }
 
@@ -2479,9 +2477,24 @@ async function _performCollectionWebPagePublish(adapter, content, fmtId, fmt, na
         });
     } catch (e) {
         console.error('[postCollectionToWebPage] failed to save to My Pages', e);
-        showStatusMessage('Published, but could not save to My Pages: ' + e.message);
+        showErrorModal('Published, but could not save to My Pages: ' + e.message, { title: 'Save to My Pages failed' });
     }
 }
+
+// Public bridge: open an already-parsed {title, items, id} collection shape
+// (see collection-formats.js's parsers) in the collection editor. Called by
+// external modules (e.g. collection-formats.js's _offerCollectionChoice,
+// dropbox.js) that cannot access module-private variables like
+// _activeCollection directly.
+window.openParsedAsCollection = async function (parsed) {
+    // Reuse an identity already embedded in the file (Part B) instead of
+    // discarding it on load.
+    const { key, id } = _resolveCollectionIdentity(null, parsed.id);
+    _activeCollection = { col: { key, id, name: parsed.title, items: parsed.items }, token: null, encKey: null };
+    if (typeof initializeEditor === 'function') await initializeEditor('collection');
+    if (typeof setLoadedPage === 'function') setLoadedPage(null);
+    if (typeof closeRightPane   === 'function') closeRightPane();
+};
 
 // Public bridge: parse text as OPML or RSS and open in the collection editor.
 // Called by external modules (e.g. dropbox.js) that cannot access module-private variables.
@@ -2492,12 +2505,6 @@ window.loadCollectionText = async function (text, filename) {
     if      (format === 'rss')  parsed = _parseCollectionRSS(text);
     else if (format === 'opml') parsed = _parseCollectionOPML(text);
     else return false;
-    // Reuse an identity already embedded in the file (Part B) instead of
-    // discarding it on load.
-    const { key, id } = _resolveCollectionIdentity(null, parsed.id);
-    _activeCollection = { col: { key, id, name: parsed.title, items: parsed.items }, token: null, encKey: null };
-    if (typeof initializeEditor === 'function') await initializeEditor('collection');
-    if (typeof setLoadedPage === 'function') setLoadedPage(null);
-    if (typeof closeRightPane   === 'function') closeRightPane();
+    await window.openParsedAsCollection(parsed);
     return true;
 };

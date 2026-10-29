@@ -283,7 +283,7 @@ function snapPanes(direction) {
         const buttonsContainer = window.CList.ui.view.feedMenu;
         if (!buttonsContainer) {
             console.error('Error: The element with ID "feed-menu" does not exist, so there is no place to put the feed buttons.');
-            showStatusMessage('Error loading feed — feed menu element not found.');
+            showErrorModal('Error loading feed — feed menu element not found.', { title: 'Feed load failed' });
             return;
         }
         buttonsContainer.innerHTML = ''; // Removes all child elements     

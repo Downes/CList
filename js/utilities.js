@@ -324,5 +324,5 @@ function parseAccountValue(account) {
 // Last-resort handler for any promise rejection that escapes local error handling.
 window.addEventListener('unhandledrejection', function (event) {
     console.error('Unhandled promise rejection:', event.reason);
-    showStatusMessage('An unexpected error occurred. See console for details.');
+    showErrorModal('An unexpected error occurred. See console for details.', { title: 'Unexpected error' });
 });

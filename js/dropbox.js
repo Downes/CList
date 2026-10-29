@@ -23,7 +23,7 @@ window.CList.schemas['Dropbox'] = {
 // ── OAuth start ───────────────────────────────────────────────────────────────
 
 async function dropboxOAuthStart(appKey, title, permissions, folder) {
-    if (!appKey) { showStatusMessage('Please enter your Dropbox App Key first.'); return; }
+    if (!appKey) { showErrorModal('Please enter your Dropbox App Key first.', { title: 'App Key required' }); return; }
     try {
         await OAuthClient.login(
             title || 'Dropbox',
@@ -35,7 +35,7 @@ async function dropboxOAuthStart(appKey, title, permissions, folder) {
             }
         );
     } catch (e) {
-        showStatusMessage('Could not start Dropbox authorization: ' + e.message);
+        showErrorModal('Could not start Dropbox authorization: ' + e.message, { title: 'Authorization failed' });
     }
 }
 
@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded', async function () {
 
 async function _saveDropboxAccount(title, appKey, folder, permissions, accessToken, refreshToken) {
     const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
-    if (!encKey) { showStatusMessage('Encryption key missing — please log in again.'); return; }
+    if (!encKey) { showErrorModal('Encryption key missing — please log in again.', { title: 'Encryption key missing' }); return; }
 
     const accountData = { type: 'Dropbox', appKey, folder, permissions, id: accessToken, refresh: refreshToken };
     let encryptedValue;
@@ -71,15 +71,15 @@ async function _saveDropboxAccount(title, appKey, folder, permissions, accessTok
         encryptedValue = await encryptWithKey(encKey, JSON.stringify(accountData));
     } catch (err) {
         console.error('Failed to encrypt Dropbox account data:', err);
-        showStatusMessage('Could not save Dropbox account — encryption failed.');
+        showErrorModal('Could not save Dropbox account — encryption failed.', { title: 'Encryption failed' });
         return;
     }
 
     try {
         await window.CList.storage.kv.put(title, encryptedValue);
     } catch (err) {
-        if (err.code === 'NotAuthenticated') showStatusMessage('Please log in to kvstore before authorizing Dropbox.');
-        else showStatusMessage('Failed to save Dropbox account to kvstore.');
+        if (err.code === 'NotAuthenticated') showErrorModal('Please log in to kvstore before authorizing Dropbox.', { title: 'Not logged in' });
+        else showErrorModal('Failed to save Dropbox account to kvstore.', { title: 'Save failed' });
         return;
     }
 
@@ -88,7 +88,7 @@ async function _saveDropboxAccount(title, appKey, folder, permissions, accessTok
         if (window.CList.accounts) updateUIVisibility();
         showStatusMessage('Dropbox account authorized and saved.');
     } catch (err) {
-        showStatusMessage('Account saved — could not refresh account list: ' + err.message);
+        showErrorModal('Account saved — could not refresh account list: ' + err.message, { title: 'Account list refresh failed' });
     }
     if (typeof playAccounts === 'function') playAccounts();
 }
@@ -147,8 +147,19 @@ async function _dropboxFileExists(accessToken, folder, filename) {
         headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
         body:    JSON.stringify({ path }),
     });
-    if (resp.status === 409) return false; // path/not_found
-    if (!resp.ok) return false;
+    if (resp.status === 409) {
+        // Dropbox uses 409 for several distinct path errors — only a genuine
+        // not_found means the file doesn't exist. Anything else (and any other
+        // non-ok status, incl. 401) must propagate so the caller's refresh/retry
+        // logic sees it, instead of being read as a false "file doesn't exist".
+        const data = await resp.json().catch(() => null);
+        if (data?.error?.['.tag'] === 'path' && data.error.path?.['.tag'] === 'not_found') return false;
+        throw new Error(`Dropbox metadata check failed (409): ${JSON.stringify(data)}`);
+    }
+    if (!resp.ok) {
+        const text = await resp.text().catch(() => '');
+        throw new Error(`Dropbox metadata check failed (${resp.status}): ${text}`);
+    }
     const data = await resp.json();
     return data['.tag'] === 'file';
 }
@@ -190,6 +201,53 @@ async function _dropboxDownloadFile(token, path) {
 
 // ── Saver registration ────────────────────────────────────────────────────────
 
+function _promptDropboxOverwrite(statusEl, filename, doOverwrite) {
+    return new Promise(resolve => {
+        statusEl.innerHTML = '';
+        const title = document.createElement('p');
+        title.className = 'list-tip-title';
+        title.textContent = `Overwrite "${filename}"?`;
+        statusEl.appendChild(title);
+
+        const msg = document.createElement('p');
+        msg.className = 'list-tip';
+        msg.textContent = `"${filename}" already exists in Dropbox.`;
+        statusEl.appendChild(msg);
+
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;gap:6px';
+
+        const overwriteBtn = document.createElement('button');
+        overwriteBtn.className   = 'btn btn-small';
+        overwriteBtn.textContent = 'Overwrite';
+        overwriteBtn.onclick = async () => {
+            overwriteBtn.disabled = true;
+            cancelBtn.disabled    = true;
+            statusEl.textContent  = 'Saving…';
+            try {
+                const result = await doOverwrite();
+                statusEl.textContent = 'Saved: ' + (result.path_display || filename);
+            } catch (err) {
+                statusEl.textContent = 'Save failed: ' + err.message;
+                console.error('[Dropbox overwrite]', err);
+            }
+            resolve({ keepOpen: true });
+        };
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className   = 'btn btn-small btn-secondary';
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.onclick = () => {
+            statusEl.textContent = 'Cancelled.';
+            resolve({ keepOpen: true });
+        };
+
+        row.appendChild(overwriteBtn);
+        row.appendChild(cancelBtn);
+        statusEl.appendChild(row);
+    });
+}
+
 (function () {
     function _slug(title) {
         return (title || 'clist-post')
@@ -208,16 +266,37 @@ async function _dropboxDownloadFile(token, path) {
                 return v && v.type === 'Dropbox' && (v.permissions || '').includes('b');
             });
             if (!account) {
-                showStatusMessage('No Dropbox account configured. Add one in Accounts.');
+                showErrorModal('No Dropbox account configured. Add one in Accounts.', { title: 'No Dropbox account' });
                 return; // let publish.js close the pane as normal
             }
             const accountData = parseAccountValue(account);
 
-            const content = await packagePost();
-            if (!content) return;
+            // A loaded file (kind: 'file') with no references round-trips as raw,
+            // unwrapped content under its exact original filename — it never had
+            // an HTML "post" structure to begin with, so forcing one (and forcing
+            // a .html extension) would silently change the file's format. Any
+            // other source (a page/collection/local-page, or a file that picked up
+            // references while being edited) still gets packagePost()'s HTML wrapper.
+            const isRawFileRoundTrip = currentLoadedPage?.kind === 'file' && getReferences().length === 0;
 
-            const title    = (window.CList.ui.view.writeTitle?.innerText || '').trim();
-            const filename = _slug(title) + '.html';
+            let content, filename;
+            if (isRawFileRoundTrip) {
+                content  = editorHandlers[currentEditor]?.getContent?.();
+                filename = currentLoadedPage.title; // exact original name, not slugified
+            } else {
+                content = await packagePost();
+                // The filename must come from the Editor States Array's own record for
+                // this editor (currentLoadedPage), not from the on-screen title field —
+                // a loaded file (kind: 'file') never populates the title field, so
+                // reading from there silently fell back to the generic 'clist-post'
+                // default instead of the loaded file's actual name.
+                const title    = (window.CList.ui.view.writeTitle?.innerText || '').trim();
+                const baseName = currentLoadedPage?.kind === 'file'
+                    ? currentLoadedPage.title.replace(/\.[^./]+$/, '')
+                    : (currentLoadedPage?.title || title);
+                filename = _slug(baseName) + '.html';
+            }
+            if (!content) return;
 
             // Status area injected below the saver list — persists as long as pane stays open.
             const saveOptions = document.getElementById('save-options');
@@ -251,59 +330,30 @@ async function _dropboxDownloadFile(token, path) {
                 return { keepOpen: true };
             }
 
+            const doOverwrite = () => _withRefresh(t => _dropboxUpload(t, accountData.folder, filename, content, 'overwrite'));
+
             if (!exists) {
                 // File is new — upload immediately.
                 statusEl.textContent = 'Saving…';
                 try {
                     const result = await _withRefresh(t => _dropboxUpload(t, accountData.folder, filename, content, 'add'));
                     statusEl.textContent = 'Saved: ' + (result.path_display || filename);
+                    return { keepOpen: true };
                 } catch (err) {
-                    statusEl.textContent = 'Save failed: ' + err.message;
-                    console.error('[Dropbox save]', err);
+                    if (!err.message.includes('conflict')) {
+                        statusEl.textContent = 'Save failed: ' + err.message;
+                        console.error('[Dropbox save]', err);
+                        return { keepOpen: true };
+                    }
+                    // Dropbox says the file exists after all — the exists-check above
+                    // was stale or wrong (or another save landed in between). Fall back
+                    // to the same overwrite confirmation rather than just failing.
+                    console.error('[Dropbox save] add conflicted, falling back to overwrite prompt:', err);
                 }
-                return { keepOpen: true };
             }
 
             // File already exists — ask the user.
-            return new Promise(resolve => {
-                statusEl.innerHTML = '';
-                const msg = document.createElement('p');
-                msg.style.margin  = '0 0 6px';
-                msg.textContent   = `"${filename}" already exists in Dropbox.`;
-                statusEl.appendChild(msg);
-
-                const row = document.createElement('div');
-                row.style.cssText = 'display:flex;gap:6px';
-
-                const overwriteBtn = document.createElement('button');
-                overwriteBtn.className   = 'btn btn-small';
-                overwriteBtn.textContent = 'Overwrite';
-                overwriteBtn.onclick = async () => {
-                    overwriteBtn.disabled    = true;
-                    cancelBtn.disabled       = true;
-                    statusEl.textContent     = 'Saving…';
-                    try {
-                        const result = await _withRefresh(t => _dropboxUpload(t, accountData.folder, filename, content, 'overwrite'));
-                        statusEl.textContent = 'Saved: ' + (result.path_display || filename);
-                    } catch (err) {
-                        statusEl.textContent = 'Save failed: ' + err.message;
-                        console.error('[Dropbox overwrite]', err);
-                    }
-                    resolve({ keepOpen: true });
-                };
-
-                const cancelBtn = document.createElement('button');
-                cancelBtn.className   = 'btn btn-small btn-secondary';
-                cancelBtn.textContent = 'Cancel';
-                cancelBtn.onclick = () => {
-                    statusEl.textContent = 'Cancelled.';
-                    resolve({ keepOpen: true });
-                };
-
-                row.appendChild(overwriteBtn);
-                row.appendChild(cancelBtn);
-                statusEl.appendChild(row);
-            });
+            return _promptDropboxOverwrite(statusEl, filename, doOverwrite);
         },
     });
 })();
@@ -312,36 +362,38 @@ async function _dropboxDownloadFile(token, path) {
 
 (function () {
 
-    function _detectFormatByName(filename) {
-        const lower = (filename || '').toLowerCase();
-        if (lower.endsWith('.html') || lower.endsWith('.htm'))                     return 'html';
-        if (lower.endsWith('.opml'))                                                return 'opml';
-        if (lower.endsWith('.rss') || lower.endsWith('.xml') || lower.endsWith('.atom')) return 'rss';
-        return 'text'; // .md, .txt, unknown
-    }
-
     function _fileIcon(filename) {
-        const fmt = _detectFormatByName(filename);
-        if (fmt === 'html')            return 'article';
-        if (fmt === 'opml' || fmt === 'rss') return 'list_alt';
+        const fmt = _detectFormat('', filename);
+        if (fmt === 'html')                                        return 'article';
+        if (fmt === 'opml' || fmt === 'rss' || fmt === 'json')      return 'list_alt';
         return 'description';
     }
 
     async function _openInEditor(text, filename) {
-        const fmt = _detectFormatByName(filename);
-        if (fmt === 'html' || fmt === 'text') {
-            // Route through the shared loadSavedPage() path — same as "Load from
-            // file" — instead of forcing switchToEditor() directly: it picks the
-            // right editor, checks for existing content, and offers Replace/Insert/
-            // Cancel instead of silently cursor-inserting into whatever's already there.
+        const format = _detectFormat('', filename);
+
+        // Route through the shared loadSavedPage() path — same as "Load from
+        // file" — instead of forcing switchToEditor() directly: it picks the
+        // right editor, checks for existing content, and offers Replace/Insert/
+        // Cancel instead of silently cursor-inserting into whatever's already there.
+        async function loadNative() {
             if (typeof loadSavedPage === 'function') {
-                const content    = { type: fmt === 'html' ? 'text/html' : 'text/plain', value: text };
+                const nativeType = (format === 'html') ? 'text/html' : 'text/plain';
+                const content    = { type: nativeType, value: text };
+                const page       = { kind: 'file', title: filename };
                 const optionsDiv = window.CList.ui.view.loadOptions;
-                await loadSavedPage(content, null, optionsDiv, () => populateLoadOptions());
+                await loadSavedPage(content, page, optionsDiv, () => populateLoadOptions());
             }
-        } else if (fmt === 'opml' || fmt === 'rss') {
-            if (typeof window.loadCollectionText === 'function')
-                await window.loadCollectionText(text, filename);
+        }
+
+        // Only offer the Collection editor when the content actually parses into
+        // a genuine non-empty list of items — not just because its format happens
+        // to be one that CAN carry a collection.
+        const parsed = (typeof _collectionShape === 'function') ? _collectionShape(text, format) : null;
+        if (parsed) {
+            await _offerCollectionChoice(parsed, format, { renderTarget: window.CList.ui.view.loadOptions, onNative: loadNative });
+        } else {
+            await loadNative();
         }
     }
 

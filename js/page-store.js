@@ -332,7 +332,7 @@ window.CList = window.CList || {};
             const handler = editorHandlers[currentEditor];
             const content = (handler && typeof handler.getContent === 'function') ? await handler.getContent() : '';
             if (!content || !content.trim()) {
-                showStatusMessage('Nothing to save — the editor is empty.');
+                showErrorModal('Nothing to save — the editor is empty.', { title: 'Nothing to save' });
                 return;
             }
 
@@ -361,7 +361,7 @@ window.CList = window.CList || {};
                         { title: 'Save conflict' }
                     );
                 } else {
-                    showStatusMessage('Save failed: ' + e.message);
+                    showErrorModal('Save failed: ' + e.message, { title: 'Save failed' });
                 }
             }
         },
@@ -384,7 +384,7 @@ async function _exportAllPages() {
         bundle = await window.CList.pageStore.exportPages();
     } catch (e) {
         console.error('[page-store export] failed', e);
-        showStatusMessage('Export failed: ' + e.message);
+        showErrorModal('Export failed: ' + e.message, { title: 'Export failed' });
         return;
     }
 
@@ -446,7 +446,7 @@ function _showImportPagesPicker(renderTarget) {
     importBtn.textContent = 'Import';
     importBtn.onclick = async () => {
         const file = fileInput.files[0];
-        if (!file) { showStatusMessage('Choose a file first.'); return; }
+        if (!file) { showErrorModal('Choose a file first.', { title: 'Import' }); return; }
 
         importBtn.disabled = true;
         try {
@@ -509,7 +509,7 @@ function _showImportPagesPicker(renderTarget) {
                 summaries = await window.CList.pageStore.list();
             } catch (e) {
                 console.error('[page-store loader] list failed', e);
-                showStatusMessage('Could not list local pages: ' + e.message);
+                showErrorModal('Could not list local pages: ' + e.message, { title: 'Could not list pages' });
                 return null;
             }
 
@@ -547,11 +547,11 @@ function _showImportPagesPicker(renderTarget) {
                         record = await window.CList.pageStore.get(summary.id);
                     } catch (e) {
                         console.error('[page-store loader] get failed', e);
-                        showStatusMessage('Could not load page: ' + e.message);
+                        showErrorModal('Could not load page: ' + e.message, { title: 'Could not load page' });
                         return;
                     }
                     if (!record) {
-                        showStatusMessage('That page no longer exists.');
+                        showErrorModal('That page no longer exists.', { title: 'Page not found' });
                         populateLoadOptions();
                         return;
                     }

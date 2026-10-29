@@ -275,7 +275,7 @@ async function _addEntryFromFile(file, draftItems, col, token, encKey, refresh) 
     const format = _detectFormat(file.type, file.name);
     if (_collectionFormatParsers[format]) {
         if (!token || !encKey) {
-            showStatusMessage('Please log in to add a collection file.');
+            showErrorModal('Please log in to add a collection file.', { title: 'Login required' });
             return;
         }
         try {
@@ -311,7 +311,7 @@ async function _addEntryFromFile(file, draftItems, col, token, encKey, refresh) 
 // pages (page: kvstore records), and adds whichever one is picked as a
 // membership on this entry list.
 async function _showAddEntryFromExistingPicker(draftItems, col, token, encKey, refresh, anchorEl) {
-    if (!token || !encKey) { showStatusMessage('Please log in to pick a saved page or collection.'); return; }
+    if (!token || !encKey) { showErrorModal('Please log in to pick a saved page or collection.', { title: 'Login required' }); return; }
 
     const PICKER_CLASS = 'collection-picker';
     const pickerId      = 'collection-add-entry-picker';
@@ -366,7 +366,7 @@ async function _showAddEntryFromExistingPicker(draftItems, col, token, encKey, r
                     refresh();
                 } catch (e) {
                     console.error('[collection add-entry] add collection failed', e);
-                    showStatusMessage('Could not add collection: ' + e.message);
+                    showErrorModal('Could not add collection: ' + e.message, { title: 'Could not add collection' });
                 }
             });
             li.appendChild(btn);
@@ -402,13 +402,13 @@ async function _showAddEntryFromExistingPicker(draftItems, col, token, encKey, r
 async function _openEntryForEdit(item, token, encKey) {
     try {
         if (item.role === 'contains' && item.collectionId) {
-            if (!token || !encKey) { showStatusMessage('Please log in to open nested collections.'); return; }
+            if (!token || !encKey) { showErrorModal('Please log in to open nested collections.', { title: 'Login required' }); return; }
             const nested = await _resolveCollectionById(item.collectionId, token, encKey);
-            if (!nested) { showStatusMessage('Nested collection not found.'); return; }
+            if (!nested) { showErrorModal('Nested collection not found.', { title: 'Collection not found' }); return; }
             await _loadCollectionIntoEditor({ key: nested.key, id: nested.id, name: nested.title, items: nested.items }, token, encKey);
             return;
         }
-        if (!item.url) { showStatusMessage('This entry has no content to open yet.'); return; }
+        if (!item.url) { showErrorModal('This entry has no content to open yet.', { title: 'Nothing to open' }); return; }
         const resp = await fetch(item.url);
         if (!resp.ok) throw new Error(`fetch error ${resp.status}`);
         const text = await resp.text();
@@ -430,7 +430,7 @@ async function _openEntryForEdit(item, token, encKey) {
         await loadSavedPage({ type: item.mimeType || 'text/plain', value: text }, null, null);
     } catch (e) {
         console.error('[collection entry] open for edit failed', e);
-        showStatusMessage('Could not open for editing: ' + e.message);
+        showErrorModal('Could not open for editing: ' + e.message, { title: 'Could not open for editing' });
     }
 }
 
@@ -447,7 +447,7 @@ function _showCollectionReturnBar(show) {
 // restoring exactly what was on screen (via the _activeCollection snapshot
 // taken in _openEntryForEdit) rather than the last-saved version.
 window.backToCollectionEditor = async function backToCollectionEditor() {
-    if (!_activeCollection) { showStatusMessage('No collection to return to.'); return; }
+    if (!_activeCollection) { showErrorModal('No collection to return to.', { title: 'Nothing to return to' }); return; }
     await initializeEditor('collection');
 };
 
@@ -459,7 +459,7 @@ async function _publishLocalEntry(item, refresh) {
     if (!item.url || !item.url.startsWith('blob:')) return;
     try {
         const adapter = window.CList.binPublishers?.['CListBin'];
-        if (!adapter) { showStatusMessage('Web-page publishing is not available.'); return; }
+        if (!adapter) { showErrorModal('Web-page publishing is not available.', { title: 'Publishing unavailable' }); return; }
 
         let accounts = window.CList.accounts;
         if (!Array.isArray(accounts) || accounts.length === 0) {
@@ -467,7 +467,7 @@ async function _publishLocalEntry(item, refresh) {
         }
         const binAccount = accounts.map(parseAccountValue).filter(Boolean)
             .find(v => v.type === 'CListBin' && (v.permissions || '').includes('b'));
-        if (!binAccount) { showStatusMessage('No web-page destination set up yet — log out and back in to add one.'); return; }
+        if (!binAccount) { showErrorModal('No web-page destination set up yet — log out and back in to add one.', { title: 'No destination set up' }); return; }
 
         const resp = await fetch(item.url);
         if (!resp.ok) throw new Error(`blob fetch error ${resp.status}`);
@@ -492,7 +492,7 @@ async function _publishLocalEntry(item, refresh) {
         refresh();
     } catch (e) {
         console.error('[collection entry] publish failed', e);
-        showStatusMessage('Could not publish: ' + e.message);
+        showErrorModal('Could not publish: ' + e.message, { title: 'Publish failed' });
     }
 }
 
@@ -507,7 +507,10 @@ async function _publishLocalEntry(item, refresh) {
         icon:           'playlist_add',
         contentTypes:   [],
         requiresAccount: false,
-        visible:        () => typeof isRegistered === 'function' && isRegistered(),
+        // No visible() gate — the collection editor itself is purely local (build/edit
+        // a list of items in memory); it needs no kvstore account. Actions that DO
+        // need one (saving/publishing a collection to kvstore) already check
+        // isRegistered()/the access token themselves and show their own message.
         formats: Object.entries(collectionFormats).map(([id, f]) => ({ id, label: f.label })),
 
         initialize: async () => {

@@ -73,10 +73,11 @@ let _bskyPds   = null;
             const blueskyRefs = (refs || []).filter(r => r.replyToken?.type === 'Bluesky');
             const replyToken = blueskyRefs[0]?.replyToken || null;
             if (blueskyRefs.length > 1) {
-                showStatusMessage(
+                showErrorModal(
                     `Replying to "${blueskyRefs[0].author_name}" on Bluesky. ` +
                     `Cannot simultaneously reply to ${blueskyRefs.length - 1} other Bluesky ` +
-                    `post${blueskyRefs.length > 2 ? 's' : ''} — Bluesky only supports one reply target.`
+                    `post${blueskyRefs.length > 2 ? 's' : ''} — Bluesky only supports one reply target.`,
+                    { title: 'Reply target dropped' }
                 );
             }
             // Bluesky enforces a 300-grapheme hard limit regardless of account settings

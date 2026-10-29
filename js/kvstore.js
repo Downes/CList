@@ -385,11 +385,11 @@ function kvstoreAccountsPanel() {
     }
 
     async function addOrUpdateKeyValue() {
-        if (!currentSchema) { showStatusMessage('No account type selected.'); return; }
+        if (!currentSchema) { showErrorModal('No account type selected.', { title: 'Account save failed' }); return; }
 
         const keyEl = div.querySelector('#_keyInput');
         const key = keyEl ? keyEl.value.trim() : '';
-        if (!key) { showStatusMessage('Please enter a value for "' + currentSchema.kvKey.label + '".'); return; }
+        if (!key) { showErrorModal('Please enter a value for "' + currentSchema.kvKey.label + '".', { title: 'Account save failed' }); return; }
 
         // Build instanceData from schema
         const instanceData = { type: currentSchema.type };
@@ -400,16 +400,16 @@ function kvstoreAccountsPanel() {
         }
         const publicEl = div.querySelector('#publicCheckbox');
         if (publicEl) instanceData.public = publicEl.checked;
-        if (!instanceData.title) { showStatusMessage('Please enter a Title.'); return; }
+        if (!instanceData.title) { showErrorModal('Please enter a Title.', { title: 'Account save failed' }); return; }
 
         // Hypothesis: verify the API key belongs to the claimed username before saving.
         if (currentSchema.type === 'Hypothesis') {
             if (!instanceData.apiKey) {
-                showStatusMessage('Hypothes.is account requires an API key.');
+                showErrorModal('Hypothes.is account requires an API key.', { title: 'Hypothesis account failed' });
                 return;
             }
             if (!instanceData.username) {
-                showStatusMessage('Hypothes.is account requires a username.');
+                showErrorModal('Hypothes.is account requires a username.', { title: 'Hypothesis account failed' });
                 return;
             }
             try {
@@ -420,16 +420,17 @@ function kvstoreAccountsPanel() {
                     headers: { Accept: 'application/json', Authorization: `Bearer ${instanceData.apiKey}` }
                 });
                 if (!profileResp.ok) {
-                    showStatusMessage(`Hypothes.is rejected the API key (HTTP ${profileResp.status}) — check your token and try again.`);
+                    showErrorModal(`Hypothes.is rejected the API key (HTTP ${profileResp.status}) — check your token and try again.`, { title: 'Hypothesis verification failed' });
                     return;
                 }
                 const profile = await profileResp.json();
                 const returnedUser = (profile.userid || '').match(/^acct:([^@]+)@/)?.[1] || '';
                 const enteredUser  = instanceData.username.split('@')[0];
                 if (returnedUser.toLowerCase() !== enteredUser.toLowerCase()) {
-                    showStatusMessage(
+                    showErrorModal(
                         `Username mismatch: API key belongs to "${returnedUser}", not "${enteredUser}". ` +
-                        'Correct the username and try again.'
+                        'Correct the username and try again.',
+                        { title: 'Hypothesis verification failed' }
                     );
                     return;
                 }
@@ -437,7 +438,7 @@ function kvstoreAccountsPanel() {
                 instanceData.username = returnedUser;
             } catch (err) {
                 console.error('Hypothesis profile verification failed:', err);
-                showStatusMessage('Could not verify Hypothes.is account — check your connection and try again.');
+                showErrorModal('Could not verify Hypothes.is account — check your connection and try again.', { title: 'Hypothesis verification failed' });
                 return;
             }
         }
@@ -449,7 +450,7 @@ function kvstoreAccountsPanel() {
             encryptedValue = await encryptWithKey(encKey, JSON.stringify(instanceData));
         } catch (err) {
             console.error('Encryption error:', err);
-            showStatusMessage('Could not save account — encryption failed. ' + err.message);
+            showErrorModal('Could not save account — encryption failed. ' + err.message, { title: 'Account save failed' });
             return;
         }
 
@@ -469,23 +470,23 @@ function kvstoreAccountsPanel() {
                 }
             })();
         })
-        .catch(error => showStatusMessage('Error saving account: ' + error));
+        .catch(error => showErrorModal('Error saving account: ' + error, { title: 'Account save failed' }));
     }
 
     async function setFormValues(targetKey) {
         const matchingAccount = accounts.find(account => account.key === targetKey);
-        if (!matchingAccount) { showStatusMessage("Can't find account: " + targetKey); return; }
+        if (!matchingAccount) { showErrorModal("Can't find account: " + targetKey, { title: 'Account not found' }); return; }
         const valueData = JSON.parse(matchingAccount.value);
 
         if (valueData.type === 'bad') {
-            showStatusMessage('Could not decrypt this account — please log out and log back in.');
+            showErrorModal('Could not decrypt this account — please log out and log back in.', { title: 'Account decryption failed' });
             return;
         }
 
         if (valueData.type === 'RSS') { showRSSEditForm(targetKey, valueData); return; }
 
         const schema = window.CList?.schemas?.[valueData.type];
-        if (!schema) { showStatusMessage('No schema for account type: ' + (valueData.type || 'unknown')); return; }
+        if (!schema) { showErrorModal('No schema for account type: ' + (valueData.type || 'unknown'), { title: 'Unknown account type' }); return; }
 
         buildFormFields(schema, 'edit', { _key: targetKey, ...valueData });
 
@@ -904,7 +905,7 @@ function kvstoreAccountsPanel() {
         }
 
         const schema = window.CList?.schemas?.[type];
-        if (!schema) { showStatusMessage('No schema for account type: ' + type); return; }
+        if (!schema) { showErrorModal('No schema for account type: ' + type, { title: 'Unknown account type' }); return; }
 
         div.querySelector('#add-flow').style.display = 'none';
         buildFormFields(schema, 'create', {});
@@ -1347,11 +1348,11 @@ function kvstoreAccountsPanel() {
             try {
                 const ok = await _rssSaveCollection();
                 if (ok) { showStatusMessage('Collection saved.'); getSite(window.CList.config.flaskSiteUrl); }
-            } catch (e) { console.error(e); showStatusMessage('Save failed: ' + e.message); }
+            } catch (e) { console.error(e); showErrorModal('Save failed: ' + e.message, { title: 'Collection save failed' }); }
         };
         div.querySelector('#deleteBtn').style.display = 'inline';
         div.querySelector('#deleteBtn').textContent = 'Delete Collection';
-        div.querySelector('#deleteBtn').onclick = () => _rssDeleteCollection().catch(e => { console.error(e); showStatusMessage('Delete failed: ' + e.message); });
+        div.querySelector('#deleteBtn').onclick = () => _rssDeleteCollection().catch(e => { console.error(e); showErrorModal('Delete failed: ' + e.message, { title: 'Collection delete failed' }); });
         div.querySelector('#cancelBtn').textContent = 'Done';
         div.querySelector('#cancelBtn').onclick = tryCloseForm;
     }
@@ -1382,17 +1383,17 @@ function kvstoreAccountsPanel() {
 
         div.querySelector('#submitBtn').style.display = '';
         div.querySelector('#submitBtn').textContent = isNew ? 'Add Feed' : 'Save Feed';
-        div.querySelector('#submitBtn').onclick = () => _rssSaveFeedFromEditor(feedIndex).catch(e => { console.error(e); showStatusMessage('Save failed: ' + e.message); });
+        div.querySelector('#submitBtn').onclick = () => _rssSaveFeedFromEditor(feedIndex).catch(e => { console.error(e); showErrorModal('Save failed: ' + e.message, { title: 'Feed save failed' }); });
         div.querySelector('#deleteBtn').style.display = isNew ? 'none' : 'inline';
         div.querySelector('#deleteBtn').textContent = 'Remove Feed';
-        div.querySelector('#deleteBtn').onclick = () => _rssDeleteFeed(feedIndex).catch(e => { console.error(e); showStatusMessage('Delete failed: ' + e.message); });
+        div.querySelector('#deleteBtn').onclick = () => _rssDeleteFeed(feedIndex).catch(e => { console.error(e); showErrorModal('Delete failed: ' + e.message, { title: 'Feed delete failed' }); });
         div.querySelector('#cancelBtn').textContent = 'Back';
         div.querySelector('#cancelBtn').onclick = _rssRenderList;
     }
 
     async function _rssSaveFeedFromEditor(feedIndex) {
         const url = (div.querySelector('#_feed-url')?.value || '').trim();
-        if (!url) { showStatusMessage('Feed URL is required.'); return; }
+        if (!url) { showErrorModal('Feed URL is required.', { title: 'Feed save failed' }); return; }
         const feedData = {
             url,
             title:  (div.querySelector('#_feed-title')?.value  || '').trim() || url,
@@ -1462,7 +1463,7 @@ function kvstoreAccountsPanel() {
             getSite(window.CList.config.flaskSiteUrl);
         } catch (err) {
             console.error('RSS collection delete failed:', err);
-            showStatusMessage('Could not delete: ' + err.message);
+            showErrorModal('Could not delete: ' + err.message, { title: 'Collection delete failed' });
         }
     }
 
@@ -1491,7 +1492,7 @@ function kvstoreAccountsPanel() {
 
     async function _rssLoadOpmlFromUrl() {
         const url = (div.querySelector('#_opml-url')?.value || '').trim();
-        if (!url) { showStatusMessage('Please enter an OPML URL.'); return; }
+        if (!url) { showErrorModal('Please enter an OPML URL.', { title: 'OPML import failed' }); return; }
         const status = div.querySelector('#_opml-status');
         status.textContent = 'Fetching…';
         try {
@@ -1583,7 +1584,7 @@ function kvstoreAccountsPanel() {
             return true;
         } catch (err) {
             console.error('RSS collection save failed:', err);
-            showStatusMessage('Could not save: ' + err.message);
+            showErrorModal('Could not save: ' + err.message, { title: 'Collection save failed' });
             return false;
         }
     }
@@ -1591,7 +1592,7 @@ function kvstoreAccountsPanel() {
     // Create a new (empty) RSS collection
     async function submitRSSCollection() {
         const name = div.querySelector('#rss-collection-name').value.trim();
-        if (!name) { showStatusMessage('Please enter a collection name.'); return; }
+        if (!name) { showErrorModal('Please enter a collection name.', { title: 'Collection creation failed' }); return; }
         try {
             const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
             if (!encKey) throw new Error('Encryption key not found — please log in again.');
@@ -1607,7 +1608,7 @@ function kvstoreAccountsPanel() {
             getSite(window.CList.config.flaskSiteUrl);
         } catch (err) {
             console.error('RSS collection create failed:', err);
-            showStatusMessage('Could not create collection: ' + err.message);
+            showErrorModal('Could not create collection: ' + err.message, { title: 'Collection creation failed' });
         }
     }
 
@@ -1616,8 +1617,8 @@ function kvstoreAccountsPanel() {
         const clientId    = div.querySelector('#blogger-client-id').value.trim();
         const title       = div.querySelector('#blogger-title').value.trim();
 
-        if (!blogId)   { showStatusMessage('Please enter your Blog ID.');    return; }
-        if (!clientId) { showStatusMessage('Please enter your Client ID.'); return; }
+        if (!blogId)   { showErrorModal('Please enter your Blog ID.', { title: 'Blogger account failed' });    return; }
+        if (!clientId) { showErrorModal('Please enter your Client ID.', { title: 'Blogger account failed' }); return; }
 
         const instanceData = { type: 'Blogger', id: clientId, title: title || blogId, permissions: 'w' };
 
@@ -1636,14 +1637,14 @@ function kvstoreAccountsPanel() {
             getSite(window.CList.config.flaskSiteUrl);
         } catch (err) {
             console.error('Blogger save failed:', err);
-            showStatusMessage('Could not save account: ' + err.message);
+            showErrorModal('Could not save account: ' + err.message, { title: 'Blogger save failed' });
         }
     }
 
     function authorizeWordPress() {
         let siteUrl = div.querySelector('#wp-site-url').value.trim();
         if (!siteUrl) {
-            showStatusMessage('Please enter your WordPress site URL.');
+            showErrorModal('Please enter your WordPress site URL.', { title: 'WordPress account failed' });
             return;
         }
         if (!/^https?:\/\//i.test(siteUrl)) siteUrl = 'https://' + siteUrl;
@@ -1653,7 +1654,7 @@ function kvstoreAccountsPanel() {
     function submitMastodonUsername() {
         const username = div.querySelector('#mastodon-username-input').value.trim();
         if (!username.includes('@')) {
-            showStatusMessage('Please enter your username as you@instance.social');
+            showErrorModal('Please enter your username as you@instance.social', { title: 'Mastodon account failed' });
             return;
         }
         mastodonOAuthStart(username, username, 'rw');
@@ -1666,11 +1667,11 @@ function kvstoreAccountsPanel() {
         const token       = div.querySelector('#mastodon-manual-token').value.trim();
 
         if (!username.includes('@')) {
-            showStatusMessage('Please enter your username as you@instance.social');
+            showErrorModal('Please enter your username as you@instance.social', { title: 'Mastodon account failed' });
             return;
         }
         if (!token) {
-            showStatusMessage('Please paste an access token.');
+            showErrorModal('Please paste an access token.', { title: 'Mastodon account failed' });
             return;
         }
 
@@ -1698,7 +1699,7 @@ function kvstoreAccountsPanel() {
             getSite(window.CList.config.flaskSiteUrl);
         } catch (err) {
             console.error('Manual Mastodon save failed:', err);
-            showStatusMessage('Could not save account: ' + err.message);
+            showErrorModal('Could not save account: ' + err.message, { title: 'Mastodon save failed' });
         }
     }
 
@@ -1814,9 +1815,9 @@ function kvstoreAccountsPanel() {
                     getSite(window.CList.config.flaskSiteUrl);
                 }
             })
-            .catch(error => showStatusMessage('Error deleting account: ' + error));
+            .catch(error => showErrorModal('Error deleting account: ' + error, { title: 'Account delete failed' }));
         } else {
-            showStatusMessage('No key specified for deletion.');
+            showErrorModal('No key specified for deletion.', { title: 'Account delete failed' });
         }
     }
 
@@ -1951,7 +1952,7 @@ function kvstoreFollowingPanel() {
             }
         } catch(e) {
             console.error('Unfollow failed:', e);
-            showStatusMessage('Unfollow failed: ' + e.message);
+            showErrorModal('Unfollow failed: ' + e.message, { title: 'Unfollow failed' });
         }
     }
 
@@ -3452,7 +3453,7 @@ window.addEventListener('popstate', (e) => {
                     try { return JSON.parse(a.value).type === 'bad'; } catch(e) { return true; }
                 }).length;
                 if (failedCount > 0 && failedCount === accounts.length) {
-                    showStatusMessage('Session key invalid — please log out and log back in to decrypt your accounts.');
+                    showErrorModal('Session key invalid — please log out and log back in to decrypt your accounts.', { title: 'Session key invalid' });
                 }
                 console.log('Accounts in getAccounts():', accounts);
                 return accounts; // Return the accounts array
@@ -3489,7 +3490,7 @@ window.addEventListener('popstate', (e) => {
                         acceptLogin();
                     } catch (error) {
                         console.error('Error fetching accounts:', error);
-                        showStatusMessage('Error fetching accounts: ' + error.message);
+                        showErrorModal('Error fetching accounts: ' + error.message, { title: 'Account fetch failed' });
                     }
                 }, 500); // Adjust delay time if needed (500ms should be sufficient)
 

@@ -45,7 +45,7 @@ async function googleSearch(query,type,start) {
             window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl);
 
         } catch (error) {
-            showStatusMessage('Error getting accounts: ' + error.message);
+            showErrorModal('Error getting accounts: ' + error.message, { title: 'Account lookup failed' });
         }
     }
     
