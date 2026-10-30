@@ -309,6 +309,7 @@ function setCurrentEntry(el) {
         if (b !== el) b.classList.remove('current-entry');
     });
     el.classList.add('current-entry');
+    currentEntryEl = el;
     el.scrollIntoView({ block: 'start', behavior: 'smooth' });
 }
 
