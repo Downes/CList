@@ -1079,14 +1079,14 @@ body.chat-active .chat-only-btn { display: inline-flex; }
 .collection-publish-item input[type="text"]:focus { outline: none; border-bottom-color: var(--highlight-color); }
 
 .collection-publish-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
-.collection-publish-controls select { font-size: 0.85rem; padding: 4px 6px; border: 1px solid var(--border-main); border-radius: 3px; background: var(--bg-input); color: var(--text-main); }
+.collection-publish-controls select { font-size: 0.85rem; padding: 4px 6px; border: 1px solid var(--border-main); border-radius: var(--radius-sm); background: var(--bg-input); color: var(--text-main); }
 .collection-publish-controls select:focus { outline: none; border-color: var(--highlight-color); }
 .collection-publish-no-accounts { font-size: 0.85rem; color: var(--text-light); margin-bottom: 10px; }
 
 .collection-publish-result { margin-top: 12px; padding: 10px; background: var(--bg-success); border: 1px solid var(--border-success); border-radius: var(--radius-md); }
 .collection-publish-result p { margin: 0 0 6px; font-size: 0.82rem; color: var(--text-muted); }
 .collection-publish-result-url { display: flex; gap: 6px; align-items: center; }
-.collection-publish-result-url input[type="text"] { flex: 1; font-size: 0.82rem; padding: 4px 6px; border: 1px solid var(--border-main); background: var(--bg-input); color: var(--text-main); border-radius: 3px; min-width: 0; }
+.collection-publish-result-url input[type="text"] { flex: 1; font-size: 0.82rem; padding: 4px 6px; border: 1px solid var(--border-main); background: var(--bg-input); color: var(--text-main); border-radius: var(--radius-sm); min-width: 0; }
 .collection-publish-result-actions { margin-top: 8px; display: flex; gap: 6px; }
 
 .published-page-row { display: flex; align-items: center; gap: 6px; padding: 6px 4px; border-bottom: 1px solid var(--border-light); flex-wrap: wrap; }
@@ -1278,7 +1278,7 @@ html.dark-mode #modal-content {
 .collection-editor-field label { font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
 .collection-editor-input {
   font-size: 0.85rem; padding: 2px 4px; border: 1px solid var(--border-main); background: var(--bg-input); color: var(--text-main);
-  border-radius: 3px; width: 100%; box-sizing: border-box; font-family: inherit;
+  border-radius: var(--radius-sm); width: 100%; box-sizing: border-box; font-family: inherit;
 }
 .collection-editor-input:focus { outline: none; border-color: var(--highlight-color); }
 textarea.collection-editor-input { min-height: 60px; resize: vertical; }
