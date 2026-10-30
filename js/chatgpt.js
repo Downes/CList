@@ -40,8 +40,9 @@ async function generateNewTemplateFromChatGPT(templateType, outputFormat) {
     
     let API_KEY = null;
     let API_URL = null;
+    const accounts = window.CList.accounts || [];
 
-     accounts.forEach(account => {                           // Check the accounts
+    accounts.forEach(account => {                           // Check the accounts
         const parsedValue = parseAccountValue(account);
         if (!parsedValue) return;
         console.log("checking account: ", parsedValue);
