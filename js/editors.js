@@ -574,11 +574,38 @@ function editorHasActiveContent(handler) {
     return false;
 }
 
+// Build the editor-switcher shell into #editor-instructions, matching the
+// empty-mount-point pattern load/save/post-instructions use in index.html
+// (all markup JS-driven, nothing hand-written there). Idempotent — safe to
+// call on every open.
+function _ensureEditorSwitchShell() {
+    if (document.getElementById('editor-switch-options')) return;
+    const root = document.getElementById('editor-instructions');
+    const list = document.createElement('div');
+    list.className = 'account-list';
+
+    const tip = document.createElement('div');
+    tip.className = 'list-tip';
+    tip.textContent = 'Select an editor to use';
+    list.appendChild(tip);
+
+    const builtIn = document.createElement('div');
+    builtIn.id = 'editor-switch-options';
+    list.appendChild(builtIn);
+
+    const accountOptions = document.createElement('div');
+    accountOptions.id = 'editor-switch-account-options';
+    list.appendChild(accountOptions);
+
+    root.appendChild(list);
+}
+
 // Synchronously populate the built-in (no-account) editor buttons. An editor that
 // requiresAccount is also listed here when it reports an active account-less connection to
 // resume (handler.isActive()) — e.g. a live guest Etherpad session — so there's a way back
 // into it from the switcher without needing a saved account.
 function _populateBuiltInEditors() {
+    _ensureEditorSwitchShell();
     const builtInOptions = document.getElementById('editor-switch-options');
     builtInOptions.innerHTML = '';
     Object.entries(editorHandlers).forEach(([key, handler]) => {
