@@ -130,7 +130,7 @@ async function generateTemplateContent() {
                 <option value="html">HTML</option>
             </select><br><br>
             <button id="generateTemplateButton" class="btn final-save-button">Generate Template</button>
-            <button id="generateTemplateBackBtn" class="btn btn-secondary final-save-button" style="margin-top: 6px;">Back</button>
+            <button id="generateTemplateBackBtn" class="btn btn-secondary final-save-button">Back</button>
         </div>
     `;
 

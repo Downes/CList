@@ -842,6 +842,12 @@ body a:hover, html a:hover { text-decoration: underline; }
   box-sizing: border-box;
 }
 
+/* Spacing when a Back button follows a final-save-button of its own (e.g. "Generate Template" → "Back") */
+.final-save-button + .final-save-button { margin-top: 6px; }
+
+/* Full-width button stacked below a list of options (e.g. "Back" under a load/template list) */
+.back-button { display: block; width: 100%; margin-top: 10px; }
+
 /* Material Icons */
 .material-icons.md-18 { font-size: 18px; }
 .material-icons.md-24 { font-size: 24px; }

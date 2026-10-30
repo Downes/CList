@@ -403,9 +403,7 @@ function _offerEditorChoice(keys, content, page, renderTarget, onCancel) {
             if (optionsDiv) {
                 optionsDiv.innerHTML = '<p class="list-tip">Template loading is not yet implemented.</p>';
                 const backBtn = document.createElement('button');
-                backBtn.className = 'btn btn-secondary';
-                backBtn.style.marginTop = '10px';
-                backBtn.style.width = '100%';
+                backBtn.className = 'btn btn-secondary back-button';
                 backBtn.textContent = 'Back';
                 backBtn.onclick = () => populateLoadOptions();
                 optionsDiv.appendChild(backBtn);
@@ -458,9 +456,7 @@ function playLoadBlank() {
     optionsDiv.appendChild(list);
 
     const backBtn = document.createElement('button');
-    backBtn.className = 'btn btn-secondary';
-    backBtn.style.marginTop = '10px';
-    backBtn.style.width = '100%';
+    backBtn.className = 'btn btn-secondary back-button';
     backBtn.textContent = 'Back';
     backBtn.onclick = () => populateLoadOptions();
     optionsDiv.appendChild(backBtn);
