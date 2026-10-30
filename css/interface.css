@@ -1265,6 +1265,7 @@ html.dark-mode #modal-content {
 .collection-editor-entry {
   border: 1px solid var(--border-dark); border-radius: var(--radius-md); margin-bottom: 4px; background: var(--bg-panel);
 }
+.collection-editor-add-row { margin-top: 8px; }
 .collection-editor-entry-bar { display: flex; align-items: center; gap: 4px; padding: 4px 6px; cursor: pointer; user-select: none; }
 .collection-editor-entry-bar:hover { background: var(--bg-hover); }
 .collection-editor-chevron { font-size: 1.125rem; color: var(--text-muted); flex-shrink: 0; }
