@@ -168,6 +168,7 @@ button {
 
 .btn:hover { background-color: var(--highlight-hover); }
 .btn:disabled { opacity: 0.6; cursor: default; }
+.btn.is-active { background-color: var(--highlight-hover); font-weight: 600; }
 
 .btn-small {
   padding: 3px 8px;
@@ -177,6 +178,20 @@ button {
 
 .btn-secondary { background: var(--text-light); }
 .btn-secondary:hover { background: var(--text-muted); }
+
+/* Menu bar — shared by #feed-menu and #editor-menu (the above-title toolbar
+   an editor handler populates, e.g. collab's/LaTeX's): the row of action
+   buttons at the top of a pane. */
+.menu-bar {
+  min-height: 41px;
+  padding: 5px 10px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-main);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
 
 /* Form fields */
 select,
@@ -1297,7 +1312,6 @@ textarea.collection-editor-input { min-height: 60px; resize: vertical; }
 #collab-editor-container { background: var(--bg-body); border-color: var(--border-main); }
 #tiptap-editor .ProseMirror { background: var(--bg-body); color: var(--text-main); }
 #tiptap-editor .ProseMirror blockquote { border-left-color: var(--text-muted); color: var(--text-muted); }
-#collab-toolbar { border-bottom-color: var(--border-main); }
 #collab-doc-id { background: var(--bg-input); border-color: var(--border-main); color: var(--text-main); }
 #collab-doc-picker button,
 #collab-format-toolbar button { background: var(--bg-input); border-color: var(--border-dark); color: var(--text-main); }
@@ -1309,3 +1323,25 @@ textarea.collection-editor-input { min-height: 60px; resize: vertical; }
 #collab-status { color: var(--text-muted); }
 #collab-share-post-overlay { background: var(--bg-overlay); border-color: var(--border-main); }
 #collab-share-post-overlay .overlay-instructions { color: var(--text-muted); }
+
+/* Share-link snippet box — used by collab.js's and latex.js's share-link modals */
+.share-link-code {
+  flex: 1; font-size: 11px; padding: 3px 6px; border-radius: 3px; overflow: hidden;
+  white-space: nowrap; text-overflow: ellipsis;
+  background: var(--bg-hover); border: 1px solid var(--border-main); color: var(--text-main);
+}
+
+#latex-status { color: var(--text-muted); }
+#latex-editor-container { background: var(--bg-body); border-color: var(--border-main); }
+
+/* CodeMirror 6 (LaTeX editor) — the #latex-editor-container prefix gives these higher
+   specificity than CodeMirror's own injected base theme (plain .cm-* class selectors),
+   so they win regardless of injection order. */
+#latex-editor-container .cm-editor { background: var(--bg-body); color: var(--text-main); }
+#latex-editor-container .cm-content { color: var(--text-main); caret-color: var(--text-main); }
+#latex-editor-container .cm-gutters { background: var(--bg-body); color: var(--text-muted);
+  border-right-color: var(--border-main); }
+#latex-editor-container .cm-activeLine,
+#latex-editor-container .cm-activeLineGutter { background: var(--bg-hover); }
+#latex-editor-container .cm-selectionBackground { background: var(--bg-active) !important; }
+#latex-editor-container .cm-cursor { border-left-color: var(--text-main); }

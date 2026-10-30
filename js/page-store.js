@@ -349,11 +349,12 @@ window.CList = window.CList || {};
                 content,
                 contentType,
                 editorType: currentEditor,
+                references: getReferences().slice(),
             };
 
             try {
                 const saved = await window.CList.pageStore.save(page);
-                setLoadedPage({ kind: 'local-page', id: saved.id, title: saved.title, revision: saved.revision });
+                setLoadedPage({ kind: 'local-page', id: saved.id, title: saved.title, revision: saved.revision, references: page.references });
                 showStatusMessage('Saved to CList (local).');
             } catch (e) {
                 console.error('[page-store saver] save failed', e);
@@ -559,7 +560,13 @@ function _showImportPagesPicker(renderTarget) {
                         populateLoadOptions();
                         return;
                     }
-                    const page = { kind: 'local-page', id: record.id, title: record.title, revision: record.revision };
+                    const page = {
+                        kind: 'local-page',
+                        id: record.id,
+                        title: record.title,
+                        revision: record.revision,
+                        references: Array.isArray(record.references) ? record.references : [],
+                    };
                     // Restore the most recent publication (recordPublication()'s upsert-by-
                     // service history) so updateLoadedPageUI()'s hasPublicationLocation check
                     // and the Republish button survive a reload, not just the live session.

@@ -234,7 +234,7 @@ function setupFeedButtons(instanceType) {
 
     for (const [feedType, feedAction] of Object.entries(feedFunctions)) {
         const button = document.createElement('button');
-        button.className = 'btn';
+        button.className = 'btn btn-small';
         button.textContent = feedType;
         button.onclick = feedAction;
         buttonsContainer.appendChild(button);

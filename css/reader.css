@@ -159,17 +159,6 @@
     overflow: hidden;
 }
 
-#feed-menu {
-    min-height: 41px;
-    padding: 5px 10px;
-    flex-shrink: 0;
-    border-bottom: 1px solid lightgray;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    align-items: center;
-}
-
 #feed-container {
     flex-grow: 1;
     overflow-y: scroll;
@@ -532,7 +521,6 @@ html.dark-mode .feed-header {
 html.dark-mode .feed-header h2 { color: #e0e0e0; }
 html.dark-mode #write-load-header h2 { color: #e0e0e0; }
 html.dark-mode .feed-header p  { color: #999; }
-html.dark-mode #feed-menu { border-bottom-color: #3a3a3a; }
 html.dark-mode #accounts-header,
 html.dark-mode #audio-header,
 html.dark-mode #chat-header,

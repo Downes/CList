@@ -53,7 +53,19 @@ function _parkCurrentEditorState() {
 function _restoreEditorState(editorType, account) {
     const parked = editorStates[editorStateKey(editorType, account)];
     setLoadedPage(parked ? parked.page : null);
-    setReferences(parked ? parked.references : []);
+
+    // Collaborative editors (Collab/LaTeX) keep their Hocuspocus connection alive in the
+    // background after switching away, so the target doc's own clist_refs Y.Map may have
+    // kept changing the whole time we were on a different editor. A parked snapshot would
+    // be stale in that case — resync directly from the Map's current state instead. Falls
+    // back to the ordinary parked-snapshot restore for anything not actively connected
+    // (not a collaborative editor, or a collaborative editor with no live doc yet).
+    const handler = editorHandlers[editorType];
+    if (handler && typeof handler.getDocId === 'function' && handler.getDocId() && typeof handler.resyncReferences === 'function') {
+        handler.resyncReferences();
+    } else {
+        setReferences(parked ? parked.references : []);
+    }
 }
 //
 // Define handlers for each editor
@@ -886,6 +898,14 @@ async function initializeEditor(editorType, account) {
         }
     }
 
+    // Reset the shared above-title toolbar — a handler that wants it populates
+    // it again in its own initialize().
+    const editorMenuEl = document.getElementById('editor-menu');
+    if (editorMenuEl) {
+        editorMenuEl.innerHTML = '';
+        editorMenuEl.style.display = 'none';
+    }
+
     // Close all editors
     // Note that we do not remove the editors, we just hide them
     const writePaneContent = window.CList.ui.view.writePaneContent;
@@ -1054,6 +1074,7 @@ async function loadSavedPage(content, page, renderTarget, onCancel) {
         if (targetIsEmpty) {
             await switchToEditor(targetKey, content);
             setLoadedPage(page);
+            setReferences(page?.references || []);
             document.getElementById('generic-modal')?.remove();
             return;
         }
@@ -1076,6 +1097,7 @@ async function loadSavedPage(content, page, renderTarget, onCancel) {
     if (isEmpty) {
         handler.loadContent(content);
         setLoadedPage(page);
+        setReferences(page?.references || []);
         closeLoadSurfaces();
         return;
     }
@@ -1116,6 +1138,7 @@ function offerReplaceOrInsert(targetKey, handler, content, page, renderTarget, o
             handler.setContent('');
             handler.loadContent(content);
             setLoadedPage(page);
+            setReferences(page?.references || []);
             closeLoadSurfaces();
         };
         row.appendChild(newBtn);
@@ -1126,6 +1149,7 @@ function offerReplaceOrInsert(targetKey, handler, content, page, renderTarget, o
         replaceBtn.onclick = () => {
             handler.setContent(content.value);
             setLoadedPage(page);
+            setReferences(page?.references || []);
             closeLoadSurfaces();
         };
         row.appendChild(replaceBtn);
@@ -1136,6 +1160,7 @@ function offerReplaceOrInsert(targetKey, handler, content, page, renderTarget, o
     insertBtn.textContent = 'Insert';
     insertBtn.onclick = () => {
         handler.loadContent(content);
+        (page?.references || []).forEach(ref => pushReference(ref));
         closeLoadSurfaces();
     };
     row.appendChild(insertBtn);

@@ -51,7 +51,7 @@
     padding: 0.2rem 0.7rem;
     font-size: 0.82rem;
     background: var(--highlight-color);
-    color: #fff;
+    color: var(--highlight-text-color);
     border: none;
     border-radius: 3px;
     cursor: pointer;
@@ -99,9 +99,9 @@
 
 .unfollow-btn {
     background: none;
-    border: 1px solid #ccc;
+    border: 1px solid var(--border-main);
     border-radius: 3px;
-    color: #888;
+    color: var(--text-light);
     font-size: 0.8rem;
     padding: 2px 8px;
     cursor: pointer;
@@ -109,9 +109,9 @@
 }
 
 .unfollow-btn:hover {
-    border-color: #c44;
-    color: #c44;
-    background: #fff5f5;
+    border-color: var(--border-error);
+    color: var(--color-error);
+    background: var(--bg-error-light);
 }
 
 
@@ -120,7 +120,3 @@ html.dark-mode .me-status { color: #999; }
 html.dark-mode .nav-desc  { color: #999; }
 html.dark-mode .following-item { border-bottom-color: #2f2f2f; }
 html.dark-mode .following-name a { color: #7eb8f7; }
-html.dark-mode .unfollow-btn { border-color: #555; color: #777; }
-html.dark-mode .unfollow-btn:hover {
-    border-color: #c44; color: #c44; background: #2d1515;
-}

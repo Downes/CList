@@ -6,6 +6,22 @@
 //
 //  This software carries NO WARRANTY OF ANY KIND.
 //  This software is provided "AS IS," and you, its user, assume all risks when using it.
+//
+//  js/vendor/collab-editor-bundle.js is a vendored, pre-built bundle of this editor's
+//  JS dependencies (TipTap core/starter-kit/collaboration/collaboration-cursor/link,
+//  @hocuspocus/provider, yjs) — no CDN is loaded at runtime. To rebuild it after a
+//  version bump:
+//
+//    npm install @tiptap/core@2 @tiptap/starter-kit@2 @tiptap/extension-collaboration@2 \
+//      @tiptap/extension-collaboration-cursor@2 @tiptap/extension-link@2 \
+//      @hocuspocus/provider@2 yjs@13
+//    npx esbuild@0.24.0 entry.js --bundle --format=esm --platform=browser \
+//      --minify --outfile=collab-editor-bundle.js
+//
+//  where entry.js re-exports: Editor (@tiptap/core); StarterKit (@tiptap/starter-kit);
+//  Collaboration (@tiptap/extension-collaboration); CollaborationCursor
+//  (@tiptap/extension-collaboration-cursor); Link (@tiptap/extension-link);
+//  HocuspocusProvider (@hocuspocus/provider); and the whole yjs module namespace as Y.
 
 // Account schema — lets users configure a custom collab server via kvstore
 window.CList.schemas = window.CList.schemas || {}
@@ -32,44 +48,32 @@ window.CList.schemas['Collab'] = {
         s.textContent = `
             #collabDiv { display: flex; flex-direction: column; height: 100%; position: relative; }
             #collab-share-post-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-                background: rgba(255,255,255,0.97); z-index: 20; display: flex; flex-direction: column;
-                padding: 12px; border: 1px solid #ccc; border-radius: 4px; }
-            #collab-share-post-overlay .overlay-instructions { font-size: 0.85em; color: #555;
+                z-index: 20; display: flex; flex-direction: column;
+                padding: 12px; border: 1px solid; border-radius: 4px; }
+            #collab-share-post-overlay .overlay-instructions { font-size: 0.85em;
                 margin: 0 0 8px; }
             #collab-share-post-overlay .overlay-toolbar { display: flex; gap: 6px; margin-top: 8px;
                 justify-content: flex-end; }
-            #collab-toolbar { display: flex; align-items: center; gap: 8px; padding: 6px 0;
-                              border-bottom: 1px solid #ddd; margin-bottom: 8px; flex-wrap: wrap; }
             #collab-doc-picker { display: flex; gap: 6px; align-items: center; }
-            #collab-doc-id { font-size: 0.85em; padding: 4px 6px; border: 1px solid #ccc;
+            #collab-doc-id { font-size: 0.85em; padding: 4px 6px; border: 1px solid;
                              border-radius: 4px; width: 200px; }
-            #collab-doc-picker button { font-size: 0.8em; padding: 2px 8px; border: 1px solid #ccc;
-                border-radius: 3px; background: #f5f5f5; color: #333; cursor: pointer; }
-            #collab-doc-picker button:hover { background: #e8e8e8; }
             #collab-doc-warning { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-            #collab-doc-warning button { font-size: 0.8em; padding: 1px 7px; border: 1px solid #c00;
-                border-radius: 3px; background: #fee; color: #a00; cursor: pointer; }
-            #collab-doc-warning button:hover { background: #fcc; }
+            #collab-doc-warning button { font-size: 0.8em; padding: 1px 7px; border: 1px solid;
+                border-radius: 3px; cursor: pointer; }
             #collab-format-toolbar { display: flex; gap: 3px; }
-            #collab-format-toolbar button { font-size: 0.8em; padding: 2px 6px; min-width: 26px;
-                border: 1px solid #ccc; border-radius: 3px;
-                background: #f5f5f5; color: #333; cursor: pointer; }
-            #collab-format-toolbar button:hover { background: #e8e8e8; }
-            #collab-format-toolbar button.is-active { background: #dde; color: #333; font-weight: bold; }
             #collab-who { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; flex: 1; padding: 0 4px; }
             .collab-user { font-size: 0.75em; white-space: nowrap; }
-            #collab-status { font-size: 0.75em; color: #888; }
-            #collab-editor-container { flex: 1; overflow-y: auto; border: 1px solid #ddd;
-                                       border-radius: 4px; background: #fff; }
-            #tiptap-editor .ProseMirror { outline: none; min-height: 200px; padding: 10px;
-                                          background: #fff; color: #111; }
+            #collab-status { font-size: 0.75em; }
+            #collab-editor-container { flex: 1; overflow-y: auto; border: 1px solid;
+                                       border-radius: 4px; }
+            #tiptap-editor .ProseMirror { outline: none; min-height: 200px; padding: 10px; }
             #tiptap-editor .ProseMirror p { margin: 0.5em 0; }
             #tiptap-editor .ProseMirror h1 { font-size: 1.6em; margin: 0.8em 0 0.3em; }
             #tiptap-editor .ProseMirror h2 { font-size: 1.3em; margin: 0.7em 0 0.3em; }
             #tiptap-editor .ProseMirror h3 { font-size: 1.1em; margin: 0.6em 0 0.3em; }
             #tiptap-editor .ProseMirror ul, #tiptap-editor .ProseMirror ol { padding-left: 1.5em; }
-            #tiptap-editor .ProseMirror blockquote { border-left: 3px solid #ccc; margin: 0.5em 0;
-                padding-left: 1em; color: #555; }
+            #tiptap-editor .ProseMirror blockquote { border-left: 3px solid; margin: 0.5em 0;
+                padding-left: 1em; }
             /* Collaboration cursors */
             .collaboration-cursor__caret { border-left: 2px solid; border-right: 2px solid;
                 margin-left: -1px; margin-right: -1px; position: relative; }
@@ -93,28 +97,21 @@ window.CList.schemas['Collab'] = {
     let dupCheckTimer      = null  // debounce timer for duplicate-title check
     let sharedRefs         = null  // Y.Map synced across all collaborators: url → JSON ref string
 
-    // --- Load CDN dependencies lazily ---
-    // esm.sh resolves peer dependencies consistently so Y.Doc instances are shared.
+    // --- Load vendored dependencies lazily ---
+    // Bundled locally (see header comment) so Y.Doc instances are shared and no
+    // runtime CDN fetch can fail or go down.
 
     async function loadDeps() {
         if (deps) return deps
-        const [core, sk, collab, cursor, link, hocus, yjs] = await Promise.all([
-            import('https://esm.sh/@tiptap/core@2'),
-            import('https://esm.sh/@tiptap/starter-kit@2'),
-            import('https://esm.sh/@tiptap/extension-collaboration@2'),
-            import('https://esm.sh/@tiptap/extension-collaboration-cursor@2'),
-            import('https://esm.sh/@tiptap/extension-link@2'),
-            import('https://esm.sh/@hocuspocus/provider@2'),
-            import('https://esm.sh/yjs@13'),
-        ])
+        const bundle = await import('./vendor/collab-editor-bundle.js')
         deps = {
-            Editor:               core.Editor,
-            StarterKit:           sk.default,
-            Collaboration:        collab.default,
-            CollaborationCursor:  cursor.default,
-            Link:                 link.default,
-            HocuspocusProvider:   hocus.HocuspocusProvider,
-            Y:                    yjs,
+            Editor:               bundle.Editor,
+            StarterKit:           bundle.StarterKit,
+            Collaboration:        bundle.Collaboration,
+            CollaborationCursor:  bundle.CollaborationCursor,
+            Link:                 bundle.Link,
+            HocuspocusProvider:   bundle.HocuspocusProvider,
+            Y:                    bundle.Y,
         }
         return deps
     }
@@ -345,6 +342,7 @@ window.CList.schemas['Collab'] = {
         bar.innerHTML = ''
         FORMAT_BUTTONS.forEach(({ label, title, cmd }) => {
             const btn = document.createElement('button')
+            btn.className = 'btn btn-small'
             btn.textContent = label
             btn.title = title
             btn.addEventListener('click', () => { cmd(tiptapEditor); refreshToolbar() })
@@ -522,9 +520,7 @@ window.CList.schemas['Collab'] = {
                 <div style="margin-bottom:14px">
                     <div style="font-weight:600;font-size:0.85em;margin-bottom:4px">${label}</div>
                     <div style="display:flex;gap:5px;align-items:center;margin-bottom:5px">
-                        <code style="flex:1;font-size:11px;background:#f5f5f5;padding:3px 6px;
-                                     border:1px solid #ddd;border-radius:3px;overflow:hidden;
-                                     white-space:nowrap;text-overflow:ellipsis">${link}</code>
+                        <code class="share-link-code">${link}</code>
                         <button class="btn-small" onclick="window.copyCollabLink('${mode}')">Copy</button>
                     </div>
                     <div style="display:flex;gap:5px">
@@ -594,9 +590,21 @@ window.CList.schemas['Collab'] = {
             : 'Anonymous'
         const userColor = '#' + Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, '0')
 
+        // Different document than whatever was previously merged in (if any) — start the
+        // locally-displayed reference list clean rather than carrying over the old doc's
+        // entries; the sync below repopulates it from this doc's own clist_refs Map.
+        setReferences([])
+
         const ydoc = new Y.Doc()
         sharedRefs = ydoc.getMap('clist_refs')
         sharedRefs.observe((event) => {
+            // Only merge into the shared global reference list while Collab is the editor
+            // actually on screen — the Hocuspocus connection itself stays alive in the
+            // background after switching away (so returning to it is instant), but without
+            // this guard its observer would keep overwriting the global list with this
+            // document's entries even while a different, currently-visible editor (e.g. a
+            // second Collab/LaTeX doc) owns that list.
+            if (currentEditor !== 'collab') return
             event.keysChanged.forEach(url => {
                 const jsonStr = sharedRefs.get(url)
                 if (!jsonStr) return
@@ -726,17 +734,6 @@ window.CList.schemas['Collab'] = {
                 collabDiv = document.createElement('div')
                 collabDiv.id = 'collabDiv'
                 collabDiv.innerHTML = `
-                    <div id="collab-toolbar">
-                        <div id="collab-doc-picker">
-                            <input id="collab-doc-id" type="hidden">
-                            <button id="collab-invite-btn" title="Share this document">Share</button>
-                            <button id="collab-annotate-btn" title="Annotate this document">Annotate</button>
-                        </div>
-                        <div id="collab-doc-warning" style="display:none;font-size:0.8em;color:#a00;padding:2px 0;gap:6px;align-items:center"></div>
-                        <div id="collab-format-toolbar"></div>
-                        <div id="collab-who"></div>
-                        <div id="collab-status"></div>
-                    </div>
                     <div id="collab-editor-container">
                         <div id="tiptap-editor"></div>
                     </div>`
@@ -745,29 +742,26 @@ window.CList.schemas['Collab'] = {
 
             collabDiv.style.display = 'block'
 
-            // Wire input and share button once
-            if (!collabDiv.dataset.wired) {
+            // The toolbar lives in the shared above-title #editor-menu bar, which
+            // initializeEditor() wipes on every editor switch — rebuild it (and its
+            // wiring) each time this editor is activated.
+            const editorMenu = document.getElementById('editor-menu')
+            if (editorMenu) {
+                editorMenu.innerHTML = `
+                    <div id="collab-doc-picker">
+                        <input id="collab-doc-id" type="hidden">
+                        <button id="collab-invite-btn" class="btn btn-small" title="Share this document">Share</button>
+                        <button id="collab-annotate-btn" class="btn btn-small" title="Annotate this document">Annotate</button>
+                    </div>
+                    <div id="collab-doc-warning" style="display:none;font-size:0.8em;color:#a00;padding:2px 0;gap:6px;align-items:center"></div>
+                    <div id="collab-format-toolbar"></div>
+                    <div id="collab-who"></div>
+                    <div id="collab-status"></div>`
+                editorMenu.style.display = ''
+
                 const input = document.getElementById('collab-doc-id')
 
                 input.addEventListener('input', scheduleDupCheck)
-
-                // Keep write-title in sync with the collab doc input
-                const writeTitle = window.CList.ui.view.writeTitle
-                if (writeTitle) {
-                    writeTitle.addEventListener('input', () => {
-                        if (currentEditor !== 'collab') return
-                        input.value = writeTitle.textContent.trim()
-                        scheduleDupCheck()
-                    })
-                    // If the user pastes a collab share URL into the title field, open it directly
-                    writeTitle.addEventListener('paste', (e) => {
-                        const text = e.clipboardData.getData('text').trim()
-                        if (isCollabUrl(text)) {
-                            e.preventDefault()
-                            openCollabUrl(text)
-                        }
-                    })
-                }
 
                 input.addEventListener('keydown', async (e) => {
                     if (e.key !== 'Enter') return
@@ -784,14 +778,6 @@ window.CList.schemas['Collab'] = {
                     if (!currentDocId) await connectFromInput()
                     if (currentDocId) shareCollabDoc()
                 })
-
-                document.getElementById('collab-editor-container').addEventListener('drop', function(e) {
-                    const dt = e.dataTransfer;
-                    if (!dt) return;
-                    const url   = window._extractDropUrl(dt.getData('text/uri-list'), dt.getData('text/html'));
-                    const title = dt.getData('text/x-clist-title') || null;
-                    window._attributeDroppedContent(url, title);
-                }, true);
 
                 document.getElementById('collab-annotate-btn').addEventListener('click', () => {
                     if (!currentDocId) {
@@ -811,6 +797,38 @@ window.CList.schemas['Collab'] = {
                         if (ratio > 0.65) snapPanes('left')
                     }
                 })
+            }
+
+            // Keep write-title in sync with the collab doc input — wired once ever on the
+            // persistent write-title element; looks up the (possibly rebuilt) input fresh.
+            const writeTitle = window.CList.ui.view.writeTitle
+            if (writeTitle && !writeTitle.dataset.collabWired) {
+                writeTitle.addEventListener('input', () => {
+                    if (currentEditor !== 'collab') return
+                    const el = document.getElementById('collab-doc-id')
+                    if (el) el.value = writeTitle.textContent.trim()
+                    scheduleDupCheck()
+                })
+                // If the user pastes a collab share URL into the title field, open it directly
+                writeTitle.addEventListener('paste', (e) => {
+                    const text = e.clipboardData.getData('text').trim()
+                    if (isCollabUrl(text)) {
+                        e.preventDefault()
+                        openCollabUrl(text)
+                    }
+                })
+                writeTitle.dataset.collabWired = '1'
+            }
+
+            // Wire the drop zone once — #collab-editor-container persists across activations
+            if (!collabDiv.dataset.wired) {
+                document.getElementById('collab-editor-container').addEventListener('drop', function(e) {
+                    const dt = e.dataTransfer;
+                    if (!dt) return;
+                    const url   = window._extractDropUrl(dt.getData('text/uri-list'), dt.getData('text/html'));
+                    const title = dt.getData('text/x-clist-title') || null;
+                    window._attributeDroppedContent(url, title);
+                }, true);
 
                 collabDiv.dataset.wired = '1'
             }
@@ -847,6 +865,27 @@ window.CList.schemas['Collab'] = {
         getContent: async () => {
             if (!tiptapEditor) return ''
             return tiptapEditor.getHTML()
+        },
+
+        // Which document (if any) this handler is currently connected to — used by
+        // editors.js's editor-switch state park/restore to recognize "still the same
+        // live document" and resync references from the Y.Map instead of restoring a
+        // stale local snapshot. null when not connected (e.g. local-only, pre-title).
+        getDocId: () => currentDocId,
+
+        // Rebuild the shared global reference list from this document's own clist_refs
+        // Map's current, authoritative state — used on reactivation (switching back to
+        // Collab) instead of trusting whatever was parked, since the Map keeps syncing
+        // in the background (observe() above is gated to skip the global list) while
+        // this editor isn't the one on screen.
+        resyncReferences: () => {
+            setReferences([])
+            if (!sharedRefs) return
+            sharedRefs.forEach((jsonStr) => {
+                try {
+                    if (typeof pushReference === 'function') pushReference(JSON.parse(jsonStr))
+                } catch { /* skip corrupt entries */ }
+            })
         },
 
         loadContent: ({ type, value }, itemId) => {

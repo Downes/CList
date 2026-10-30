@@ -27,13 +27,13 @@
     font-size: 0.8rem;
     box-sizing: border-box;
     text-align: left;
-    background: #777;
-    color: #fff;
-    border: 1px solid #777;
+    background: var(--text-light);
+    color: var(--highlight-text-color);
+    border: 1px solid var(--text-light);
     border-radius: 3px;
     cursor: pointer;
 }
-.kv-name-btn:hover { background: #555; border-color: #555; }
+.kv-name-btn:hover { background: var(--text-muted); border-color: var(--text-muted); }
 
 /* Action buttons (Save / Delete / Cancel) */
 .kv-action-buttons {
@@ -53,9 +53,11 @@
     margin: 0;
     border: none;
 }
-.kv-save-btn   { background: var(--highlight-color); color: #fff; border: 1px solid var(--highlight-color); }
-.kv-delete-btn { background: #c44; color: #fff; border: 1px solid #c44; }
-.kv-cancel-btn { background: #888; color: #fff; border: 1px solid #888; }
+.kv-save-btn   { background: var(--highlight-color); color: var(--highlight-text-color); border: 1px solid var(--highlight-color); }
+.kv-delete-btn { background: var(--bg-error-light); color: var(--color-error); border: 1px solid var(--border-error); }
+.kv-delete-btn:hover { background: var(--bg-error-hover); }
+.kv-cancel-btn { background: var(--text-light); color: var(--highlight-text-color); border: 1px solid var(--text-light); }
+.kv-cancel-btn:hover { background: var(--text-muted); border-color: var(--text-muted); }
 
 /* Expandable help blurbs (me.html) */
 .did-help {
