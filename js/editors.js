@@ -294,6 +294,18 @@ function populateLoadOptions() {
     optionsDiv.appendChild(list);
 }
 
+// Shared "Back" button for sub-panels of the load list (load template, load
+// blank) — defaults to returning to populateLoadOptions() so both call the
+// same target instead of each hardcoding its own reference to it.
+function _appendBackButton(container, onClick) {
+    const backBtn = document.createElement('button');
+    backBtn.className = 'btn btn-secondary back-button';
+    backBtn.textContent = 'Back';
+    backBtn.onclick = onClick || (() => populateLoadOptions());
+    container.appendChild(backBtn);
+    return backBtn;
+}
+
 // More than one local editor can handle the just-loaded content's type (and the
 // current editor isn't one of them) — let the user pick instead of silently
 // guessing. Called only for keys that exclude currentEditor (loadSavedPage()
@@ -402,11 +414,7 @@ function _offerEditorChoice(keys, content, page, renderTarget, onCancel) {
             const optionsDiv = window.CList.ui.view.loadOptions;
             if (optionsDiv) {
                 optionsDiv.innerHTML = '<p class="list-tip">Template loading is not yet implemented.</p>';
-                const backBtn = document.createElement('button');
-                backBtn.className = 'btn btn-secondary back-button';
-                backBtn.textContent = 'Back';
-                backBtn.onclick = () => populateLoadOptions();
-                optionsDiv.appendChild(backBtn);
+                _appendBackButton(optionsDiv);
             }
             return null;
         }
@@ -455,11 +463,7 @@ function playLoadBlank() {
 
     optionsDiv.appendChild(list);
 
-    const backBtn = document.createElement('button');
-    backBtn.className = 'btn btn-secondary back-button';
-    backBtn.textContent = 'Back';
-    backBtn.onclick = () => populateLoadOptions();
-    optionsDiv.appendChild(backBtn);
+    _appendBackButton(optionsDiv);
 }
 
 // "Load blank" step 2: warn if the *current* editor (not the target) has content
