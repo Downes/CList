@@ -128,7 +128,24 @@ See `identity-did.md` for the full document structure, key rotation, portability
 
 ### Collaborative editing
 
-The **Collab** editor connects to `collab.mooc.ca` via a Hocuspocus WebSocket. Multiple users editing the same document ID are synchronized in real time via Yjs CRDTs. Documents are namespaced `{username}/{slug}`; the namespace owner creates, anyone may join. Presence (who is currently editing) is shown via the Yjs awareness protocol.
+The **Collab** (rich text) and **LaTeX** (plain-text source) editors both connect to
+`collab.mooc.ca` via a Hocuspocus WebSocket, sharing the same server — Hocuspocus stores opaque
+Yjs binary blobs and doesn't care whether a document's CRDT shape is a `Y.XmlFragment` (Collab)
+or a `Y.Text` (LaTeX). Multiple users editing the same document ID are synchronized in real time
+via Yjs CRDTs. Documents are namespaced `{username}/{slug}` (LaTeX docs use a `latex/{slug}`
+sub-namespace, so they occupy a distinct row from a same-named Collab doc); the namespace owner
+creates, anyone may join. Presence (who is currently editing) is shown via the Yjs awareness
+protocol.
+
+Both editors also share a live reference list per document, via a `clist_refs` Yjs `Y.Map`
+(key = reference URL): any collaborator adding a reference merges it into every other
+collaborator's reference panel in real time, and reopening a document resyncs the reference list
+from the Map's current state rather than a locally-cached snapshot. See `editors_structure.md`'s
+"Collaborative editors: per-document reference resync" for the full mechanism.
+
+LaTeX documents can additionally be compiled to PDF via the `latex_compile` service (see below),
+and have a one-click "Insert bibliography" action that generates a `\thebibliography` block from
+the current reference list.
 
 Documents can be shared as read-only or editable links at `collab.mooc.ca/doc/{id}/read` or `/edit`.
 
@@ -177,6 +194,17 @@ No chat content passes through this server — it is only used to exchange peer 
 Real-time collaborative editing over WebSocket. Hocuspocus handles Yjs CRDT sync; SQLite persists document state between sessions. Documents without an owner can permit anonymous (read-only) access. Auth via kvstore JWT passed in the WebSocket token.
 
 The collab server's REST API, document ID conventions, and database schema are documented with the server code.
+
+### latex_compile — LaTeX → PDF compilation
+
+**Domain:** `texcompile.mooc.ca` | **Stack:** Python/Flask, wraps `tectonic` | **Container:** `latex_compile:8099`
+
+Stateless compile service backing the LaTeX editor's Compile button: `POST /compile` with raw
+LaTeX source returns a PDF, or a `422` with the compile log on a TeX error. No database,
+ownership model, or per-account quotas — any logged-in kvstore account may compile. Auth via
+kvstore JWT (Bearer token), the same Pattern B used by `discussions`/`collab`. Tectonic has no
+`\write18`/shell-escape support, so there's no arbitrary-shell-command surface from untrusted
+source. See the app's own `CLAUDE.md` for the full API and the Tectonic cache/version details.
 
 ### opml2json — feed aggregation
 

@@ -23,6 +23,10 @@ dist/
 # Node (if ever used for tooling)
 node_modules/
 
+# Python bytecode cache
+__pycache__/
+*.pyc
+
 # Bundled build tools (downloaded by build scripts, not committed)
 tools/
 

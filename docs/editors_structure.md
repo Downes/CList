@@ -1,6 +1,6 @@
 # CList Write-Pane Editor Architecture
 
-Editors are registered in a global `editorHandlers` object defined in `editors.js`. Each key is the editor's internal identifier (e.g. `'texteditor'`, `'tinymce'`, `'etherpad'`). New editors add themselves by registering their handler at load time.
+Editors are registered in a global `editorHandlers` object defined in `editors.js`. Each key is the editor's internal identifier (e.g. `'texteditor'`, `'tinymce'`, `'etherpad'`, `'collab'`, `'latex'`). New editors add themselves by registering their handler at load time.
 
 ---
 
@@ -22,7 +22,7 @@ Each editor lives in its own `.js` file and registers itself in an IIFE so it do
 })();
 ```
 
-The script tag for the new file goes in `index.html` alongside the other editor scripts (`tinymce.js`, `etherpad.js`).
+The script tag for the new file goes in `index.html` alongside the other editor scripts (`tinymce.js`, `etherpad.js`, `collab.js`, `latex.js`).
 
 ---
 
@@ -42,7 +42,7 @@ The script tag for the new file goes in `index.html` alongside the other editor 
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `setContent(value)` | `function` | **Optional, local editors only** (`requiresAccount: false`, content held in the browser — e.g. `texteditor`, `tinymce`). Fully replaces the editor body with `value`, unlike `loadContent()` which inserts at the cursor/selection. Not implemented by service/collaborative editors (Etherpad, collab, collection editor) — there is no sane "replace" semantics when other people's edits may be live in the document, so those editors are only ever offered Insert when routed through `loadSavedPage()` (below) or `_offerContentTransfer()` (manual switch — see below). |
+| `setContent(value)` | `function` | **Optional, local editors only** (`requiresAccount: false`, content held in the browser — e.g. `texteditor`, `tinymce`). Fully replaces the editor body with `value`, unlike `loadContent()` which inserts at the cursor/selection. Not implemented by service/collaborative editors (Etherpad, Collab, LaTeX, collection editor) — there is no sane "replace" semantics when other people's edits may be live in the document, so those editors are only ever offered Insert when routed through `loadSavedPage()` (below) or `_offerContentTransfer()` (manual switch — see below). |
 | `isActive()` | `function` | `requiresAccount` editors only: returns `true` if there's a live connection to resume even without a matching saved account (e.g. an active guest Etherpad session). Lets the switcher and "Load blank" list offer a way back in without a saved account. Also used by `editorHasActiveContent()` in preference to `getContent()` for these editors, since "active" means "has a live connection", not "has text". |
 | `visible()` | `function` | Returns `false` to hide this editor from the switcher/"Load blank" list entirely (e.g. not registered or logged in). |
 | `formats` | `{id, label}[]` | Populates the `#write-format` `<select>` in the write-pane toolbar (shown only when non-empty). Used by the collection editor (`collection-editor.js`) for its export-format picker. |
@@ -109,8 +109,11 @@ anything. This is tracked in `editors.js` by:
 - **`_parkCurrentEditorState()`** — snapshots `currentLoadedPage` and the current references
   list (`getReferences().slice()`) into `editorStates` under the *outgoing* editor's key.
 - **`_restoreEditorState(editorType, account)`** — looks up the *target* editor's entry and
-  calls `setLoadedPage(parked.page)` / `setReferences(parked.references)`, or resets both to a
-  blank slate (`null` / `[]`) if the target has never been visited.
+  calls `setLoadedPage(parked.page)`, or resets it to `null` if the target has never been
+  visited. For references, it defaults to `setReferences(parked.references)` (or `[]` if never
+  visited) — **unless** the target handler is a live collaborative editor, in which case it
+  calls the handler's `resyncReferences()` instead of trusting the parked snapshot. See
+  "Collaborative editors: per-document reference resync" below.
 
 Both are called from inside `switchToEditor()` itself (park the outgoing editor, then restore
 the target) — see below. Callers that want to set a specific page right after switching
@@ -132,10 +135,54 @@ setReferences(list)   // references.js — replaces window.CList.state.reference
 ```
 
 So "per-editor references" works by park/restore swapping the same single list in and out as
-you switch editors — not by maintaining N separate lists live at once. A **page** switch
-*within* the same editor (e.g. `loadSavedPage()` loading a different saved page into the
-currently-open editor) does **not** swap references — the list is only swapped on an *editor*
-switch, matching the per-*editor* (not per-*page*) granularity this was built to.
+you switch editors — not by maintaining N separate lists live at once. On top of that,
+`loadSavedPage()` and `offerReplaceOrInsert()` (2026-10-30) explicitly call
+`setReferences(page?.references || [])` — or, for Insert, merge via `pushReference()` — whenever
+they land content from a `page` record that itself carries a `references[]` array (e.g. a page
+saved to "CList (IndexDB)" via `page-store.js`, which now persists `references` alongside
+content). So a **page** switch *within* the same editor now does restore that page's own saved
+references, as long as it goes through `loadSavedPage()`; a bare `setContent()`/`loadContent()`
+call from somewhere else that bypasses `loadSavedPage()` still won't touch references on its own.
+
+### Collaborative editors: per-document reference resync
+
+Collab and LaTeX layer a second mechanism on top of the park/restore swap above, because they
+have a problem park/restore can't solve alone: their Hocuspocus connection (and the Yjs
+`clist_refs` `Y.Map` it syncs) **stays alive in the background** after the user switches to a
+different editor — it's only torn down when `connectToDoc()` opens a *different* document in
+the same editor. While a document stays open elsewhere, its Map keeps changing as other people
+edit it, so a snapshot parked at switch-away time can go stale the moment anyone else touches
+that document's reference list.
+
+Both `collabHandler` and `latexHandler` expose two extra methods for this:
+
+```js
+getDocId: () => currentDocId,          // the doc currently connected, or null/undefined
+resyncReferences: () => {
+    setReferences([]);
+    sharedRefs.forEach((jsonStr) => { /* pushReference(JSON.parse(jsonStr)) */ });
+},
+```
+
+`_restoreEditorState()` calls `resyncReferences()` instead of restoring the parked snapshot
+whenever `getDocId()` reports a live connection — rebuilding the global reference list directly
+from the Map's current, authoritative state rather than a point-in-time copy.
+
+Two more pieces keep this correct:
+
+- **Reset on connect** — `connectToDoc()` calls `setReferences([])` before building the new
+  `Y.Doc`, so connecting to a *different* document (same editor) starts clean instead of
+  carrying over the previous document's references; the sync that follows repopulates the list
+  from that document's own `clist_refs` Map.
+- **Observer gated to the visible editor** — `sharedRefs.observe()`'s callback only calls
+  `pushReference()` when `currentEditor` matches that handler (`'collab'` or `'latex'`). Without
+  this guard, a Collab doc and a LaTeX doc connected at the same time would both keep writing
+  into the single global reference list regardless of which one is actually on screen.
+
+This only applies to Yjs-backed collaborative editors. **Etherpad has no equivalent** — it's a
+cross-origin iframe embed of an external server with no CRDT/push channel and no live DOM
+observability, so each collaborator's references stay purely local with no way to reconcile.
+Documented as a deferred known limitation in `/srv/TODO.md`; see "Known gaps" below.
 
 ### Manual switch: content-transfer prompt
 
@@ -472,10 +519,9 @@ These are handled by `editors.js` and do not need to be implemented per editor:
 
 ## Known gaps
 
-- **References are per-editor, not per-page-within-editor**: loading a *different* saved page
-  into the editor that's already current (`loadSavedPage()`'s same-editor branches) does not
-  swap the references list — only switching *editors* does. A page's own `references[]`
-  (persisted in its `PageRecord`) is not re-loaded into the live panel when that page is
-  reopened in the same editor. This matches the in-memory, per-editor (not per-page) scope
-  agreed for this design, but is worth knowing if page-level reference restoration is wanted
-  later.
+- **Etherpad has no live reference sync**: Collab and LaTeX keep each document's reference list
+  authoritative via the shared Yjs `clist_refs` Map (see "Collaborative editors: per-document
+  reference resync" above); Etherpad has no CRDT/push channel to do the same, so collaborators
+  editing the same pad can end up with different reference lists with no way to reconcile.
+  Deferred — recommended future fix is embedding a delimited references block directly in the
+  pad's own text content, so it propagates through Etherpad's own sync. See `/srv/TODO.md`.

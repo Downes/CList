@@ -8,9 +8,9 @@ served by any web host or run directly as a desktop app. A live instance runs at
 
 Features include feed reading, in-place annotation, multi-platform publishing (Mastodon, Bluesky,
 WordPress, Blogger, and more), local and cloud-backed save/load (including Dropbox), AI-assisted
-writing, real-time collaborative editing, peer-to-peer chat, and a portable `did:web` identity tied
-to a user's own kvstore instance. See [docs/architecture.md](docs/architecture.md) for how these
-fit together.
+writing, real-time collaborative editing (rich text and native LaTeX, with PDF compilation and a
+shared bibliography), peer-to-peer chat, and a portable `did:web` identity tied to a user's own
+kvstore instance. See [docs/architecture.md](docs/architecture.md) for how these fit together.
 
 ## Download
 
@@ -31,14 +31,15 @@ CList is 100% client-side HTML/JS. All pages are static files served directly by
 (Caddy, nginx, etc.) or opened from disk. Optional back-end services provide the pieces a static
 page can't do on its own:
 
-| Service | Purpose |
-|---|---|
-| **kvstore** (self-hosted Flask API) | Encrypted credential storage and `did:web` identity |
-| **proxyp** (self-hosted Perl/PSGI) | Cross-domain proxy for APIs that don't support CORS |
-| **discussions** (self-hosted Flask API) | Peer discovery/signaling for P2P chat |
-| **collab** (self-hosted Node/Hocuspocus) | Real-time collaborative editing |
-| **opml2json** (self-hosted Flask API) | OPML parsing and feed aggregation |
-| Social platform APIs (Mastodon, Bluesky, WordPress, Blogger, Dropbox, etc.) | Read/write/save |
+| Service | Purpose | Repository |
+|---|---|---|
+| **kvstore** (self-hosted Flask API) | Encrypted credential storage and `did:web` identity | [github.com/Downes/kvstore](https://github.com/Downes/kvstore) |
+| **proxyp** (self-hosted Perl/PSGI) | Cross-domain proxy for APIs that don't support CORS | [github.com/Downes/proxyp](https://github.com/Downes/proxyp) |
+| **discussions** (self-hosted Flask API) | Peer discovery/signaling for P2P chat | [github.com/Downes/Discussions](https://github.com/Downes/Discussions) |
+| **collab** (self-hosted Node/Hocuspocus) | Real-time collaborative editing (rich text and LaTeX) | [github.com/Downes/collab](https://github.com/Downes/collab) |
+| **latex_compile** (self-hosted Flask API) | LaTeX source → PDF compilation (tectonic), for the native LaTeX editor | [github.com/Downes/latex_compile](https://github.com/Downes/latex_compile) |
+| **opml2json** (self-hosted Flask API) | OPML parsing and feed aggregation | [github.com/Downes/opml2json](https://github.com/Downes/opml2json) |
+| Social platform APIs (Mastodon, Bluesky, WordPress, Blogger, Dropbox, etc.) | Read/write/save | — |
 
 None of these are required to use the core reading, writing, and publishing features — each is
 swappable, and a user can point CList at their own instance of any of them, or at none at all.
