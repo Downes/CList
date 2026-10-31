@@ -65,7 +65,7 @@ window.CList.schemas['RSS'] = {
                    + `onclick="openInBrowser('${safeLink}', '${itemID}')">`
                    + `<span class="material-icons md-18 md-light">launch</span></button>`;
             }
-            const ri = item.readAt ? 'drafts' : 'mail';
+            const ri = item.readAt ? 'visibility_off' : 'visibility';
             const rt = item.readAt ? 'Mark unread' : 'Mark read';
             a += `<button class="clist-action-btn" `
                + `onclick="rssToggleRead('${item.entryId}',this)" title="${rt}"><span class="material-icons md-18 md-light">${ri}</span></button>`;
@@ -570,8 +570,9 @@ async function rssToggleRead(entryId, btn) {
         e.readAt = e.readAt ? null : Math.floor(Date.now() / 1000);
         await _rssPut('entries', e);
         if (btn) {
-            btn.textContent = e.readAt ? 'drafts' : 'mail';
-            btn.title       = e.readAt ? 'Mark unread' : 'Mark read';
+            const icon = btn.querySelector('.material-icons');
+            if (icon) icon.textContent = e.readAt ? 'visibility_off' : 'visibility';
+            btn.title = e.readAt ? 'Mark unread' : 'Mark read';
         }
         if (rssFilter === 'unread' && e.readAt) btn?.closest('.status-box')?.remove();
     } catch (err) {

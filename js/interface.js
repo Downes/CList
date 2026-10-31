@@ -234,11 +234,25 @@ function setupFeedButtons(instanceType) {
 
     for (const [feedType, feedAction] of Object.entries(feedFunctions)) {
         const button = document.createElement('button');
-        button.className = 'btn btn-small';
+        button.className = 'btn btn-small feed-filter-btn';
         button.textContent = feedType;
-        button.onclick = feedAction;
+        button.onclick = () => {
+            feedAction();
+            // "Refresh" reloads the current view rather than switching to a new
+            // one, so it never becomes the active indicator itself.
+            if (feedType === 'Refresh') return;
+            buttonsContainer.querySelectorAll('.feed-filter-btn.is-active')
+                .forEach(b => b.classList.remove('is-active'));
+            button.classList.add('is-active');
+        };
         buttonsContainer.appendChild(button);
     }
+
+    // Readers initialize directly into their default view (e.g. "Unread")
+    // without going through a button click, so highlight it up front.
+    const defaultBtn = Array.from(buttonsContainer.querySelectorAll('.feed-filter-btn'))
+        .find(b => b.textContent !== 'Refresh');
+    if (defaultBtn) defaultBtn.classList.add('is-active');
 
     const translateBtn = document.createElement('button');
     translateBtn.id = 'translation-toggle-btn';

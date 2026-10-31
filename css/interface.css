@@ -601,7 +601,7 @@ body a:hover, html a:hover { text-decoration: underline; }
 
 #left-pane-body { position: relative; flex: 1; overflow: hidden; }
 
-#audio-section, #chat-section {
+#audio-section, #chat-section, #localrss-options-overlay {
   position: absolute;
   top: 0;
   left: 0;
@@ -618,7 +618,9 @@ body a:hover, html a:hover { text-decoration: underline; }
   scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-bg);
 }
 
-#audio-section *, #chat-section * { direction: ltr; }
+#localrss-options-overlay { z-index: 6; }
+
+#audio-section *, #chat-section *, #localrss-options-overlay * { direction: ltr; }
 
 #audio-section::-webkit-scrollbar,
 #chat-section::-webkit-scrollbar,
@@ -643,14 +645,14 @@ body a:hover, html a:hover { text-decoration: underline; }
   background-color: var(--scrollbar-thumb-hover);
 }
 
-#audio-header, #chat-header {
+#audio-header, #chat-header, #localrss-options-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 8px;
 }
 
-#audio-header h2, #chat-header h2 { margin: 0; font-size: 1em; }
+#audio-header h2, #chat-header h2, #localrss-options-header h2 { margin: 0; font-size: 1em; }
 
 #left-content,
 #right-content {

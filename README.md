@@ -39,10 +39,18 @@ page can't do on its own:
 | **collab** (self-hosted Node/Hocuspocus) | Real-time collaborative editing (rich text and LaTeX) | [github.com/Downes/collab](https://github.com/Downes/collab) |
 | **latex_compile** (self-hosted Flask API) | LaTeX source → PDF compilation (tectonic), for the native LaTeX editor | [github.com/Downes/latex_compile](https://github.com/Downes/latex_compile) |
 | **opml2json** (self-hosted Flask API) | OPML parsing and feed aggregation | [github.com/Downes/opml2json](https://github.com/Downes/opml2json) |
+| **localrss_reader** (self-hosted Flask API) | Curated, anonymous public RSS collections today; a local-first personal feed-harvesting backend is planned — see [docs/deployment-configurations.md](docs/deployment-configurations.md) | [github.com/Downes/localrss_reader](https://github.com/Downes/localrss_reader) |
 | Social platform APIs (Mastodon, Bluesky, WordPress, Blogger, Dropbox, etc.) | Read/write/save | — |
 
 None of these are required to use the core reading, writing, and publishing features — each is
 swappable, and a user can point CList at their own instance of any of them, or at none at all.
+
+## Deployment Configurations
+
+CList's files (hosted web, local desktop app, or `file://`) and its data (local browser storage,
+or a remote/local service) are independent choices — combining them gives six configurations.
+See [docs/deployment-configurations.md](docs/deployment-configurations.md) for the full matrix,
+what works today, and what's still planned (notably, local-first RSS harvesting via LocalRSS).
 
 **Full documentation lives in [`docs/`](docs/)** — start with
 [`docs/architecture.md`](docs/architecture.md) for the complete feature-by-feature breakdown, the
@@ -52,6 +60,7 @@ Notable entries:
 | Doc | Covers |
 |---|---|
 | [architecture.md](docs/architecture.md) | Full application and back-end-services overview |
+| [deployment-configurations.md](docs/deployment-configurations.md) | The six files×data configurations, what works today, and what's planned |
 | [adding-a-service.md](docs/adding-a-service.md) | How to register a new reader/publisher/saver/loader |
 | [storage-model.md](docs/storage-model.md) | KVStore facade, PageStore, and the save/load capability-flag contract |
 | [accounts-structure.md](docs/accounts-structure.md) | Account credential storage format |

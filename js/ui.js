@@ -253,12 +253,19 @@ window.CList.ui.listing = function makeListing(
         const videoEmbedHtml = videoEmbedUrl
             ? `<div class="video-embed-wrapper"><iframe src="${_he(videoEmbedUrl)}" loading="lazy" allowfullscreen></iframe></div>`
             : '';
+        // Universal rule: whenever the expanded view's title is shown, clicking it opens
+        // the item's URL in a browser window -- same action as the "Open in browser"
+        // status-action button, same itemID passed through for reference attribution.
+        const titleLinkSafe = /^https?:\/\//i.test(itemUrl) ? itemUrl.replace(/'/g, '%27') : null;
+        const postTitleHtml = titleLinkSafe
+            ? `<h2 class='post-title post-title-link' title="Open in browser" onclick="openInBrowser('${titleLinkSafe}', '${itemID}');">${_he(itemTitle)}</h2>`
+            : `<h2 class='post-title'>${_he(itemTitle)}</h2>`;
         contentDiv.innerHTML = `
             <div class='status-actions'>
             <button class="clist-action-btn" title="Collapse" onclick="toggleEntryExpanded('${itemID}');"><span class="material-icons md-18 md-light">zoom_in_map</span></button>
             </div>
             <div class='post'>
-                <h2 class='post-title'>${_he(itemTitle)}</h2>
+                ${postTitleHtml}
                 <p><em>${_he(itemAuthor || 'Unknown Author')}, ${_he(itemFeed || 'Unknown Source')}, ${_he(itemDate || 'Date unknown')}</em></p>
                 ${videoEmbedHtml}
                 <div class='post-full-content'>${safeContentHtml}</div>

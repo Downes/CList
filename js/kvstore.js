@@ -459,6 +459,7 @@ function kvstoreAccountsPanel() {
             (async () => {
                 try {
                     accounts = await getAccounts(window.CList.config.flaskSiteUrl);
+                    window.CList.accounts = accounts;
                     populatePostOptions(accounts);
                     populateReadAccountList(accounts);
                     updateUIVisibility();
@@ -588,6 +589,7 @@ function kvstoreAccountsPanel() {
             CListBin:  'storage',
             Dropbox:   'cloud_download',
             Discord:   'forum',
+            LOCALRSS:  'rss_feed',
         };
         if (type === 'Mastodon') {
             const span = document.createElement('span');
@@ -628,7 +630,7 @@ function kvstoreAccountsPanel() {
         // Collab and Annotate both require an external server to verify your kvstore token
         // against a real, network-reachable kvstore instance — not possible in Local mode.
         const isLocal = window.CList?.isLocalMode && window.CList.isLocalMode();
-        const allTypes = ['Mastodon', 'Bluesky', 'WordPress', 'OPML', 'RSS', 'Blogger', 'Etherpad', 'Collab', 'AI', 'Proxyp', 'Annotate', 'Hypothesis', 'JSONBin', 'Gist', '0x0', 'CListBin', 'Dropbox', 'Discord'];
+        const allTypes = ['Mastodon', 'Bluesky', 'WordPress', 'OPML', 'RSS', 'Blogger', 'Etherpad', 'Collab', 'AI', 'Proxyp', 'Annotate', 'Hypothesis', 'JSONBin', 'Gist', '0x0', 'CListBin', 'Dropbox', 'Discord', 'LOCALRSS'];
         const availableTypes = isLocal ? allTypes.filter(t => t !== 'Collab' && t !== 'Annotate') : allTypes;
         availableTypes.forEach(type => {
             const btn = document.createElement('button');
@@ -1809,6 +1811,7 @@ function kvstoreAccountsPanel() {
             .then(async () => {
                 try {
                     accounts = await getAccounts(window.CList.config.flaskSiteUrl);
+                    window.CList.accounts = accounts;
                     populatePostOptions(accounts);
                     populateReadAccountList(accounts);
                     updateUIVisibility();

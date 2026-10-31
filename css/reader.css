@@ -484,6 +484,10 @@ html.dark-mode .status-box {
     cursor: pointer;
 }
 
+.post-title-link {
+    cursor: pointer;
+}
+
 .status-box.current-entry {
     border-color: rgb(81,177,88);
     box-shadow: 0 0 0 2px rgba(81,177,88,0.35);

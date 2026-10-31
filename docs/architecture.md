@@ -47,6 +47,9 @@ CList is designed so that **no single server is required and no single operator 
 
 **There are no required bottlenecks.** Feed reading, writing, and publishing to social platforms all work without any of the optional services. The services that do exist (kvstore for credentials, collab for shared editing, discussions for peer discovery) are swappable: a user can point their CList at a different instance of any service, or run their own. The goal is a system that remains free and accessible even if any individual server goes offline or changes its terms.
 
+This extends to *where CList itself runs*, independently of where its data lives — see
+[deployment-configurations.md](deployment-configurations.md) for the six resulting configurations.
+
 ---
 
 ## Two-pane layout
@@ -211,6 +214,19 @@ source. See the app's own `CLAUDE.md` for the full API and the Tectonic cache/ve
 **Domain:** `opml2json.downes.ca` | **Stack:** Python/Flask | **Container:** `opml2json-opml2json-1:8000`
 
 Converts OPML subscription lists to JSON and aggregates RSS feeds on request. Used by CList's feed reader to parse OPML files and retrieve feed content.
+
+### localrss_reader — curated feed collections, planned harvesting backend
+
+**Domain:** `localrss.downes.ca` | **Stack:** Python/Flask + SQLite | **Container:** `localrss_reader-localrss-1:8787`
+
+Today, serves only the public, anonymous **Collections** feature (`js/public-feeds.js`):
+curated, no-login RSS lists shown to logged-out visitors, via open-CORS `GET /api/collections*`
+routes. It is a separate, far more capable RSS reader in its own right (personal subscriptions,
+read/bookmark state, OPML import/export, a scheduler) that was designed to run locally, but isn't
+yet wired into CList's personal feed reading — that still always uses opml2json + browser
+IndexedDB regardless of configuration. See
+[deployment-configurations.md](deployment-configurations.md) and the app's own `CLAUDE.md` for the
+full plan and what's blocking it.
 
 ---
 

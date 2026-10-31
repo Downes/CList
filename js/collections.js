@@ -908,6 +908,12 @@ window.showSavedCollections = async function() {
         }
 
         for (const col of collections) {
+            // _fetchAllCollections() returns .title; _showCollectionDetail() and
+            // everything downstream of it (_loadCollectionIntoEditor, the Collab/
+            // share/nest buttons) read .name instead -- normalize here so those
+            // don't show a blank collection name.
+            col.name = col.title;
+
             const wrapper = document.createElement('div');
             wrapper.className = 'saved-collection-wrapper';
 
@@ -1482,6 +1488,90 @@ window.showSavedCollections = async function() {
             } catch (e) {
                 console.error('[mypages] load failed', e);
                 body.innerHTML = `<p class="list-tip">Could not load pages: ${escapeHtml(e.message)}</p>`;
+            }
+
+            return null;
+        },
+    });
+})();
+
+// ── My Collections loader ───────────────────────────────────────────────────
+// Lets the Load panel pick one of the user's saved (kvstore) collections directly,
+// instead of only being reachable by round-tripping through a published page (My
+// Pages' "Load into collection editor" button). Hands off to the same
+// _loadCollectionIntoEditor() the "Load all to editor" button in the collection
+// detail view (showSavedCollections -> _showCollectionDetail) already uses, so
+// it already opens straight into the Collection editor when that's the current
+// editor, and warns before replacing unsaved content otherwise.
+(function () {
+    window.CList.loaders = window.CList.loaders || [];
+    window.CList.loaders.push({
+        label: 'My Collections',
+        icon:  'collections',
+        requiresLogin:   true,
+        requiresAccount: false,
+        load: async () => {
+            const optionsDiv = window.CList.ui.view.loadOptions;
+            if (!optionsDiv) return null;
+
+            const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
+            if (!token) {
+                showErrorModal('Please log in to load a collection.', { title: 'Login required' });
+                return null;
+            }
+
+            optionsDiv.innerHTML = '<p class="list-tip">Loading collections…</p>';
+
+            try {
+                const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
+                if (!encKey) throw new Error('Encryption key not available');
+
+                const collections = await _fetchAllCollections(token, encKey);
+
+                optionsDiv.innerHTML = '';
+
+                if (!collections.length) {
+                    const msg = document.createElement('p');
+                    msg.className   = 'list-tip';
+                    msg.textContent = 'No collections yet — use the library_add button on any item to start one.';
+                    optionsDiv.appendChild(msg);
+                } else {
+                    const tip = document.createElement('p');
+                    tip.className   = 'list-tip';
+                    tip.textContent = 'Select a collection to load';
+                    optionsDiv.appendChild(tip);
+
+                    const list = document.createElement('div');
+                    list.className = 'account-list';
+
+                    for (const col of collections) {
+                        col.name = col.title; // see showSavedCollections() for why
+
+                        const btn = document.createElement('button');
+                        btn.className = 'account-button';
+
+                        const iconEl = document.createElement('span');
+                        iconEl.className   = 'material-icons';
+                        iconEl.textContent = 'collections';
+
+                        const nameEl = document.createElement('span');
+                        nameEl.textContent = `${col.title} (${col.items.length} item${col.items.length !== 1 ? 's' : ''})`;
+
+                        btn.appendChild(iconEl);
+                        btn.appendChild(nameEl);
+                        btn.addEventListener('click', () => _loadCollectionIntoEditor(col, token, encKey));
+
+                        list.appendChild(btn);
+                    }
+
+                    optionsDiv.appendChild(list);
+                }
+
+                _appendBackButton(optionsDiv);
+            } catch (e) {
+                console.error('[collections loader] load failed', e);
+                optionsDiv.innerHTML = `<p class="feed-status-message">Could not load collections: ${escapeHtml(e.message)}</p>`;
+                _appendBackButton(optionsDiv);
             }
 
             return null;
