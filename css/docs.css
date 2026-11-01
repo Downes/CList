@@ -63,13 +63,3 @@ code {
 .container.resizable-text li:last-child {
     border-bottom: none;
 }
-.text-size-controls {
-    text-align: center;
-    margin: 20px;
-}
-.text-size-controls button {
-    padding: 10px 20px;
-    font-size: 14px;
-    margin: 5px;
-    cursor: pointer;
-}
