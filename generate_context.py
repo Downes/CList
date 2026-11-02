@@ -3,8 +3,8 @@
 generate-context.py
 
 Generates an XML-structured context document from the CList repository,
-targeted for an ~250k token budget. Includes system directives, git history,
-and robust XML escaping.
+targeted for an ~250k token budget. Includes system directives, full git
+history (with bodies), and robust XML escaping.
 
 Pipes clean XML directly to stdout by default:
     ./generate-context.py > clist-context.xml
@@ -167,7 +167,9 @@ def build_git_history_xml() -> str:
     """Fetches the recent git history to give the LLM temporal context."""
     lines = []
     try:
-        fmt = "--pretty=format:---COMMIT---%n%cd | [%h] %s"
+        # Use %an for author, %B for full commit body, and a clear ---FILES--- delimiter
+        # to separate the commit message from the --name-status file listing.
+        fmt = "--pretty=format:---COMMIT---%n%cd | [%h] %an%n%B%n---FILES---"
         result = subprocess.run(
             ["git", "log", "-n", "10", "--name-status", fmt, "--date=format:%Y-%m-%d %H:%M"],
             capture_output=True, text=True, check=True
@@ -179,13 +181,23 @@ def build_git_history_xml() -> str:
             for commit in commits:
                 commit = commit.strip()
                 if not commit: continue
-                parts = commit.split('\n')
-                lines.append(f"{parts[0]}")
-                for body_line in parts[1:]:
-                    body_line = body_line.strip()
-                    if not body_line: continue
-                    if re.match(r'^[A-Z]\s+(.+)', body_line):
-                        lines.append(f"  - {body_line}")
+
+                # Split the commit message part from the --name-status file list part
+                if "---FILES---" in commit:
+                    msg_part, files_part = commit.split("---FILES---", 1)
+                else:
+                    msg_part, files_part = commit, ""
+
+                lines.append(msg_part.strip())
+
+                for f_line in files_part.splitlines():
+                    f_line = f_line.strip()
+                    if not f_line: continue
+                    # Match name-status lines e.g. "M\tcss/interface.css" or "M    css/interface.css"
+                    if re.match(r'^[A-Z0-9]+\s+(.+)', f_line):
+                        # Normalize the spacing so it always looks clean
+                        f_line = re.sub(r'^([A-Z0-9]+)\s+', r'\1\t', f_line)
+                        lines.append(f"  - {f_line}")
                 lines.append("")
     except Exception as e:
         lines.append(f"(Could not read git history: {e})")
@@ -261,7 +273,7 @@ def main():
             if changed_files is not None and rel_path not in changed_files and not rel_path.endswith(".md"):
                 continue
 
-# Filter by --core-only
+            # Filter by --core-only
             if args.core_only:
                 if not (rel_path in CORE_FILES or rel_path.startswith("js/") or rel_path.startswith("css/")):
                     continue
