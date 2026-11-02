@@ -279,7 +279,7 @@ const list = makeAccountList(
 openLeftInterface(list);
 ```
 
-`makeAccountList` renders the icon via `accountIcon(parsedValue.type)`, which returns either a `.material-icons` span or an `.account-icon-img` masked SVG depending on the service type.
+`makeAccountList` renders the icon via `accountIcon(parsedValue.type, parsedValue)`, which returns either a `.material-icons` span or an `.account-icon-img` masked SVG depending on the service type (and, for some types, on the account's own data — e.g. LOCALRSS's podcast icon once `hasAudio` is set).
 
 ### Right pane — `makeEditorButton()` (editors.js)
 

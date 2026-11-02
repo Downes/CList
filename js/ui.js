@@ -119,7 +119,7 @@ window.CList.ui.accountList = function(tip, accounts, filterFn, onClickFn) {
         const name = document.createElement('span');
         name.textContent = parsedValue.title;
 
-        btn.appendChild(accountIcon(parsedValue.type));
+        btn.appendChild(accountIcon(parsedValue.type, parsedValue));
         btn.appendChild(name);
         container.appendChild(btn);
     });
@@ -361,6 +361,7 @@ window.CList.ui.listing = function makeListing(
     clistActions.classList.add('clist-actions');
     clistActions.innerHTML = `
       <button class="clist-action-btn" id="anno-btn-${itemID}" onclick="clistAnnotate('${itemID}');" title="Write about this"><span class="material-icons md-18 md-light">arrow_forward</span></button>
+      <button class="clist-action-btn" id="anno-edit-btn-${itemID}" onclick="clistAnnotateEdit('${itemID}');" title="Annotate"><span class="material-icons md-18 md-light">edit</span></button>
     `;
 
     // Assemble

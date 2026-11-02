@@ -495,8 +495,6 @@ function kvstoreAccountsPanel() {
             return;
         }
 
-        if (valueData.type === 'RSS') { showRSSEditForm(targetKey, valueData); return; }
-
         const schema = window.CList?.schemas?.[valueData.type];
         if (!schema) { showErrorModal('No schema for account type: ' + (valueData.type || 'unknown'), { title: 'Unknown account type' }); return; }
 
@@ -582,7 +580,6 @@ function kvstoreAccountsPanel() {
     function typePickerIcon(type) {
         const icons = {
             Bluesky:   'cloud',
-            RSS:       'rss_feed',
             WordPress: 'article',
             Blogger:   'article',
             Etherpad:  'edit',
@@ -602,12 +599,6 @@ function kvstoreAccountsPanel() {
             const span = document.createElement('span');
             span.className = 'account-icon-img';
             span.setAttribute('aria-label', 'Mastodon');
-            return span;
-        }
-        if (type === 'OPML') {
-            const span = document.createElement('span');
-            span.className = 'account-icon-img account-icon-img--opml';
-            span.setAttribute('aria-label', 'OPML');
             return span;
         }
         if (type === 'Hypothesis') {
@@ -637,7 +628,7 @@ function kvstoreAccountsPanel() {
         // Collab and Annotate both require an external server to verify your kvstore token
         // against a real, network-reachable kvstore instance — not possible in Local mode.
         const isLocal = window.CList?.isLocalMode && window.CList.isLocalMode();
-        const allTypes = ['Mastodon', 'Bluesky', 'WordPress', 'OPML', 'RSS', 'Blogger', 'Etherpad', 'Collab', 'AI', 'Proxyp', 'Annotate', 'Hypothesis', 'JSONBin', 'Gist', '0x0', 'CListBin', 'Dropbox', 'Discord', 'LOCALRSS'];
+        const allTypes = ['Mastodon', 'Bluesky', 'WordPress', 'Blogger', 'Etherpad', 'Collab', 'AI', 'Proxyp', 'Annotate', 'Hypothesis', 'JSONBin', 'Gist', '0x0', 'CListBin', 'Dropbox', 'Discord', 'LOCALRSS'];
         const availableTypes = isLocal ? allTypes.filter(t => t !== 'Collab' && t !== 'Annotate') : allTypes;
         availableTypes.forEach(type => {
             const btn = document.createElement('button');
@@ -741,23 +732,6 @@ function kvstoreAccountsPanel() {
                 flow.querySelector('#dropbox-folder').value
             );
             flow.querySelector('#dropbox-back-btn').onclick = () => showTypePicker();
-            return;
-        }
-
-        if (type === 'RSS') {
-            const flow = div.querySelector('#add-flow');
-            const inputStyle = 'display:block;width:100%;box-sizing:border-box;padding:0.2rem;font-size:0.8rem;margin:2px 0 8px;';
-            const labelStyle = 'font-variant:small-caps;font-size:0.8rem;color:#555;display:block;margin-top:6px;';
-            flow.innerHTML = `
-                <h3 style="margin:0 0 8px;">Add RSS Collection</h3>
-                <label style="${labelStyle}">Collection Name</label>
-                <input type="text" id="rss-collection-name" placeholder="My News" style="${inputStyle}">
-                <div class="kv-action-buttons">
-                    <button class="kv-action-btn kv-save-btn" id="rss-create-btn">Create Collection</button>
-                    <button class="kv-action-btn kv-cancel-btn" id="rss-back-btn">Back</button>
-                </div>`;
-            flow.querySelector('#rss-create-btn').onclick = () => submitRSSCollection();
-            flow.querySelector('#rss-back-btn').onclick = () => showTypePicker();
             return;
         }
 
@@ -1288,343 +1262,6 @@ function kvstoreAccountsPanel() {
         div.querySelector('#add-account-header').style.display = '';
     }
 
-    // --- RSS Collection Editor ---
-    // State for the two-level feed editor (list → feed editor)
-    let _rssEditKey = null;
-    let _rssEditTitle = null;
-    let _rssEditFeeds = [];
-
-    // Entry point called from setFormValues when type === 'RSS'
-    function showRSSEditForm(key, data) {
-        _rssEditKey   = key;
-        _rssEditTitle = data.title || key;
-        _rssEditFeeds = (data.feeds || []).map(f => ({ ...f }));
-        _rssRenderList();
-        currentMode = 'update';
-        formDirty = false;
-    }
-
-    // Show the sorted feed list with Add Feed / Load OPML buttons
-    function _rssRenderList() {
-        const container = div.querySelector('#form-fields');
-        container.innerHTML = '';
-
-        const heading = document.createElement('div');
-        heading.className = 'field-display';
-        heading.contentEditable = 'true';
-        heading.style.cssText = 'margin-bottom:8px;border-bottom:1px solid #ccc;padding:2px 4px;font-weight:bold;outline:none;';
-        heading.textContent = _rssEditTitle;
-        heading.addEventListener('input', () => { _rssEditTitle = heading.textContent.trim(); });
-        container.appendChild(heading);
-
-        const sorted = _rssEditFeeds
-            .map((f, i) => ({ ...f, _i: i }))
-            .sort((a, b) => (a.title || a.url || '').localeCompare(b.title || b.url || ''));
-
-        if (!sorted.length) {
-            const empty = document.createElement('p');
-            empty.style.cssText = 'font-size:0.8rem;color:#888;margin:0 0 8px;';
-            empty.textContent = 'No feeds yet.';
-            container.appendChild(empty);
-        } else {
-            const list = document.createElement('div');
-            list.style.marginBottom = '6px';
-            sorted.forEach(f => {
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                btn.className = 'account-button';
-                btn.style.cssText = 'display:block;width:100%;text-align:left;margin-bottom:2px;font-size:0.82rem;padding:4px 8px;';
-                btn.textContent = f.title || f.url;
-                btn.onclick = () => _rssShowFeedEditor(f._i);
-                list.appendChild(btn);
-            });
-            container.appendChild(list);
-        }
-
-        const addBtn = document.createElement('button');
-        addBtn.type = 'button'; addBtn.className = 'kv-action-btn';
-        addBtn.textContent = '+ Add Feed';
-        addBtn.onclick = () => _rssShowFeedEditor(-1);
-        container.appendChild(addBtn);
-
-        const opmlBtn = document.createElement('button');
-        opmlBtn.type = 'button'; opmlBtn.className = 'kv-action-btn';
-        opmlBtn.style.marginLeft = '6px'; opmlBtn.textContent = 'Load OPML';
-        opmlBtn.onclick = _rssShowOpmlLoader;
-        container.appendChild(opmlBtn);
-
-        // Configure shared form buttons for the list view
-        const saveBtn = div.querySelector('#submitBtn');
-        saveBtn.style.display = 'inline';
-        saveBtn.textContent = 'Save';
-        saveBtn.onclick = async () => {
-            try {
-                const ok = await _rssSaveCollection();
-                if (ok) { showStatusMessage('Collection saved.'); getSite(window.CList.config.flaskSiteUrl); }
-            } catch (e) { console.error(e); showErrorModal('Save failed: ' + e.message, { title: 'Collection save failed' }); }
-        };
-        div.querySelector('#deleteBtn').style.display = 'inline';
-        div.querySelector('#deleteBtn').textContent = 'Delete Collection';
-        div.querySelector('#deleteBtn').onclick = () => _rssDeleteCollection().catch(e => { console.error(e); showErrorModal('Delete failed: ' + e.message, { title: 'Collection delete failed' }); });
-        div.querySelector('#cancelBtn').textContent = 'Done';
-        div.querySelector('#cancelBtn').onclick = tryCloseForm;
-    }
-
-    // Show the feed editor for an existing feed (feedIndex >= 0) or a new one (-1)
-    function _rssShowFeedEditor(feedIndex) {
-        const container = div.querySelector('#form-fields');
-        const feed = feedIndex >= 0 ? _rssEditFeeds[feedIndex] : {};
-        const isNew = feedIndex < 0;
-        const inputStyle = 'display:block;width:100%;box-sizing:border-box;padding:0.2rem;font-size:0.8rem;margin:2px 0 8px;';
-        const labelStyle = 'font-variant:small-caps;font-size:0.8rem;color:#555;display:block;margin-top:6px;';
-
-        container.innerHTML = `
-            <label style="${labelStyle}">Feed URL *</label>
-            <input type="url" id="_feed-url" placeholder="https://example.com/feed" style="${inputStyle}">
-            <label style="${labelStyle}">Title</label>
-            <input type="text" id="_feed-title" placeholder="Feed title" style="${inputStyle}">
-            <label style="${labelStyle}">Author</label>
-            <input type="text" id="_feed-author" placeholder="Author name" style="${inputStyle}">
-            <label style="${labelStyle}">Icon URL</label>
-            <input type="url" id="_feed-icon" placeholder="https://example.com/icon.png" style="${inputStyle}">`;
-
-        // Set values safely via DOM properties (not innerHTML) to avoid injection
-        container.querySelector('#_feed-url').value   = feed.url    || '';
-        container.querySelector('#_feed-title').value = feed.title  || '';
-        container.querySelector('#_feed-author').value = feed.author || '';
-        container.querySelector('#_feed-icon').value  = feed.icon   || '';
-
-        div.querySelector('#submitBtn').style.display = '';
-        div.querySelector('#submitBtn').textContent = isNew ? 'Add Feed' : 'Save Feed';
-        div.querySelector('#submitBtn').onclick = () => _rssSaveFeedFromEditor(feedIndex).catch(e => { console.error(e); showErrorModal('Save failed: ' + e.message, { title: 'Feed save failed' }); });
-        div.querySelector('#deleteBtn').style.display = isNew ? 'none' : 'inline';
-        div.querySelector('#deleteBtn').textContent = 'Remove Feed';
-        div.querySelector('#deleteBtn').onclick = () => _rssDeleteFeed(feedIndex).catch(e => { console.error(e); showErrorModal('Delete failed: ' + e.message, { title: 'Feed delete failed' }); });
-        div.querySelector('#cancelBtn').textContent = 'Back';
-        div.querySelector('#cancelBtn').onclick = _rssRenderList;
-    }
-
-    async function _rssSaveFeedFromEditor(feedIndex) {
-        const url = (div.querySelector('#_feed-url')?.value || '').trim();
-        if (!url) { showErrorModal('Feed URL is required.', { title: 'Feed save failed' }); return; }
-        const feedData = {
-            url,
-            title:  (div.querySelector('#_feed-title')?.value  || '').trim() || url,
-            author: (div.querySelector('#_feed-author')?.value || '').trim(),
-            icon:   (div.querySelector('#_feed-icon')?.value   || '').trim(),
-        };
-        if (feedIndex < 0) {
-            _rssEditFeeds.push(feedData);
-        } else {
-            _rssEditFeeds[feedIndex] = feedData;
-        }
-        const ok = await _rssSaveCollection();
-        if (ok) {
-            showStatusMessage(feedIndex < 0 ? 'Feed added.' : 'Feed saved.');
-            _rssRenderList();
-        }
-    }
-
-    async function _rssDeleteFeed(feedIndex) {
-        const btn = div.querySelector('#deleteBtn');
-        if (btn && btn.dataset.confirm !== 'pending') {
-            btn.dataset.confirm = 'pending';
-            btn.textContent = 'Click again to confirm';
-            btn.style.background = '#c0392b';
-            setTimeout(() => {
-                if (btn.dataset.confirm === 'pending') {
-                    btn.dataset.confirm = '';
-                    btn.textContent = 'Remove Feed';
-                    btn.style.background = '';
-                }
-            }, 3000);
-            return;
-        }
-        if (btn) { btn.dataset.confirm = ''; btn.textContent = 'Remove Feed'; btn.style.background = ''; }
-        _rssEditFeeds.splice(feedIndex, 1);
-        const ok = await _rssSaveCollection();
-        if (ok) {
-            showStatusMessage('Feed removed.');
-            _rssRenderList();
-        }
-    }
-
-    async function _rssDeleteCollection() {
-        const btn = div.querySelector('#deleteBtn');
-        if (btn && btn.dataset.confirm !== 'pending') {
-            btn.dataset.confirm = 'pending';
-            btn.textContent = 'Click again to confirm';
-            btn.style.background = '#c0392b';
-            setTimeout(() => {
-                if (btn.dataset.confirm === 'pending') {
-                    btn.dataset.confirm = '';
-                    btn.textContent = 'Delete Collection';
-                    btn.style.background = '';
-                }
-            }, 3000);
-            return;
-        }
-        if (btn) { btn.dataset.confirm = ''; btn.textContent = 'Delete Collection'; btn.style.background = ''; }
-        try {
-            await window.CList.storage.kv.remove(_rssEditKey);
-            accounts = await getAccounts(window.CList.config.flaskSiteUrl);
-            populatePostOptions(accounts);
-            populateReadAccountList(accounts);
-            updateUIVisibility();
-            showStatusMessage(`"${_rssEditKey}" deleted.`);
-            closeForm();
-            getSite(window.CList.config.flaskSiteUrl);
-        } catch (err) {
-            console.error('RSS collection delete failed:', err);
-            showErrorModal('Could not delete: ' + err.message, { title: 'Collection delete failed' });
-        }
-    }
-
-    // Show OPML import panel (URL or file)
-    function _rssShowOpmlLoader() {
-        const container = div.querySelector('#form-fields');
-        const inputStyle = 'display:block;width:100%;box-sizing:border-box;padding:0.2rem;font-size:0.8rem;margin:2px 0 8px;';
-        const labelStyle = 'font-variant:small-caps;font-size:0.8rem;color:#555;display:block;margin-top:6px;';
-        container.innerHTML = `
-            <p style="font-size:0.85rem;margin:0 0 10px;">Add feeds from an OPML source. New feeds will be added; existing feeds will not be changed.</p>
-            <label style="${labelStyle}">Load from URL</label>
-            <div style="display:flex;gap:4px;align-items:flex-start;margin-bottom:12px;">
-                <input type="url" id="_opml-url" placeholder="https://example.com/feeds.opml" style="${inputStyle}margin-bottom:0;flex:1;">
-                <button type="button" class="kv-action-btn" id="_opml-url-btn">Load URL</button>
-            </div>
-            <label style="${labelStyle}">Load from File</label>
-            <input type="file" id="_opml-file" accept=".opml,.xml" style="font-size:0.8rem;margin-bottom:8px;">
-            <div id="_opml-status" style="font-size:0.8rem;color:#888;margin-top:4px;"></div>`;
-        container.querySelector('#_opml-url-btn').onclick = () => _rssLoadOpmlFromUrl().catch(e => { console.error(e); const s = container.querySelector('#_opml-status'); if (s) s.textContent = 'Error: ' + e.message; });
-        container.querySelector('#_opml-file').onchange   = _rssLoadOpmlFromFile;
-        div.querySelector('#submitBtn').style.display = 'none';
-        div.querySelector('#deleteBtn').style.display = 'none';
-        div.querySelector('#cancelBtn').textContent = 'Back';
-        div.querySelector('#cancelBtn').onclick = _rssRenderList;
-    }
-
-    async function _rssLoadOpmlFromUrl() {
-        const url = (div.querySelector('#_opml-url')?.value || '').trim();
-        if (!url) { showErrorModal('Please enter an OPML URL.', { title: 'OPML import failed' }); return; }
-        const status = div.querySelector('#_opml-status');
-        status.textContent = 'Fetching…';
-        try {
-            const serviceUrl = (typeof getOpml2jsonUrl === 'function')
-                ? await getOpml2jsonUrl()
-                : 'https://opml2json.downes.ca';
-            const fd = new FormData();
-            fd.append('url', url);
-            const resp = await fetch(`${serviceUrl}/list_feeds`, { method: 'POST', body: fd });
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            const data = await resp.json();
-            if (!data.ok) throw new Error(data.error || 'list_feeds failed');
-            await _rssImportFeeds(data.feeds, status);
-        } catch (err) {
-            console.error('OPML URL load failed:', err);
-            status.textContent = 'Error: ' + err.message;
-        }
-    }
-
-    function _rssLoadOpmlFromFile() {
-        const file = div.querySelector('#_opml-file')?.files[0];
-        if (!file) return;
-        const status = div.querySelector('#_opml-status');
-        status.textContent = 'Reading…';
-        const reader = new FileReader();
-        reader.onload = async ev => {
-            try {
-                const doc = new DOMParser().parseFromString(ev.target.result, 'text/xml');
-                const feeds = Array.from(doc.getElementsByTagName('outline'))
-                    .map(o => ({
-                        url:   o.getAttribute('xmlUrl') || o.getAttribute('xmlurl'),
-                        title: o.getAttribute('title') || o.getAttribute('text') || '',
-                    }))
-                    .filter(f => f.url)
-                    .map(f => ({ ...f, title: f.title || f.url }));
-                await _rssImportFeeds(feeds, status);
-            } catch (err) {
-                console.error('OPML file parse failed:', err);
-                status.textContent = 'Error: ' + err.message;
-            }
-        };
-        reader.onerror = () => {
-            console.error('FileReader error:', reader.error);
-            status.textContent = 'Error reading file: ' + (reader.error?.message || 'unknown error');
-        };
-        reader.readAsText(file);
-    }
-
-    async function _rssImportFeeds(feeds, statusEl) {
-        if (!feeds || !feeds.length) { statusEl.textContent = 'No feeds found in OPML.'; return; }
-        const existingUrls = new Set(_rssEditFeeds.map(f => f.url));
-        let added = 0;
-        for (const f of feeds) {
-            if (!existingUrls.has(f.url)) {
-                _rssEditFeeds.push({ url: f.url, title: f.title || f.url, author: '', icon: '' });
-                existingUrls.add(f.url);
-                added++;
-            }
-        }
-        if (!added) { statusEl.textContent = 'All feeds already in collection.'; return; }
-        const ok = await _rssSaveCollection();
-        if (ok) {
-            showStatusMessage(`${added} feed${added > 1 ? 's' : ''} added.`);
-            _rssRenderList();
-        } else {
-            statusEl.textContent = 'Save failed.';
-        }
-    }
-
-    // Save _rssEditFeeds to kvstore. Returns true on success.
-    async function _rssSaveCollection() {
-        try {
-            const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
-            if (!encKey) throw new Error('Encryption key not found — please log in again.');
-            const collectionData = { type: 'RSS', instance: _rssEditKey, title: _rssEditTitle || _rssEditKey, feeds: _rssEditFeeds, permissions: 'r' };
-            const encryptedValue = await encryptWithKey(encKey, JSON.stringify(collectionData));
-            await window.CList.storage.kv.update(_rssEditKey, encryptedValue);
-            try {
-                const accts = await getAccounts(window.CList.config.flaskSiteUrl);
-                if (accts) {
-                    window.CList.accounts = accts;
-                    populatePostOptions(accts);
-                    populateReadAccountList(accts);
-                    updateUIVisibility();
-                }
-            } catch (e) {
-                console.warn('Account refresh failed:', e);
-            }
-            return true;
-        } catch (err) {
-            console.error('RSS collection save failed:', err);
-            showErrorModal('Could not save: ' + err.message, { title: 'Collection save failed' });
-            return false;
-        }
-    }
-
-    // Create a new (empty) RSS collection
-    async function submitRSSCollection() {
-        const name = div.querySelector('#rss-collection-name').value.trim();
-        if (!name) { showErrorModal('Please enter a collection name.', { title: 'Collection creation failed' }); return; }
-        try {
-            const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
-            if (!encKey) throw new Error('Encryption key not found — please log in again.');
-            const collectionData = { type: 'RSS', instance: name, title: name, feeds: [], permissions: 'r' };
-            const encryptedValue = await encryptWithKey(encKey, JSON.stringify(collectionData));
-            await window.CList.storage.kv.put(name, encryptedValue);
-            accounts = await getAccounts(window.CList.config.flaskSiteUrl);
-            populatePostOptions(accounts);
-            populateReadAccountList(accounts);
-            updateUIVisibility();
-            showStatusMessage(`Collection "${name}" created. Open it to add feeds.`);
-            cancelAdd();
-            getSite(window.CList.config.flaskSiteUrl);
-        } catch (err) {
-            console.error('RSS collection create failed:', err);
-            showErrorModal('Could not create collection: ' + err.message, { title: 'Collection creation failed' });
-        }
-    }
-
     async function submitBloggerManual() {
         const blogId      = div.querySelector('#blogger-blog-id').value.trim();
         const clientId    = div.querySelector('#blogger-client-id').value.trim();
@@ -1723,17 +1360,11 @@ function kvstoreAccountsPanel() {
     }
 
     // Local override of the global accountIcon() (reader.js) — adds Hypothesis/Annotate cases.
-    function accountIcon(type) {
+    function accountIcon(type, accountData) {
         if (type === 'Mastodon') {
             const span = document.createElement('span');
             span.className = 'account-icon-img';
             span.setAttribute('aria-label', 'Mastodon');
-            return span;
-        }
-        if (type === 'OPML') {
-            const span = document.createElement('span');
-            span.className = 'account-icon-img account-icon-img--opml';
-            span.setAttribute('aria-label', 'OPML');
             return span;
         }
         if (type === 'Hypothesis') {
@@ -1742,9 +1373,14 @@ function kvstoreAccountsPanel() {
             span.setAttribute('aria-label', 'Hypothes.is');
             return span;
         }
+        if (type === 'LOCALRSS') {
+            const span = document.createElement('span');
+            span.className = 'material-icons';
+            span.textContent = (accountData && accountData.hasAudio) ? 'podcasts' : 'rss_feed';
+            return span;
+        }
         const materialIcons = {
             'Bluesky':   'cloud',
-            'RSS':       'rss_feed',
             'WordPress': 'article',
             'Blogger':   'article',
             'Annotate':  'rate_review',
@@ -1783,7 +1419,7 @@ function kvstoreAccountsPanel() {
                 item.className = 'account-list-item';
                 const button = document.createElement('button');
                 button.className = 'account-button' + (unreadable ? ' account-button--unreadable' : '');
-                button.appendChild(accountIcon(unreadable ? '' : parsedValue.type));
+                button.appendChild(accountIcon(unreadable ? '' : parsedValue.type, unreadable ? null : parsedValue));
                 const name = document.createElement('span');
                 name.textContent = unreadable ? account.key : (parsedValue.title || account.key);
                 button.appendChild(name);
@@ -2032,6 +1668,12 @@ function kvstoreFollowingPanel() {
             listEl.appendChild(row);
         }
     }
+
+    // Exposed so other follow/unfollow entry points (e.g. the inline batch
+    // button in annotate.js) can refresh this panel's list if it's currently open.
+    window._clistRefreshFollowingPanel = () => {
+        if (document.body.contains(div)) loadFollowing();
+    };
 
     loadFollowing();
     return div;
@@ -2850,19 +2492,12 @@ const ADMIN_SETTINGS_APPS = [
         description: 'Server-side RSS/podcast reader with a scheduler that fetches feeds in the background.',
         // Unlike pastebin/survey, this app's auth gate also requires an
         // X-Kvstore-Url header naming the issuing kvstore instance (same
-        // pattern rss.js already uses for /fetch_feed) — see rss.js:309.
+        // pattern localrss.js uses for its /fetch_feed calls).
         requiresKvstoreUrlHeader: true,
     },
     {
         label: 'Annotations', baseUrl: 'https://annotations.mooc.ca',
         description: 'W3C-style annotation server for CList — lets users attach public/private notes to any URL.',
-    },
-    {
-        label: 'OPML2JSON', baseUrl: 'https://opml2json.downes.ca',
-        description: 'Converts OPML to JSON and aggregates RSS/Atom feeds for CList feed reading.',
-        // Same as localrss_reader — its admin-settings auth gate also checks
-        // X-Kvstore-Url (same pattern used by /fetch_feed).
-        requiresKvstoreUrlHeader: true,
     },
     {
         label: 'Collab', baseUrl: 'https://collab.mooc.ca',
@@ -3273,14 +2908,13 @@ window.addEventListener('popstate', (e) => {
                 updateIdentityDiv();
                 acceptLogin();
                 window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl);
-                // Collab, Annotations, RSS Relay, and CListBin are all external services that verify
+                // Collab, Annotations, and CListBin are all external services that verify
                 // the kvstore-issued token against a real, network-reachable kvstore — a Local account's
                 // token has no such issuer, so seeding/registering these accounts would just produce
                 // accounts that always fail. Skip them entirely in Local mode.
                 if (!window.CList.isLocalMode || !window.CList.isLocalMode()) {
                     if (mode === 'register') autoRegisterCollab().catch(e => console.warn('Collab auto-registration failed:', e));
                     if (mode === 'register') autoRegisterAnnotations().catch(e => console.warn('Annotations auto-registration failed:', e));
-                    autoSeedRSSRelay().catch(e => console.warn('RSS Relay account seed failed:', e));
                     autoSeedCListBin().catch(e => console.warn('CListBin account seed failed:', e));
                 }
                 if (window.CList.accounts) {
@@ -3597,26 +3231,6 @@ window.addEventListener('popstate', (e) => {
             window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl);
             updateUIVisibility();
             if (typeof populatePostOptions === 'function') populatePostOptions(window.CList.accounts);
-        }
-
-        // Silently save a default RSS Relay (OPML2JSON) service account if one doesn't exist.
-        async function autoSeedRSSRelay() {
-            const OPML2JSON_DEFAULT = 'https://opml2json.downes.ca';
-            const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
-            if (!token) return;
-
-            const existing = (window.CList.accounts || []).find(a => {
-                const v = parseAccountValue(a);
-                return v && v.type === 'OPML2JSON';
-            });
-            if (existing) return;
-
-            const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
-            if (!encKey) throw new Error('Encryption key not available');
-            const instanceData = { type: 'OPML2JSON', instance: OPML2JSON_DEFAULT, title: 'RSS Relay', permissions: 's' };
-            const encryptedValue = await encryptWithKey(encKey, JSON.stringify(instanceData));
-
-            await window.CList.storage.kv.add(OPML2JSON_DEFAULT, encryptedValue);
         }
 
         async function autoSeedCListBin() {

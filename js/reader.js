@@ -84,22 +84,24 @@ function _heJs(s) {
 
 
 // Returns a DOM element for the icon appropriate for the given account type.
-function accountIcon(type) {
+// accountData (the parsed account, if available) lets a type's icon vary by
+// the account's own data -- e.g. LOCALRSS shows a podcast icon once hasAudio
+// is set (see _localrssMaybePersistHasAudio() in localrss.js), never by name.
+function accountIcon(type, accountData) {
     if (type === 'Mastodon') {
         const span = document.createElement('span');
         span.className = 'account-icon-img';
         span.setAttribute('aria-label', 'Mastodon');
         return span;
     }
-    if (type === 'OPML') {
+    if (type === 'LOCALRSS') {
         const span = document.createElement('span');
-        span.className = 'account-icon-img account-icon-img--opml';
-        span.setAttribute('aria-label', 'OPML');
+        span.className = 'material-icons';
+        span.textContent = (accountData && accountData.hasAudio) ? 'podcasts' : 'rss_feed';
         return span;
     }
     const materialIcons = {
         'Bluesky':   'cloud',
-        'RSS':       'rss_feed',
         'WordPress': 'article',
         'Blogger':   'article',
     };
@@ -303,7 +305,7 @@ async function switchReaderAccount(key) {
     const selectedAccountDiv = document.getElementById('selectedAccount');
     if (selectedAccountDiv) {
         selectedAccountDiv.innerHTML = '';
-        selectedAccountDiv.appendChild(accountIcon(instanceType));
+        selectedAccountDiv.appendChild(accountIcon(instanceType, accountData));
         selectedAccountDiv.appendChild(document.createTextNode(accountData.title));
     }
 }

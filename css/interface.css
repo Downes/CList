@@ -805,18 +805,12 @@ body a:hover, html a:hover { text-decoration: underline; }
   color: var(--highlight-text-color);
 }
 
-.account-icon-img--opml {
-  -webkit-mask: url('../assets/icons/opml-mask.svg') no-repeat center / contain;
-  mask: url('../assets/icons/opml-mask.svg') no-repeat center / contain;
-}
-
 .account-icon-img--hypothesis {
   -webkit-mask: url('../assets/icons/hypothesis.svg') no-repeat center / contain;
   mask: url('../assets/icons/hypothesis.svg') no-repeat center / contain;
 }
 
 .account-button.selected .account-icon-img,
-.account-button.selected .account-icon-img--opml,
 .account-button.selected .account-icon-img--hypothesis,
 .account-button.selected .service-icon-img {
   background-color: var(--highlight-text-color);
@@ -846,6 +840,8 @@ body a:hover, html a:hover { text-decoration: underline; }
 .material-icons.md-18 { font-size: 18px; }
 
 .material-icons.md-light { color: var(--highlight-color); }
+
+.anno-follow-author-btn.anno-following .material-icons { color: var(--text-muted); }
 
 /* Loading Indicator */
 #loading-indicator {

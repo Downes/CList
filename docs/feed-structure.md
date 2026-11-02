@@ -62,7 +62,7 @@ Sits between `#left-command` and `#left-content` in `#left-pane`. Always visible
                           empty until an account is selected
 ```
 
-`#selectedAccount` is populated by `switchReaderAccount(key)` using `accountIcon(type)` + `accountData.title`.
+`#selectedAccount` is populated by `switchReaderAccount(key)` using `accountIcon(type, accountData)` + `accountData.title`.
 
 ---
 
@@ -79,13 +79,14 @@ Sits between `#left-command` and `#left-content` in `#left-pane`. Always visible
 
 Each `.account-button` is a full-width flex button: service icon on the left, account title on the right.
 
-**`accountIcon(type)`** — also in `reader.js`. Returns a DOM element sized to 18×18px:
+**`accountIcon(type, accountData)`** — also in `reader.js` (a local override adding Hypothesis/Annotate lives in `kvstore.js`). Returns a DOM element sized to 18×18px. `accountData` (the parsed account, optional) lets a type's icon vary by the account's own data instead of by name:
 
 | Type | Element | Source |
 |------|---------|--------|
 | `Mastodon` | `<span class="account-icon-img">` | CSS mask over `assets/icons/mastodon.svg` |
 | `Bluesky` | `<span class="material-icons">cloud</span>` | Material Icons |
 | `OPML` | `<span class="material-icons">rss_feed</span>` | Material Icons |
+| `LOCALRSS` | `<span class="material-icons">rss_feed</span>` (or `podcasts` once `accountData.hasAudio` is set) | Material Icons |
 | `WordPress` / `Blogger` | `<span class="material-icons">article</span>` | Material Icons |
 | _(default)_ | `<span class="material-icons">account_circle</span>` | Material Icons |
 

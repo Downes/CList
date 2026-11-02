@@ -61,15 +61,16 @@ async function _submitAnnotation(panel, itemID, url, bodyText, tags, visibility,
     if (acct.type === 'Hypothesis') {
         if (typeof window.hypothesisCreate !== 'function') {
             showErrorModal('Hypothesis write support not loaded.', { title: 'Hypothesis unavailable' });
-            return;
+            return false;
         }
         try {
             await window.hypothesisCreate(acct, { target_url: url, body: bodyText, tags, visibility });
+            return true;
         } catch (e) {
             showErrorModal('Failed to save to Hypothesis: ' + e.message, { title: 'Save failed' });
             console.error('[hypothesis] create error', e);
+            return false;
         }
-        return;
     }
 
     const payload = {
@@ -92,6 +93,7 @@ async function _submitAnnotation(panel, itemID, url, bodyText, tags, visibility,
         });
 
         if (resp.ok) {
+            return true;
         } else {
             const err = await resp.json().catch(() => ({}));
             if (resp.status === 403 && (err.detail || '').includes('Not registered')) {
@@ -100,10 +102,12 @@ async function _submitAnnotation(panel, itemID, url, bodyText, tags, visibility,
                 showErrorModal('Failed to save annotation: ' + (err.detail || resp.status), { title: 'Save failed' });
             }
             console.error('Annotation POST failed', resp.status, err);
+            return false;
         }
     } catch (e) {
         showErrorModal('Error saving annotation — check your connection and try again.', { title: 'Save failed' });
         console.error('Annotation POST error', e);
+        return false;
     }
 }
 
@@ -604,13 +608,16 @@ window.checkAnnotationsBatch = async function() {
     console.log('[annotations] checkAnnotationsBatch called');
     try {
         const allAccounts = await _allAnnotationAccounts();
-        if (!allAccounts.length) return;
 
         const items = Array.from(document.querySelectorAll('.statusSpecific'))
             .filter(el => el.reference && el.reference.url && el.reference.url !== '(no URL provided)');
         console.log('[annotations] batch check: found', items.length, 'items with reference URLs');
         if (!items.length) return;
 
+        // Annotation counts need at least one configured annotation account.
+        // The "follow feed author" section below does not, so it must not be
+        // short-circuited by an empty allAccounts list.
+        if (allAccounts.length) {
         const urlToItems = {};
         items.forEach(el => {
             const ref = el.reference;
@@ -691,6 +698,7 @@ window.checkAnnotationsBatch = async function() {
             btn.addEventListener('click', () => window.showAnnotationsForItem(itemId));
             statusActions.appendChild(btn);
         });
+        }
 
         // Inject "Follow feed author" buttons for items whose feed advertises a DID.
         // Runs async after annotation counts so it doesn't block the main check.
@@ -712,26 +720,53 @@ window.checkAnnotationsBatch = async function() {
 
             await Promise.all([...feedUrlToItems.entries()].map(async ([fu, els]) => {
                 const authorDid = await _getAuthorDidFromFeed(fu);
-                if (!authorDid || authorDid === batchMyDid || batchFollowedDids.has(authorDid)) return;
+                if (!authorDid) return;
+                if (authorDid === batchMyDid) return;
                 const authorUsername = authorDid.replace(/^did:web:[^:]+:users:/, '');
+                const isFollowing = batchFollowedDids.has(authorDid);
                 els.forEach(el => {
                     const liveEl = document.getElementById(el.id);
                     if (!liveEl) return;
                     const clistActions = liveEl.closest('.status-box')?.querySelector(':scope > .clist-actions');
                     if (!clistActions || clistActions.querySelector('.anno-follow-author-btn')) return;
                     const followBtn = document.createElement('button');
-                    followBtn.className = 'clist-action-btn anno-follow-author-btn';
-                    followBtn.title = 'Follow ' + authorUsername;
-                    followBtn.innerHTML = '<span class="material-icons md-18 md-light">person_add</span>';
-                    followBtn.addEventListener('click', () => {
-                        _followUser(authorDid, batchToken, followBtn).catch(e => {
-                            showErrorModal('Follow error: ' + e.message, { title: 'Follow failed' });
-                            console.error('Follow error', e);
-                        });
-                        // Remove buttons for all other items from the same feed
-                        document.querySelectorAll('.anno-follow-author-btn').forEach(b => {
-                            if (b !== followBtn) { b.disabled = true; b.title = 'Following ' + authorUsername; }
-                        });
+                    followBtn.className = 'clist-action-btn anno-follow-author-btn' + (isFollowing ? ' anno-following' : '');
+                    followBtn.dataset.authorDid = authorDid;
+                    followBtn.title = isFollowing ? 'Unfollow ' + authorUsername : 'Follow ' + authorUsername;
+                    followBtn.innerHTML = isFollowing
+                        ? '<span class="material-icons md-18">person_remove</span>'
+                        : '<span class="material-icons md-18 md-light">person_add</span>';
+                    followBtn.addEventListener('click', async () => {
+                        const nowFollowing = followBtn.classList.contains('anno-following');
+                        const matching = document.querySelectorAll(
+                            `.anno-follow-author-btn[data-author-did="${CSS.escape(authorDid)}"]`);
+                        matching.forEach(b => { b.disabled = true; });
+                        try {
+                            if (nowFollowing) {
+                                await _kvUnfollowDid(authorDid);
+                                matching.forEach(b => {
+                                    b.classList.remove('anno-following');
+                                    b.title = 'Follow ' + authorUsername;
+                                    b.innerHTML = '<span class="material-icons md-18 md-light">person_add</span>';
+                                });
+                                showStatusMessage('Unfollowed ' + authorUsername);
+                            } else {
+                                await _kvFollowDid(authorDid);
+                                matching.forEach(b => {
+                                    b.classList.add('anno-following');
+                                    b.title = 'Unfollow ' + authorUsername;
+                                    b.innerHTML = '<span class="material-icons md-18">person_remove</span>';
+                                });
+                                showStatusMessage('Now following ' + authorUsername);
+                            }
+                            window._clistRefreshFollowingPanel?.();
+                        } catch (e) {
+                            const verb = nowFollowing ? 'Unfollow' : 'Follow';
+                            showErrorModal(verb + ' error: ' + e.message, { title: verb + ' failed' });
+                            console.error(verb + ' error', e);
+                        } finally {
+                            matching.forEach(b => { b.disabled = false; });
+                        }
                     });
                     clistActions.appendChild(followBtn);
                 });
@@ -820,8 +855,8 @@ async function findDidByHandle(handle) {
     return null;
 }
 
-// Fetch the author_did advertised in a feed's metadata via opml2json /feed_meta.
-// Uses the configured OPML2JSON account URL if available, falling back to the default.
+// Fetch the author_did advertised in a feed's metadata via localrss_reader's /feed_meta.
+// Uses the configured LOCALRSS account's serviceUrl if available, falling back to the default.
 // Returns a DID string or null. No auth needed — /feed_meta is public.
 // Results are cached in-memory for the session to avoid repeated lookups in checkAnnotationsBatch.
 const _feedAuthorDidCache = new Map();
@@ -829,18 +864,18 @@ const _feedAuthorDidCache = new Map();
 async function _getAuthorDidFromFeed(feedUrl) {
     if (!feedUrl || feedUrl === '(no feed specified)') return null;
     if (_feedAuthorDidCache.has(feedUrl)) return _feedAuthorDidCache.get(feedUrl);
-    let serviceUrl = 'https://opml2json.downes.ca';
+    let serviceUrl = 'https://localrss.downes.ca';
     try {
         const accts = Array.isArray(window.CList.accounts) ? window.CList.accounts : [];
         const found = accts.find(a => {
             const d = parseAccountValue(a);
-            return d && d.type === 'OPML2JSON';
+            return d && d.type === 'LOCALRSS';
         });
         if (found) {
             const d = parseAccountValue(found);
-            if (d && d.instance) serviceUrl = d.instance;
+            if (d && d.serviceUrl) serviceUrl = d.serviceUrl;
         }
-    } catch (e) { console.error('_getAuthorDidFromFeed: error reading OPML2JSON account, using default', e); }
+    } catch (e) { console.error('_getAuthorDidFromFeed: error reading LOCALRSS account, using default', e); }
     let result = null;
     try {
         const resp = await fetch(`${serviceUrl}/feed_meta?url=${encodeURIComponent(feedUrl)}`);
@@ -876,6 +911,7 @@ async function _followUser(did, token, btn) {
         showStatusMessage('Now following ' + did.replace(/^did:web:[^:]+:users:/, ''));
         _followedDidsCache = null;
         _federatedCache    = null;
+        window._clistRefreshFollowingPanel?.();
     } catch (e) {
         showErrorModal('Error following user — check your connection and try again.', { title: 'Follow failed' });
         console.error('Follow error', e);
@@ -884,6 +920,24 @@ async function _followUser(did, token, btn) {
 }
 
 window._followUser = _followUser;
+
+// Pure KV follow/unfollow ops for the inline toggle button (no DOM side effects,
+// unlike _followUser above which owns its own button's rendering for the thread banner).
+async function _kvFollowDid(did) {
+    const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
+    if (!encKey) throw new Error('Encryption key not available — please log in.');
+    const value = { did, since: new Date().toISOString() };
+    const encryptedValue = await encryptWithKey(encKey, JSON.stringify(value));
+    await window.CList.storage.kv.put(`social:following:${did}`, encryptedValue);
+    _followedDidsCache = null;
+    _federatedCache    = null;
+}
+
+async function _kvUnfollowDid(did) {
+    await window.CList.storage.kv.remove(`social:following:${did}`);
+    _followedDidsCache = null;
+    _federatedCache    = null;
+}
 
 // ── Unified annotation item builder ───────────────────────────────────────────
 

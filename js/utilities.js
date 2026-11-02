@@ -321,6 +321,87 @@ function parseAccountValue(account) {
 }
 
 
+// ---- HTML sanitizer for feed/annotation content ----
+// Keeps safe formatting tags; strips scripts, iframes, objects, forms, and
+// event/style attributes. Dangerous tags are removed with children; unknown
+// tags are unwrapped (children kept). Returns a SafeHtml (see reader.js).
+
+const _RSS_STRIP_WITH_CHILDREN = new Set([
+    'script','noscript','style','iframe','frame','frameset',
+    'object','embed','applet','form','input','button','select','textarea',
+]);
+const _RSS_ALLOWED_TAGS = new Set([
+    'a','abbr','b','blockquote','br','caption','cite','code','col','colgroup',
+    'dd','del','details','dfn','div','dl','dt','em','figcaption','figure',
+    'h1','h2','h3','h4','h5','h6','hr','i','img','ins','kbd','li','mark',
+    'ol','p','pre','q','s','samp','small','span','strong','sub','summary',
+    'sup','table','tbody','td','tfoot','th','thead','time','tr','u','ul','var',
+]);
+const _RSS_ALLOWED_ATTRS = {
+    'a':   new Set(['href','title','target','rel']),
+    'img': new Set(['src','alt','title','width','height','loading']),
+    'td':  new Set(['colspan','rowspan']),
+    'th':  new Set(['colspan','rowspan','scope']),
+    'col': new Set(['span']),
+    'time':new Set(['datetime']),
+};
+
+function _rssSanitizeHtml(html) {
+    if (!html) return '';
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+
+    function walk(node) {
+        const children = Array.from(node.childNodes);
+        for (const child of children) {
+            if (child.nodeType !== Node.ELEMENT_NODE) continue;
+            const tag = child.tagName.toLowerCase();
+
+            if (_RSS_STRIP_WITH_CHILDREN.has(tag)) {
+                child.remove();
+                continue;
+            }
+
+            // Recurse first so inner dangerous nodes are gone before we decide
+            walk(child);
+
+            if (!_RSS_ALLOWED_TAGS.has(tag)) {
+                // Unwrap: keep children, drop the element itself
+                child.replaceWith(...child.childNodes);
+                continue;
+            }
+
+            // Strip disallowed attributes
+            const allowed = _RSS_ALLOWED_ATTRS[tag] || new Set();
+            for (const attr of Array.from(child.attributes)) {
+                const name = attr.name.toLowerCase();
+                if (!allowed.has(name) || name.startsWith('on')) {
+                    child.removeAttribute(attr.name);
+                    continue;
+                }
+                // Block javascript: and data: URLs on href/src
+                if (name === 'href' || name === 'src') {
+                    const v = attr.value.replace(/\s/g, '').toLowerCase();
+                    if (v.startsWith('javascript:') || v.startsWith('data:') || v.startsWith('vbscript:')) {
+                        child.removeAttribute(attr.name);
+                    }
+                }
+            }
+            // Open links in new tab
+            if (tag === 'a') {
+                child.setAttribute('target', '_blank');
+                child.setAttribute('rel', 'noopener noreferrer');
+            }
+        }
+    }
+
+    walk(doc.body);
+    return new SafeHtml(doc.body.innerHTML);
+}
+
+// Export sanitizer for use by other modules (public-feeds.js, annotate.js, localrss.js, hypothesis.js)
+window.sanitizeHtml = _rssSanitizeHtml;
+
+
 // Last-resort handler for any promise rejection that escapes local error handling.
 window.addEventListener('unhandledrejection', function (event) {
     console.error('Unhandled promise rejection:', event.reason);
