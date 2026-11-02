@@ -245,10 +245,11 @@ function localrssOptionsPanel() {
     const div = document.createElement('div');
     div.id = 'localrss-options-panel';
 
-    div.appendChild(_localrssDatabaseSection());
-    div.appendChild(_localrssStatsSection());
-    div.appendChild(_localrssFeedsSection());
-    div.appendChild(_localrssImportExportSection());
+    div.appendChild(_localrssDatabaseSwitcher());
+    _localrssDatabaseSection(div);
+    _localrssStatsSection(div);
+    _localrssFeedsSection(div);
+    _localrssImportExportSection(div);
 
     return div;
 }
@@ -268,16 +269,23 @@ function localrssOptionsOverlay() {
         return;
     }
 
-    document.getElementById('localrss-options-overlay')?.remove();
+    document.getElementById('feed-options-section')?.remove();
 
     const overlay = document.createElement('div');
-    overlay.id = 'localrss-options-overlay';
+    overlay.id = 'feed-options-section';
+    overlay.className = 'left-pane-overlay-section';
 
     const header = document.createElement('div');
-    header.id = 'localrss-options-header';
+    header.id = 'feed-options-header';
+    header.className = 'left-pane-overlay-header';
     const heading = document.createElement('h2');
     heading.textContent = 'Feed Options';
     header.appendChild(heading);
+    const popOutBtn = document.createElement('button');
+    popOutBtn.className = 'clist-action-btn';
+    popOutBtn.title = 'Pop out feed options';
+    popOutBtn.innerHTML = '<span class="material-icons md-18 md-light">open_in_new</span>';
+    header.appendChild(popOutBtn);
     const closeBtn = document.createElement('button');
     closeBtn.className = 'clist-action-btn';
     closeBtn.title = 'Close';
@@ -288,9 +296,9 @@ function localrssOptionsOverlay() {
 
     overlay.appendChild(localrssOptionsPanel());
     body.appendChild(overlay);
+    showLeftOverlaySection('feed-options-section');
 
     _localrssRefreshStats();
-    _localrssRefreshErrors();
 }
 
 function _localrssSectionHeading(text) {
@@ -299,42 +307,87 @@ function _localrssSectionHeading(text) {
     return h;
 }
 
-function _localrssDatabaseSection() {
-    const div = document.createElement('div');
-    div.appendChild(_localrssSectionHeading('Database'));
+// One row, directly under the "Feed Options" heading: lets the user switch to
+// any other LOCALRSS account (= another database) without leaving the panel.
+// Goes through switchReaderAccount() (reader.js) -- the same registry-driven
+// path account-switching always uses -- so the main feed, menu, and selected-
+// account display all update too, then rebuilds this overlay against the
+// newly-active account.
+function _localrssDatabaseSwitcher() {
+    const row = document.createElement('div');
+    row.id = 'localrss-db-switcher';
+    row.className = 'localrss-options-row';
 
-    const dbLine = document.createElement('p');
-    dbLine.className = 'list-tip';
-    dbLine.textContent = `Current: ${localrssCurrentAccount?.database || ''}`;
-    div.appendChild(dbLine);
+    const label = document.createElement('label');
+    label.htmlFor = 'localrss-db-select';
+    label.textContent = 'Database:';
+
+    const select = document.createElement('select');
+    select.id = 'localrss-db-select';
+
+    (window.CList.accounts || []).forEach(acc => {
+        const data = parseAccountValue(acc);
+        if (!data || data.type !== 'LOCALRSS') return;
+        const opt = document.createElement('option');
+        opt.value = acc.key;
+        opt.textContent = data.title || data.database || acc.key;
+        if (localrssCurrentAccount
+            && data.database === localrssCurrentAccount.database
+            && data.serviceUrl === localrssCurrentAccount.serviceUrl) {
+            opt.selected = true;
+        }
+        select.appendChild(opt);
+    });
+
+    select.onchange = async () => {
+        await switchReaderAccount(select.value);
+        localrssOptionsOverlay();
+    };
+
+    row.appendChild(label);
+    row.appendChild(select);
+    return row;
+}
+
+function _localrssDatabaseSection(div) {
+    const searchRow = document.createElement('div');
+    searchRow.className = 'localrss-options-row';
+    div.appendChild(searchRow);
+
+    const searchLabel = document.createElement('label');
+    searchLabel.htmlFor = 'localrss-search-input';
+    searchLabel.textContent = 'Search:';
+    searchRow.appendChild(searchLabel);
 
     const searchInput = document.createElement('input');
     searchInput.type = 'text';
     searchInput.id = 'localrss-search-input';
     searchInput.placeholder = 'Search posts';
     searchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') _localrssSearchPosts(); });
-    div.appendChild(searchInput);
+    searchRow.appendChild(searchInput);
 
     const searchBtn = document.createElement('button');
     searchBtn.className = 'btn btn-small';
     searchBtn.textContent = 'Search';
     searchBtn.onclick = () => _localrssSearchPosts();
-    div.appendChild(searchBtn);
+    searchRow.appendChild(searchBtn);
 
     const status = document.createElement('p');
     status.id = 'localrss-search-status';
     status.className = 'list-tip';
+    status.style.display = 'none';
     div.appendChild(status);
-
-    return div;
 }
 
-function _localrssStatsSection() {
-    const div = document.createElement('div');
-    div.appendChild(_localrssSectionHeading('Update'));
+function _localrssStatsSection(div) {
+    const showRow = document.createElement('div');
+    showRow.className = 'localrss-options-row';
 
     const showLabel = document.createElement('label');
-    showLabel.textContent = 'Show: ';
+    showLabel.htmlFor = 'localrss-show-select';
+    showLabel.textContent = 'Show:';
+    showRow.appendChild(showLabel);
+
     const showSelect = document.createElement('select');
     showSelect.id = 'localrss-show-select';
     [['unread', 'Unread'], ['read', 'Read'], ['bookmarked', 'Bookmarked'], ['all', 'All']].forEach(([val, label]) => {
@@ -348,8 +401,8 @@ function _localrssStatsSection() {
         localrssFilter = showSelect.value;
         localrssLoad().catch(localrssReportLoadError);
     };
-    showLabel.appendChild(showSelect);
-    div.appendChild(showLabel);
+    showRow.appendChild(showSelect);
+    div.appendChild(showRow);
 
     const markAllBtn = document.createElement('button');
     markAllBtn.className = 'btn btn-small';
@@ -371,46 +424,31 @@ function _localrssStatsSection() {
     );
     div.appendChild(markAllBtn);
 
+    div.appendChild(_localrssSectionHeading('Feeds'));
+
     const statsPill = document.createElement('p');
     statsPill.id = 'localrss-stats-pill';
     statsPill.className = 'list-tip';
     statsPill.textContent = 'Loading stats…';
     div.appendChild(statsPill);
-
-    const errorsToggle = document.createElement('button');
-    errorsToggle.id = 'localrss-errors-toggle';
-    errorsToggle.className = 'btn btn-small';
-    errorsToggle.textContent = 'Feed errors: …';
-    errorsToggle.onclick = () => {
-        const list = document.getElementById('localrss-errors-list');
-        if (list) list.style.display = list.style.display === 'none' ? 'block' : 'none';
-    };
-    div.appendChild(errorsToggle);
-
-    const errorsList = document.createElement('div');
-    errorsList.id = 'localrss-errors-list';
-    errorsList.className = 'account-list';
-    errorsList.style.display = 'none';
-    div.appendChild(errorsList);
-
-    return div;
 }
 
-function _localrssFeedsSection() {
-    const div = document.createElement('div');
-    div.appendChild(_localrssSectionHeading('Feeds'));
+function _localrssFeedsSection(div) {
+    const newFeedRow = document.createElement('div');
+    newFeedRow.className = 'localrss-options-row localrss-feed-box';
+    div.appendChild(newFeedRow);
 
     const newFeedInput = document.createElement('input');
     newFeedInput.type = 'text';
     newFeedInput.id = 'localrss-new-feed-url';
     newFeedInput.placeholder = 'Add new feed';
-    div.appendChild(newFeedInput);
+    newFeedRow.appendChild(newFeedInput);
 
     const createBtn = document.createElement('button');
     createBtn.className = 'btn btn-small';
     createBtn.textContent = 'Create / Discover';
     createBtn.onclick = () => _localrssCreateFeed();
-    div.appendChild(createBtn);
+    newFeedRow.appendChild(createBtn);
 
     const hint = document.createElement('p');
     hint.className = 'list-tip';
@@ -420,6 +458,7 @@ function _localrssFeedsSection() {
     const createStatus = document.createElement('p');
     createStatus.id = 'localrss-create-feed-status';
     createStatus.className = 'list-tip';
+    createStatus.style.display = 'none';
     div.appendChild(createStatus);
 
     const feedSearchInput = document.createElement('input');
@@ -438,8 +477,6 @@ function _localrssFeedsSection() {
     div.appendChild(feedResults);
 
     div.appendChild(_localrssFeedEditor());
-
-    return div;
 }
 
 function _localrssLabeledInput(id, labelText) {
@@ -458,6 +495,7 @@ function _localrssLabeledInput(id, labelText) {
 function _localrssFeedEditor() {
     const div = document.createElement('div');
     div.id = 'localrss-feed-editor';
+    div.className = 'localrss-feed-box';
     div.style.display = 'none';
 
     div.appendChild(_localrssLabeledInput('localrss-edit-feed-url', 'Feed URL'));
@@ -503,8 +541,7 @@ function _localrssFeedEditor() {
     return div;
 }
 
-function _localrssImportExportSection() {
-    const div = document.createElement('div');
+function _localrssImportExportSection(div) {
     div.appendChild(_localrssSectionHeading('Import / Export'));
 
     const fileLabel = document.createElement('label');
@@ -570,8 +607,6 @@ function _localrssImportExportSection() {
     exportStatus.id = 'localrss-opml-export-status';
     exportStatus.className = 'list-tip';
     div.appendChild(exportStatus);
-
-    return div;
 }
 
 // ---- Panel actions ----
@@ -622,40 +657,13 @@ async function _localrssRefreshStats() {
     }
 }
 
-async function _localrssRefreshErrors() {
-    const toggle = document.getElementById('localrss-errors-toggle');
-    const list = document.getElementById('localrss-errors-list');
-    if (!toggle || !list || !localrssCurrentAccount) return;
-    try {
-        const url = _localrssUrl(localrssCurrentAccount, '/api/feeds_errors') + `?db=${encodeURIComponent(localrssCurrentAccount.database)}`;
-        const resp = await fetch(url, { headers: _localrssAuthHeaders() });
-        const data = await resp.json();
-        if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
-        toggle.textContent = `Feed errors: ${data.feeds.length}`;
-        list.innerHTML = '';
-        for (const feed of data.feeds) {
-            const btn = document.createElement('button');
-            btn.className = 'account-button';
-            btn.title = feed.error_msg || '';
-            const nameEl = document.createElement('span');
-            nameEl.textContent = `${feed.title || feed.url} (${feed.fail_count})`;
-            btn.appendChild(nameEl);
-            btn.addEventListener('click', () => _localrssOpenFeedEditor(feed));
-            list.appendChild(btn);
-        }
-    } catch (e) {
-        console.error('LocalRSS: could not load feed errors', e);
-        toggle.textContent = 'Feed errors: ?';
-    }
-}
-
 async function _localrssSearchPosts() {
     const input = document.getElementById('localrss-search-input');
     const status = document.getElementById('localrss-search-status');
     const fc = window.CList.ui.view.feedContainer;
     const q = (input?.value || '').trim();
     if (!q || !fc) return;
-    if (status) status.textContent = 'Searching…';
+    if (status) { status.style.display = ''; status.textContent = 'Searching…'; }
     try {
         const url = _localrssUrl(localrssCurrentAccount, '/api/items')
             + `?db=${encodeURIComponent(localrssCurrentAccount.database)}&q=${encodeURIComponent(q)}`;
@@ -689,7 +697,7 @@ async function _localrssCreateFeed() {
     const status = document.getElementById('localrss-create-feed-status');
     const url = (input?.value || '').trim();
     if (!url) return;
-    if (status) status.textContent = 'Looking for a feed…';
+    if (status) { status.style.display = ''; status.textContent = 'Looking for a feed…'; }
     try {
         const data = await _localrssPost('/api/feed_create', { url });
         if (status) status.textContent = data.existing
@@ -722,7 +730,7 @@ async function _localrssSearchFeeds() {
             const nameEl = document.createElement('span');
             nameEl.textContent = feed.title || feed.url;
             btn.appendChild(nameEl);
-            btn.addEventListener('click', () => _localrssOpenFeedEditor(feed));
+            btn.addEventListener('click', () => { results.innerHTML = ''; _localrssOpenFeedEditor(feed); });
             results.appendChild(btn);
         }
     } catch (e) {
@@ -761,6 +769,7 @@ async function _localrssOpenFeedEditor(feedSummary) {
         if (status) status.textContent = '';
         editor.style.display = 'block';
         editor.scrollIntoView({ block: 'nearest' });
+        document.getElementById('localrss-edit-feed-url').focus();
     } catch (e) {
         console.error('LocalRSS: could not load feed', e);
         showErrorModal('Could not load feed: ' + e.message, { title: 'Feed load failed' });
@@ -781,7 +790,6 @@ async function _localrssSaveFeed() {
         await _localrssPost('/api/feed_update', body);
         if (status) status.textContent = 'Saved.';
         _localrssRefreshStats();
-        _localrssRefreshErrors();
     } catch (e) {
         console.error('LocalRSS: feed update failed', e);
         if (status) status.textContent = 'Could not save: ' + e.message;
@@ -803,7 +811,6 @@ async function _localrssRetryFeed() {
         }
         if (status) status.textContent = feed.fail_count > 0 ? 'Still failing.' : 'Fetched successfully.';
         _localrssRefreshStats();
-        _localrssRefreshErrors();
     } catch (e) {
         console.error('LocalRSS: feed retry failed', e);
         if (status) status.textContent = 'Retry failed: ' + e.message;
@@ -847,7 +854,6 @@ function _localrssDeleteFeed() {
                 document.getElementById('localrss-feed-results').innerHTML = '';
                 document.getElementById('localrss-feed-search-input').value = '';
                 _localrssRefreshStats();
-                _localrssRefreshErrors();
                 if (status) status.textContent = '';
             } catch (e) {
                 console.error('LocalRSS: feed delete failed', e);
@@ -879,7 +885,12 @@ async function _localrssImportOpml() {
         if (!resp.ok || data.ok === false) throw new Error(data.error || `HTTP ${resp.status}`);
         if (mode === 'newdb') {
             if (status) status.textContent = `Created database "${data.db}" with ${data.imported} feed${data.imported !== 1 ? 's' : ''} `
-                + `(${data.skipped} already present). To read it here, set this account's Database field to "${data.db}".`;
+                + `(${data.skipped} already present).`;
+            _localrssConfirm(
+                `Set up "${data.db}" as a new LocalRSS account so it's ready to read?`,
+                'New database created',
+                () => _localrssCreateAccountForDb(data.db, newDbName)
+            );
         } else {
             if (status) status.textContent = `Imported ${data.imported} feed${data.imported !== 1 ? 's' : ''} (${data.skipped} already present).`;
             _localrssRefreshStats();
@@ -890,6 +901,127 @@ async function _localrssImportOpml() {
         console.error('LocalRSS: OPML import failed', e);
         if (status) status.textContent = 'Import failed: ' + e.message;
     }
+}
+
+// Called after a "newdb" OPML import, once the user confirms the "set up as
+// account?" dialog. Creates a new LOCALRSS account pointed at the freshly
+// created database, then refreshes everything that lists accounts so it's
+// immediately selectable -- without navigating away from this panel.
+async function _localrssCreateAccountForDb(dbSlug, displayName) {
+    const status = document.getElementById('localrss-opml-import-status');
+    const baseName = (displayName || dbSlug || 'LocalRSS').trim();
+    const existingKeys = new Set((window.CList.accounts || []).map(acc => acc.key));
+    let key = baseName;
+    for (let n = 2; existingKeys.has(key); n++) key = `${baseName} (${n})`;
+
+    const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
+    if (!encKey) { showErrorModal('Encryption key missing — please log in again.', { title: 'Encryption Key Missing' }); return; }
+
+    const instanceData = {
+        type: 'LOCALRSS',
+        instance: key,
+        title: baseName,
+        permissions: 'r',
+        serviceUrl: localrssCurrentAccount.serviceUrl,
+        database: dbSlug,
+    };
+
+    let encryptedValue;
+    try {
+        encryptedValue = await encryptWithKey(encKey, JSON.stringify(instanceData));
+    } catch (err) {
+        console.error('Failed to encrypt LocalRSS account data:', err);
+        showErrorModal('Could not save LocalRSS account — encryption failed. Try logging in again.', { title: 'Account Save Failed' });
+        return;
+    }
+
+    try {
+        await window.CList.storage.kv.put(key, encryptedValue);
+    } catch (err) {
+        if (err.code === 'NotAuthenticated') showErrorModal('Please log in to kvstore first.', { title: 'Not Logged In' });
+        else showErrorModal('Failed to save the new LocalRSS account to kvstore.', { title: 'Account Save Failed' });
+        return;
+    }
+
+    try {
+        window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl);
+        if (window.CList.accounts) {
+            updateUIVisibility();
+            populatePostOptions(window.CList.accounts);
+            populateReadAccountList(window.CList.accounts);
+            const switcherRow = document.getElementById('localrss-db-switcher');
+            if (switcherRow) switcherRow.replaceWith(_localrssDatabaseSwitcher());
+        }
+        if (status) status.textContent = `Account "${key}" created for database "${dbSlug}" — pick it from the Database dropdown above to read it.`;
+        showStatusMessage(`LocalRSS account "${key}" created.`);
+    } catch (error) {
+        showErrorModal('Account saved — but the display could not refresh. Try reloading: ' + error.message, { title: 'Account Refresh Failed' });
+    }
+}
+
+// Offered inside the "Add New Account" create-form when the selected type is
+// LOCALRSS (see js/kvstore.js, buildFormFields) -- lets a brand-new account
+// be seeded straight from an OPML file instead of "create empty account,
+// then go import via Feed Options" afterwards. Uses the same newdb import
+// endpoint as _localrssImportOpml above, but writes the resulting db slug
+// back into the still-open create form rather than creating the account
+// itself, since the form's own Save button is what actually persists it.
+function _localrssBuildAccountOpmlSection() {
+    const wrapper = document.createElement('div');
+    wrapper.id = 'localrss-create-opml-section';
+
+    const label = document.createElement('label');
+    label.textContent = 'Seed with OPML (optional)';
+    wrapper.appendChild(label);
+
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.id = 'localrss-create-opml-file';
+    fileInput.accept = '.opml,.xml,text/xml';
+    wrapper.appendChild(fileInput);
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn-small';
+    btn.textContent = 'Import OPML';
+    wrapper.appendChild(btn);
+
+    const status = document.createElement('div');
+    status.id = 'localrss-create-opml-status';
+    status.className = 'feed-status-message';
+    wrapper.appendChild(status);
+
+    btn.onclick = async () => {
+        const file = fileInput.files?.[0];
+        if (!file) { status.textContent = 'Choose an OPML file first.'; return; }
+
+        const serviceUrlEl = document.getElementById('serviceUrlInput');
+        const dbEl = document.getElementById('databaseInput');
+        const serviceUrl = (serviceUrlEl?.value || '').trim();
+        if (!serviceUrl) { status.textContent = 'Enter the LocalRSS Service URL above first.'; return; }
+
+        const formData = new FormData();
+        formData.append('opml', file);
+        formData.append('mode', 'newdb');
+        formData.append('new_db_name', (dbEl?.value || '').trim());
+
+        status.textContent = 'Importing…';
+        try {
+            const url = _localrssUrl({ serviceUrl }, '/api/opml_import');
+            const resp = await fetch(url, { method: 'POST', headers: _localrssAuthHeaders(), body: formData });
+            const data = await resp.json();
+            if (!resp.ok || data.ok === false) throw new Error(data.error || `HTTP ${resp.status}`);
+            if (dbEl) dbEl.value = data.db;
+            status.textContent = `Created database "${data.db}" with ${data.imported} feed${data.imported !== 1 ? 's' : ''} `
+                + `(${data.skipped} already present). Click Save to finish creating the account.`;
+            fileInput.value = '';
+        } catch (e) {
+            console.error('LocalRSS: account-creation OPML import failed', e);
+            status.textContent = 'Import failed: ' + e.message;
+        }
+    };
+
+    return wrapper;
 }
 
 async function _localrssExportOpml() {

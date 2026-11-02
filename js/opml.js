@@ -111,12 +111,9 @@ function playAudio(index) {
     document.querySelectorAll('#audio-list p').forEach((p, i) => {
         p.classList.toggle('audio-playing', i === index);
     });
-    const audioSection = document.getElementById('audio-section');
-    
-    // Make the player visible if it's hidden
-    if (audioSection.style.display === "none") {
-        audioSection.style.display = "block";
-    }
+    // Make the player visible, hiding any other overlay section (chat, feed
+    // options) that currently occupies the same region.
+    showLeftOverlaySection('audio-section');
 
     // Open the left pane so the reader knows where the player is
     openLeftPane();

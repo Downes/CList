@@ -16,8 +16,8 @@
             document.documentElement.classList.add('dark-mode');
         }
     </script>
-    <link rel="stylesheet" href="css/interface.css">
-    <link rel="stylesheet" href="css/reader.css">
+    <link rel="stylesheet" href="css/interface.css?v=1">
+    <link rel="stylesheet" href="css/reader.css?v=1">
     <link rel="stylesheet" href="css/kvlist.css">
     <link rel="stylesheet" href="css/sidebar.css">
     <link rel="icon" type="image/x-icon" href="assets/icons/CList.ico">
@@ -116,8 +116,8 @@
                         <button id="accountButton" class="btn" onclick="playAccounts();">Accounts</button>
                         <button id="meButton" class="btn" onclick="playMe();" style="display:none">Me</button>
                         <button id="openChatButton" class="btn" onclick="playChat();" style="display:none">Chat</button>
-                        <button id="chatButton" class="btn" style="display:none;" onclick="toggleDiv('chat-section');">Chat</button>
-                        <button id="audioButton" class="btn" style="display:none;" onclick="toggleDiv('audio-section');">Audio</button>
+                        <button id="chatButton" class="btn" style="display:none;" onclick="toggleLeftOverlaySection('chat-section');">Chat</button>
+                        <button id="audioButton" class="btn" style="display:none;" onclick="toggleLeftOverlaySection('audio-section');">Audio</button>
                     </div>
                     <div class="command-right-buttons">
                         <button id="loginButton" class="btn" onclick="redirectToKVLogin()">Login</button>
@@ -136,13 +136,11 @@
 
                         <div id="left-pane-body">
                             <!-- Audio player -->
-                            <div id="audio-section" style="display: none;">
-                                <div id="audio-header">
+                            <div id="audio-section" class="left-pane-overlay-section" style="display: none;">
+                                <div id="audio-header" class="left-pane-overlay-header">
                                     <h2>Audio</h2>
-                                    <button
-                                            id="audio-left-close-button"
-                                            onclick="document.getElementById('audio-section').style.display='none'; document.getElementById('audioButton').style.display='inline-block';">
-                                        &times;
+                                    <button class="clist-action-btn" onclick="document.getElementById('audio-section').style.display='none'; document.getElementById('audioButton').style.display='inline-block';" title="Close">
+                                        <span class="material-icons md-18 md-light">close</span>
                                     </button>
                                 </div>
                                 <audio id="myAudioPlayer" controls>
@@ -152,16 +150,14 @@
                             </div>
 
                             <!-- Chat -->
-                            <div id="chat-section" style="display: none;">
-                                <div id="chat-header">
+                            <div id="chat-section" class="left-pane-overlay-section" style="display: none;">
+                                <div id="chat-header" class="left-pane-overlay-header">
                                     <h2>Chat</h2>
                                     <button class="clist-action-btn" onclick="openChatPopup()" title="Pop out chat">
                                         <span class="material-icons md-18 md-light">open_in_new</span>
                                     </button>
-                                    <button
-                                            id="chat-left-close-button"
-                                            onclick="document.getElementById('chat-section').style.display='none';">
-                                        &times;
+                                    <button class="clist-action-btn" onclick="document.getElementById('chat-section').style.display='none';" title="Close">
+                                        <span class="material-icons md-18 md-light">close</span>
                                     </button>
                                 </div>
                                 <div id="discussion-button-div">
@@ -322,7 +318,7 @@
 <script src="js/discord.js?v=1" defer></script>
 <script src="js/opml.js" defer></script>
 <script src="js/rss.js" defer></script>
-<script src="js/localrss.js?v=2" defer></script>
+<script src="js/localrss.js?v=3" defer></script>
 <script src="js/public-feeds.js" defer></script>
 <script src="js/youtube.js" defer></script>
 <script src="js/peertube.js" defer></script>

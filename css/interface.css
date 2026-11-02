@@ -617,7 +617,7 @@ body a:hover, html a:hover { text-decoration: underline; }
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 15px;
   border: 1px solid var(--border-main);
   border-radius: var(--radius-md);
   background-color: var(--bg-hover-subtle);
@@ -708,8 +708,14 @@ body a:hover, html a:hover { text-decoration: underline; }
   padding: 8px 10px;
   font-size: 0.8125rem;
   color: var(--text-muted);
-  border-bottom: 1px solid var(--border-dark);
   margin-bottom: 4px;
+}
+
+/* Divider under the detail text of a decision prompt (content-transfer/
+   overwrite dialogues) -- separates it from the Yes/No button row below.
+   Plain .list-tip status/hint lines elsewhere don't carry this border. */
+.list-tip-title + .list-tip {
+  border-bottom: 1px solid var(--border-dark);
 }
 
 /* Heading line for a decision prompt rendered via .list-tip (e.g. content-
@@ -1130,7 +1136,8 @@ html.dark-mode .find-input {
     background: #2d2d2d; border-bottom-color: #3a3a3a; color: #e0e0e0;
 }
 html.dark-mode .find-input:focus { background: #333; }
-html.dark-mode .list-tip { color: #999; border-bottom-color: #3a3a3a; }
+html.dark-mode .list-tip { color: #999; }
+html.dark-mode .list-tip-title + .list-tip { border-bottom-color: #3a3a3a; }
 html.dark-mode .account-button { color: #e0e0e0; border-bottom-color: #2f2f2f; }
 html.dark-mode .account-button .material-icons { color: #777; }
 html.dark-mode .account-icon-img,
@@ -1155,6 +1162,14 @@ html.dark-mode #modal-content {
 .collection-picker-new .input-field {
   flex: 1; margin: 0; background: var(--bg-input); border-color: var(--border-main); color: var(--text-main);
 }
+
+.localrss-options-row { display: flex; align-items: center; gap: 6px; margin: 8px 0; }
+.localrss-options-row select,
+.localrss-options-row input { flex: 1; margin: 0; }
+
+.localrss-feed-box { border: 1px solid var(--border-main); border-radius: var(--radius-sm); padding: 8px; margin: 8px 0; }
+.localrss-feed-box:focus-within { border-color: var(--highlight-color); }
+.localrss-feed-box .btn-small { margin-right: 6px; }
 
 .feed-panel-header { padding: 8px 12px; border-bottom: 1px solid var(--border-dark); }
 .feed-panel-header h3 { margin: 0; font-size: 1rem; }

@@ -294,6 +294,13 @@ function kvstoreAccountsPanel() {
             row.appendChild(lbl);
             container.appendChild(row);
         }
+
+        // LOCALRSS: let a brand-new account be seeded straight from an OPML
+        // file instead of creating it empty and importing afterwards via
+        // Feed Options -- see js/localrss.js for the implementation.
+        if (schema.type === 'LOCALRSS' && mode === 'create') {
+            container.appendChild(_localrssBuildAccountOpmlSection());
+        }
     }
 
     // Render a single label+input row. editable:false fields show as text in edit mode.

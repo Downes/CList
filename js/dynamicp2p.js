@@ -43,8 +43,9 @@ let chatBc = null; // BroadcastChannel to chat popup window, null when no popup 
  */
 function playChat() {
   // #chat-section is a sibling of #left-content (not inside it), so it is never
-  // cleared by openLeftInterface(). Show it directly, the same way audio-section works.
-  document.getElementById('chat-section').style.display = 'block';
+  // cleared by openLeftInterface(). Show it directly, hiding any other overlay
+  // section (audio, feed options) that currently occupies the same region.
+  showLeftOverlaySection('chat-section');
 
   // Open the left pane so the reader knows where the player is.
   openLeftPane();
@@ -67,9 +68,6 @@ function playChat() {
     sendButton = initObj.sendButton;
 
     p2pInitialized = true; // Mark as initialized.
-
-    // Reveal the Chat button in the left-pane command bar (mirrors audioButton).
-    document.getElementById('chatButton').style.display = 'inline-block';
 
     // Load DID identity once — falls back gracefully if absent.
     initializeDid().catch(err => console.error('DID initialization failed:', err));

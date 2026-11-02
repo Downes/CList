@@ -264,8 +264,7 @@ function setupFeedButtons(instanceType) {
 
 function openLeftInterface(content) {
     openLeftPane();
-    document.getElementById('audio-section').style.display = 'none';
-    document.getElementById('chat-section').style.display  = 'none';
+    hideLeftOverlaySections();
     const leftContent = document.getElementById('left-content');
     leftContent.innerHTML = '';
 
@@ -307,6 +306,31 @@ function toggleDiv(divOrId,column,on) {
         if (on) { div.style.display = 'block'; }
     } else {
         console.error('Div not found');
+    }
+}
+
+// Chat, audio, and feed options all overlay the same absolutely-positioned
+// region of #left-pane-body, so only one may be visible at a time.
+function hideLeftOverlaySections() {
+    document.querySelectorAll('.left-pane-overlay-section').forEach(el => {
+        el.style.display = 'none';
+    });
+}
+
+function showLeftOverlaySection(id) {
+    hideLeftOverlaySections();
+    const el = document.getElementById(id);
+    if (el) { el.style.display = 'block'; }
+    else { console.error('Div not found: ' + id); }
+}
+
+function toggleLeftOverlaySection(id) {
+    const el = document.getElementById(id);
+    if (!el) { console.error('Div not found: ' + id); return; }
+    if (window.getComputedStyle(el).display === 'none') {
+        showLeftOverlaySection(id);
+    } else {
+        el.style.display = 'none';
     }
 }
 
