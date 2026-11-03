@@ -52,6 +52,7 @@ python3 -m PyInstaller \
     --noconsole \
     --name "$NAME" \
     --add-data "index.html:." \
+    --add-data "defaults.js:." \
     --add-data "about.html:." \
     --add-data "privacy.html:." \
     --add-data "callback.html:." \
