@@ -1,0 +1,12 @@
+# Extra build-time dependencies for the "CList + LocalRSS" build variant
+# (build-*.sh/ps1 --with-localrss), needed only to PyInstaller-bundle
+# localrss_bundled/app.py. Not needed for a plain CList build.
+#
+# Pinned to match the commit the app.py snapshot in localrss_bundled/ was
+# copied from (see the header comment there) -- bump both together if
+# resyncing from /srv/apps/localrss_reader.
+flask
+aiohttp
+feedparser
+clist-server-admin @ https://github.com/Downes/clist-server-admin/archive/55f5319b87fcf4073766a9f5e44d24a9a74cef60.tar.gz
+clist-kvstore-auth[sync] @ https://github.com/Downes/clist-kvstore-auth/archive/00d4a3769371b55985f9eb6f96325d50edaee0f5.tar.gz

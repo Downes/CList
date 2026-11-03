@@ -19,14 +19,56 @@
 
         <h2>Part 1 — Run CList as a self-contained app</h2>
         <p>This runs CList from a small local server on your own machine, the same way it runs when hosted —
-        just double-click to start it.</p>
-        <ul>
-            <li>Download the app for your platform from the
-            <a href="https://github.com/Downes/CList/releases/latest" target="_blank">Releases page</a>
-            (a Windows build is available now; Mac and Linux builds will be added there as they're built)</li>
-            <li>Double-click the downloaded app — it starts a local server on your own computer and opens
-            CList in your default browser automatically</li>
-        </ul>
+        just double-click to start it. For each platform there are two downloads: one that also bundles a
+        <a href="https://localrss.downes.ca" target="_blank">LocalRSS</a> feed-reading backend, so it works
+        out of the box with no separate setup, and a plain one for anyone who already runs their own LocalRSS
+        (or doesn't use it at all).</p>
+
+        <div class="dl-platform">
+            <h3>Windows</h3>
+            <div class="dl-buttons">
+                <div class="dl-option">
+                    <a class="dl-btn" href="https://github.com/Downes/CList/releases/latest/download/CList-LocalRSS.exe">Download CList + LocalRSS</a>
+                    <span class="dl-note">Recommended. Includes a local LocalRSS backend — works right away, no extra install.</span>
+                </div>
+                <div class="dl-option">
+                    <a class="dl-btn dl-btn-secondary" href="https://github.com/Downes/CList/releases/latest/download/CList.exe">Download CList</a>
+                    <span class="dl-note">Plain build. Use this if you already run your own LocalRSS, or don't need it.</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="dl-platform">
+            <h3>macOS</h3>
+            <div class="dl-buttons">
+                <div class="dl-option">
+                    <a class="dl-btn" href="https://github.com/Downes/CList/releases/latest/download/CList-LocalRSS-macos">Download CList + LocalRSS</a>
+                    <span class="dl-note">Recommended. Includes a local LocalRSS backend — works right away, no extra install.</span>
+                </div>
+                <div class="dl-option">
+                    <a class="dl-btn dl-btn-secondary" href="https://github.com/Downes/CList/releases/latest/download/CList-macos">Download CList</a>
+                    <span class="dl-note">Plain build. Use this if you already run your own LocalRSS, or don't need it.</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="dl-platform">
+            <h3>Linux</h3>
+            <div class="dl-buttons">
+                <div class="dl-option">
+                    <a class="dl-btn" href="https://github.com/Downes/CList/releases/latest/download/CList-LocalRSS-linux">Download CList + LocalRSS</a>
+                    <span class="dl-note">Recommended. Includes a local LocalRSS backend — works right away, no extra install.</span>
+                </div>
+                <div class="dl-option">
+                    <a class="dl-btn dl-btn-secondary" href="https://github.com/Downes/CList/releases/latest/download/CList-linux">Download CList</a>
+                    <span class="dl-note">Plain build. Use this if you already run your own LocalRSS, or don't need it.</span>
+                </div>
+            </div>
+        </div>
+
+        <p>Double-click the downloaded app — it starts a local server on your own computer and opens CList
+        in your default browser automatically. All downloads are also listed on the
+        <a href="https://github.com/Downes/CList/releases/latest" target="_blank">Releases page</a>.</p>
         <p>Once it opens, CList works exactly as it does on the hosted version: register or log in with a
         regular account, or click <strong>Change Account Server</strong> in the login pane to switch to
         <strong>Local</strong> storage instead, which keeps everything only on this computer. See
@@ -35,8 +77,9 @@
         <p style="font-size:0.9em;">Prefer to build it yourself instead of downloading a prebuilt app? Get the
         source from <a href="https://github.com/Downes/CList" target="_blank">github.com/Downes/CList</a> and
         run the build script for your platform (<code>build-windows.ps1</code>, <code>build-macos.sh</code>,
-        or <code>build-linux.sh</code>) — this requires Python 3, or you can just run
-        <code>python3 launcher.py</code> directly without building a standalone app at all.</p>
+        or <code>build-linux.sh</code>) — add <code>-WithLocalRSS</code> / <code>--with-localrss</code> to
+        bundle LocalRSS too. This requires Python 3, or you can just run <code>python3 launcher.py</code>
+        directly without building a standalone app at all.</p>
 
         <h2>Part 2 — Save the files and run them directly</h2>
         <p>This is the simplest option: no install, nothing to run, no Python required. You just save a

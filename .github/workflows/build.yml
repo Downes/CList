@@ -52,6 +52,18 @@ jobs:
           name: CList-windows
           path: dist/CList.exe
 
+      - name: Install LocalRSS build deps
+        run: pip install -r requirements-localrss.txt
+
+      - name: Build (with LocalRSS)
+        shell: pwsh
+        run: .\build-windows.ps1 -WithLocalRSS
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: CList-LocalRSS-windows
+          path: dist/CList-LocalRSS.exe
+
   build-macos:
     runs-on: macos-latest
     steps:
@@ -72,6 +84,17 @@ jobs:
           name: CList-macos
           path: dist/CList
 
+      - name: Install LocalRSS build deps
+        run: pip install -r requirements-localrss.txt
+
+      - name: Build (with LocalRSS)
+        run: bash build-macos.sh --with-localrss
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: CList-LocalRSS-macos
+          path: dist/CList-LocalRSS
+
   build-linux:
     runs-on: ubuntu-latest
     steps:
@@ -91,6 +114,17 @@ jobs:
         with:
           name: CList-linux
           path: dist/clist
+
+      - name: Install LocalRSS build deps
+        run: pip install -r requirements-localrss.txt
+
+      - name: Build (with LocalRSS)
+        run: bash build-linux.sh --with-localrss
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: CList-LocalRSS-linux
+          path: dist/clist-localrss
 
   release:
     needs: [build-windows, build-macos, build-linux]
@@ -118,7 +152,17 @@ jobs:
 
       - uses: actions/download-artifact@v8
         with:
+          name: CList-LocalRSS-windows
+          path: release-assets/
+
+      - uses: actions/download-artifact@v8
+        with:
           name: CList-macos
+          path: release-assets/
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: CList-LocalRSS-macos
           path: release-assets/
 
       - uses: actions/download-artifact@v8
@@ -126,11 +170,18 @@ jobs:
           name: CList-linux
           path: release-assets/
 
+      - uses: actions/download-artifact@v8
+        with:
+          name: CList-LocalRSS-linux
+          path: release-assets/
+
       - name: Rename binaries
         run: |
           mv release-assets/CList release-assets/CList-macos
           mv release-assets/clist release-assets/CList-linux
-          chmod +x release-assets/CList-macos release-assets/CList-linux
+          mv release-assets/CList-LocalRSS release-assets/CList-LocalRSS-macos
+          mv release-assets/clist-localrss release-assets/CList-LocalRSS-linux
+          chmod +x release-assets/CList-macos release-assets/CList-linux release-assets/CList-LocalRSS-macos release-assets/CList-LocalRSS-linux
 
       - name: Create or update release
         uses: softprops/action-gh-release@v3
@@ -140,11 +191,15 @@ jobs:
           body: |
             **CList v${{ steps.meta.outputs.version }}** — built ${{ steps.meta.outputs.date }}
 
-            | Platform | File |
-            |----------|------|
-            | Windows  | `CList.exe` |
-            | macOS    | `CList-macos` |
-            | Linux    | `CList-linux` |
+            | Platform | Plain | With LocalRSS bundled |
+            |----------|-------|------------------------|
+            | Windows  | `CList.exe` | `CList-LocalRSS.exe` |
+            | macOS    | `CList-macos` | `CList-LocalRSS-macos` |
+            | Linux    | `CList-linux` | `CList-LocalRSS-linux` |
+
+            The "With LocalRSS bundled" builds include a local LocalRSS backend that starts automatically —
+            no separate install needed. Use the plain build if you already run your own LocalRSS, or don't
+            use it.
 
             Built from commit ${{ github.sha }}.
           files: release-assets/*

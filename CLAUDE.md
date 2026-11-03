@@ -163,6 +163,44 @@ See `docs/adding-a-service.md` for the complete pattern.
 
 These constants are declared in the inline `<script>` block in `index.html` and are available before any deferred script loads. Using them ensures a rename is a one-line change and prevents typo-silent bugs.
 
+## Desktop Launcher (`launcher.py`)
+
+stdlib-only local HTTP(S) server — `python3 launcher.py`, or a PyInstaller build via
+`build-linux.sh` / `build-macos.sh` / `build-windows.ps1` — that serves CList's static files and
+proxies cross-origin calls so no CORS configuration is needed.
+
+- `KVSTORE_PREFIX = '/kvstore-api'` — fixed proxy to the configured kvstore server.
+- `PROXY_PREFIX = '/proxy'` — generic same-origin relay, path shape
+  `/proxy/<base64url-encoded-origin>/<rest>`. Lets any account (e.g. a LocalRSS account pointed at
+  a remote server) bypass CORS for whatever origin the JS side encodes, not just one fixed default.
+
+### Bundled LocalRSS ("CList + LocalRSS" builds)
+
+Each platform build comes in two variants: plain CList, and "CList + LocalRSS" which also bundles
+a local LocalRSS backend that starts automatically on launch — no separate install. Both are built
+by CI and listed on `desktop.html` and the GitHub Releases page.
+
+- `localrss_bundled/` is a vendored snapshot of `/srv/apps/localrss_reader/app.py` + `feeds.opml`
+  (see the header comment in `app.py` for the copy date — that app isn't a git repo, so there's no
+  commit SHA to pin; resync by diffing against the live file). One deliberate deviation from the
+  source: `import fcntl` was moved out of module scope into `_acquire_scheduler_leadership()`,
+  which now also short-circuits on Windows — the top-level import otherwise crashes the whole
+  module there, and gunicorn multi-worker leader election is moot in this single-process desktop
+  context anyway. **Do not** apply this change to the live `/srv/apps/localrss_reader/app.py`;
+  production always runs on Linux under gunicorn.
+- `launcher.py`'s `maybe_start_bundled_localrss()` detects the bundle (presence of
+  `localrss_bundled/app.py` doubles as the marker), skips if something's already listening on port
+  8787, else loads the vendored `app.py` and runs its Flask app in a daemon thread with `RSS_DB`
+  pointed at a per-platform data dir (`get_localrss_data_dir()`, mirrors `get_certs_dir()`'s
+  pattern). Load/import failures are caught and logged, never fatal to the launcher itself.
+- Build scripts take `--with-localrss` (bash) / `-WithLocalRSS` (PowerShell) to produce this
+  variant (`clist-localrss` / `CList-LocalRSS` / `CList-LocalRSS.exe`) instead of the plain one.
+  Requires `pip install -r requirements-localrss.txt` — pinned to the same
+  `clist-server-admin` / `clist-kvstore-auth` commits as
+  `/srv/apps/localrss_reader/requirements.txt`; bump both together when resyncing.
+- `.github/workflows/build.yml` builds and releases both variants for all three platforms (6
+  binaries per release).
+
 ## Cautions
 
 - `interface.js` must load last (depends on all other scripts)

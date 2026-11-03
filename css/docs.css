@@ -48,6 +48,49 @@ code {
     font-size: 0.95em;
 }
 
+/* desktop.html only: per-platform download buttons */
+.dl-platform {
+    margin: 18px 0;
+}
+.dl-platform h3 {
+    margin: 0 0 6px;
+    font-size: 1.05em;
+}
+.dl-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+}
+.dl-option {
+    flex: 1 1 220px;
+    min-width: 200px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 10px 12px;
+}
+.dl-btn {
+    display: inline-block;
+    background: var(--highlight-color);
+    color: white;
+    padding: 7px 14px;
+    border-radius: 4px;
+    font-size: 0.95em;
+    text-decoration: none;
+}
+.dl-btn:hover {
+    opacity: 0.9;
+}
+.dl-btn-secondary {
+    background: #888;
+}
+.dl-note {
+    display: block;
+    margin-top: 6px;
+    padding: 0;
+    font-size: 0.85em;
+    color: #666;
+}
+
 /* about.html only: cursor hint + text-size controls */
 .container.resizable-text {
     cursor: pointer;

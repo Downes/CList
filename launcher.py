@@ -29,6 +29,7 @@ import socketserver
 import threading
 import webbrowser
 import json
+import base64
 import urllib.request
 import urllib.parse
 import urllib.error
@@ -96,6 +97,17 @@ KVSTORE_URL = (
 
 KVSTORE_PREFIX = '/kvstore-api'
 
+# Generic same-origin relay: /proxy/<base64url-encoded-origin>/<rest>. Unlike
+# KVSTORE_PREFIX (one fixed upstream), the target here is whatever origin the
+# JS side encodes into the URL -- lets any account (e.g. LocalRSS) fall back
+# to any remote server the user has configured, not just a built-in default.
+PROXY_PREFIX = '/proxy'
+
+
+def _decode_proxy_origin(encoded):
+    padding = '=' * (-len(encoded) % 4)
+    return base64.urlsafe_b64decode(encoded + padding).decode()
+
 
 # ---------------------------------------------------------------------------
 # TLS setup (Windows and macOS only; Linux gets plain HTTP with instructions)
@@ -114,6 +126,103 @@ def get_certs_dir():
     else:
         xdg = os.environ.get('XDG_CONFIG_HOME', os.path.expanduser('~/.config'))
         return os.path.join(xdg, 'clist', 'certs')
+
+
+# ---------------------------------------------------------------------------
+# Bundled LocalRSS backend ("CList + LocalRSS" builds only; see --with-localrss
+# in build-linux.sh / build-macos.sh / build-windows.ps1)
+# ---------------------------------------------------------------------------
+
+LOCALRSS_PORT = 8787
+
+
+def get_localrss_bundle_dir():
+    """Return the vendored LocalRSS source directory if this build includes
+    one, else None. Plain CList builds never have localrss_bundled/, so this
+    doubles as the bundle-marker check."""
+    candidate = os.path.join(BASE_DIR, 'localrss_bundled')
+    if os.path.isfile(os.path.join(candidate, 'app.py')):
+        return candidate
+    return None
+
+
+def get_localrss_data_dir():
+    """Return the platform-appropriate user data directory for the bundled
+    LocalRSS database, mirroring get_certs_dir()."""
+    system = platform.system()
+    if system == 'Windows':
+        base = os.environ.get('APPDATA', os.path.expanduser('~'))
+        return os.path.join(base, 'CList', 'localrss')
+    elif system == 'Darwin':
+        return os.path.join(
+            os.path.expanduser('~'), 'Library', 'Application Support', 'CList', 'localrss'
+        )
+    else:
+        xdg = os.environ.get('XDG_DATA_HOME', os.path.expanduser('~/.local/share'))
+        return os.path.join(xdg, 'clist', 'localrss')
+
+
+def _is_port_open(host, port):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(0.5)
+    try:
+        return sock.connect_ex((host, port)) == 0
+    finally:
+        sock.close()
+
+
+def maybe_start_bundled_localrss():
+    """If this is a "CList + LocalRSS" build and nothing is already
+    listening on LOCALRSS_PORT, start the bundled backend in a background
+    thread. CList's own local-instance probe (js/localrss.js) then finds and
+    prefers it automatically -- no further wiring needed on the JS side.
+    Silently skips (with a log line) if the bundle isn't present, something
+    else already owns the port, or the backend fails to load."""
+    bundle_dir = get_localrss_bundle_dir()
+    if not bundle_dir:
+        return
+
+    if _is_port_open('127.0.0.1', LOCALRSS_PORT):
+        print(f'LocalRSS: something is already listening on port {LOCALRSS_PORT}; not starting the bundled instance.')
+        return
+
+    data_dir = get_localrss_data_dir()
+    try:
+        os.makedirs(data_dir, exist_ok=True)
+    except OSError as e:
+        print(f'LocalRSS: could not create data directory {data_dir}: {e}', file=sys.stderr)
+        return
+    os.environ.setdefault('RSS_DB', os.path.join(data_dir, 'global.db'))
+
+    try:
+        import importlib.util
+        sys.path.insert(0, bundle_dir)
+        spec = importlib.util.spec_from_file_location(
+            'clist_bundled_localrss', os.path.join(bundle_dir, 'app.py')
+        )
+        localrss_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(localrss_module)
+    except Exception as e:
+        print(f'LocalRSS: failed to load bundled backend, skipping ({e})', file=sys.stderr)
+        return
+
+    try:
+        imported = localrss_module.import_default_opml_if_needed(
+            os.path.join(bundle_dir, 'feeds.opml')
+        )
+        if imported:
+            print(f'LocalRSS: imported {imported} feeds from the bundled feeds.opml (empty DB).')
+    except Exception as e:
+        print(f'LocalRSS: could not import default feeds.opml: {e}', file=sys.stderr)
+
+    def runner():
+        try:
+            localrss_module.app.run(host='127.0.0.1', port=LOCALRSS_PORT, debug=False, threaded=True)
+        except Exception as e:
+            print(f'LocalRSS: bundled backend crashed: {e}', file=sys.stderr)
+
+    threading.Thread(target=runner, daemon=True).start()
+    print(f'LocalRSS: starting bundled backend on http://127.0.0.1:{LOCALRSS_PORT}')
 
 
 def get_mkcert_exe():
@@ -258,6 +367,8 @@ class CListHandler(http.server.SimpleHTTPRequestHandler):
             self._serve_runtime_config()
         elif path.startswith(KVSTORE_PREFIX + '/') or path == KVSTORE_PREFIX:
             self._handle_kvstore_proxy()
+        elif path.startswith(PROXY_PREFIX + '/') or path == PROXY_PREFIX:
+            self._handle_generic_proxy()
         else:
             super().do_GET()
 
@@ -267,6 +378,8 @@ class CListHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_token_exchange()
         elif path.startswith(KVSTORE_PREFIX + '/') or path == KVSTORE_PREFIX:
             self._handle_kvstore_proxy()
+        elif path.startswith(PROXY_PREFIX + '/') or path == PROXY_PREFIX:
+            self._handle_generic_proxy()
         else:
             self.send_error(404, 'Not found')
 
@@ -274,6 +387,8 @@ class CListHandler(http.server.SimpleHTTPRequestHandler):
         path = self.path.split('?')[0]
         if path.startswith(KVSTORE_PREFIX + '/') or path == KVSTORE_PREFIX:
             self._handle_kvstore_proxy()
+        elif path.startswith(PROXY_PREFIX + '/') or path == PROXY_PREFIX:
+            self._handle_generic_proxy()
         else:
             self.send_error(404, 'Not found')
 
@@ -281,6 +396,8 @@ class CListHandler(http.server.SimpleHTTPRequestHandler):
         path = self.path.split('?')[0]
         if path.startswith(KVSTORE_PREFIX + '/') or path == KVSTORE_PREFIX:
             self._handle_kvstore_proxy()
+        elif path.startswith(PROXY_PREFIX + '/') or path == PROXY_PREFIX:
+            self._handle_generic_proxy()
         else:
             self.send_error(404, 'Not found')
 
@@ -290,7 +407,10 @@ class CListHandler(http.server.SimpleHTTPRequestHandler):
         js = (
             f'window._launcherConfig = {{'
             f' kvstoreUrl: {json.dumps(KVSTORE_URL)},'
-            f' port: {PORT}'
+            f' port: {PORT},'
+            # proxyBase: generic same-origin relay for any remote service (e.g. a
+            # LocalRSS account's serviceUrl) -- see js/localrss.js and PROXY_PREFIX.
+            f' proxyBase: {json.dumps(BASE_URL + PROXY_PREFIX)}'
             f' }};\n'
             # Monkey-patch window.fetch to intercept kvstore calls and route them through
             # the local proxy, avoiding CORS restrictions without touching any call sites.
@@ -444,6 +564,74 @@ class CListHandler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(error_body)
 
+    def _handle_generic_proxy(self):
+        """
+        Proxy a request to an arbitrary origin encoded in the URL path.
+
+        Path shape: /proxy/<base64url-encoded-origin>/<rest...>. The browser
+        talks to BASE_URL/proxy/... (same origin, so no CORS preflight), and
+        the launcher forwards the request to the decoded origin server-side,
+        where CORS does not apply. Unlike _handle_kvstore_proxy, the target
+        isn't fixed at launch time -- it comes from the request itself, so
+        any account can fall back to any remote server the user configured.
+        """
+        tail = self.path[len(PROXY_PREFIX) + 1:]  # strip leading "proxy/"
+        encoded_origin, _, rest = tail.partition('/')
+
+        try:
+            origin = _decode_proxy_origin(encoded_origin)
+        except Exception:
+            self.send_error(400, 'Bad proxy target encoding')
+            return
+
+        parsed = urllib.parse.urlparse(origin)
+        if parsed.scheme not in ('http', 'https') or not parsed.netloc or parsed.path:
+            self.send_error(400, 'Bad proxy target')
+            return
+
+        target_url = origin.rstrip('/') + '/' + rest if rest else origin
+
+        length = int(self.headers.get('Content-Length', 0))
+        body   = self.rfile.read(length) if length > 0 else None
+
+        forward_headers = {}
+        for h in ('Authorization', 'Content-Type', 'X-Kvstore-Url'):
+            v = self.headers.get(h)
+            if v:
+                forward_headers[h] = v
+
+        req = urllib.request.Request(
+            target_url,
+            data=body,
+            headers=forward_headers,
+            method=self.command,
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                resp_body    = resp.read()
+                content_type = resp.headers.get('Content-Type', 'application/json')
+            self.send_response(200)
+            self.send_header('Content-Type', content_type)
+            self.send_header('Content-Length', str(len(resp_body)))
+            self.end_headers()
+            self.wfile.write(resp_body)
+
+        except urllib.error.HTTPError as e:
+            resp_body = e.read()
+            self.send_response(e.code)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(resp_body)))
+            self.end_headers()
+            self.wfile.write(resp_body)
+
+        except Exception as e:
+            error_body = json.dumps({'error': str(e)}).encode()
+            self.send_response(500)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(error_body)))
+            self.end_headers()
+            self.wfile.write(error_body)
+
     def log_message(self, format, *args):
         pass  # suppress per-request logging to keep the console clean
 
@@ -512,6 +700,8 @@ def main():
 
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
+
+    maybe_start_bundled_localrss()
 
     if not wait_for_server(BASE_URL):
         if sys.stderr:

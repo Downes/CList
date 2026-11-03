@@ -1,0 +1,474 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head>
+    <title>LocalRSSReader Feeds</title>
+    <dateCreated>Mon, 29 Dec 2025 15:52:44</dateCreated>
+  </head>
+  <body>
+    <outline type="rss" text="#ALTC Blog" title="#ALTC Blog" xmlUrl="https://altc.alt.ac.uk/blog/feed/" />
+    <outline type="rss" text="#LTHEchat" title="#LTHEchat" xmlUrl="https://lthechat.com/feed/" />
+    <outline type="rss" text="#UofGSoTL" title="#UofGSoTL" xmlUrl="https://uofgsotl.blog/feed/" />
+    <outline type="rss" text="#creativeHE" title="#creativeHE" xmlUrl="https://creativehecommunity.wordpress.com/feed/" />
+    <outline type="rss" text="3-Star learning experiences" title="3-Star learning experiences" xmlUrl="https://3starlearningexperiences.wordpress.com/feed/" />
+    <outline type="rss" text="A Principal's Reflections" title="A Principal's Reflections" xmlUrl="https://esheninger.blogspot.com/feeds/posts/default" />
+    <outline type="rss" text="A Timeless Journey of Me or Nothingness: A Continuum of Recursive Emergence on Isaac+Mao" title="A Timeless Journey of Me or Nothingness: A Continuum of Recursive Emergence on Isaac+Mao" xmlUrl="https://isaacmao.com/index.xml" />
+    <outline type="rss" text="AACE" title="AACE" xmlUrl="https://aace.org/feed/" />
+    <outline type="rss" text="ACM TechNews" title="ACM TechNews" xmlUrl="https://rss.acm.org/technews/TechNews.xml" />
+    <outline type="rss" text="ACRLog" title="ACRLog" xmlUrl="https://acrlog.org/feed/" />
+    <outline type="rss" text="ACUE| Empowering Educators" title="ACUE| Empowering Educators" xmlUrl="http://acue.org/feed/" />
+    <outline type="rss" text="AI + Education = Simplified" title="AI + Education = Simplified" xmlUrl="https://aiedusimplified.substack.com/feed" />
+    <outline type="rss" text="AI by Hand ✍️" title="AI by Hand ✍️" xmlUrl="https://www.byhand.ai/feed" />
+    <outline type="rss" text="AI, academia, and the Future" title="AI, academia, and the Future" xmlUrl="https://aiandacademia.substack.com/feed" />
+    <outline type="rss" text="ASCILITE TELall Blog" title="ASCILITE TELall Blog" xmlUrl="https://blog.ascilite.org/feed/" />
+    <outline type="rss" text="AWS News Blog" title="AWS News Blog" xmlUrl="http://feeds.feedburner.com/AmazonWebServicesBlog" />
+    <outline type="rss" text="Abject" title="Abject" xmlUrl="http://abject.ca/feed/" />
+    <outline type="rss" text="Academic Matters" title="Academic Matters" xmlUrl="https://academicmatters.ca/feed/" />
+    <outline type="rss" text="Adaptive Learning in ELT" title="Adaptive Learning in ELT" xmlUrl="https://adaptivelearninginelt.wordpress.com/feed/" />
+    <outline type="rss" text="Agile Learning" title="Agile Learning" xmlUrl="https://derekbruff.org/feed/" />
+    <outline type="rss" text="Alfie Kohn" title="Alfie Kohn" xmlUrl="http://www.alfiekohn.org/feed/" />
+    <outline type="rss" text="Alice Leung" title="Alice Leung" xmlUrl="https://aliceleung.net/feed/" />
+    <outline type="rss" text="Aliter Concept" title="Aliter Concept" xmlUrl="https://aliterconcept.com/feed/" />
+    <outline type="rss" text="All Ireland Journal of Higher Education" title="All Ireland Journal of Higher Education" xmlUrl="https://ojs.aishe.org/index.php/aishe-j/gateway/plugin/WebFeedGatewayPlugin/atom" />
+    <outline type="rss" text="All Things Pedagogical" title="All Things Pedagogical" xmlUrl="http://allthingspedagogical.blogspot.com/feeds/posts/default" />
+    <outline type="rss" text="Anecdotal Value" title="Anecdotal Value" xmlUrl="https://hollisrobbinsanecdotal.substack.com/feed" />
+    <outline type="rss" text="Anil Dash" title="Anil Dash" xmlUrl="https://www.anildash.com/feed.xml" />
+    <outline type="rss" text="Anil Dash" title="Anil Dash" xmlUrl="https://www.dashes.com/feed.xml" />
+    <outline type="rss" text="Another Think Coming" title="Another Think Coming" xmlUrl="https://mguhlin.org/feed/" />
+    <outline type="rss" text="Around the Corner-MGuhlin.org" title="Around the Corner-MGuhlin.org" xmlUrl="http://feeds.feedburner.com/mguhlin" />
+    <outline type="rss" text="Asian Journal of Distance Education" title="Asian Journal of Distance Education" xmlUrl="http://www.asianjde.com/ojs/index.php/AsianJDE/gateway/plugin/WebFeedGatewayPlugin/atom" />
+    <outline type="rss" text="Asian Journal of Distance Education" title="Asian Journal of Distance Education" xmlUrl="https://www.asianjde.com/ojs/index.php/AsianJDE/gateway/plugin/WebFeedGatewayPlugin/atom" />
+    <outline type="rss" text="Assorted Stuff" title="Assorted Stuff" xmlUrl="https://www.assortedstuff.com/feed/" />
+    <outline type="rss" text="Australasian Journal of Educational Technology" title="Australasian Journal of Educational Technology" xmlUrl="https://ajet.org.au/index.php/AJET/gateway/plugin/WebFeedGatewayPlugin/atom" />
+    <outline type="rss" text="BBC News" title="BBC News" xmlUrl="http://feeds.bbci.co.uk/news/education/rss.xml?edition=int" />
+    <outline type="rss" text="BBC News" title="BBC News" xmlUrl="http://feeds.bbci.co.uk/news/technology/rss.xml?edition=uk" />
+    <outline type="rss" text="BCcampus" title="BCcampus" xmlUrl="https://bccampus.ca/feed/" />
+    <outline type="rss" text="BERA - Blog Feed" title="BERA - Blog Feed" xmlUrl="https://www.bera.ac.uk/feed/blog-rss" />
+    <outline type="rss" text="BOLD" title="BOLD" xmlUrl="https://boldscience.org/feed/" />
+    <outline type="rss" text="Beth Kanter" title="Beth Kanter" xmlUrl="https://bethkanter.org/feed/" />
+    <outline type="rss" text="Bionic Teaching" title="Bionic Teaching" xmlUrl="http://bionicteaching.com/?feed=rss2" />
+    <outline type="rss" text="Blog - Duke Learning Innovation" title="Blog - Duke Learning Innovation" xmlUrl="http://cit.duke.edu/blog/feed/" />
+    <outline type="rss" text="Blog - ICT &amp; Computing in Education" title="Blog - ICT &amp; Computing in Education" xmlUrl="https://www.ictineducation.org/home-page?format=rss" />
+    <outline type="rss" text="Blog - Neil Mosley Consulting" title="Blog - Neil Mosley Consulting" xmlUrl="https://www.neilmosley.com/blog?format=rss" />
+    <outline type="rss" text="Blog Archives - HEPI" title="Blog Archives - HEPI" xmlUrl="https://www.hepi.ac.uk/category/blog/feed/" />
+    <outline type="rss" text="Blog of the APA" title="Blog of the APA" xmlUrl="https://blog.apaonline.org/feed/" />
+    <outline type="rss" text="Blog – By @mhawksey" title="Blog – By @mhawksey" xmlUrl="https://hawksey.info/blog/feed/" />
+    <outline type="rss" text="Blue Skunk Blog" title="Blue Skunk Blog" xmlUrl="http://doug-johnson.squarespace.com/blue-skunk-blog/atom.xml" />
+    <outline type="rss" text="Boston Review" title="Boston Review" xmlUrl="https://www.bostonreview.net/feed/" />
+    <outline type="rss" text="Bot Populi" title="Bot Populi" xmlUrl="https://botpopuli.net/feed/" />
+    <outline type="rss" text="Brain Baking" title="Brain Baking" xmlUrl="https://brainbaking.com/index.xml" />
+    <outline type="rss" text="Brainstorm in Progress" title="Brainstorm in Progress" xmlUrl="https://geoffcain.com/blog/feed/" />
+    <outline type="rss" text="BrendanFetters.com" title="BrendanFetters.com" xmlUrl="https://brendanfetters.com/feed/" />
+    <outline type="rss" text="Bryan Alexander" title="Bryan Alexander" xmlUrl="http://bryanalexander.org/feed/" />
+    <outline type="rss" text="By Craig Weiss" title="By Craig Weiss" xmlUrl="https://elearninfo247.com/feed/" />
+    <outline type="rss" text="CANeLearn" title="CANeLearn" xmlUrl="https://canelearn.net/feed/" />
+    <outline type="rss" text="CAT Food (for thought)" title="CAT Food (for thought)" xmlUrl="http://feeds.feedburner.com/catfoodfeed" />
+    <outline type="rss" text="CSS-Tricks" title="CSS-Tricks" xmlUrl="http://feeds.feedburner.com/CssTricks" />
+    <outline type="rss" text="CSSE SCEE" title="CSSE SCEE" xmlUrl="https://www.csse-scee.ca/feed/" />
+    <outline type="rss" text="CUNY Games Network" title="CUNY Games Network" xmlUrl="https://games.commons.gc.cuny.edu/feed/" />
+    <outline type="rss" text="Campus Sonar Brain Waves" title="Campus Sonar Brain Waves" xmlUrl="https://blog.campussonar.com/blog/rss.xml" />
+    <outline type="rss" text="Campus Technology: All Articles" title="Campus Technology: All Articles" xmlUrl="https://campustechnology.com/rss-feeds/all-articles.aspx" />
+    <outline type="rss" text="Canadian Journal of Education/Revue canadienne de l'éducation" title="Canadian Journal of Education/Revue canadienne de l'éducation" xmlUrl="https://journals.sfu.ca/cje/index.php/cje-rce/gateway/plugin/WebFeedGatewayPlugin/rss" />
+    <outline type="rss" text="Carpet Bomberz Inc." title="Carpet Bomberz Inc." xmlUrl="https://carpetbomberz.com/feed/" />
+    <outline type="rss" text="Cathy N. Davidson" title="Cathy N. Davidson" xmlUrl="http://www.cathydavidson.com/feed/" />
+    <outline type="rss" text="Chief Learning Officer" title="Chief Learning Officer" xmlUrl="https://www.chieflearningofficer.com/feed/" />
+    <outline type="rss" text="Chris Corrigan" title="Chris Corrigan" xmlUrl="https://www.chriscorrigan.com/parkinglot/feed/" />
+    <outline type="rss" text="Christensen Institute" title="Christensen Institute" xmlUrl="https://www.christenseninstitute.org/feed/" />
+    <outline type="rss" text="Christopher P. Long" title="Christopher P. Long" xmlUrl="http://cplong.org/feed/" />
+    <outline type="rss" text="ClearerThinking.org" title="ClearerThinking.org" xmlUrl="https://www.clearerthinking.org/blog-feed.xml" />
+    <outline type="rss" text="CogDogBlog" title="CogDogBlog" xmlUrl="https://cogdogblog.com/feed/" />
+    <outline type="rss" text="Col's  Weblog" title="Col's  Weblog" xmlUrl="https://beerc.wordpress.com/feed/" />
+    <outline type="rss" text="Colossal" title="Colossal" xmlUrl="https://www.thisiscolossal.com/feed/" />
+    <outline type="rss" text="Comments on:" title="Comments on:" xmlUrl="https://socialsignal.com/noise-to-signal/feed/" />
+    <outline type="rss" text="Comments on: Blog" title="Comments on: Blog" xmlUrl="http://hastac.org/blog/feed/" />
+    <outline type="rss" text="CommonsDB" title="CommonsDB" xmlUrl="https://www.commonsdb.org/blog/rss/" />
+    <outline type="rss" text="Computing Ed Research – Guzdial's Take" title="Computing Ed Research – Guzdial's Take" xmlUrl="https://computinged.wordpress.com/feed/" />
+    <outline type="rss" text="Connected Learning Alliance" title="Connected Learning Alliance" xmlUrl="https://clalliance.org/feed/" />
+    <outline type="rss" text="Cool Cat Teacher Blog" title="Cool Cat Teacher Blog" xmlUrl="http://coolcatteacher.blogspot.com/feeds/posts/default" />
+    <outline type="rss" text="Coursera Blog" title="Coursera Blog" xmlUrl="http://blog.coursera.org/rss" />
+    <outline type="rss" text="Creative Commons" title="Creative Commons" xmlUrl="http://creativecommons.org/weblog/rss" />
+    <outline type="rss" text="Crooked Timber" title="Crooked Timber" xmlUrl="https://crookedtimber.org/feed/" />
+    <outline type="rss" text="Cult of Pedagogy" title="Cult of Pedagogy" xmlUrl="http://www.cultofpedagogy.com/feed/" />
+    <outline type="rss" text="Cybernetic Forests" title="Cybernetic Forests" xmlUrl="https://mail.cyberneticforests.com/rss/" />
+    <outline type="rss" text="Daily Nous" title="Daily Nous" xmlUrl="https://dailynous.com/feed/" />
+    <outline type="rss" text="Daily-Ink by David Truss" title="Daily-Ink by David Truss" xmlUrl="https://daily-ink.davidtruss.com/feed/" />
+    <outline type="rss" text="Dan Pontefract" title="Dan Pontefract" xmlUrl="https://www.danpontefract.com/feed/" />
+    <outline type="rss" text="Dangerously Irrelevant | @mcleod" title="Dangerously Irrelevant | @mcleod" xmlUrl="http://feeds.feedburner.com/dangerouslyirrelevant" />
+    <outline type="rss" text="Daniel Willingham--Science &amp;amp; Education - Daniel Willingham: Science and Education Blog" title="Daniel Willingham--Science &amp;amp; Education - Daniel Willingham: Science and Education Blog" xmlUrl="http://feeds.feedburner.com/nbspDanielWillingham-DanielWillinghamScienceAndEducationBlog" />
+    <outline type="rss" text="Dataetisk Tænkehandletank" title="Dataetisk Tænkehandletank" xmlUrl="https://dataethics.eu/feed/" />
+    <outline type="rss" text="Dave Webster" title="Dave Webster" xmlUrl="https://davewebster.org/feed/" />
+    <outline type="rss" text="Dave’s Educational Blog" title="Dave’s Educational Blog" xmlUrl="https://davecormier.com/edblog/feed/" />
+    <outline type="rss" text="David Hopkins / Education &amp; Leadership" title="David Hopkins / Education &amp; Leadership" xmlUrl="http://www.dontwasteyourtime.co.uk/feed/" />
+    <outline type="rss" text="David White: Digital and Education" title="David White: Digital and Education" xmlUrl="https://daveowhite.com/feed/" />
+    <outline type="rss" text="Democracy &amp; Education" title="Democracy &amp; Education" xmlUrl="https://democracyeducationjournal.org/home/recent.rss" />
+    <outline type="rss" text="Diff" title="Diff" xmlUrl="https://diff.wikimedia.org/feed/" />
+    <outline type="rss" text="Digicult | Digital Art, Design and Culture" title="Digicult | Digital Art, Design and Culture" xmlUrl="https://digicult.it/feed/atom/" />
+    <outline type="rss" text="Digital media | The Guardian" title="Digital media | The Guardian" xmlUrl="https://www.theguardian.com/media/digital-media/rss" />
+    <outline type="rss" text="DigitalKoans" title="DigitalKoans" xmlUrl="http://feeds.feedburner.com/ScholarlyElectronicPublishingWeblogrss" />
+    <outline type="rss" text="Doc Searls Weblog" title="Doc Searls Weblog" xmlUrl="http://blogs.law.harvard.edu/docsearls/feed/" />
+    <outline type="rss" text="Don Tapscott" title="Don Tapscott" xmlUrl="https://dontapscott.com/feed/" />
+    <outline type="rss" text="Donald Clark       Plan B" title="Donald Clark       Plan B" xmlUrl="http://donaldclarkplanb.blogspot.com/feeds/posts/default" />
+    <outline type="rss" text="Doug Belshaw's blog" title="Doug Belshaw's blog" xmlUrl="http://feeds2.feedburner.com/dougbelshaw" />
+    <outline type="rss" text="Dr. Marina Milner-Bolotin" title="Dr. Marina Milner-Bolotin" xmlUrl="https://blogs.ubc.ca/mmilner/feed/" />
+    <outline type="rss" text="E-Learning Provocateur" title="E-Learning Provocateur" xmlUrl="https://ryan2point0.wordpress.com/feed/" />
+    <outline type="rss" text="E-Learning Queen" title="E-Learning Queen" xmlUrl="http://feeds.feedburner.com/E-learningQueen" />
+    <outline type="rss" text="ETAD Café Canadien" title="ETAD Café Canadien" xmlUrl="https://rickscafe.wordpress.com/feed/" />
+    <outline type="rss" text="Ed Notes Online" title="Ed Notes Online" xmlUrl="https://ednotesonline.blogspot.com/feeds/posts/default?alt=rss" />
+    <outline type="rss" text="Ed-Fi Alliance" title="Ed-Fi Alliance" xmlUrl="https://www.ed-fi.org/feed/" />
+    <outline type="rss" text="EdScoop" title="EdScoop" xmlUrl="https://edscoop.com/feed/" />
+    <outline type="rss" text="EdTechTeacher" title="EdTechTeacher" xmlUrl="http://edtechteacher.org/feed/" />
+    <outline type="rss" text="Edtech Insiders" title="Edtech Insiders" xmlUrl="https://rss.buzzsprout.com/1877869.rss" />
+    <outline type="rss" text="EduGeek Journal" title="EduGeek Journal" xmlUrl="https://www.edugeekjournal.com/feed/" />
+    <outline type="rss" text="EduResearch Matters" title="EduResearch Matters" xmlUrl="https://blog.aare.edu.au/feed/" />
+    <outline type="rss" text="Educating AI" title="Educating AI" xmlUrl="https://nickpotkalitsky.substack.com/feed" />
+    <outline type="rss" text="Education - Cisco Blogs" title="Education - Cisco Blogs" xmlUrl="http://feeds.feedburner.com/CiscoBlogEducation" />
+    <outline type="rss" text="Education Disrupted: Teaching and Learning in An AI World" title="Education Disrupted: Teaching and Learning in An AI World" xmlUrl="https://stefanbauschard.substack.com/feed" />
+    <outline type="rss" text="Education Futures" title="Education Futures" xmlUrl="https://educationfutures.com/feed.xml" />
+    <outline type="rss" text="Education Matters Magazine" title="Education Matters Magazine" xmlUrl="https://educationmattersmag.com.au/feed/" />
+    <outline type="rss" text="Education Research Report" title="Education Research Report" xmlUrl="http://educationresearchreport.blogspot.com/feeds/posts/default?alt=rss" />
+    <outline type="rss" text="Education Review" title="Education Review" xmlUrl="http://www.educationreview.com.au/feed/" />
+    <outline type="rss" text="Education Technology" title="Education Technology" xmlUrl="https://www.reddit.com/r/edtech/.rss" />
+    <outline type="rss" text="Education and Information Technologies - Scholars Portal" title="Education and Information Technologies - Scholars Portal" xmlUrl="https://journals.scholarsportal.info/browse/13602357/rss" />
+    <outline type="rss" text="Education and Knowledge - Goethe-Institut" title="Education and Knowledge - Goethe-Institut" xmlUrl="https://www.goethe.de/en/feed/fut.rss" />
+    <outline type="rss" text="Education, Economy and Society" title="Education, Economy and Society" xmlUrl="https://education-economy-society.com/feed/" />
+    <outline type="rss" text="Educational Enhancement" title="Educational Enhancement" xmlUrl="http://blogs.sussex.ac.uk/tel/feed/" />
+    <outline type="rss" text="Educational Research Centre – Foras Taighde ar Oideachas" title="Educational Research Centre – Foras Taighde ar Oideachas" xmlUrl="https://www.erc.ie/feed/" />
+    <outline type="rss" text="Educational Technology and Change Journal" title="Educational Technology and Change Journal" xmlUrl="https://etcjournal.com/feed/" />
+    <outline type="rss" text="Educatus (archived)" title="Educatus (archived)" xmlUrl="https://sites.usask.ca/gmcte/feed/" />
+    <outline type="rss" text="Edudata" title="Edudata" xmlUrl="https://www.edudata.blog/rss/" />
+    <outline type="rss" text="Eduwonk" title="Eduwonk" xmlUrl="http://feeds.feedburner.com/Eduwonk" />
+    <outline type="rss" text="Elena Rossini" title="Elena Rossini" xmlUrl="https://blog.elenarossini.com/rss/" />
+    <outline type="rss" text="Encore+ Project" title="Encore+ Project" xmlUrl="https://encoreproject.eu/feed/" />
+    <outline type="rss" text="Everyday Sociology Blog" title="Everyday Sociology Blog" xmlUrl="http://feeds.feedburner.com/EverydaySociologyBlog" />
+    <outline type="rss" text="Experiencing Elearning" title="Experiencing Elearning" xmlUrl="https://christytuckerlearning.com/feed/" />
+    <outline type="rss" text="Faculty Focus | Higher Ed Teaching &amp; Learning" title="Faculty Focus | Higher Ed Teaching &amp; Learning" xmlUrl="https://www.facultyfocus.com/feed/" />
+    <outline type="rss" text="First Monday" title="First Monday" xmlUrl="https://firstmonday.org/ojs/index.php/fm/gateway/plugin/WebFeedGatewayPlugin/rss2" />
+    <outline type="rss" text="Futurity" title="Futurity" xmlUrl="http://www.futurity.org/feed/" />
+    <outline type="rss" text="GP Strategies" title="GP Strategies" xmlUrl="https://www.gpstrategies.com/feed/" />
+    <outline type="rss" text="Gardner Writes" title="Gardner Writes" xmlUrl="https://www.gardnercampbell.net/blog1/feed/atom/" />
+    <outline type="rss" text="George Veletsianos, PhD" title="George Veletsianos, PhD" xmlUrl="https://www.veletsianos.com/feed/" />
+    <outline type="rss" text="Get updates, career advice, and job market news on the FutureLearn Blog" title="Get updates, career advice, and job market news on the FutureLearn Blog" xmlUrl="https://www.futurelearn.com/info/blog/feed" />
+    <outline type="rss" text="Getting Smart" title="Getting Smart" xmlUrl="http://www.gettingsmart.com/feed/" />
+    <outline type="rss" text="Global Ed Leadership" title="Global Ed Leadership" xmlUrl="https://globaledleadership.org/feed/" />
+    <outline type="rss" text="Go To Hellman" title="Go To Hellman" xmlUrl="https://go-to-hellman.blogspot.com/feeds/posts/default" />
+    <outline type="rss" text="HESA" title="HESA" xmlUrl="https://higheredstrategy.com/feed/" />
+    <outline type="rss" text="Hack Education" title="Hack Education" xmlUrl="http://feeds.feedburner.com/HackEducation?format=xml" />
+    <outline type="rss" text="Hack Education" title="Hack Education" xmlUrl="http://feeds.feedburner.com/hackeducation" />
+    <outline type="rss" text="Half an Hour" title="Half an Hour" xmlUrl="https://halfanhour.blogspot.com/feeds/posts/default?alt=atom" />
+    <outline type="rss" text="Hapgood" title="Hapgood" xmlUrl="https://hapgood.us/feed/" />
+    <outline type="rss" text="Harold Jarche" title="Harold Jarche" xmlUrl="http://www.jarche.com/?feed=rss2" />
+    <outline type="rss" text="Heart Soul Machine" title="Heart Soul Machine" xmlUrl="https://heartsoulmachine.com/feed.xml" />
+    <outline type="rss" text="Higher Ed Dive - Latest News" title="Higher Ed Dive - Latest News" xmlUrl="https://www.highereddive.com/feeds/news/" />
+    <outline type="rss" text="Higher Education Today" title="Higher Education Today" xmlUrl="http://www.higheredtoday.org/feed/" />
+    <outline type="rss" text="Higher Education Whisperer" title="Higher Education Whisperer" xmlUrl="http://blog.highereducationwhisperer.com/feeds/posts/default" />
+    <outline type="rss" text="History of Philosophy Without Any Gaps" title="History of Philosophy Without Any Gaps" xmlUrl="https://feed.podbean.com/hopwag/feed.xml" />
+    <outline type="rss" text="Human Restoration Project Writing" title="Human Restoration Project Writing" xmlUrl="https://www.humanrestorationproject.org/writing/rss.xml" />
+    <outline type="rss" text="Hybrid Horizons: Exploring Human-AI Collaboration" title="Hybrid Horizons: Exploring Human-AI Collaboration" xmlUrl="https://hybridhorizons.substack.com/feed" />
+    <outline type="rss" text="ICE Blog" title="ICE Blog" xmlUrl="https://icenet.blog/feed/" />
+    <outline type="rss" text="ICEF Monitor – Market intelligence for international student recruitment" title="ICEF Monitor – Market intelligence for international student recruitment" xmlUrl="https://monitor.icef.com/feed/?cat=-186" />
+    <outline type="rss" text="IDDblog: Instructional Design Tips, Advice, &amp; Trends for Online &amp; Distance Learning" title="IDDblog: Instructional Design Tips, Advice, &amp; Trends for Online &amp; Distance Learning" xmlUrl="https://www.iddblog.org/feed/" />
+    <outline type="rss" text="Ian O’Byrne" title="Ian O’Byrne" xmlUrl="https://wiobyrne.com/feed/" />
+    <outline type="rss" text="Ideas and Thoughts" title="Ideas and Thoughts" xmlUrl="http://feeds.feedburner.com/blogspot/shareski" />
+    <outline type="rss" text="Improving Teaching" title="Improving Teaching" xmlUrl="https://improvingteaching.co.uk/feed/" />
+    <outline type="rss" text="Improvisation Blog" title="Improvisation Blog" xmlUrl="http://dailyimprovisation.blogspot.com/feeds/posts/default" />
+    <outline type="rss" text="InfoQ" title="InfoQ" xmlUrl="https://feed.infoq.com/" />
+    <outline type="rss" text="InfoQ - Presentations" title="InfoQ - Presentations" xmlUrl="https://feed.infoq.com/presentations" />
+    <outline type="rss" text="Infographics - Cool Infographics" title="Infographics - Cool Infographics" xmlUrl="https://coolinfographics.com/blog?format=rss" />
+    <outline type="rss" text="Infrequently Noted" title="Infrequently Noted" xmlUrl="https://infrequently.org/feed" />
+    <outline type="rss" text="Inside Higher Ed" title="Inside Higher Ed" xmlUrl="https://www.insidehighered.com/rss.xml" />
+    <outline type="rss" text="Insights" title="Insights" xmlUrl="https://www.iab.com/insights/feed/" />
+    <outline type="rss" text="Interconnected" title="Interconnected" xmlUrl="https://interconnected.org/home/feed" />
+    <outline type="rss" text="International Journal for the Scholarship of Teaching &amp; Learning" title="International Journal for the Scholarship of Teaching &amp; Learning" xmlUrl="https://digitalcommons.georgiasouthern.edu/ij-sotl/recent.rss" />
+    <outline type="rss" text="International Journal of Changes in Education" title="International Journal of Changes in Education" xmlUrl="https://ojs.bonviewpress.com/index.php/IJCE/gateway/plugin/WebFeedGatewayPlugin/rss" />
+    <outline type="rss" text="Irish Journal of Academic Practice" title="Irish Journal of Academic Practice" xmlUrl="https://arrow.tudublin.ie/ijap/recent.rss" />
+    <outline type="rss" text="Issues and Trends in Learning Technologies Article Feed" title="Issues and Trends in Learning Technologies Article Feed" xmlUrl="https://journals.librarypublishing.arizona.edu/itlt/feed/" />
+    <outline type="rss" text="J-Source" title="J-Source" xmlUrl="https://j-source.ca/rss.xml" />
+    <outline type="rss" text="JOSH BERSIN" title="JOSH BERSIN" xmlUrl="https://joshbersin.com/feed/" />
+    <outline type="rss" text="Jeffrey Zeldman Presents" title="Jeffrey Zeldman Presents" xmlUrl="https://zeldman.com/feed/" />
+    <outline type="rss" text="Jenny Connected" title="Jenny Connected" xmlUrl="https://jennymackness.wordpress.com/feed/" />
+    <outline type="rss" text="Jim Nielsen’s Blog" title="Jim Nielsen’s Blog" xmlUrl="https://blog.jim-nielsen.com/feed.xml" />
+    <outline type="rss" text="Jisc blog" title="Jisc blog" xmlUrl="http://feeds.feedburner.com/JISCBlog" />
+    <outline type="rss" text="Jisc news" title="Jisc news" xmlUrl="http://feeds2.feedburner.com/ac/uabG" />
+    <outline type="rss" text="Jisc news" title="Jisc news" xmlUrl="http://feeds.feedburner.com/ac/uabG" />
+    <outline type="rss" text="Joanne Jacobs" title="Joanne Jacobs" xmlUrl="https://www.joannejacobs.com/blog-feed.xml" />
+    <outline type="rss" text="John Gordon Miller's Blog" title="John Gordon Miller's Blog" xmlUrl="https://www.thejournalismdoctor.ca/rss" />
+    <outline type="rss" text="Jon Udell" title="Jon Udell" xmlUrl="https://blog.jonudell.net/feed/" />
+    <outline type="rss" text="Josie Ahlquist" title="Josie Ahlquist" xmlUrl="https://www.josieahlquist.com/feed/" />
+    <outline type="rss" text="Journal of Copyright in Education &amp; Librarianship" title="Journal of Copyright in Education &amp; Librarianship" xmlUrl="https://journals.ku.edu/jcel/gateway/plugin/WebFeedGatewayPlugin/atom" />
+    <outline type="rss" text="Journal of Interactive Media in Education" title="Journal of Interactive Media in Education" xmlUrl="https://account.jime.open.ac.uk/index.php/up-j-jime/gateway/plugin/WebFeedGatewayPlugin/atom" />
+    <outline type="rss" text="Journal of Open, Distance, and Digital Education" title="Journal of Open, Distance, and Digital Education" xmlUrl="https://ojs.uni-oldenburg.de/journals/ojs2/ojs/index.php/jodde/gateway/plugin/WebFeedGatewayPlugin/rss2" />
+    <outline type="rss" text="Journal of Problem Based Learning in Higher Education" title="Journal of Problem Based Learning in Higher Education" xmlUrl="https://journals.aau.dk/index.php/pbl/gateway/plugin/WebFeedGatewayPlugin/atom" />
+    <outline type="rss" text="Journal of Teaching and Learning for Graduate Employability" title="Journal of Teaching and Learning for Graduate Employability" xmlUrl="https://ojs.deakin.edu.au/index.php/jtlge/gateway/plugin/WebFeedGatewayPlugin/atom" />
+    <outline type="rss" text="Julian Stodd's Learning Blog" title="Julian Stodd's Learning Blog" xmlUrl="https://julianstodd.wordpress.com/feed/" />
+    <outline type="rss" text="Just Imagination Blog" title="Just Imagination Blog" xmlUrl="https://blog.jcu.edu/feed/" />
+    <outline type="rss" text="JustWondering - KATH MURDOCH" title="JustWondering - KATH MURDOCH" xmlUrl="https://www.kathmurdoch.com.au/blog?format=RSS" />
+    <outline type="rss" text="Kathy Schrock's Kaffeeklatsch" title="Kathy Schrock's Kaffeeklatsch" xmlUrl="http://www.blogger.com/feeds/8040927/posts/default" />
+    <outline type="rss" text="Knotbin" title="Knotbin" xmlUrl="https://knotbin.leaflet.pub/rss" />
+    <outline type="rss" text="Language Log" title="Language Log" xmlUrl="https://languagelog.ldc.upenn.edu/nll/?feed=rss2" />
+    <outline type="rss" text="Larry Cuban on School Reform and Classroom  Practice" title="Larry Cuban on School Reform and Classroom  Practice" xmlUrl="https://larrycuban.wordpress.com/feed/" />
+    <outline type="rss" text="Latest Results" title="Latest Results" xmlUrl="https://link.springer.com/search.rss?facet-content-type=Article&amp;facet-journal-id=10734&amp;channel-name=Higher+Education" />
+    <outline type="rss" text="Laura Ritchie" title="Laura Ritchie" xmlUrl="https://www.lauraritchie.com/feed/" />
+    <outline type="rss" text="LearnDash" title="LearnDash" xmlUrl="https://www.learndash.com/feed/" />
+    <outline type="rss" text="Learning Complexity" title="Learning Complexity" xmlUrl="https://blog.keithwhamon.net/feeds/posts/default" />
+    <outline type="rss" text="Learning Ecosystems" title="Learning Ecosystems" xmlUrl="http://danielschristian.com/learning-ecosystems/feed/" />
+    <outline type="rss" text="Learning Letters" title="Learning Letters" xmlUrl="https://learningletters.org/index.php/learn/gateway/plugin/WebFeedGatewayPlugin/rss2" />
+    <outline type="rss" text="Learning Scientists Blog - The Learning Scientists" title="Learning Scientists Blog - The Learning Scientists" xmlUrl="https://www.learningscientists.org/blog?format=RSS" />
+    <outline type="rss" text="Learnlets" title="Learnlets" xmlUrl="https://blog.learnlets.com/feed/" />
+    <outline type="rss" text="Linda Castañeda" title="Linda Castañeda" xmlUrl="https://www.lindacastaneda.com/en/feed/" />
+    <outline type="rss" text="Lisa Nielsen: The Innovative Educator" title="Lisa Nielsen: The Innovative Educator" xmlUrl="http://feeds.feedburner.com/blogspot/LJnE" />
+    <outline type="rss" text="Logo Design Love" title="Logo Design Love" xmlUrl="http://feeds.feedburner.com/logodesignlove" />
+    <outline type="rss" text="LorcanDempsey.net" title="LorcanDempsey.net" xmlUrl="https://www.lorcandempsey.net/rss/" />
+    <outline type="rss" text="Lost and Desperate" title="Lost and Desperate" xmlUrl="https://lostanddesperate.com/feed/" />
+    <outline type="rss" text="MachineLearningMastery.com" title="MachineLearningMastery.com" xmlUrl="http://feeds.feedburner.com/MachineLearningMastery" />
+    <outline type="rss" text="Mark Britz" title="Mark Britz" xmlUrl="https://markbritz.com/feed/" />
+    <outline type="rss" text="Martin Fowler" title="Martin Fowler" xmlUrl="https://martinfowler.com/feed.atom" />
+    <outline type="rss" text="Mastodon Bookmarks" title="Mastodon Bookmarks" xmlUrl="https://bookmark-rss.woodland.cafe/feed?host=mastodon.social&amp;token=bTAidvoH7z3lRO0k4uDaFrpqE5JxZf-89QMT3ZDeNKs" />
+    <outline type="rss" text="Matt on Audio" title="Matt on Audio" xmlUrl="https://onaudio.mattdeegan.com/feed" />
+    <outline type="rss" text="McKinsey Insights &amp; Publications" title="McKinsey Insights &amp; Publications" xmlUrl="https://www.mckinsey.com/insights/rss" />
+    <outline type="rss" text="Media &amp; Entertainment News | TechCrunch" title="Media &amp; Entertainment News | TechCrunch" xmlUrl="https://techcrunch.com/category/media-entertainment/feed/" />
+    <outline type="rss" text="Media Archives - Digiday" title="Media Archives - Digiday" xmlUrl="https://digiday.com/media/feed/" />
+    <outline type="rss" text="Michael Geist" title="Michael Geist" xmlUrl="https://www.michaelgeist.ca/feed/" />
+    <outline type="rss" text="MiddleWeb" title="MiddleWeb" xmlUrl="https://www.middleweb.com/feed/" />
+    <outline type="rss" text="Miguel Ángel Escotet" title="Miguel Ángel Escotet" xmlUrl="https://miguelescotet.com/feed/" />
+    <outline type="rss" text="Mike Taylor" title="Mike Taylor" xmlUrl="https://mike-taylor.org/feed/" />
+    <outline type="rss" text="Moving at the Speed of Creativity by Wes Fryer" title="Moving at the Speed of Creativity by Wes Fryer" xmlUrl="http://feeds.feedburner.com/speedofcreativity/main" />
+    <outline type="rss" text="Multilitteratus Incognitus" title="Multilitteratus Incognitus" xmlUrl="https://idstuff.blogspot.com/feeds/posts/default?alt=rss" />
+    <outline type="rss" text="NEPC - Blog Post of the Day" title="NEPC - Blog Post of the Day" xmlUrl="http://feeds.feedburner.com/NEPC-Blogs" />
+    <outline type="rss" text="NOEMA" title="NOEMA" xmlUrl="https://www.noemamag.com/?feed=noemarss" />
+    <outline type="rss" text="NORRAG –" title="NORRAG –" xmlUrl="https://www.norrageducation.org/feed/" />
+    <outline type="rss" text="NPR Topics: Education" title="NPR Topics: Education" xmlUrl="https://feeds.npr.org/1013/rss.xml" />
+    <outline type="rss" text="NVIDIA Blog" title="NVIDIA Blog" xmlUrl="https://blogs.nvidia.com/feed/" />
+    <outline type="rss" text="NYT &gt; Education" title="NYT &gt; Education" xmlUrl="https://rss.nytimes.com/services/xml/rss/nyt/Education.xml" />
+    <outline type="rss" text="Nancy White's Full Circle Blog" title="Nancy White's Full Circle Blog" xmlUrl="http://feeds.feedburner.com/fullcirc/kmDz" />
+    <outline type="rss" text="Nate Angell" title="Nate Angell" xmlUrl="https://xolotl.org/feed/" />
+    <outline type="rss" text="Network Weaver" title="Network Weaver" xmlUrl="https://networkweaver.com/feed/" />
+    <outline type="rss" text="News Archives - Public Knowledge Project" title="News Archives - Public Knowledge Project" xmlUrl="https://pkp.sfu.ca/category/news/feed/" />
+    <outline type="rss" text="Nieman Lab" title="Nieman Lab" xmlUrl="https://www.niemanlab.org/feed/" />
+    <outline type="rss" text="OERu Technology Blog - Making FOSS tech knowledge available to all." title="OERu Technology Blog - Making FOSS tech knowledge available to all." xmlUrl="https://tech.oeru.org/rss.xml" />
+    <outline type="rss" text="OLDaily Audio" title="OLDaily Audio" xmlUrl="http://www.downes.ca/news/audio.xml" />
+    <outline type="rss" text="OPERAS" title="OPERAS" xmlUrl="https://operas.hypotheses.org/feed" />
+    <outline type="rss" text="Oliver Quinlan" title="Oliver Quinlan" xmlUrl="http://feeds.feedburner.com/OliverQuinlansBlog" />
+    <outline type="rss" text="On Digital Strategy | Dion Hinchcliffe" title="On Digital Strategy | Dion Hinchcliffe" xmlUrl="http://feeds.feedburner.com/Web20Blog" />
+    <outline type="rss" text="On EdTech Newsletter" title="On EdTech Newsletter" xmlUrl="https://rss.beehiiv.com/feeds/bsvK5GP6NJ.xml" />
+    <outline type="rss" text="One Useful Thing" title="One Useful Thing" xmlUrl="https://www.oneusefulthing.org/feed" />
+    <outline type="rss" text="Online Journalism Blog" title="Online Journalism Blog" xmlUrl="https://onlinejournalismblog.com/feed/" />
+    <outline type="rss" text="Online Learning" title="Online Learning" xmlUrl="https://olj.onlinelearningconsortium.org/index.php/olj/gateway/plugin/WebFeedGatewayPlugin/atom" />
+    <outline type="rss" text="Online learning | The Guardian" title="Online learning | The Guardian" xmlUrl="https://www.theguardian.com/education/online-learning/rss" />
+    <outline type="rss" text="Open Education Group" title="Open Education Group" xmlUrl="https://openedgroup.org/feed/" />
+    <outline type="rss" text="Open Future" title="Open Future" xmlUrl="https://openfuture.pubpub.org/rss.xml" />
+    <outline type="rss" text="Open Praxis" title="Open Praxis" xmlUrl="https://account.openpraxis.org/index.php/up-j-op/gateway/plugin/WebFeedGatewayPlugin/atom" />
+    <outline type="rss" text="Open World" title="Open World" xmlUrl="https://lornamcampbell.org/feed/" />
+    <outline type="rss" text="OpenETC" title="OpenETC" xmlUrl="https://opened.ca/feed/" />
+    <outline type="rss" text="PLEASE change feed URL to http://blog.ouseful.info/feed/" title="PLEASE change feed URL to http://blog.ouseful.info/feed/" xmlUrl="http://feeds.feedburner.com/ouseful" />
+    <outline type="rss" text="Paperity: title:(&quot;connectivism&quot;) OR abstract:(&quot;connectivism&quot;)" title="Paperity: title:(&quot;connectivism&quot;) OR abstract:(&quot;connectivism&quot;)" xmlUrl="https://paperity.org/rss/?q=title%3A(%22connectivism%22)+OR+abstract%3A(%22connectivism%22)" />
+    <outline type="rss" text="Paperity: title:(&quot;mooc&quot;) OR abstract:(&quot;mooc&quot;)" title="Paperity: title:(&quot;mooc&quot;) OR abstract:(&quot;mooc&quot;)" xmlUrl="https://paperity.org/rss/?q=title%3A(%22mooc%22)+OR+abstract%3A(%22mooc%22)" />
+    <outline type="rss" text="People and Blogs — Full Archive" title="People and Blogs — Full Archive" xmlUrl="https://manuelmoreale.com/feed/peopleandblogs" />
+    <outline type="rss" text="Philosophical Disquisitions" title="Philosophical Disquisitions" xmlUrl="https://philosophicaldisquisitions.blogspot.com/feeds/posts/default?alt=rss" />
+    <outline type="rss" text="Philosophical Progress" title="Philosophical Progress" xmlUrl="http://www.philosophicalprogress.org/feed.xml" />
+    <outline type="rss" text="Piccalilli - Everything" title="Piccalilli - Everything" xmlUrl="https://piccalil.li/feed.xml" />
+    <outline type="rss" text="Pierre Levy's Blog" title="Pierre Levy's Blog" xmlUrl="https://pierrelevyblog.com/feed/" />
+    <outline type="rss" text="Pixel Envy" title="Pixel Envy" xmlUrl="https://feedpress.me/pxlnv" />
+    <outline type="rss" text="Poynter" title="Poynter" xmlUrl="http://www.poynter.org/feed/" />
+    <outline type="rss" text="Psyche | Know Your Self" title="Psyche | Know Your Self" xmlUrl="https://psyche.co/feed.rss" />
+    <outline type="rss" text="Quanta Magazine" title="Quanta Magazine" xmlUrl="https://www.quantamagazine.org/feed/" />
+    <outline type="rss" text="Radar" title="Radar" xmlUrl="http://feeds.feedburner.com/oreilly/radar/atom" />
+    <outline type="rss" text="Random Thoughts" title="Random Thoughts" xmlUrl="https://nmckeand.wordpress.com/feed/" />
+    <outline type="rss" text="Reflecting Allowed" title="Reflecting Allowed" xmlUrl="https://blog.mahabali.me/feed/" />
+    <outline type="rss" text="Research in Learning Technology" title="Research in Learning Technology" xmlUrl="https://journal.alt.ac.uk/index.php/rlt/gateway/plugin/WebFeedGatewayPlugin/atom" />
+    <outline type="rss" text="Resources for teachers" title="Resources for teachers" xmlUrl="https://blog.europeanschoolnetacademy.eu/feed/" />
+    <outline type="rss" text="Rhetorica" title="Rhetorica" xmlUrl="https://marcwatkins.substack.com/feed" />
+    <outline type="rss" text="Rushkoff" title="Rushkoff" xmlUrl="http://feeds.feedburner.com/douglasrushkoff" />
+    <outline type="rss" text="SAIL: Sensemaking AI Learning" title="SAIL: Sensemaking AI Learning" xmlUrl="https://buttondown.email/SAIL/rss" />
+    <outline type="rss" text="SSIR Articles" title="SSIR Articles" xmlUrl="https://ssir.org/site/rss_2.0" />
+    <outline type="rss" text="SSIR Blog" title="SSIR Blog" xmlUrl="https://ssir.org/blog/rss" />
+    <outline type="rss" text="Sarah E. Silverman" title="Sarah E. Silverman" xmlUrl="https://sarahemilysilverman.com/feed/" />
+    <outline type="rss" text="Saylor Academy" title="Saylor Academy" xmlUrl="https://www.saylor.org/feed/" />
+    <outline type="rss" text="Schools Week" title="Schools Week" xmlUrl="https://schoolsweek.co.uk/feed/" />
+    <outline type="rss" text="ScienceDirect Publication: Computers &amp; Education" title="ScienceDirect Publication: Computers &amp; Education" xmlUrl="https://rss.sciencedirect.com/publication/science/03601315" />
+    <outline type="rss" text="Sharing and learning" title="Sharing and learning" xmlUrl="http://blogs.pjjk.net/phil/feed/" />
+    <outline type="rss" text="Shorpy | Old Photos - Vintage Photography" title="Shorpy | Old Photos - Vintage Photography" xmlUrl="http://www.shorpy.com/feed" />
+    <outline type="rss" text="Skate of the web" title="Skate of the web" xmlUrl="http://feeds.feedburner.com/SkateOfTheWeb" />
+    <outline type="rss" text="Smartly Intertwingled" title="Smartly Intertwingled" xmlUrl="https://ucm.teleshuttle.com/feeds/posts/default?alt=rss" />
+    <outline type="rss" text="Snurblog — Axel Bruns - Axel Bruns" title="Snurblog — Axel Bruns - Axel Bruns" xmlUrl="https://snurb.info/blog/feed" />
+    <outline type="rss" text="Social Media Lab" title="Social Media Lab" xmlUrl="https://socialmedialab.ca/feed/" />
+    <outline type="rss" text="Social Media for Learning" title="Social Media for Learning" xmlUrl="https://socialmediaforlearning.com/feed/" />
+    <outline type="rss" text="Society for Learning Analytics Research (SoLAR)" title="Society for Learning Analytics Research (SoLAR)" xmlUrl="https://www.solaresearch.org/feed/" />
+    <outline type="rss" text="Spencer Education" title="Spencer Education" xmlUrl="http://feeds2.feedburner.com/JohnSpencersBlog" />
+    <outline type="rss" text="Splash Safe In SC" title="Splash Safe In SC" xmlUrl="https://splashsafeinsc.com/feed/" />
+    <outline type="rss" text="Stephen's Web ~ OLDaily" title="Stephen's Web ~ OLDaily" xmlUrl="http://www.downes.ca/news/OLDaily.rss" />
+    <outline type="rss" text="Stephen's Web ~ OLDaily" title="Stephen's Web ~ OLDaily" xmlUrl="http://www.downes.ca/news/OLDaily.xml" />
+    <outline type="rss" text="Steve Hargadon" title="Steve Hargadon" xmlUrl="https://www.stevehargadon.com/feeds/posts/default?alt=atom" />
+    <outline type="rss" text="Steven D. Krause" title="Steven D. Krause" xmlUrl="http://stevendkrause.com/feed/" />
+    <outline type="rss" text="Studies in Technology Enhanced Learning" title="Studies in Technology Enhanced Learning" xmlUrl="https://stel.pubpub.org/rss.xml" />
+    <outline type="rss" text="Swift eLearning Services – Custom eLearning and Digital Training Solutions" title="Swift eLearning Services – Custom eLearning and Digital Training Solutions" xmlUrl="http://feeds.feedburner.com/elearningandtrainingblogs" />
+    <outline type="rss" text="TEACH Magazine" title="TEACH Magazine" xmlUrl="https://teachmag.com/feed/" />
+    <outline type="rss" text="TED Blog" title="TED Blog" xmlUrl="http://feeds.feedburner.com/TEDBlog" />
+    <outline type="rss" text="THE EDUCATION CONTRARIAN" title="THE EDUCATION CONTRARIAN" xmlUrl="https://peterellerton.substack.com/feed" />
+    <outline type="rss" text="THE FCE BLOG by Claudia Ceraso" title="THE FCE BLOG by Claudia Ceraso" xmlUrl="http://fceblog.blogspot.com/atom.xml" />
+    <outline type="rss" text="Teacher Reboot Camp" title="Teacher Reboot Camp" xmlUrl="http://feeds2.feedburner.com/TeacherBootCamp" />
+    <outline type="rss" text="Teaching &amp; Learning Commons" title="Teaching &amp; Learning Commons" xmlUrl="https://wordpress.kpu.ca/tlcommons/feed/" />
+    <outline type="rss" text="Teaching Matters" title="Teaching Matters" xmlUrl="https://blogs.ed.ac.uk/teaching-matters/feed/" />
+    <outline type="rss" text="Teaching in Higher Ed" title="Teaching in Higher Ed" xmlUrl="https://teachinginhighered.com/feed/" />
+    <outline type="rss" text="Teachlr Blog" title="Teachlr Blog" xmlUrl="https://blog.teachlr.com/feed/" />
+    <outline type="rss" text="Tech Transformation" title="Tech Transformation" xmlUrl="http://www.maggiehosmcgrane.com/feeds/posts/default" />
+    <outline type="rss" text="TechRepublic" title="TechRepublic" xmlUrl="https://www.techrepublic.com/rssfeeds/articles/" />
+    <outline type="rss" text="TechTalks" title="TechTalks" xmlUrl="https://bdtechtalks.com/feed/" />
+    <outline type="rss" text="Techademia" title="Techademia" xmlUrl="http://blogs.vassar.edu/acs/feed" />
+    <outline type="rss" text="Techmeme" title="Techmeme" xmlUrl="https://www.techmeme.com/feed.xml" />
+    <outline type="rss" text="TedCurran.net" title="TedCurran.net" xmlUrl="http://feeds.feedburner.com/tedcurrannet" />
+    <outline type="rss" text="Teri Kanefield" title="Teri Kanefield" xmlUrl="https://terikanefield.com/feed/" />
+    <outline type="rss" text="The 74" title="The 74" xmlUrl="https://www.the74million.org/feed/" />
+    <outline type="rss" text="The Absent-Minded Professor" title="The Absent-Minded Professor" xmlUrl="https://joshbrake.substack.com/feed" />
+    <outline type="rss" text="The Art of Education" title="The Art of Education" xmlUrl="http://www.theartofed.com/feed/" />
+    <outline type="rss" text="The Brains Blog" title="The Brains Blog" xmlUrl="https://philosophyofbrains.com/feed" />
+    <outline type="rss" text="The Construction Zone" title="The Construction Zone" xmlUrl="https://theconstructionzone.wordpress.com/feed/" />
+    <outline type="rss" text="The Daily Dive" title="The Daily Dive" xmlUrl="https://thedailydive.pgogywebstuff.com/feed/" />
+    <outline type="rss" text="The Deep View" title="The Deep View" xmlUrl="https://rss.beehiiv.com/feeds/nswNBn2yqy.xml" />
+    <outline type="rss" text="The Ed Techie" title="The Ed Techie" xmlUrl="http://feeds.feedburner.com/TheEdTechie" />
+    <outline type="rss" text="The Edublogger" title="The Edublogger" xmlUrl="http://feeds.feedburner.com/TheEdublogger" />
+    <outline type="rss" text="The Educationalist" title="The Educationalist" xmlUrl="https://educationalist.substack.com/feed" />
+    <outline type="rss" text="The Effortful Educator" title="The Effortful Educator" xmlUrl="https://theeffortfuleducator.com/feed/" />
+    <outline type="rss" text="The Hechinger Report" title="The Hechinger Report" xmlUrl="https://hechingerreport.org/feed/" />
+    <outline type="rss" text="The Hechinger Report" title="The Hechinger Report" xmlUrl="http://feeds.feedburner.com/HechingerReport" />
+    <outline type="rss" text="The History of the Web" title="The History of the Web" xmlUrl="https://thehistoryoftheweb.com/feed/" />
+    <outline type="rss" text="The International Review of Research in Open and Distributed Learning" title="The International Review of Research in Open and Distributed Learning" xmlUrl="https://www.irrodl.org/index.php/irrodl/gateway/plugin/WebFeedGatewayPlugin/rss2" />
+    <outline type="rss" text="The International Review of Research in Open and Distributed Learning" title="The International Review of Research in Open and Distributed Learning" xmlUrl="http://feeds.feedburner.com/irrodl" />
+    <outline type="rss" text="The Journal of Social Media for Learning" title="The Journal of Social Media for Learning" xmlUrl="https://openjournals.ljmu.ac.uk/index.php/JSML/gateway/plugin/WebFeedGatewayPlugin/atom" />
+    <outline type="rss" text="The Latest at Goethe - Goethe-Institut" title="The Latest at Goethe - Goethe-Institut" xmlUrl="https://www.goethe.de/en/feed/bdu.rss" />
+    <outline type="rss" text="The Markup" title="The Markup" xmlUrl="https://themarkup.org/feeds/rss.xml" />
+    <outline type="rss" text="The Mozilla Blog" title="The Mozilla Blog" xmlUrl="https://blog.mozilla.org/feed/" />
+    <outline type="rss" text="The Nerdy Teacher" title="The Nerdy Teacher" xmlUrl="https://www.thenerdyteacher.com/feeds/posts/default" />
+    <outline type="rss" text="The PIE News" title="The PIE News" xmlUrl="https://thepienews.com/feed/" />
+    <outline type="rss" text="The Pudding" title="The Pudding" xmlUrl="https://buttondown.com/thepudding/rss" />
+    <outline type="rss" text="The Register" title="The Register" xmlUrl="https://www.theregister.com/headlines.atom" />
+    <outline type="rss" text="The Report by Class Central" title="The Report by Class Central" xmlUrl="https://www.classcentral.com/report/feed/" />
+    <outline type="rss" text="The Scholarly Kitchen" title="The Scholarly Kitchen" xmlUrl="http://scholarlykitchen.sspnet.org/feed/" />
+    <outline type="rss" text="The Society Pages" title="The Society Pages" xmlUrl="https://thesocietypages.org/everything/feed/" />
+    <outline type="rss" text="The Splintered Mind" title="The Splintered Mind" xmlUrl="http://schwitzsplinters.blogspot.com/feeds/posts/default" />
+    <outline type="rss" text="The Sunday Wisdom" title="The Sunday Wisdom" xmlUrl="https://coffeeandjunk.substack.com/feed" />
+    <outline type="rss" text="The Transmitter" title="The Transmitter" xmlUrl="https://www.thetransmitter.org/feed/" />
+    <outline type="rss" text="The UX Research and Design Blog by Stéphanie Walter." title="The UX Research and Design Blog by Stéphanie Walter." xmlUrl="https://stephaniewalter.design/blog/feed/" />
+    <outline type="rss" text="The corridor of uncertainty" title="The corridor of uncertainty" xmlUrl="https://acreelman.blogspot.com/feeds/posts/default" />
+    <outline type="rss" text="The eLearning Coach" title="The eLearning Coach" xmlUrl="https://theelearningcoach.com/feed/" />
+    <outline type="rss" text="Theoreti.ca" title="Theoreti.ca" xmlUrl="https://theoreti.ca/?feed=rss2" />
+    <outline type="rss" text="Tom Barrett" title="Tom Barrett" xmlUrl="http://feeds.feedburner.com/edte/baKo?format=xml" />
+    <outline type="rss" text="Tom Hazledine" title="Tom Hazledine" xmlUrl="https://tomhazledine.com/feed.xml" />
+    <outline type="rss" text="Tony Bates" title="Tony Bates" xmlUrl="http://www.tonybates.ca/feed/" />
+    <outline type="rss" text="Transactional" title="Transactional" xmlUrl="https://transactional.blog/feed.xml" />
+    <outline type="rss" text="Understanding Society" title="Understanding Society" xmlUrl="http://feeds.feedburner.com/understandingsociety" />
+    <outline type="rss" text="Upside Learning Blog" title="Upside Learning Blog" xmlUrl="http://feeds2.feedburner.com/upsidelearning-blog" />
+    <outline type="rss" text="User Generated Education" title="User Generated Education" xmlUrl="https://usergeneratededucation.wordpress.com/feed/" />
+    <outline type="rss" text="Uses This" title="Uses This" xmlUrl="https://usesthis.com/feed.atom" />
+    <outline type="rss" text="Video Teaching" title="Video Teaching" xmlUrl="http://zacwoolfitt.blogspot.com/feeds/posts/default?alt=rss" />
+    <outline type="rss" text="W3C - News" title="W3C - News" xmlUrl="https://www.w3.org/news/feed/" />
+    <outline type="rss" text="Welcome" title="Welcome" xmlUrl="http://longviewoneducation.org/feed/" />
+    <outline type="rss" text="What's the PONT" title="What's the PONT" xmlUrl="https://whatsthepont.blog/feed/" />
+    <outline type="rss" text="Wiley: British Educational Research Journal: Table of Contents" title="Wiley: British Educational Research Journal: Table of Contents" xmlUrl="https://onlinelibrary.wiley.com/action/showFeed?jc=14693518&amp;type=etoc&amp;feed=rss" />
+    <outline type="rss" text="Wiley: British Journal of Educational Technology: Table of Contents" title="Wiley: British Journal of Educational Technology: Table of Contents" xmlUrl="https://bera-journals.onlinelibrary.wiley.com/feed/14678535/most-recent" />
+    <outline type="rss" text="Wiley: British Journal of Educational Technology: Table of Contents" title="Wiley: British Journal of Educational Technology: Table of Contents" xmlUrl="https://onlinelibrary.wiley.com/action/showFeed?jc=14678535&amp;type=etoc&amp;feed=rss" />
+    <outline type="rss" text="Wiley: European Journal of Education: Table of Contents" title="Wiley: European Journal of Education: Table of Contents" xmlUrl="https://onlinelibrary.wiley.com/action/showFeed?jc=14653435&amp;type=etoc&amp;feed=rss" />
+    <outline type="rss" text="Wiley: Journal of Computer Assisted Learning: Table of Contents" title="Wiley: Journal of Computer Assisted Learning: Table of Contents" xmlUrl="https://onlinelibrary.wiley.com/feed/13652729/most-recent" />
+    <outline type="rss" text="Wonkhe" title="Wonkhe" xmlUrl="https://wonkhe.com/feed/" />
+    <outline type="rss" text="World Education Blog" title="World Education Blog" xmlUrl="https://world-education-blog.org/feed/" />
+    <outline type="rss" text="You Are Not So Smart" title="You Are Not So Smart" xmlUrl="https://youarenotsosmart.com/feed/" />
+    <outline type="rss" text="Zsolt Olah" title="Zsolt Olah" xmlUrl="https://www.rabbitoreg.com/feed/" />
+    <outline type="rss" text="article | Chris Aldrich" title="article | Chris Aldrich" xmlUrl="https://boffosocko.com/feed/?kind=article" />
+    <outline type="rss" text="bavatuesdays" title="bavatuesdays" xmlUrl="https://bavatuesdays.com/feed/atom/" />
+    <outline type="rss" text="blog – improving learning" title="blog – improving learning" xmlUrl="https://opencontent.org/blog/feed" />
+    <outline type="rss" text="code acts in education" title="code acts in education" xmlUrl="https://codeactsineducation.wordpress.com/feed/" />
+    <outline type="rss" text="connecting data to information to knowledge" title="connecting data to information to knowledge" xmlUrl="https://ioannouolga.wordpress.com/feed/" />
+    <outline type="rss" text="dave's blog" title="dave's blog" xmlUrl="https://tech.oeru.org/blog/1/feed" />
+    <outline type="rss" text="doug — off the record" title="doug — off the record" xmlUrl="https://dougpete.wordpress.com/feed/" />
+    <outline type="rss" text="e-Literate" title="e-Literate" xmlUrl="http://eliterate.us/feed/" />
+    <outline type="rss" text="e-teaching.org-Blog" title="e-teaching.org-Blog" xmlUrl="https://www.e-teaching.org/news/eteaching_blog/getRss" />
+    <outline type="rss" text="eCampus News" title="eCampus News" xmlUrl="http://www.ecampusnews.com/feed/" />
+    <outline type="rss" text="eLearn Hub" title="eLearn Hub" xmlUrl="http://elearnhub.org/feed/" />
+    <outline type="rss" text="eLearn Magazine @elearnmag by Open LMS" title="eLearn Magazine @elearnmag by Open LMS" xmlUrl="https://www.elearnmagazine.com/feed/" />
+    <outline type="rss" text="eSchool News" title="eSchool News" xmlUrl="http://www.eschoolnews.com/feed/" />
+    <outline type="rss" text="edCircuit" title="edCircuit" xmlUrl="https://edcircuit.com/feed/" />
+    <outline type="rss" text="elearnspace" title="elearnspace" xmlUrl="https://elearnspace.org/feed/" />
+    <outline type="rss" text="frostededucation" title="frostededucation" xmlUrl="https://frostededucation.com/feed/" />
+    <outline type="rss" text="http://blog.edx.org/rss" title="http://blog.edx.org/rss" xmlUrl="http://blog.edx.org/rss" />
+    <outline type="rss" text="http://bolt.athabascau.ca/index.php/feed/" title="http://bolt.athabascau.ca/index.php/feed/" xmlUrl="http://bolt.athabascau.ca/index.php/feed/" />
+    <outline type="rss" text="http://chronicle.com/section/News/6/rss" title="http://chronicle.com/section/News/6/rss" xmlUrl="http://chronicle.com/section/News/6/rss" />
+    <outline type="rss" text="http://cosn.org/press-releases.xml" title="http://cosn.org/press-releases.xml" xmlUrl="http://cosn.org/press-releases.xml" />
+    <outline type="rss" text="http://durffsblog.blogspot.com/feeds/posts/default" title="http://durffsblog.blogspot.com/feeds/posts/default" xmlUrl="http://durffsblog.blogspot.com/feeds/posts/default" />
+    <outline type="rss" text="http://educationaltechnologyjournal.springeropen.com/articles/most-recent/rss.xml" title="http://educationaltechnologyjournal.springeropen.com/articles/most-recent/rss.xml" xmlUrl="http://educationaltechnologyjournal.springeropen.com/articles/most-recent/rss.xml" />
+    <outline type="rss" text="http://ejel.org/news.xml" title="http://ejel.org/news.xml" xmlUrl="http://ejel.org/news.xml" />
+    <outline type="rss" text="http://ets.tlt.psu.edu/feed/" title="http://ets.tlt.psu.edu/feed/" xmlUrl="http://ets.tlt.psu.edu/feed/" />
+    <outline type="rss" text="http://feedproxy.google.com/OpenCulture" title="http://feedproxy.google.com/OpenCulture" xmlUrl="http://feedproxy.google.com/OpenCulture" />
+    <outline type="rss" text="http://hyperorg.com/blogger/index.rdf" title="http://hyperorg.com/blogger/index.rdf" xmlUrl="http://hyperorg.com/blogger/index.rdf" />
+    <outline type="rss" text="http://journalism.nyu.edu/pubzone/weblogs/pressthink/index.rdf" title="http://journalism.nyu.edu/pubzone/weblogs/pressthink/index.rdf" xmlUrl="http://journalism.nyu.edu/pubzone/weblogs/pressthink/index.rdf" />
+    <outline type="rss" text="http://onemind.com/feed/" title="http://onemind.com/feed/" xmlUrl="http://onemind.com/feed/" />
+    <outline type="rss" text="http://source.mozillaopennews.org/en-US/rss/" title="http://source.mozillaopennews.org/en-US/rss/" xmlUrl="http://source.mozillaopennews.org/en-US/rss/" />
+    <outline type="rss" text="http://www.alistapart.com/feed/rss.xml" title="http://www.alistapart.com/feed/rss.xml" xmlUrl="http://www.alistapart.com/feed/rss.xml" />
+    <outline type="rss" text="http://www.ecommercetimes.com/perl/syndication/rssfull.pl" title="http://www.ecommercetimes.com/perl/syndication/rssfull.pl" xmlUrl="http://www.ecommercetimes.com/perl/syndication/rssfull.pl" />
+    <outline type="rss" text="http://www.ergophiljournal.org/longfeed.xml" title="http://www.ergophiljournal.org/longfeed.xml" xmlUrl="http://www.ergophiljournal.org/longfeed.xml" />
+    <outline type="rss" text="http://www.fiercecable.com/rss/xml" title="http://www.fiercecable.com/rss/xml" xmlUrl="http://www.fiercecable.com/rss/xml" />
+    <outline type="rss" text="http://www.npr.org/rss/podcast.php?id=4538138" title="http://www.npr.org/rss/podcast.php?id=4538138" xmlUrl="http://www.npr.org/rss/podcast.php?id=4538138" />
+    <outline type="rss" text="http://www.pressgazette.co.uk/rssfeed.xml" title="http://www.pressgazette.co.uk/rssfeed.xml" xmlUrl="http://www.pressgazette.co.uk/rssfeed.xml" />
+    <outline type="rss" text="http://www.variety.com/rss.asp?categoryid=10" title="http://www.variety.com/rss.asp?categoryid=10" xmlUrl="http://www.variety.com/rss.asp?categoryid=10" />
+    <outline type="rss" text="http://xml.metafilter.com/atom.xml" title="http://xml.metafilter.com/atom.xml" xmlUrl="http://xml.metafilter.com/atom.xml" />
+    <outline type="rss" text="https://aiczar.blogspot.com/feeds/posts/default" title="https://aiczar.blogspot.com/feeds/posts/default" xmlUrl="https://aiczar.blogspot.com/feeds/posts/default" />
+    <outline type="rss" text="https://aiczar.blogspot.com/feeds/posts/default?alt=rss" title="https://aiczar.blogspot.com/feeds/posts/default?alt=rss" xmlUrl="https://aiczar.blogspot.com/feeds/posts/default?alt=rss" />
+    <outline type="rss" text="https://ammienoot.com/feed/" title="https://ammienoot.com/feed/" xmlUrl="https://ammienoot.com/feed/" />
+    <outline type="rss" text="https://askatechteacher.com/feed/" title="https://askatechteacher.com/feed/" xmlUrl="https://askatechteacher.com/feed/" />
+    <outline type="rss" text="https://blog.discoveryeducation.com/feed/" title="https://blog.discoveryeducation.com/feed/" xmlUrl="https://blog.discoveryeducation.com/feed/" />
+    <outline type="rss" text="https://britishlibrary.typepad.co.uk/living-knowledge/atom.xml" title="https://britishlibrary.typepad.co.uk/living-knowledge/atom.xml" xmlUrl="https://britishlibrary.typepad.co.uk/living-knowledge/atom.xml" />
+    <outline type="rss" text="https://chrisbetcher.com/feed/" title="https://chrisbetcher.com/feed/" xmlUrl="https://chrisbetcher.com/feed/" />
+    <outline type="rss" text="https://chrisblankenship.dev/feed/" title="https://chrisblankenship.dev/feed/" xmlUrl="https://chrisblankenship.dev/feed/" />
+    <outline type="rss" text="https://cjlt.ca/index.php/cjlt/gateway/plugin/WebFeedGatewayPlugin/rss" title="https://cjlt.ca/index.php/cjlt/gateway/plugin/WebFeedGatewayPlugin/rss" xmlUrl="https://cjlt.ca/index.php/cjlt/gateway/plugin/WebFeedGatewayPlugin/rss" />
+    <outline type="rss" text="https://concept.lib.ed.ac.uk/gateway/plugin/WebFeedGatewayPlugin/atom" title="https://concept.lib.ed.ac.uk/gateway/plugin/WebFeedGatewayPlugin/atom" xmlUrl="https://concept.lib.ed.ac.uk/gateway/plugin/WebFeedGatewayPlugin/atom" />
+    <outline type="rss" text="https://cultureofyes.ca/feed/" title="https://cultureofyes.ca/feed/" xmlUrl="https://cultureofyes.ca/feed/" />
+    <outline type="rss" text="https://cyberlaw.stanford.edu/rss.xml" title="https://cyberlaw.stanford.edu/rss.xml" xmlUrl="https://cyberlaw.stanford.edu/rss.xml" />
+    <outline type="rss" text="https://developer.tbd.website/blog/rss.xml" title="https://developer.tbd.website/blog/rss.xml" xmlUrl="https://developer.tbd.website/blog/rss.xml" />
+    <outline type="rss" text="https://ec.ai/feed/" title="https://ec.ai/feed/" xmlUrl="https://ec.ai/feed/" />
+    <outline type="rss" text="https://elearnmag.acm.org/article-rss.cfm" title="https://elearnmag.acm.org/article-rss.cfm" xmlUrl="https://elearnmag.acm.org/article-rss.cfm" />
+    <outline type="rss" text="https://feedly.com/email/nipcziww5g9job0ymps8" title="https://feedly.com/email/nipcziww5g9job0ymps8" xmlUrl="https://feedly.com/email/nipcziww5g9job0ymps8" />
+    <outline type="rss" text="https://feedly.com/web/8dbdeb1c-a5e9-42f7-bb66-0f5353ae6e06" title="https://feedly.com/web/8dbdeb1c-a5e9-42f7-bb66-0f5353ae6e06" xmlUrl="https://feedly.com/web/8dbdeb1c-a5e9-42f7-bb66-0f5353ae6e06" />
+    <outline type="rss" text="https://feedly.com/web/a3c55951-848e-4c92-a679-ed2d2ca9b993" title="https://feedly.com/web/a3c55951-848e-4c92-a679-ed2d2ca9b993" xmlUrl="https://feedly.com/web/a3c55951-848e-4c92-a679-ed2d2ca9b993" />
+    <outline type="rss" text="https://feedly.com/web/ea4445b3-06d6-4ae6-8436-fecfc67d6b58" title="https://feedly.com/web/ea4445b3-06d6-4ae6-8436-fecfc67d6b58" xmlUrl="https://feedly.com/web/ea4445b3-06d6-4ae6-8436-fecfc67d6b58" />
+    <outline type="rss" text="https://feeds.castos.com/jj3m" title="https://feeds.castos.com/jj3m" xmlUrl="https://feeds.castos.com/jj3m" />
+    <outline type="rss" text="https://halfthoughts.blog/feed/" title="https://halfthoughts.blog/feed/" xmlUrl="https://halfthoughts.blog/feed/" />
+    <outline type="rss" text="https://makingbetter.us/feed/" title="https://makingbetter.us/feed/" xmlUrl="https://makingbetter.us/feed/" />
+    <outline type="rss" text="https://mediasmarts.ca/rss.xml" title="https://mediasmarts.ca/rss.xml" xmlUrl="https://mediasmarts.ca/rss.xml" />
+    <outline type="rss" text="https://nationalcentreforai.jiscinvolve.org/wp/feed/" title="https://nationalcentreforai.jiscinvolve.org/wp/feed/" xmlUrl="https://nationalcentreforai.jiscinvolve.org/wp/feed/" />
+    <outline type="rss" text="https://onlinelearningconsortium.org/feed/" title="https://onlinelearningconsortium.org/feed/" xmlUrl="https://onlinelearningconsortium.org/feed/" />
+    <outline type="rss" text="https://setofprinciples.com/feed/" title="https://setofprinciples.com/feed/" xmlUrl="https://setofprinciples.com/feed/" />
+    <outline type="rss" text="https://taccleai.eu/feed/" title="https://taccleai.eu/feed/" xmlUrl="https://taccleai.eu/feed/" />
+    <outline type="rss" text="https://teachai.org/blog/feed/" title="https://teachai.org/blog/feed/" xmlUrl="https://teachai.org/blog/feed/" />
+    <outline type="rss" text="https://thephilosophypaperboy.com/feed/" title="https://thephilosophypaperboy.com/feed/" xmlUrl="https://thephilosophypaperboy.com/feed/" />
+    <outline type="rss" text="https://unitwin-unoe.org/feed/" title="https://unitwin-unoe.org/feed/" xmlUrl="https://unitwin-unoe.org/feed/" />
+    <outline type="rss" text="https://www.ana-paulacorreia.com/anapaula-correias-blog?format=rss" title="https://www.ana-paulacorreia.com/anapaula-correias-blog?format=rss" xmlUrl="https://www.ana-paulacorreia.com/anapaula-correias-blog?format=rss" />
+    <outline type="rss" text="https://www.digitalbodies.net/feed/" title="https://www.digitalbodies.net/feed/" xmlUrl="https://www.digitalbodies.net/feed/" />
+    <outline type="rss" text="https://www.educationnext.org/feed/" title="https://www.educationnext.org/feed/" xmlUrl="https://www.educationnext.org/feed/" />
+    <outline type="rss" text="https://www.future-ed.org/feed/" title="https://www.future-ed.org/feed/" xmlUrl="https://www.future-ed.org/feed/" />
+    <outline type="rss" text="https://www.ibm.com/blog/feed/" title="https://www.ibm.com/blog/feed/" xmlUrl="https://www.ibm.com/blog/feed/" />
+    <outline type="rss" text="https://www.learningsolutionsmag.com/rss.xml" title="https://www.learningsolutionsmag.com/rss.xml" xmlUrl="https://www.learningsolutionsmag.com/rss.xml" />
+    <outline type="rss" text="https://www.mdpi.com/rss/journal/education" title="https://www.mdpi.com/rss/journal/education" xmlUrl="https://www.mdpi.com/rss/journal/education" />
+    <outline type="rss" text="https://www.nancydixonblog.com/atom.xml" title="https://www.nancydixonblog.com/atom.xml" xmlUrl="https://www.nancydixonblog.com/atom.xml" />
+    <outline type="rss" text="https://www.piratewires.com/rss.xml" title="https://www.piratewires.com/rss.xml" xmlUrl="https://www.piratewires.com/rss.xml" />
+    <outline type="rss" text="https://www.profweb.ca/en/feeds" title="https://www.profweb.ca/en/feeds" xmlUrl="https://www.profweb.ca/en/feeds" />
+    <outline type="rss" text="https://www.seanmichaelmorris.com/rss/" title="https://www.seanmichaelmorris.com/rss/" xmlUrl="https://www.seanmichaelmorris.com/rss/" />
+    <outline type="rss" text="https://www.spreaker.com/show/4101112/episodes/feed" title="https://www.spreaker.com/show/4101112/episodes/feed" xmlUrl="https://www.spreaker.com/show/4101112/episodes/feed" />
+    <outline type="rss" text="https://www.udacity.com/blog/feed" title="https://www.udacity.com/blog/feed" xmlUrl="https://www.udacity.com/blog/feed" />
+    <outline type="rss" text="https://www.whatsnewinpublishing.co.uk/rss.xml" title="https://www.whatsnewinpublishing.co.uk/rss.xml" xmlUrl="https://www.whatsnewinpublishing.co.uk/rss.xml" />
+    <outline type="rss" text="https://www.windley.com/rss.xml" title="https://www.windley.com/rss.xml" xmlUrl="https://www.windley.com/rss.xml" />
+    <outline type="rss" text="imperfect offerings" title="imperfect offerings" xmlUrl="https://helenbeetham.substack.com/feed" />
+    <outline type="rss" text="kottke.org" title="kottke.org" xmlUrl="http://feeds.kottke.org/main" />
+    <outline type="rss" text="languagehat.com" title="languagehat.com" xmlUrl="https://languagehat.com/index.rdf" />
+    <outline type="rss" text="lawrie : converged" title="lawrie : converged" xmlUrl="http://lawriephipps.co.uk/feed/" />
+    <outline type="rss" text="learning elearning" title="learning elearning" xmlUrl="http://mportfolios.blogspot.com/feeds/posts/default" />
+    <outline type="rss" text="nScreenMedia" title="nScreenMedia" xmlUrl="https://nscreenmedia.com/feed/" />
+    <outline type="rss" text="notosh - Medium" title="notosh - Medium" xmlUrl="https://medium.com/feed/notosh" />
+    <outline type="rss" text="ongoing by Tim Bray" title="ongoing by Tim Bray" xmlUrl="http://www.tbray.org/ongoing/ongoing.atom" />
+    <outline type="rss" text="opendistanceteachingandlearning" title="opendistanceteachingandlearning" xmlUrl="https://opendistanceteachingandlearning.wordpress.com/feed/" />
+    <outline type="rss" text="overreacted — A blog by Dan Abramov" title="overreacted — A blog by Dan Abramov" xmlUrl="https://overreacted.io/atom.xml" />
+    <outline type="rss" text="plasticbag.org" title="plasticbag.org" xmlUrl="http://plasticbag.org/feed/" />
+    <outline type="rss" text="tandf: Journal of the Learning Sciences: Table of Contents" title="tandf: Journal of the Learning Sciences: Table of Contents" xmlUrl="https://www.tandfonline.com/feed/rss/hlns20" />
+    <outline type="rss" text="tandf: Studies in Higher Education: Table of Contents" title="tandf: Studies in Higher Education: Table of Contents" xmlUrl="https://www.tandfonline.com/feed/rss/cshe20" />
+    <outline type="rss" text="tandf: Teaching in Higher Education: Table of Contents" title="tandf: Teaching in Higher Education: Table of Contents" xmlUrl="https://www.tandfonline.com/feed/rss/cthe20" />
+    <outline type="rss" text="the Website League newsletter" title="the Website League newsletter" xmlUrl="https://buttondown.com/websiteleague/rss" />
+    <outline type="rss" text="x28's new Blog" title="x28's new Blog" xmlUrl="https://x28newblog.wordpress.com/feed/" />
+    <outline type="rss" text="xkcd.com" title="xkcd.com" xmlUrl="https://xkcd.com/atom.xml" />
+  </body>
+</opml>

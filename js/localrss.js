@@ -166,9 +166,27 @@ async function _localrssProbeLocal() {
     }
 }
 
+// base64url-encodes an origin for the launcher's generic proxy path
+// (/proxy/<encoded-origin>/...) -- must match _decode_proxy_origin in launcher.py.
+function _localrssProxyEncodeOrigin(origin) {
+    return btoa(origin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
 async function _localrssResolveServiceUrl(accountData) {
     const usingLocal = await _localrssProbeLocal();
-    accountData._effectiveServiceUrl = usingLocal ? LOCALRSS_LOCAL_URL : accountData.serviceUrl;
+    if (usingLocal) {
+        accountData._effectiveServiceUrl = LOCALRSS_LOCAL_URL;
+    } else if (window._launcherConfig && window._launcherConfig.proxyBase && accountData.serviceUrl) {
+        // Running under the desktop launcher and falling back to a remote instance:
+        // route through the launcher's local proxy so the browser's same-origin
+        // request bypasses CORS, while the launcher forwards it to the real
+        // serviceUrl server-side. Works for any remote LocalRSS the user has
+        // configured, not just a built-in default.
+        const encoded = _localrssProxyEncodeOrigin(accountData.serviceUrl.replace(/\/$/, ''));
+        accountData._effectiveServiceUrl = `${window._launcherConfig.proxyBase}/${encoded}`;
+    } else {
+        accountData._effectiveServiceUrl = accountData.serviceUrl;
+    }
     accountData._usingLocal = usingLocal;
 }
 
@@ -182,9 +200,11 @@ async function _localrssReconnect() {
 }
 
 function _localrssConnectionStatusText(accountData) {
-    return accountData._usingLocal
-        ? `Connected to local instance (${LOCALRSS_LOCAL_URL})`
-        : `Connected to ${accountData.serviceUrl || '(no service URL)'}`;
+    if (accountData._usingLocal) return `Connected to local instance (${LOCALRSS_LOCAL_URL})`;
+    const viaProxy = accountData._effectiveServiceUrl
+        && accountData._effectiveServiceUrl !== accountData.serviceUrl;
+    const target = accountData.serviceUrl || '(no service URL)';
+    return viaProxy ? `Connected to ${target} (via launcher proxy)` : `Connected to ${target}`;
 }
 
 async function _localrssPost(path, body) {
