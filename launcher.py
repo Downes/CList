@@ -361,6 +361,17 @@ class CListHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=BASE_DIR, **kwargs)
 
+    def end_headers(self):
+        # Every response from this server is either dynamic or served fresh from
+        # the running build's own bundled files -- never let the browser cache any
+        # of it across launches. Static files (index.html, js/*.js, ...) go through
+        # SimpleHTTPRequestHandler's default do_GET(), which otherwise sets no
+        # Cache-Control at all, letting a browser reuse a previous install's cached
+        # copy on the same fixed port and silently run stale JS (e.g. a cached
+        # kvstore.js from before js/localrss.js existed).
+        self.send_header('Cache-Control', 'no-store')
+        super().end_headers()
+
     def do_GET(self):
         path = self.path.split('?')[0]
         if path == '/runtime-config.js':
@@ -446,7 +457,6 @@ class CListHandler(http.server.SimpleHTTPRequestHandler):
         self.send_response(200)
         self.send_header('Content-Type', 'application/javascript')
         self.send_header('Content-Length', str(len(content)))
-        self.send_header('Cache-Control', 'no-store')
         self.end_headers()
         self.wfile.write(content)
 
