@@ -25,7 +25,7 @@ window.CList.schemas['LOCALRSS'] = {
     fields: [
         { key: 'title',       label: 'Title',               editable: true, inputType: 'text', placeholder: 'My Feeds',                   default: '' },
         { key: 'permissions', label: 'Permissions',         editable: true, inputType: 'text', placeholder: 'r',                           default: 'r' },
-        { key: 'serviceUrl',  label: 'LocalRSS Service URL', editable: true, inputType: 'text', placeholder: 'https://localrss.downes.ca', default: 'https://localrss.downes.ca' },
+        { key: 'serviceUrl',  label: 'LocalRSS Service URL', editable: true, inputType: 'text', placeholder: window.CList.defaults.LOCALRSS, default: window.CList.defaults.LOCALRSS },
         { key: 'database',    label: 'Database',            editable: true, inputType: 'text', placeholder: 'rss',                         default: 'rss' },
         // Set automatically from the database-wide audio-majority test -- see
         // _localrssSyncHasAudio() -- never user-edited. Drives the podcast
@@ -139,7 +139,52 @@ function _localrssAuthHeaders() {
 }
 
 function _localrssUrl(accountData, path) {
-    return `${(accountData.serviceUrl || '').replace(/\/$/, '')}${path}`;
+    const base = accountData._effectiveServiceUrl || accountData.serviceUrl || '';
+    return `${base.replace(/\/$/, '')}${path}`;
+}
+
+// ---- Local-first / remote-fallback resolution ----
+// LocalRSS is meant to run on the user's own machine. Every account probes the
+// conventional local port first, regardless of its configured serviceUrl -- if
+// something answers there, it's used for this session in place of serviceUrl.
+// Resolved once per account activation (initializeLocalrss), not re-probed on
+// every request; _localrssReconnect() re-probes on demand since local
+// availability can change mid-session (e.g. the user starts/stops their own
+// LocalRSS container after CList is already open).
+const LOCALRSS_LOCAL_URL = 'http://localhost:8787';
+const LOCALRSS_PROBE_TIMEOUT_MS = 1500;
+
+async function _localrssProbeLocal() {
+    try {
+        // Any HTTP response -- even a 401 from the unauthenticated probe request --
+        // means a LocalRSS instance is listening and answering. Only a network
+        // error or timeout (fetch throws) means "not there".
+        await fetch(`${LOCALRSS_LOCAL_URL}/api/config`, { signal: AbortSignal.timeout(LOCALRSS_PROBE_TIMEOUT_MS) });
+        return true;
+    } catch (err) {
+        return false;
+    }
+}
+
+async function _localrssResolveServiceUrl(accountData) {
+    const usingLocal = await _localrssProbeLocal();
+    accountData._effectiveServiceUrl = usingLocal ? LOCALRSS_LOCAL_URL : accountData.serviceUrl;
+    accountData._usingLocal = usingLocal;
+}
+
+// Manual re-probe + reload, for when local availability changes mid-session.
+async function _localrssReconnect() {
+    if (!localrssCurrentAccount) return;
+    await _localrssResolveServiceUrl(localrssCurrentAccount);
+    const statusEl = document.getElementById('localrss-connection-status');
+    if (statusEl) statusEl.textContent = _localrssConnectionStatusText(localrssCurrentAccount);
+    await localrssLoad();
+}
+
+function _localrssConnectionStatusText(accountData) {
+    return accountData._usingLocal
+        ? `Connected to local instance (${LOCALRSS_LOCAL_URL})`
+        : `Connected to ${accountData.serviceUrl || '(no service URL)'}`;
 }
 
 async function _localrssPost(path, body) {
@@ -244,6 +289,7 @@ async function _localrssSyncHasAudio(accountData) {
 async function initializeLocalrss(accountData) {
     localrssCurrentAccount = accountData;
     localrssFilter = 'unread';
+    await _localrssResolveServiceUrl(accountData);
     await localrssLoad();
 }
 
@@ -397,6 +443,7 @@ function localrssOptionsPanel() {
     const div = document.createElement('div');
     div.id = 'localrss-options-panel';
 
+    div.appendChild(_localrssConnectionRow());
     div.appendChild(_localrssDatabaseSwitcher());
     _localrssDatabaseSection(div);
     _localrssStatsSection(div);
@@ -457,6 +504,31 @@ function _localrssSectionHeading(text) {
     const h = document.createElement('h4');
     h.textContent = text;
     return h;
+}
+
+// Shows whether this account is currently talking to a local or remote LocalRSS
+// instance (see _localrssResolveServiceUrl), with a manual re-probe button for
+// when local availability changes mid-session (starting/stopping the user's own
+// LocalRSS container without reloading CList).
+function _localrssConnectionRow() {
+    const row = document.createElement('div');
+    row.id = 'localrss-connection-row';
+    row.className = 'localrss-options-row';
+
+    const status = document.createElement('span');
+    status.id = 'localrss-connection-status';
+    status.className = 'list-tip';
+    status.textContent = localrssCurrentAccount ? _localrssConnectionStatusText(localrssCurrentAccount) : '';
+    row.appendChild(status);
+
+    const reconnectBtn = document.createElement('button');
+    reconnectBtn.className = 'btn btn-small';
+    reconnectBtn.textContent = 'Reconnect';
+    reconnectBtn.title = 'Re-check for a local LocalRSS instance and reload';
+    reconnectBtn.onclick = () => _localrssReconnect().catch(localrssReportLoadError);
+    row.appendChild(reconnectBtn);
+
+    return row;
 }
 
 // One row, directly under the "Feed Options" heading: lets the user switch to

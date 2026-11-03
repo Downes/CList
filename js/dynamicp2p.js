@@ -13,8 +13,9 @@
 let heartbeatInterval; // Stores the heartbeat interval ID (keeps discussions active)
 let p2pInitialized = false; // Flag to ensure the P2P system is initialized only once
 
-// TODO (federation): make this user-selectable from kvstore account settings.
-const API_URL = 'https://discussions.mooc.ca/api/discussions';
+// TODO (federation): make this user-selectable from kvstore account settings
+// (currently admin-configurable only, via window.CList.defaults -- see defaults.js).
+const API_URL = window.CList.defaults.DISCUSSIONS + '/api/discussions';
 
 // These globals will be set when initializeP2PSystem() is called.
 let peer, connections, knownPeers, processedPeerLists, processedMsgIds, usernames;

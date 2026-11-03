@@ -29,6 +29,9 @@ See [README.md](README.md) for full architecture, kvstore/CORS details, and file
 
 ```
 index.html          — main application entry point
+defaults.js          — admin-configurable base URLs for remote services (window.CList.defaults);
+                       loaded by index.html and chat.html; rewritten on disk by kvstore's
+                       /admin/settings — see /srv/apps/kvstore/CLAUDE.md "Admin settings"
 about.html          — about page
 js/                 — all JavaScript modules
 css/

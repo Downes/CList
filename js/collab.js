@@ -37,7 +37,7 @@ window.CList.schemas['Collab'] = {
 
 ;(function () {
 
-    const COLLAB_WS_URL = 'wss://collab.mooc.ca'
+    const COLLAB_WS_URL = window.CList.defaults.COLLAB.replace(/^http/, 'ws')
 
     // --- Minimal styles, injected once ---
 

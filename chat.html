@@ -101,8 +101,9 @@
   </div>
 
   <script src="https://unpkg.com/peerjs@1/dist/peerjs.min.js"></script>
+  <script src="defaults.js"></script>
   <script>
-    const DISCUSSIONS_URL = 'https://discussions.mooc.ca/api/discussions/public'
+    const DISCUSSIONS_URL = window.CList.defaults.DISCUSSIONS + '/api/discussions/public'
 
     let peer = null
     let conn = null

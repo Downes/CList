@@ -38,7 +38,10 @@
     };
 })();
 
-const PUBLIC_FEEDS_BASE_URL = 'https://localrss.downes.ca';
+// Admin-configurable via defaults.js (see defaults.js, index.html) -- the
+// server admin can point logged-out visitors' public collections at a
+// different LocalRSS instance without editing this file.
+const PUBLIC_FEEDS_BASE_URL = window.CList.defaults.LOCALRSS;
 
 function _publicFeedPlainText(html) {
     const d = document.createElement('div');

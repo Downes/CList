@@ -812,8 +812,8 @@ function kvstoreAccountsPanel() {
             const flow = div.querySelector('#add-flow');
             const inputStyle = 'display:block;width:100%;box-sizing:border-box;padding:0.2rem;font-size:0.8rem;margin:2px 0 8px;';
             const labelStyle = 'font-variant:small-caps;font-size:0.8rem;color:#555;display:block;margin-top:6px;';
-            const knownServers = ['https://annotations.mooc.ca', 'https://annotations.downes.ca'];
-            const optionsList = knownServers.map(s => `<option value="${s}">${s}</option>`).join('') +
+            const defaultAnnoServer = window.CList.defaults.ANNOTATIONS;
+            const optionsList = `<option value="${defaultAnnoServer}">${defaultAnnoServer}</option>` +
                                 '<option value="__custom__">Custom…</option>';
             flow.innerHTML = `
                 <h3 style="margin:0 0 8px;">Add Annotation Server</h3>
@@ -834,28 +834,17 @@ function kvstoreAccountsPanel() {
             flow.querySelector('#anno-add-btn').onclick = () => connectAnnotate();
             flow.querySelector('#anno-back-btn').onclick = () => showTypePicker();
 
-            // Auto-detect from flaskSiteUrl: kvstore.mooc.ca → annotations.mooc.ca
-            const kvMatch = (window.CList.config.flaskSiteUrl || '').match(/^https?:\/\/kvstore\.(.+)/);
-            if (kvMatch) {
-                const autoUrl = `https://annotations.${kvMatch[1]}`;
-                const sel = flow.querySelector('#anno-server-select');
-                if ([...sel.options].some(o => o.value === autoUrl)) {
-                    sel.value = autoUrl;
-                } else {
-                    const opt = new Option(autoUrl, autoUrl);
-                    sel.insertBefore(opt, sel.firstChild);
-                    sel.value = autoUrl;
-                }
-                const statusEl = flow.querySelector('#anno-status');
-                statusEl.textContent = `Checking ${autoUrl}…`;
-                fetch(autoUrl + '/health').then(r => {
-                    if (!statusEl.isConnected) return;
-                    if (r.ok) { statusEl.style.color = '#2a7a2a'; statusEl.textContent = `✓ Found annotation server at ${autoUrl}`; }
-                    else      { statusEl.style.color = '#888';    statusEl.textContent = `No annotation server at ${autoUrl} — pick one below.`; }
-                }).catch(() => {
-                    if (statusEl.isConnected) { statusEl.style.color = '#888'; statusEl.textContent = 'Could not reach auto-detected server — pick one below.'; }
-                });
-            }
+            // This install's own default annotation server (window.CList.defaults.ANNOTATIONS)
+            // is already selected above — just confirm it's reachable.
+            const statusEl = flow.querySelector('#anno-status');
+            statusEl.textContent = `Checking ${defaultAnnoServer}…`;
+            fetch(defaultAnnoServer + '/health').then(r => {
+                if (!statusEl.isConnected) return;
+                if (r.ok) { statusEl.style.color = '#2a7a2a'; statusEl.textContent = `✓ Found annotation server at ${defaultAnnoServer}`; }
+                else      { statusEl.style.color = '#888';    statusEl.textContent = `No annotation server at ${defaultAnnoServer} — pick one below.`; }
+            }).catch(() => {
+                if (statusEl.isConnected) { statusEl.style.color = '#888'; statusEl.textContent = 'Could not reach default server — pick one below.'; }
+            });
             return;
         }
 
@@ -2475,20 +2464,34 @@ function closeAdminSettingsHelpModal() {
     if (existing) existing.remove();
 }
 
-// Apps that have adopted the generic admin-settings backend pattern (see
-// /srv/shared/admin_settings.py — a copy-paste module, not a shared import —
-// and its GET/PUT /admin/settings routes). Add an app here once it's wired up.
+// Apps that have adopted the generic admin-settings backend pattern (the
+// clist-server-admin pip package, pinned by commit SHA in each app's
+// requirements.txt — see /srv/shared/clist-server-admin) and its GET/PUT
+// /admin/settings routes. Add an app here once it's wired up.
+//
+// baseUrl for every app but KVStore comes from window.CList.defaults (see
+// defaults.js) — the admin-configured starting point for this install.
+// A logged-in user's own serviceUrl/instance value, stored in their own
+// kvstore account data, always takes priority over these at point of use.
 const ADMIN_SETTINGS_APPS = [
     {
-        label: 'Pastebin', baseUrl: 'https://pastebin.mooc.ca',
+        // baseUrl resolves to whichever kvstore instance this CList install is
+        // actually pointed at (not a fixed domain like the other entries below) --
+        // kvstore is the one app every CList install depends on, and it's the
+        // selectable/multi-instance piece (see window.CList.keys.KVSTORE_URL).
+        label: 'KVStore', baseUrl: window.CList.config.flaskSiteUrl,
+        description: 'Credential storage and identity provider for CList — this kvstore instance.',
+    },
+    {
+        label: 'Pastebin', baseUrl: window.CList.defaults.PASTEBIN,
         description: 'Stores arbitrary text content (JSON, OPML, HTML) at a short public URL — used by CList to publish collections and other structured content.',
     },
     {
-        label: 'Survey', baseUrl: 'https://survey.mooc.ca',
+        label: 'Survey', baseUrl: window.CList.defaults.SURVEY,
         description: 'Lets any kvstore user build simple surveys; anyone with the link can respond anonymously, no account needed.',
     },
     {
-        label: 'LocalRSS Reader', baseUrl: 'https://localrss.downes.ca',
+        label: 'LocalRSS Reader', baseUrl: window.CList.defaults.LOCALRSS,
         description: 'Server-side RSS/podcast reader with a scheduler that fetches feeds in the background.',
         // Unlike pastebin/survey, this app's auth gate also requires an
         // X-Kvstore-Url header naming the issuing kvstore instance (same
@@ -2496,15 +2499,15 @@ const ADMIN_SETTINGS_APPS = [
         requiresKvstoreUrlHeader: true,
     },
     {
-        label: 'Annotations', baseUrl: 'https://annotations.mooc.ca',
+        label: 'Annotations', baseUrl: window.CList.defaults.ANNOTATIONS,
         description: 'W3C-style annotation server for CList — lets users attach public/private notes to any URL.',
     },
     {
-        label: 'Collab', baseUrl: 'https://collab.mooc.ca',
+        label: 'Collab', baseUrl: window.CList.defaults.COLLAB,
         description: 'Hocuspocus/Yjs real-time collaborative document editing server for CList.',
     },
     {
-        label: 'Discussions', baseUrl: 'https://discussions.mooc.ca',
+        label: 'Discussions', baseUrl: window.CList.defaults.DISCUSSIONS,
         description: 'Peer discovery / signaling service for CList P2P chat — stores ephemeral PeerJS peer IDs so users can find and join each other\'s discussions.',
     },
 ];
@@ -3172,8 +3175,8 @@ window.addEventListener('popstate', (e) => {
         // Silently register the current user on the default collab server and save
         // a Collab account to kvstore if one doesn't already exist.
         async function autoRegisterCollab() {
-            const COLLAB_DEFAULT = 'wss://collab.mooc.ca';
-            const base = 'https://collab.mooc.ca';
+            const base = window.CList.defaults.COLLAB;
+            const COLLAB_DEFAULT = base.replace(/^http/, 'ws');
             const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
             if (!token) return;
 
@@ -3201,9 +3204,8 @@ window.addEventListener('popstate', (e) => {
         // Silently register the current user on the matching annotations server and save
         // an Annotate account to kvstore if one doesn't already exist.
         async function autoRegisterAnnotations() {
-            const kvMatch = (window.CList.config.flaskSiteUrl || '').match(/^https?:\/\/kvstore\.(.+)/);
-            if (!kvMatch) return;
-            const annoUrl = `https://annotations.${kvMatch[1]}`;
+            const annoUrl = window.CList.defaults.ANNOTATIONS;
+            if (!annoUrl) return;
             const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
             if (!token) return;
 
@@ -3234,7 +3236,7 @@ window.addEventListener('popstate', (e) => {
         }
 
         async function autoSeedCListBin() {
-            const CLISTBIN_DEFAULT = 'https://pastebin.mooc.ca';
+            const CLISTBIN_DEFAULT = window.CList.defaults.PASTEBIN;
             const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
             if (!token) return;
 

@@ -864,7 +864,7 @@ const _feedAuthorDidCache = new Map();
 async function _getAuthorDidFromFeed(feedUrl) {
     if (!feedUrl || feedUrl === '(no feed specified)') return null;
     if (_feedAuthorDidCache.has(feedUrl)) return _feedAuthorDidCache.get(feedUrl);
-    let serviceUrl = 'https://localrss.downes.ca';
+    let serviceUrl = window.CList.defaults.LOCALRSS;
     try {
         const accts = Array.isArray(window.CList.accounts) ? window.CList.accounts : [];
         const found = accts.find(a => {

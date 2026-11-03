@@ -34,7 +34,7 @@
 
 ;(function () {
 
-    const COLLAB_WS_URL = 'wss://collab.mooc.ca'
+    const COLLAB_WS_URL = window.CList.defaults.COLLAB.replace(/^http/, 'ws')
     const COMPILE_URL   = 'https://texcompile.mooc.ca/compile'
 
     // --- Minimal styles, injected once ---
