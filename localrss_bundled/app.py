@@ -1,6 +1,5 @@
-# Vendored snapshot of /srv/apps/localrss_reader/app.py, copied 2026-11-03
-# (that app is not a git repo, so no commit SHA to pin -- resync by diffing
-# against the live file). Bundled into CList's desktop launcher so a
+# Vendored snapshot of /srv/apps/localrss_reader/app.py, pinned to commit
+# e1a4dc24f870a52b74cc86da5aca295cd75ae0ae (2026-11-02). Bundled into CList's desktop launcher so a
 # "CList + LocalRSS" build gives a working local LocalRSS backend out of the
 # box. One deliberate deviation from the source file: `import fcntl` was
 # moved from module level (line 3 there) into _acquire_scheduler_leadership(),

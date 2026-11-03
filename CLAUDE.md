@@ -180,9 +180,10 @@ Each platform build comes in two variants: plain CList, and "CList + LocalRSS" w
 a local LocalRSS backend that starts automatically on launch — no separate install. Both are built
 by CI and listed on `desktop.html` and the GitHub Releases page.
 
-- `localrss_bundled/` is a vendored snapshot of `/srv/apps/localrss_reader/app.py` + `feeds.opml`
-  (see the header comment in `app.py` for the copy date — that app isn't a git repo, so there's no
-  commit SHA to pin; resync by diffing against the live file). One deliberate deviation from the
+- `localrss_bundled/` is a vendored snapshot of `/srv/apps/localrss_reader/app.py` + `feeds.opml`,
+  pinned to a commit SHA (see the header comment in `app.py`) the same way `kvstore`'s
+  `clist-server-admin`/`clist-kvstore-auth` dependencies are pinned — bump it when resyncing. One
+  deliberate deviation from the
   source: `import fcntl` was moved out of module scope into `_acquire_scheduler_leadership()`,
   which now also short-circuits on Windows — the top-level import otherwise crashes the whole
   module there, and gunicorn multi-worker leader election is moot in this single-process desktop
