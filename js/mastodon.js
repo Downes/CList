@@ -596,7 +596,8 @@ async function normalizeMastodonPost(status, headerHtml = null) {
     tempDiv.innerHTML = translatedContent;
     const plainText = (tempDiv.textContent || tempDiv.innerText || '').replace(/\s+/g, ' ').trim();
 
-    const authorLink = `<a href="#" onclick="loadMastodonFeed('user',null,'@${_heJs(acct)}');return false;" title="View User Feed">${_he(display)}</a> (@${_he(acct)}) wrote: ${_he(plainText)}`;
+    const viewUserFeedLink = `<a href="#" onclick="loadMastodonFeed('user',null,'@${_heJs(acct)}');return false;" title="View User Feed">${_he(display)}</a>`;
+    const authorLink = window.CList.ui.socialPostLine(viewUserFeedLink, acct, 'wrote', plainText, status.url, '@' + acct);
     const titleHtml  = headerHtml
         ? `<div class="reblog-info">${headerHtml}</div>${authorLink}`
         : authorLink;

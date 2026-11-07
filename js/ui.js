@@ -83,6 +83,15 @@ window.CList.ui.view = {
 window.CList._openedWindowRefs    = {};
 window.CList._lastOpenedWindowRef = null;
 
+// Tracks which feed entry a drag started from, for the case where text is dragged
+// straight out of an entry (no "open in browser" window involved) — the only
+// drop case that previously had no mechanism at all to identify its source entry.
+window.CList._lastDragStartRef = null;
+document.addEventListener('dragstart', function(e) {
+    const specific = e.target.closest ? e.target.closest('.statusSpecific') : null;
+    window.CList._lastDragStartRef = specific?.reference || null;
+}, true);
+
 function _makeMinimalRef(url, title) {
     let host = '';
     try { host = new URL(url).hostname; } catch (_) {}
@@ -94,6 +103,21 @@ window.openInBrowser = function(url, itemId) {
     window.open(url, '_blank', 'width=800,height=600,scrollbars=yes');
     let ref = itemId ? document.getElementById(itemId)?.reference : null;
     if (!ref) ref = _makeMinimalRef(url);
+    window.CList._openedWindowRefs[url] = ref;
+    window.CList._lastOpenedWindowRef   = ref;
+};
+
+// Open a bare URL found inside a feed item's description (see linkifyBareUrls,
+// below in section 5). Unlike openInBrowser — where the opened URL *is* the
+// entry's own URL, so the entry's reference fits as-is — this opens a URL
+// that's different from the entry it was found in, so the resulting reference
+// needs its own identity (url/title) plus `via` attribution back to that entry.
+// _attributeDroppedContent reads `ref.via` to append a "(source, via)"
+// citation when this reference is later dragged into the editor.
+window.openDescriptionLink = function(url, entryUrl, entryFeedTitle) {
+    window.open(url, '_blank', 'width=800,height=600,scrollbars=yes');
+    let ref = window.CList._openedWindowRefs[url] || _makeMinimalRef(url);
+    ref.via = { url: entryUrl, title: entryFeedTitle || '(no feed specified)' };
     window.CList._openedWindowRefs[url] = ref;
     window.CList._lastOpenedWindowRef   = ref;
 };
@@ -118,17 +142,73 @@ window._extractDropUrl = function(uriList, html) {
     return null;
 };
 
-// url  — extracted from text/uri-list or text/html href; null for plain-text drags
-// title — from text/x-clist-title injected by the CList extension; null if not present
-window._attributeDroppedContent = function(url, title) {
+// Resolves a drop back to a reference (url from text/uri-list or text/html
+// href; title from text/x-clist-title, injected by the CList extension; falling
+// back to the entry a plain drag started from, or the last-opened window) and
+// dispatches it to the active editor's insertLink/insertLinkVia. Guards against
+// a pre-existing double-dispatch: the document-level capture `drop` listener
+// below and each editor's own `drop` listener (editors.js/collab.js/latex.js)
+// both fire on the same drop for texteditor/collab/latex (TinyMCE's iframe has
+// its own document and is unaffected) — whichever runs first calls
+// e.preventDefault(), so the second invocation bails out here.
+window._attributeDroppedContent = function(e) {
+    if (e.defaultPrevented) return;
+    const dt = e.dataTransfer;
+    if (!dt) return;
+    const url   = window._extractDropUrl(dt.getData('text/uri-list'), dt.getData('text/html'));
+    const title = dt.getData('text/x-clist-title') || null;
+
     let ref = url ? window.CList._openedWindowRefs[url] : null;
     if (!ref && url) ref = _makeMinimalRef(url, title);
-    if (!ref) ref = window.CList._lastOpenedWindowRef;
+    if (!ref) ref = window.CList._lastDragStartRef;     // plain drag straight out of an entry
+    if (!ref) ref = window.CList._lastOpenedWindowRef;   // legacy fallback
+    window.CList._lastDragStartRef = null;
     if (!ref) return;
-    if (typeof pushReference === 'function' && pushReference(ref)) {
-        showStatusMessage('Reference added: ' + (ref.title !== ref.url ? ref.title : ref.feed || ref.url));
-    }
+
+    _dispatchDroppedRef(e, dt, ref);
 };
+
+// Dispatches a resolved drop reference to the active editor's insertLink (ref has
+// no `via` — dragged from the entry itself, or a window opened via openInBrowser)
+// or insertLinkVia (ref carries `via` — dragged from a window opened via
+// openDescriptionLink, i.e. a link found inside the entry, distinct from the
+// entry's own URL). `dropped` is read from this drag gesture's own DataTransfer,
+// so it's always whatever was actually selected in whichever window the drag
+// started in — the opened window, or the feed entry itself.
+function _dispatchDroppedRef(e, dt, ref) {
+    const handler = editorHandlers[currentEditor];
+    if (!handler) return;
+
+    const isHtml = (handler.contentTypes || []).includes('text/html');
+    const droppedHtml  = dt.getData('text/html');
+    const droppedPlain = dt.getData('text/plain');
+    const dropped = isHtml ? (droppedHtml || escapeHtml(droppedPlain || '')) : (droppedPlain || removeHtml(droppedHtml || ''));
+    if (!dropped) return; // nothing was actually dragged in — let the native drop stand
+
+    const content = { type: isHtml ? 'text/html' : 'text/plain', value: dropped };
+
+    if (ref.via) {
+        if (typeof handler.insertLinkVia !== 'function') return;
+        e.preventDefault();
+        handler.insertLinkVia({
+            content,
+            linkedUrl: ref.url,
+            linkedTitle: (ref.title && ref.title !== ref.url) ? ref.title : ref.url,
+            entryUrl: ref.via.url,
+            authorOrFeedTitle: ref.via.title,
+            reference: { ...ref },
+        });
+    } else {
+        if (typeof handler.insertLink !== 'function') return;
+        e.preventDefault();
+        handler.insertLink({
+            content,
+            entryUrl: ref.url,
+            feedTitle: (ref.feed && ref.feed !== '(no feed specified)') ? ref.feed : (ref.service || 'Unknown'),
+            reference: { ...ref },
+        });
+    }
+}
 
 // Receive page-identity messages posted by the CList browser extension's content
 // script running in popup windows (window.opener.postMessage). When the extension
@@ -140,11 +220,7 @@ window._attributeDroppedContent = function(url, title) {
 document.addEventListener('drop', function(e) {
     const writePaneContent = document.getElementById('write-pane-content');
     if (!writePaneContent || !writePaneContent.contains(e.target)) return;
-    const dt = e.dataTransfer;
-    if (!dt) return;
-    const url   = window._extractDropUrl(dt.getData('text/uri-list'), dt.getData('text/html'));
-    const title = dt.getData('text/x-clist-title') || null;
-    window._attributeDroppedContent(url, title);
+    window._attributeDroppedContent(e);
 }, true);
 
 window.addEventListener('message', function(e) {
@@ -255,6 +331,75 @@ window.buildAccountSelect = window.CList.ui.buildAccountSelect;
 // ============================================================================
 // 5. Feed item rendering
 // ============================================================================
+
+// Shared bare-URL scanner behind both linkifyBareUrls (DOM) and linkifyBareUrlsHtml
+// (string) below — walks `text`, calling appendText(str) for plain runs and
+// appendLink(url, trailingPunctuation) for each URL found, in order.
+function _scanBareUrls(text, appendText, appendLink) {
+    const urlRe = /https?:\/\/[^\s<>"']+/g;
+    let lastIndex = 0, m;
+    while ((m = urlRe.exec(text))) {
+        let url = m[0];
+        const trailMatch = url.match(/[.,;:!?)\]]+$/);
+        const trail = trailMatch ? trailMatch[0] : '';
+        if (trail) url = url.slice(0, -trail.length);
+        appendText(text.slice(lastIndex, m.index));
+        appendLink(url, trail);
+        lastIndex = urlRe.lastIndex;
+    }
+    appendText(text.slice(lastIndex));
+}
+
+// Convert bare http(s) URLs in plain text into "[Link]" anchors — the real URL
+// shows on hover via `title`, and clicking calls onClick(url) instead of
+// navigating away, so callers can route it through the "open in browser"
+// convention (see openDescriptionLink). Feed descriptions are plain text
+// across every service (search, harvest, social), so this is the one place
+// bare-URL handling needs to live for it to apply everywhere.
+window.linkifyBareUrls = function(text, onClick) {
+    const frag = document.createDocumentFragment();
+    _scanBareUrls(text,
+        str => frag.appendChild(document.createTextNode(str)),
+        (url, trail) => {
+            frag.appendChild(document.createTextNode('['));
+            const a = document.createElement('a');
+            a.href = '#';
+            a.title = url;
+            a.textContent = 'Link';
+            a.addEventListener('click', (e) => { e.preventDefault(); onClick(url); });
+            frag.appendChild(a);
+            frag.appendChild(document.createTextNode(']' + trail));
+        });
+    return frag;
+};
+
+// String variant of linkifyBareUrls for callers that assemble raw HTML before
+// the element exists in the DOM — e.g. a reader's titleHtml (mastodon.js,
+// bluesky.js build "Author wrote: <post text>" as a template-literal string,
+// not through makeListing's DOM-built summaryDiv). Inline onclick, since
+// addEventListener has nothing to attach to yet; routes through the same
+// openDescriptionLink convention as the DOM version.
+window.linkifyBareUrlsHtml = function(text, entryUrl, entryFeedTitle) {
+    let html = '';
+    _scanBareUrls(text,
+        str => { html += _he(str); },
+        (url, trail) => {
+            html += `[<a href="#" title="${_he(url)}" onclick="openDescriptionLink('${_heJs(url)}', '${_heJs(entryUrl)}', '${_heJs(entryFeedTitle)}'); return false;">Link</a>]${_he(trail)}`;
+        });
+    return html;
+};
+
+// Standard "<author-link> (@handle) <verb>: <body>" title line shared by every
+// social-style reader (Mastodon, Bluesky, ...). authorLinkHtml stays caller-built
+// since its onclick (loadMastodonFeed, fetchBlueskyUserFeed, ...) is service-specific;
+// everything after it is identical across services and always routed through
+// linkifyBareUrlsHtml here, so a bare URL in the body can't slip through unlinkified
+// the way it did before this helper existed (each service used to build this whole
+// string by hand and had to remember to call linkifyBareUrlsHtml itself).
+window.CList.ui.socialPostLine = function(authorLinkHtml, handle, verb, text, entryUrl, entryFeedTitle) {
+    return `${authorLinkHtml} (@${_he(handle)}) ${_he(verb)}: ${linkifyBareUrlsHtml(text, entryUrl, entryFeedTitle)}`;
+};
+window.buildSocialPostLine = window.CList.ui.socialPostLine;
 
 // ── video embeds ──────────────────────────────────────────────────────────────
 // Service-specific detection lives in youtube.js / peertube.js, each registering
@@ -368,7 +513,12 @@ window.CList.ui.listing = function makeListing(
             authorEl.textContent = itemAuthor;
             summaryDiv.appendChild(authorEl);
         }
-        summaryDiv.appendChild(document.createTextNode(': ' + (itemDesc || 'No Summary')));
+        summaryDiv.appendChild(document.createTextNode(': '));
+        if (itemDesc) {
+            summaryDiv.appendChild(linkifyBareUrls(itemDesc, url => openDescriptionLink(url, itemUrl, itemFeed)));
+        } else {
+            summaryDiv.appendChild(document.createTextNode('No Summary'));
+        }
     }
 
     // Build content div (if applicable)

@@ -98,6 +98,21 @@ function _restoreEditorState(editorType, account) {
 //                            account-backed/collaborative editors (collab, etherpad, collection)
 //                            rather than attempting collaborative-doc replace. Used by
 //                            loadSavedPage()'s New/Replace options.
+//   insertLink({content, entryUrl, feedTitle, reference})  {function, optional} "Direct"
+//                            placement from a feed entry — arrow-click (selection or entry
+//                            summary), a drag straight out of an entry, or a drag out of a
+//                            window opened via openInBrowser (where content is THAT window's
+//                            own selection, not the entry's). content is {type, value}, same
+//                            shape as loadContent's first argument. reference is the full
+//                            reference object to push (pass to pushAndDisplayReference, or the
+//                            editor's own equivalent) — not an itemId, since the source may have
+//                            no backing DOM element.
+//   insertLinkVia({content, linkedUrl, linkedTitle, entryUrl, authorOrFeedTitle, reference})
+//                            {function, optional} "Indirect" placement — content dragged out of
+//                            a window opened via openDescriptionLink (a link found INSIDE a feed
+//                            entry, distinct from the entry's own URL). linkedUrl/linkedTitle
+//                            identify the dragged-from page; entryUrl/authorOrFeedTitle
+//                            attribute it back to the entry it was found in.
 //
 // To add a new editor, create a new JS file and register its handler:
 //
@@ -115,6 +130,20 @@ function _restoreEditorState(editorType, account) {
 // Usage:
 //   const handler = editorHandlers[currentEditor];
 //   if (handler?.getContent) content = handler.getContent();
+
+// Splices text into the plain-text editor's textarea at the current cursor position,
+// leaving the cursor after the inserted text. Shared by texteditor's loadContent and
+// its insertLink/insertLinkVia.
+function _insertIntoTextarea(text) {
+    const textarea = window.CList.ui.view.textColumn;
+    if (!textarea) return;
+    const cursorPosition = textarea.selectionStart;
+    const textBefore = textarea.value.substring(0, cursorPosition);
+    const textAfter = textarea.value.substring(cursorPosition);
+    textarea.value = textBefore + text + textAfter;
+    const newCursorPosition = cursorPosition + text.length;
+    textarea.setSelectionRange(newCursorPosition, newCursorPosition);
+}
 
 const editorHandlers = {
     texteditor: {
@@ -156,11 +185,7 @@ const editorHandlers = {
                 const ta = window.CList.ui.view.textColumn;
                 ta.addEventListener('input', debounce(() => saveDraft('texteditor', ta.value), 1000));
                 ta.addEventListener('drop', function(e) {
-                    const dt = e.dataTransfer;
-                    if (!dt) return;
-                    const url   = window._extractDropUrl(dt.getData('text/uri-list'), dt.getData('text/html'));
-                    const title = dt.getData('text/x-clist-title') || null;
-                    window._attributeDroppedContent(url, title);
+                    window._attributeDroppedContent(e);
                 });
                 textEditorDiv.dataset.draftWired = '1';
             }
@@ -182,23 +207,7 @@ const editorHandlers = {
         loadContent: ({ type, value }, itemId) => {
             // Strip HTML tags when receiving HTML content — the text editor works in plain text
             const itemContent = (type === 'text/html') ? cleanHTMLContent(value) : value;
-
-            const textarea = window.CList.ui.view.textColumn;
-            if (textarea) {
-                // Get the current selection start position
-                const cursorPosition = textarea.selectionStart;
-
-                // Split the text content into two parts based on the cursor position
-                const textBefore = textarea.value.substring(0, cursorPosition);
-                const textAfter = textarea.value.substring(cursorPosition);
-
-                // Insert the new content at the cursor position
-                textarea.value = textBefore + itemContent + textAfter;
-
-                // Update the cursor position to after the inserted content
-                const newCursorPosition = cursorPosition + itemContent.length;
-                textarea.setSelectionRange(newCursorPosition, newCursorPosition);
-            }
+            _insertIntoTextarea(itemContent);
 
             // Add to references
             if (itemId) {
@@ -211,6 +220,16 @@ const editorHandlers = {
         setContent: (value) => {
             const textarea = window.CList.ui.view.textColumn;
             if (textarea) textarea.value = value;
+        },
+        insertLink: ({ content, entryUrl, feedTitle, reference }) => {
+            const itemContent = (content.type === 'text/html') ? cleanHTMLContent(content.value) : content.value;
+            if (itemContent) _insertIntoTextarea(`${itemContent} [${feedTitle}]`);
+            if (reference) pushAndDisplayReference(reference, document.getElementById('textEditorDiv'));
+        },
+        insertLinkVia: ({ content, linkedUrl, linkedTitle, entryUrl, authorOrFeedTitle, reference }) => {
+            const itemContent = (content.type === 'text/html') ? cleanHTMLContent(content.value) : content.value;
+            if (itemContent) _insertIntoTextarea(`${itemContent} [${linkedTitle}, via ${authorOrFeedTitle}]`);
+            if (reference) pushAndDisplayReference(reference, document.getElementById('textEditorDiv'));
         }
     },
     // Add more editors as needed

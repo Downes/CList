@@ -760,11 +760,7 @@ window.CList.schemas['Collab'] = {
             // Wire the drop zone once — #collab-editor-container persists across activations
             if (!collabDiv.dataset.wired) {
                 document.getElementById('collab-editor-container').addEventListener('drop', function(e) {
-                    const dt = e.dataTransfer;
-                    if (!dt) return;
-                    const url   = window._extractDropUrl(dt.getData('text/uri-list'), dt.getData('text/html'));
-                    const title = dt.getData('text/x-clist-title') || null;
-                    window._attributeDroppedContent(url, title);
+                    window._attributeDroppedContent(e);
                 }, true);
 
                 collabDiv.dataset.wired = '1'
@@ -845,6 +841,35 @@ window.CList.schemas['Collab'] = {
                 }
             }
         },
+
+        insertLink: ({ content, entryUrl, feedTitle, reference }) => {
+            if (!tiptapEditor) {
+                showErrorModal('Join a document first, then load content into it.', { title: 'No document loaded' })
+                return
+            }
+            if (content.value) tiptapEditor.commands.insertContent(`${content.value} [<a href="${escapeHtml(entryUrl)}">${escapeHtml(feedTitle)}</a>]`)
+            _pushCollabReference(reference)
+        },
+        insertLinkVia: ({ content, linkedUrl, linkedTitle, entryUrl, authorOrFeedTitle, reference }) => {
+            if (!tiptapEditor) {
+                showErrorModal('Join a document first, then load content into it.', { title: 'No document loaded' })
+                return
+            }
+            if (content.value) tiptapEditor.commands.insertContent(`${content.value} [<a href="${escapeHtml(linkedUrl)}">${escapeHtml(linkedTitle)}</a>, via <a href="${escapeHtml(entryUrl)}">${escapeHtml(authorOrFeedTitle)}</a>]`)
+            _pushCollabReference(reference)
+        },
+    }
+
+    // Pushes/displays a reference and mirrors it into the shared clist_refs Y.Map (same
+    // sequence loadContent's itemId branch already does) — for insertLink/insertLinkVia,
+    // where the reference may come from a dragged-from window rather than a live DOM element.
+    function _pushCollabReference(reference) {
+        if (!reference) return
+        const editorDiv = document.getElementById('collabDiv')
+        pushReference(reference)
+        displayCurrentReference(reference, editorDiv)
+        displayReferences(editorDiv)
+        if (sharedRefs && reference.url) sharedRefs.set(reference.url, JSON.stringify(reference))
     }
 
     if (typeof editorHandlers !== 'undefined') {

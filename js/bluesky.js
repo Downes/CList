@@ -476,7 +476,9 @@ async function normalizeBlueskyPost(post) {
     return {
         service:    'Bluesky',
         url:        postUrl,
-        titleHtml:  `<a href="#" onclick="fetchBlueskyUserFeed('${_heJs(handle)}'); return false;" title="View User Feed">${_he(authorName)}</a> (@${_he(handle)}) wrote: ${_he(desc)}`,
+        titleHtml:  window.CList.ui.socialPostLine(
+                        `<a href="#" onclick="fetchBlueskyUserFeed('${_heJs(handle)}'); return false;" title="View User Feed">${_he(authorName)}</a>`,
+                        handle, 'wrote', desc, postUrl, '@' + handle),
         title:      postContent.slice(0, 80),
         desc,
         noSummaryDesc: true,
@@ -740,7 +742,9 @@ async function displayBlueskyNotifications(notifications, cursor, isFirstPage) {
             };
             const item = await normalizeBlueskyPost(pseudoPost);
             // Replace the generic "wrote:" phrasing with the actual notification reason.
-            item.titleHtml = `<a href="#" onclick="fetchBlueskyUserFeed('${_heJs(handle)}'); return false;" title="View User Feed">${_he(name)}</a> (@${_he(handle)}) ${_he(label)}: ${_he(item.desc)}`;
+            item.titleHtml = window.CList.ui.socialPostLine(
+                `<a href="#" onclick="fetchBlueskyUserFeed('${_heJs(handle)}'); return false;" title="View User Feed">${_he(name)}</a>`,
+                handle, label, item.desc, item.url, item.feed);
             feedContainer.appendChild(window.CList.ui.listing(item));
             continue;
         }

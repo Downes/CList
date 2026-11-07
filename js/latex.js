@@ -476,11 +476,7 @@
             // Wire the drop zone once — #latex-editor-container persists across activations
             if (!latexDiv.dataset.wired) {
                 document.getElementById('latex-editor-container').addEventListener('drop', function(e) {
-                    const dt = e.dataTransfer
-                    if (!dt) return
-                    const url   = window._extractDropUrl(dt.getData('text/uri-list'), dt.getData('text/html'))
-                    const title = dt.getData('text/x-clist-title') || null
-                    window._attributeDroppedContent(url, title)
+                    window._attributeDroppedContent(e)
                 }, true)
 
                 latexDiv.dataset.wired = '1'
@@ -549,14 +545,44 @@
                 const reference = createReference(itemId, editorDiv)
                 displayCurrentReference(reference, editorDiv)
                 displayReferences(editorDiv)
-                if (sharedRefs) {
-                    const specificEl = document.getElementById(itemId)
-                    const ref = specificEl?.reference
-                    if (ref?.url) sharedRefs.set(ref.url, JSON.stringify(ref))
-                }
+                _pushLatexReference(reference)
             }
         },
         // no setContent — collaborative editor, same reasoning as collab/etherpad/collection
+
+        // insertLink/insertLinkVia bodies are intentionally identical — LaTeX bibliography
+        // text is generated separately on demand (Insert bibliography button), so there's no
+        // inline citation to vary; both just insert plain text and push the reference.
+        insertLink: ({ content, reference }) => {
+            if (!cmView) {
+                showErrorModal('Join a document first, then load content into it.', { title: 'No document loaded' })
+                return
+            }
+            const text = (content.type === 'text/html') ? cleanHTMLContent(content.value) : content.value
+            if (text) insertAtCursor(text)
+            _pushLatexReference(reference)
+        },
+        insertLinkVia: ({ content, reference }) => {
+            if (!cmView) {
+                showErrorModal('Join a document first, then load content into it.', { title: 'No document loaded' })
+                return
+            }
+            const text = (content.type === 'text/html') ? cleanHTMLContent(content.value) : content.value
+            if (text) insertAtCursor(text)
+            _pushLatexReference(reference)
+        },
+    }
+
+    // Pushes/displays a reference and mirrors it into the shared clist_refs Y.Map (same
+    // sequence loadContent's itemId branch already does) — for insertLink/insertLinkVia,
+    // where the reference may come from a dragged-from window rather than a live DOM element.
+    function _pushLatexReference(reference) {
+        if (!reference) return
+        const editorDiv = document.getElementById('latexDiv')
+        pushReference(reference)
+        displayCurrentReference(reference, editorDiv)
+        displayReferences(editorDiv)
+        if (sharedRefs && reference.url) sharedRefs.set(reference.url, JSON.stringify(reference))
     }
 
     if (typeof editorHandlers !== 'undefined') {

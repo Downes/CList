@@ -216,13 +216,11 @@ window.clistAnnotate = function(itemId) {
         showErrorModal('No reference found for this item.', { title: 'No reference' });
         return;
     }
-    if (typeof currentEditor !== 'undefined' && currentEditor === 'collection') {
-        if (typeof window.addItemToCollectionEditor === 'function') {
-            window.addItemToCollectionEditor(el.reference);
-        }
+    const handler = editorHandlers[currentEditor];
+    if (!handler || typeof handler.insertLink !== 'function') {
+        showErrorModal('The current editor does not support inserting links.', { title: 'Not supported' });
         return;
     }
-    pushReference({ ...el.reference });
 
     const selection = window.getSelection();
     const selectedText = selection ? selection.toString().trim() : '';
@@ -231,11 +229,19 @@ window.clistAnnotate = function(itemId) {
     const attribution = isUnknownAuthor
         ? (el.reference.feed && el.reference.feed !== '(no feed specified)' ? el.reference.feed : el.reference.service || 'Unknown')
         : el.reference.author_name;
-    const content = textToQuote
-        ? { type: 'text/plain', value: `${attribution} wrote: "${textToQuote}"\n` }
-        : { type: 'text/plain', value: '' };
+    const feedTitle = (el.reference.feed && el.reference.feed !== '(no feed specified)') ? el.reference.feed : (el.reference.service || 'Unknown');
 
-    if (typeof loadContent === 'function') loadContent(content, itemId);
+    // HTML-capable editors get the quote escaped and wrapped for HTML; plain-text
+    // editors keep the quote-only behavior. The bracket citation is appended by
+    // handler.insertLink itself, per editor type.
+    const supportsHtml = (handler.contentTypes || []).includes('text/html');
+    const content = textToQuote
+        ? (supportsHtml
+            ? { type: 'text/html', value: `${escapeHtml(attribution)} wrote: "${escapeHtml(textToQuote)}"` }
+            : { type: 'text/plain', value: `${attribution} wrote: "${textToQuote}"` })
+        : { type: supportsHtml ? 'text/html' : 'text/plain', value: '' };
+
+    handler.insertLink({ content, entryUrl: el.reference.url, feedTitle, reference: { ...el.reference } });
 
     if (typeof snapPanes === 'function' && typeof mainContent !== 'undefined' && typeof readPane !== 'undefined') {
         const ratio = readPane.getBoundingClientRect().width / mainContent.getBoundingClientRect().width;

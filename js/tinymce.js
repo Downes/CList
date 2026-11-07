@@ -98,27 +98,8 @@ let pendingTinymceDraftOffer = false;
         },
         loadContent: ({ type, value }, itemId) => {
             // Load content into the TinyMCE editor
-            const itemContent = value;
-            const textarea = document.getElementById('write-column');
-            if (textarea) {
-                textarea.value += itemContent;
-            }
-            const editor = tinymce.get("write-column");
-            if (editor) {
-                // Save the current selection (cursor position)
-                editor.focus(); // Ensure the editor is focused
-                const selection = editor.selection;
-        
-                // Insert content at the cursor position
-                selection.setContent(selection.getContent() + itemContent, { format: 'raw' });
-        
-                // Optionally, move the cursor to the end of the inserted content
-                const range = selection.getRng(); // Range object
-                range.collapse(false); // Collapse to the end of the range
-                selection.setRng(range); // Apply the updated range
-            }
-            
-    
+            _insertIntoTinymce(value);
+
             // Add to references
             if (itemId) {
                 const editorDiv = document.getElementById('tinymceEditorDiv');
@@ -136,6 +117,14 @@ let pendingTinymceDraftOffer = false;
             // normally mirrors TinyMCE's content into it.
             const textarea = document.getElementById('write-column');
             if (textarea) textarea.value = value;
+        },
+        insertLink: ({ content, entryUrl, feedTitle, reference }) => {
+            if (content.value) _insertIntoTinymce(`${content.value} [<a href="${escapeHtml(entryUrl)}">${escapeHtml(feedTitle)}</a>]`);
+            if (reference) pushAndDisplayReference(reference, document.getElementById('tinymceEditorDiv'));
+        },
+        insertLinkVia: ({ content, linkedUrl, linkedTitle, entryUrl, authorOrFeedTitle, reference }) => {
+            if (content.value) _insertIntoTinymce(`${content.value} [<a href="${escapeHtml(linkedUrl)}">${escapeHtml(linkedTitle)}</a>, via <a href="${escapeHtml(entryUrl)}">${escapeHtml(authorOrFeedTitle)}</a>]`);
+            if (reference) pushAndDisplayReference(reference, document.getElementById('tinymceEditorDiv'));
         }
     };
 
@@ -150,6 +139,23 @@ let pendingTinymceDraftOffer = false;
 
 
 
+// Inserts HTML at the current cursor position in the TinyMCE editor (and mirrors it
+// into the backing textarea's raw value, matching setContent()'s sync behavior). Shared
+// by tinymce's loadContent and its insertLink/insertLinkVia.
+function _insertIntoTinymce(html) {
+    const textarea = document.getElementById('write-column');
+    if (textarea) textarea.value += html;
+    const editor = tinymce.get('write-column');
+    if (editor) {
+        editor.focus();
+        const selection = editor.selection;
+        selection.setContent(selection.getContent() + html, { format: 'raw' });
+        const range = selection.getRng();
+        range.collapse(false);
+        selection.setRng(range);
+    }
+}
+
 function createReference(statusID, editorDiv) {
     const statusSpecific = document.getElementById(statusID);
     const reference = statusSpecific?.reference;
@@ -158,6 +164,17 @@ function createReference(statusID, editorDiv) {
         return;
     }
     pushReference(reference);
+    return reference;
+}
+
+// Pushes and displays an already-resolved reference (no DOM lookup) — for
+// insertLink/insertLinkVia, where the reference may come from a dragged-from window or a
+// feed entry no longer on screen, rather than a live .statusSpecific element.
+function pushAndDisplayReference(reference, editorDiv) {
+    if (!reference) return null;
+    pushReference(reference);
+    displayCurrentReference(reference, editorDiv);
+    displayReferences(editorDiv);
     return reference;
 }
 
@@ -220,11 +237,7 @@ tinymceConfig = {
         // Listen on the iframe document in capture phase — fires before any body-level
         // handler, including TinyMCE's own drag plugin which may stopImmediatePropagation on body.
         editor.getDoc().addEventListener('drop', function(e) {
-            const dt = e.dataTransfer;
-            if (!dt) return;
-            const url   = window._extractDropUrl(dt.getData('text/uri-list'), dt.getData('text/html'));
-            const title = dt.getData('text/x-clist-title') || null;
-            window._attributeDroppedContent(url, title);
+            window._attributeDroppedContent(e);
         }, true);
 
         if (pendingTinymceDraftOffer) {

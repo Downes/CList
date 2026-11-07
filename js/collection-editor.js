@@ -538,5 +538,15 @@ async function _publishLocalEntry(item, refresh) {
             : '',
 
         loadContent: () => {},
+
+        // The insert_link-vs-via distinction is handled entirely by which reference object
+        // the dispatch site passes in — addItemToCollectionEditor only ever reads off the
+        // reference itself, regardless of how it arrived.
+        insertLink: ({ reference }) => {
+            if (typeof window.addItemToCollectionEditor === 'function') window.addItemToCollectionEditor(reference);
+        },
+        insertLinkVia: ({ reference }) => {
+            if (typeof window.addItemToCollectionEditor === 'function') window.addItemToCollectionEditor(reference);
+        },
     };
 })();
