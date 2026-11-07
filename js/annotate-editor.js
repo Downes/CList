@@ -110,10 +110,7 @@ async function _renderSendControls(sendSection, body) {
         return;
     }
 
-    let accounts = window.CList.accounts;
-    if (!Array.isArray(accounts) || accounts.length === 0) {
-        accounts = window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl).catch(() => []);
-    }
+    const accounts = await ensureAccountsLoaded().catch(() => []);
     const writeAccts = accounts.map(parseAccountValue).filter(d =>
         d && (d.type === 'Annotate' || d.type === 'Hypothesis') && (d.permissions || 'rw').includes('w')
     );
@@ -133,28 +130,16 @@ async function _renderSendControls(sendSection, body) {
     storeLabel.textContent = 'Send to:';
     row.appendChild(storeLabel);
 
-    const storeSelect = document.createElement('select');
+    const storeSelect = buildAccountSelect(writeAccts);
     storeSelect.style.cssText = 'font-size:0.85rem;padding:2px 4px;';
-    writeAccts.forEach((acct, i) => {
-        const opt = document.createElement('option');
-        opt.value = i;
-        opt.textContent = acct.title || acct.instance;
-        storeSelect.appendChild(opt);
-    });
     row.appendChild(storeSelect);
 
     const visLabel = document.createElement('label');
     visLabel.textContent = 'Visibility:';
     row.appendChild(visLabel);
 
-    const visSelect = document.createElement('select');
+    const visSelect = buildVisibilitySelect();
     visSelect.style.cssText = 'font-size:0.85rem;padding:2px 4px;';
-    [['public', 'Public'], ['private', 'Private']].forEach(([val, text]) => {
-        const opt = document.createElement('option');
-        opt.value = val;
-        opt.textContent = text;
-        visSelect.appendChild(opt);
-    });
     row.appendChild(visSelect);
 
     const sendBtn = document.createElement('button');

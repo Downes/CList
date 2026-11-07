@@ -31,7 +31,7 @@ window.CList.schemas['CListBin'] = {
                 },
                 body: JSON.stringify({ content, mime_type: mimeType, title }),
             });
-            if (!resp.ok) throw new Error(`CListBin error ${resp.status}: ${await resp.text()}`);
+            await assertOk(resp, 'CListBin error');
             const data = await resp.json();
             return { url: data.url, serviceId: data.id };
         },
@@ -46,7 +46,7 @@ window.CList.schemas['CListBin'] = {
                 },
                 body: JSON.stringify({ content, mime_type: mimeType }),
             });
-            if (!resp.ok) throw new Error(`CListBin update error ${resp.status}: ${await resp.text()}`);
+            await assertOk(resp, 'CListBin update error');
             const data = await resp.json();
             return { url: data.url };
         },
@@ -57,7 +57,7 @@ window.CList.schemas['CListBin'] = {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${_token()}` },
             });
-            if (!resp.ok) throw new Error(`CListBin delete error ${resp.status}: ${await resp.text()}`);
+            await assertOk(resp, 'CListBin delete error');
         },
     };
 })();

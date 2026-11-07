@@ -26,13 +26,10 @@ window.CList.schemas['Blogger'] = {
     window.CList.publishers['Blogger'] = {
         acceptedFormats: ['html', 'md', 'text'],
         publish: async (accountData, title, content) => {
-            const responseDiv = window.CList.ui.view.postResult;
-            const plainTitle = removeHtml(title).trim()
-                || content.replace(/<[^>]+>/g, '').trim().substring(0, 70).replace(/\s\S*$/, '') + '…';
+            const plainTitle = derivePlainTitle(title, content);
             return await publishBloggerPost(
                 accountData.instance,
                 accountData.id,
-                responseDiv,
                 plainTitle,
                 content
             );
@@ -41,19 +38,22 @@ window.CList.schemas['Blogger'] = {
 })();
 
 // Publish a post to a Blogger account
-// publishBloggerPost(accountData.instance, accountData.id, responseDiv, writeColumnTitle,writeColumnContent);
+// publishBloggerPost(accountData.instance, accountData.id, writeColumnTitle, writeColumnContent);
+// Resolves with the published post's URL, or null on failure (caller in
+// publish.js treats a falsy return as "nothing to report" — see wordpress.js's
+// publishPost for the same contract).
 
-async function publishBloggerPost(blogid, clientid, responseDiv, bloggerTitle, bloggerContent) {
+async function publishBloggerPost(blogid, clientid, bloggerTitle, bloggerContent) {
 
-  // Get content and title 
+  // Get content and title
   if (!bloggerContent) { throw new Error('bloggerContent does not exist'); }
 
     const Blogger_SCOPES = 'https://www.googleapis.com/auth/blogger';
     let Blogger_tokenClient;
     let Blogger_accessToken;
-  
+
     // Initialize the GIS token client
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       Blogger_tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: clientid,
         scope: Blogger_SCOPES,
@@ -62,15 +62,15 @@ async function publishBloggerPost(blogid, clientid, responseDiv, bloggerTitle, b
             Blogger_accessToken = response.access_token;
             Blogger_postBlog();
           } else {
-            Blogger_displayMessage(responseDiv, 'Failed to authorize.');
-            reject('Authorization failed');
+            showErrorModal('Failed to authorize with Blogger.', { title: 'Blogger Publish Failed' });
+            resolve(null);
           }
         },
       });
-  
+
       // Request an access token
       Blogger_tokenClient.requestAccessToken();
-  
+
       // Function to submit the blog post
       async function Blogger_postBlog() {
         const Blogger_postData = {
@@ -78,7 +78,7 @@ async function publishBloggerPost(blogid, clientid, responseDiv, bloggerTitle, b
           title: bloggerTitle,
           content: bloggerContent,
         };
-  
+
         try {
           const Blogger_response = await fetch(`https://www.googleapis.com/blogger/v3/blogs/${blogid}/posts/`, {
             method: 'POST',
@@ -88,29 +88,20 @@ async function publishBloggerPost(blogid, clientid, responseDiv, bloggerTitle, b
             },
             body: JSON.stringify(Blogger_postData),
           });
-  
+
           const Blogger_data = await Blogger_response.json();
-  
+
           if (Blogger_response.ok) {
-            const Blogger_message = `Blogger post published successfully! Post ID: ${Blogger_data.id}`;
-            Blogger_displayMessage(responseDiv, Blogger_message);
             resolve(Blogger_data.url); // Return the URL
           } else {
             const Blogger_error = `Failed to publish post: ${Blogger_data.error?.message || 'Unknown error'}`;
-            Blogger_displayMessage(responseDiv, Blogger_error);
-            reject(Blogger_error);
+            showErrorModal(Blogger_error, { title: 'Blogger Publish Failed' });
+            resolve(null);
           }
         } catch (Blogger_err) {
-          const Blogger_error = `Error: ${Blogger_err.message}`;
-          Blogger_displayMessage(responseDiv, Blogger_error);
-          reject(Blogger_error);
+          showErrorModal(`Error: ${Blogger_err.message}`, { title: 'Blogger Publish Failed' });
+          resolve(null);
         }
-      }
-  
-      // Helper function to display messages in the responseDiv
-      function Blogger_displayMessage(responseDiv, Blogger_message) {
-            responseDiv.innerHTML += `<p>${Blogger_message}</p>`;
       }
     });
   }
-  

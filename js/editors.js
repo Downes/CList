@@ -638,9 +638,7 @@ function _populateBuiltInEditors() {
 // Asynchronously populate account-based editor buttons (may fetch accounts).
 async function _populateAccountEditors() {
     if (typeof isRegistered === 'function' && isRegistered()) {
-        if (!Array.isArray(window.CList.accounts) || window.CList.accounts.length === 0) {
-            try { window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl); } catch(e) { showErrorModal('Could not load accounts: ' + e.message, { title: 'Could Not Load Accounts' }); }
-        }
+        try { await ensureAccountsLoaded(); } catch(e) { showErrorModal('Could not load accounts: ' + e.message, { title: 'Could Not Load Accounts' }); }
     }
     const accountList = document.getElementById('editor-switch-account-options');
     (window.CList.accounts || []).forEach(account => {

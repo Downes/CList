@@ -12,7 +12,7 @@
                 : '';
             return `
             ${expandBtn}
-            <button class="clist-action-btn" title="Open in browser" onClick="openInBrowser('${itemLink}', '${itemID}')"><span class="material-icons md-18 md-light">launch</span></button>`;
+            ${openInBrowserButton(itemLink, itemID)}`;
         },
         search: async (baseURL, accessToken) => {
             searchString = finderString();

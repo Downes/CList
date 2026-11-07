@@ -231,11 +231,19 @@ function _base58btcEncode(bytes) {
     return result.reverse().join('');
 }
 
+// Derives a did:key (multicodec Ed25519-pub, multibase base58btc) from a JWK's raw
+// base64url-encoded x-coordinate — shared by generateIdentityKeyPair and
+// derivePublicKeyJwkAndDidKey below, which otherwise compute the same thing from
+// two different starting points (a freshly generated key vs. one recovered from storage).
+function _didKeyFromJwkX(x) {
+    const xBytes = base64UrlDecodeToBytes(x);
+    return 'did:key:z' + _base58btcEncode(new Uint8Array([0xED, 0x01, ...xBytes]));
+}
+
 async function generateIdentityKeyPair() {
     const keyPair = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
     const publicKeyJwk = await crypto.subtle.exportKey('jwk', keyPair.publicKey);
-    const xBytes = Uint8Array.from(atob(publicKeyJwk.x.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
-    const didKey = 'did:key:z' + _base58btcEncode(new Uint8Array([0xED, 0x01, ...xBytes]));
+    const didKey = _didKeyFromJwkX(publicKeyJwk.x);
     return { keyPair, publicKeyJwk, didKey };
 }
 
@@ -247,4 +255,33 @@ async function encryptIdentityPrivateKey(privateKey, encKey) {
 async function decryptIdentityPrivateKey(encryptedBase64, encKey) {
     const jwkStr = await decryptWithKey(encKey, encryptedBase64);
     return crypto.subtle.importKey('jwk', JSON.parse(jwkStr), { name: 'Ed25519' }, true, ['sign']);
+}
+
+// Recovers the public key and did:key from an already-stored encrypted private key, without
+// generating anything new. Used to publish a DID for an identity key that arrived via account
+// export/import (which copies _did_identity_key like any other KV entry) but was never
+// registered with this server's /auth/did -- registering it fresh here would mean generating a
+// *different* key pair and losing the link to whatever account it was copied from.
+async function derivePublicKeyJwkAndDidKey(encryptedBase64, encKey) {
+    const jwkStr = await decryptWithKey(encKey, encryptedBase64);
+    const privateJwk = JSON.parse(jwkStr);
+    const publicKeyJwk = { kty: 'OKP', crv: 'Ed25519', x: privateJwk.x };
+    const didKey = _didKeyFromJwkX(privateJwk.x);
+    return { publicKeyJwk, didKey };
+}
+
+// Signs a string with the account's Ed25519 identity private key (from decryptIdentityPrivateKey()).
+// Lets anyone holding the matching public key (e.g. from a DID document) verify this account
+// controls that key -- the basis for proving two accounts share the same identity.
+async function signWithIdentityKey(privateKey, message) {
+    const sigBuffer = await crypto.subtle.sign({ name: 'Ed25519' }, privateKey, new TextEncoder().encode(message));
+    return btoa(String.fromCharCode(...new Uint8Array(sigBuffer)));
+}
+
+// Verifies a signature from signWithIdentityKey() against a publicKeyJwk, e.g. the
+// verificationMethod[0].publicKeyJwk of a fetched DID document.
+async function verifyIdentitySignature(publicKeyJwk, message, signatureBase64) {
+    const publicKey = await crypto.subtle.importKey('jwk', publicKeyJwk, { name: 'Ed25519' }, true, ['verify']);
+    const sigBytes = Uint8Array.from(atob(signatureBase64), c => c.charCodeAt(0));
+    return crypto.subtle.verify({ name: 'Ed25519' }, publicKey, sigBytes, new TextEncoder().encode(message));
 }

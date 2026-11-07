@@ -1174,8 +1174,7 @@ async function signMessage(message) {
   try {
     const msgBytes = new TextEncoder().encode(message);
     const sigBytes = await crypto.subtle.sign('Ed25519', myIdentityKey, msgBytes);
-    return btoa(String.fromCharCode(...new Uint8Array(sigBytes)))
-      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+    return base64UrlEncode(sigBytes);
   } catch (err) {
     console.error('signMessage failed:', err);
     return null;
@@ -1191,10 +1190,7 @@ async function verifySignature(message, signature, peerId) {
     const publicKey = await crypto.subtle.importKey(
       'jwk', jwk, { name: 'Ed25519' }, false, ['verify']
     );
-    const sigBytes = Uint8Array.from(
-      atob(signature.replace(/-/g, '+').replace(/_/g, '/')),
-      c => c.charCodeAt(0)
-    );
+    const sigBytes = base64UrlDecodeToBytes(signature);
     const msgBytes = new TextEncoder().encode(message);
     return await crypto.subtle.verify('Ed25519', publicKey, sigBytes, msgBytes);
   } catch (err) {

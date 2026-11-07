@@ -25,13 +25,6 @@ window.CList.schemas['Etherpad'] = {
 
 const proxyUrl = 'https://proxyp.mooc.ca';
 
-// The proxyp.mooc.ca relay requires a valid kvstore Bearer token on every request —
-// read it the same way every other service integration in this codebase does.
-function proxyAuthHeader() {
-    const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
-    return token ? { 'Authorization': `Bearer ${token}` } : {};
-}
-
 // The specific Etherpad account (parsed kvstore entry) currently active in the editor,
 // set by the handler's initialize() and used by callEtherpadApi() — so API calls target
 // the account the user actually selected, not just "the first Etherpad account found".
@@ -276,7 +269,7 @@ async function callEtherpadApi(endpoint, params) {
 
     const response = await fetch(proxyUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...proxyAuthHeader() },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...kvstoreAuthHeader() },
         body: new URLSearchParams(params),
     });
 
@@ -466,7 +459,7 @@ async function fetchGuestPadHtml(baseUrl, padNameToLoad) {
     const exportUrl = `${baseUrl}/p/${padNameToLoad}/export/html`;
     const response = await fetch(`${proxyUrl}?url=${encodeURIComponent(exportUrl)}`, {
         method: 'GET',
-        headers: proxyAuthHeader(),
+        headers: kvstoreAuthHeader(),
     });
 
     if (!response.ok) {
@@ -505,7 +498,7 @@ async function importPadViaRelay(baseUrl, padNameToLoad, htmlContent) {
 
     const response = await fetch(proxyUrl, {
         method: 'POST',
-        headers: proxyAuthHeader(),
+        headers: kvstoreAuthHeader(),
         body: formData,
     });
 

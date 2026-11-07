@@ -159,7 +159,13 @@ function updateUIVisibility() {
 // since that message borrows this same space.
 function renderIdentityLabel() {
     if (isRegistered()) {
-        identityDiv.innerHTML = `Identity: ${window.CList.state.username}`;
+        let dataHost = '';
+        try {
+            dataHost = new URL(window.CList.config.flaskSiteUrl).hostname;
+        } catch {
+            dataHost = window.CList.config.flaskSiteUrl || '';
+        }
+        identityDiv.innerHTML = `<span>Identity: ${window.CList.state.username}</span><span>Data: ${dataHost}</span>`;
     } else {
         identityDiv.textContent = '';
     }
@@ -1021,11 +1027,10 @@ function kvstoreAccountsPanel() {
     // this naming when registering the channel); clicking a subscribed one removes it.
     async function renderDiscordChannelPicker(flow) {
         const listEl = flow.querySelector('#discord-channel-list');
-        const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
         listEl.innerHTML = '<p class="feed-status-message">Loading channels…</p>';
         try {
             const resp = await fetch('https://discord.mooc.ca/channels', {
-                headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                headers: kvstoreAuthHeader()
             });
             if (!resp.ok) throw new Error('HTTP ' + resp.status);
             const channels = await resp.json();
@@ -1400,7 +1405,8 @@ function kvstoreAccountsPanel() {
 
             let decryptFailCount = 0;
             for (const account of accounts) {
-                const parsedValue = JSON.parse(account.value);
+                const parsedValue = parseAccountValue(account);
+                if (!parsedValue) continue;
                 const unreadable = parsedValue.type === 'bad'; // getAccounts()'s marker for a failed decrypt
                 if (unreadable) decryptFailCount++;
 
@@ -1512,7 +1518,7 @@ function kvstoreMePanel() {
                 <p class="nav-desc">People you follow. Their annotations appear alongside your own when you view annotation threads.</p>
             </div>
 
-            <div class="nav-item" data-federation="1">
+            <div class="nav-item">
                 <button class="nav-btn" id="me-nav-identity">Identity</button>
                 <p class="nav-desc">Manage your decentralized identity (DID), link your social accounts, and control what is publicly visible.</p>
             </div>
@@ -1546,8 +1552,10 @@ function kvstoreMePanel() {
     div.querySelector('#me-nav-collections').onclick   = () => window.showSavedCollections();
     div.querySelector('#me-nav-app-settings').onclick  = () => playAppSettings();
 
-    // Following, Identity (DID), and Annotations all require a real server reachable by other
-    // people — nothing a Local-only account (see local-kvstore.js) can provide.
+    // Following and Annotations require a real server reachable by other people — nothing a
+    // Local-only account (see local-kvstore.js) can provide. Identity is NOT in this list: a
+    // did:key is self-certifying and needs no server, so a Local account can still generate and
+    // hold one (just without a publishable did:web document) -- see kvstoreDidPanel().
     if (window.CList.isLocalMode && window.CList.isLocalMode()) {
         div.querySelectorAll('[data-federation="1"]').forEach(el => el.style.display = 'none');
     }
@@ -1678,6 +1686,23 @@ function playDid() {
 function kvstoreDidPanel() {
     const div = document.createElement('div');
     div.className = 'kvcontainer';
+
+    // A did:key is self-certifying — no server needed — so Local accounts can still generate and
+    // hold one. What they can't have is a did:web document (no server to publish it at), so the
+    // "Public Accounts" and "Migrate to New Account Server" sections (which both operate on that
+    // document) are suppressed below, and the status/help text here is worded accordingly.
+    const localMode = !!(window.CList.isLocalMode && window.CList.isLocalMode());
+
+    const didExplainerHtml = localMode
+        ? `A DID (Decentralized Identifier) is a unique address for your online identity that you control — not a platform. This account has no server of its own, so there's no public DID document to publish — but you can still generate a self-certifying <code>did:key</code>: an identifier fully derived from its own public key. The private key stays encrypted on this device; the <code>did:key</code> can be used to prove to accounts on real servers that they share the same identity as this one.`
+        : `A DID (Decentralized Identifier) is a unique address for your online identity that you control — not a platform. It links your accounts (Mastodon, Bluesky, WordPress) into a single verifiable identity, published at a public URL others can check. Generating a key creates a cryptographic keypair: the private key stays encrypted in your account here; the public key is published so others can confirm content or connections really come from you.`;
+    const regenHelpHtml = localMode
+        ? `Regenerating creates a brand-new keypair, replacing your old one. There's no public DID document to update, but any "Prove Same Identity" link to other accounts made using the old key will stop working, since the key itself has changed.`
+        : `Regenerating creates a brand-new keypair, replacing your old one. Your DID address stays the same and your linked accounts are preserved, but your public key changes. Anyone who cached your old key will need to re-fetch your DID document. Do this only if you suspect your private key has been compromised.`;
+    const removeHelpHtml = localMode
+        ? `This will permanently delete your locally-stored identity key. There is no public DID document to remove — this account has no server. You can generate a new identity key at any time, but it will be a completely different key with no relationship to the old one.`
+        : `This will permanently delete your identity key and remove your DID document from its public URL. Anyone who has linked to your DID will get a 404. You can generate a new DID at any time, but it will have a new key and a fresh identity. If you do, anyone who linked to your DID will get your new public key automatically the next time they resolve it — DID resolution always fetches fresh from the URL.`;
+
     div.innerHTML = `
         <button class="back-btn" id="did-back-btn">&#8592; Back</button>
 
@@ -1694,7 +1719,7 @@ function kvstoreDidPanel() {
             <h3>Decentralized Identity (DID)</h3>
             <details class="did-help">
                 <summary>What is this?</summary>
-                <p>A DID (Decentralized Identifier) is a unique address for your online identity that you control — not a platform. It links your accounts (Mastodon, Bluesky, WordPress) into a single verifiable identity, published at a public URL others can check. Generating a key creates a cryptographic keypair: the private key stays encrypted in your account here; the public key is published so others can confirm content or connections really come from you.</p>
+                <p>${didExplainerHtml}</p>
             </details>
             <div id="did-status" class="me-status">Checking…</div>
             <div class="kv-action-buttons">
@@ -1702,15 +1727,37 @@ function kvstoreDidPanel() {
             </div>
             <details class="did-help" id="did-regen-help" style="display:none;">
                 <summary>What does regenerating do?</summary>
-                <p>Regenerating creates a brand-new keypair, replacing your old one. Your DID address stays the same and your linked accounts are preserved, but your public key changes. Anyone who cached your old key will need to re-fetch your DID document. Do this only if you suspect your private key has been compromised.</p>
+                <p>${regenHelpHtml}</p>
             </details>
             <details class="did-help did-remove" id="did-remove-help" style="display:none;">
                 <summary>Remove DID…</summary>
-                <p>This will permanently delete your identity key and remove your DID document from its public URL. Anyone who has linked to your DID will get a 404. You can generate a new DID at any time, but it will have a new key and a fresh identity. If you do, anyone who linked to your DID will get your new public key automatically the next time they resolve it — DID resolution always fetches fresh from the URL.</p>
+                <p>${removeHelpHtml}</p>
                 <div class="kv-action-buttons">
                     <button class="kv-action-btn kv-delete-btn" id="did-remove-btn">Yes, remove my DID</button>
                 </div>
             </details>
+        </div>
+
+        <div class="me-section" id="prove-identity-section" style="display:none;">
+            <h3>Prove Same Identity</h3>
+            <details class="did-help">
+                <summary>What is this?</summary>
+                <p>A did:key is self-certifying: the public key is the identifier. If an account on another server publishes the same did:key as this one, you can prove it's the same identity by signing a challenge with this account's private key and checking the signature against that account's publicly-published key. Nothing is sent anywhere except the signature and the challenge text — your private key never leaves this device.</p>
+            </details>
+            <div style="margin:0.6em 0;">
+                <label style="display:block; font-size:0.85em; color:#555; margin-bottom:0.2em;">Other account's server URL</label>
+                <input type="text" id="prove-other-url" placeholder="https://kvstore.downes.ca"
+                    style="width:100%; box-sizing:border-box; padding:0.35em 0.5em; font-size:0.9em; border:1px solid #ccc; border-radius:4px;">
+            </div>
+            <div style="margin:0.6em 0;">
+                <label style="display:block; font-size:0.85em; color:#555; margin-bottom:0.2em;">Username on that server</label>
+                <input type="text" id="prove-other-username" placeholder="username"
+                    style="width:100%; box-sizing:border-box; padding:0.35em 0.5em; font-size:0.9em; border:1px solid #ccc; border-radius:4px;">
+            </div>
+            <div class="kv-action-buttons">
+                <button class="kv-action-btn kv-save-btn" id="prove-identity-btn">Prove Same Identity</button>
+            </div>
+            <div id="prove-identity-result" class="me-status"></div>
         </div>
 
 
@@ -1866,7 +1913,7 @@ function kvstoreDidPanel() {
 
             let data;
             try {
-                data = JSON.parse(await decryptWithKey(encKey, kv.value));
+                data = await decryptKVJson(encKey, kv.value);
             } catch { continue; }
 
             data.public = isPublic;
@@ -1901,7 +1948,7 @@ function kvstoreDidPanel() {
         const catalogKv = kvs.find(kv => kv.key === 'clist:pages-catalog');
         if (catalogKv) {
             try {
-                const meta = JSON.parse(await decryptWithKey(encKey, catalogKv.value));
+                const meta = await decryptKVJson(encKey, catalogKv.value);
                 if (meta.opmlUrl) services.push({
                     id: `${existingProfile.id}#pages-opml`,
                     type: 'CListPages',
@@ -1958,6 +2005,15 @@ function kvstoreDidPanel() {
                 throw new Error(`Could not store private key (${err.message}). Your session may have expired — try logging out and back in.`);
             }
 
+            if (localMode) {
+                // No server to register a did:web document with -- the self-certifying did:key,
+                // generated and stored entirely on-device, is the whole identity for this account.
+                statusEl.innerHTML =
+                    `<strong>Identity key generated.</strong><br>did:key: <code>${didKey}</code><br><span style="font-size:0.85em; color:#555;">Stored locally only — no public DID document, since this account has no server to publish one to.</span>`;
+                setDidState(true);
+                return;
+            }
+
             // Preserve existing services and alsoKnownAs (minus old did:key) across key rotation
             let existingServices = [];
             let existingAlsoKnownAs = [];
@@ -2006,15 +2062,17 @@ function kvstoreDidPanel() {
                 // here must not block removing the DID document below.
                 console.warn('Could not remove DID private key from kvstore:', e);
             }
-            const res = await fetch(`${window.CList.config.flaskSiteUrl}/auth/did`, {
-                method: 'DELETE',
-                headers: { 'Authorization': 'Bearer ' + token }
-            });
-            if (!res.ok) {
-                const data = await res.json();
-                throw new Error(data.error || `Server returned ${res.status}`);
+            if (!localMode) {
+                const res = await fetch(`${window.CList.config.flaskSiteUrl}/auth/did`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                if (!res.ok) {
+                    const data = await res.json();
+                    throw new Error(data.error || `Server returned ${res.status}`);
+                }
             }
-            statusEl.textContent = 'No DID registered yet.';
+            statusEl.textContent = localMode ? 'Identity key removed.' : 'No DID registered yet.';
             setDidState(false);
         } catch (err) {
             console.error('removeDid failed:', err);
@@ -2022,11 +2080,42 @@ function kvstoreDidPanel() {
         }
     }
 
-    function setDidState(active) {
-        ['public-accounts-section', 'did-regen-help', 'did-remove-help', 'migrate-section'].forEach(id =>
-            div.querySelector('#' + id).style.display = active ? '' : 'none'
-        );
-        div.querySelector('#did-btn').textContent = active ? 'Regenerate Key' : 'Generate Identity Key';
+    // mode: 'generate' (no key anywhere yet), 'publish' (key present locally, not registered
+    // with this server), or 'regenerate' (already registered here -- clicking replaces it).
+    function setDidButton(mode) {
+        const btn = div.querySelector('#did-btn');
+        if (mode === 'publish') {
+            btn.textContent = 'Publish Existing Key';
+            btn.onclick = () => publishExistingDid();
+        } else if (mode === 'regenerate') {
+            // Destructive -- replaces the existing key, breaking any "Prove Same Identity" link
+            // to it -- so require a password confirmation before it runs.
+            btn.textContent = 'Regenerate Key';
+            btn.onclick = () => confirmWithPassword(
+                'Regenerating your identity key will permanently replace your current DID. ' +
+                'Anyone relying on your old key (e.g. "Prove Same Identity" links) will no longer ' +
+                'be able to verify you. This cannot be undone.',
+                () => generateAndRegisterDid()
+            );
+        } else {
+            btn.textContent = 'Generate Identity Key';
+            btn.onclick = () => generateAndRegisterDid();
+        }
+    }
+
+    function setDidState(active, inactiveMode = 'generate') {
+        // Public Accounts operates on a did:web document, which a Local account has no server to
+        // publish -- always hidden there regardless of active state. Migrate can still carry a
+        // Local account's did:key to a hosted destination, so it follows the same active-state
+        // gating as hosted mode (only shown once an identity key exists).
+        const toggleIds = localMode
+            ? ['did-regen-help', 'did-remove-help', 'prove-identity-section', 'migrate-section']
+            : ['public-accounts-section', 'did-regen-help', 'did-remove-help', 'migrate-section', 'prove-identity-section'];
+        toggleIds.forEach(id => div.querySelector('#' + id).style.display = active ? '' : 'none');
+        if (localMode) {
+            div.querySelector('#public-accounts-section').style.display = 'none';
+        }
+        setDidButton(active ? 'regenerate' : inactiveMode);
         if (!active) div.querySelector('#did-remove-help').removeAttribute('open');
     }
 
@@ -2037,6 +2126,34 @@ function kvstoreDidPanel() {
             div.querySelector('#did-status').textContent = 'Not logged in.';
             return;
         }
+
+        if (localMode) {
+            // No server, so no did:web document to check -- the identity key's mere presence
+            // in local storage (encrypted, like any other KV entry) is the whole state.
+            let kvRow;
+            try {
+                kvRow = await window.CList.storage.kv.get('_did_identity_key');
+            } catch (err) {
+                console.error('Checking for a locally-stored identity key failed:', err);
+            }
+            if (!kvRow) {
+                div.querySelector('#did-status').textContent = 'No identity key yet.';
+                setDidState(false, 'generate');
+                return;
+            }
+            try {
+                const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
+                const { didKey } = await derivePublicKeyJwkAndDidKey(kvRow.value, encKey);
+                div.querySelector('#did-status').innerHTML =
+                    `did:key: <code>${didKey}</code><br><span style="font-size:0.85em; color:#555;">Stored locally only — no public DID document, since this account has no server to publish one to.</span>`;
+                setDidState(true);
+            } catch (err) {
+                console.error('Reading local identity key failed:', err);
+                div.querySelector('#did-status').textContent = `Could not read your identity key: ${err.message}`;
+            }
+            return;
+        }
+
         const res = await fetch(`${window.CList.config.flaskSiteUrl}/users/${window.CList.state.username}/did.json`);
         if (res.ok) {
             const doc = await res.json();
@@ -2044,31 +2161,153 @@ function kvstoreDidPanel() {
             div.querySelector('#did-status').innerHTML =
                 `DID: <code>${doc.id}</code><br>also known as: <code>${doc.alsoKnownAs[0]}</code><br><a href="${didUrl}" target="_blank">View DID document</a>`;
             setDidState(true);
+            return;
+        }
+
+        let hasLocalKey = false;
+        try {
+            hasLocalKey = !!(await window.CList.storage.kv.get('_did_identity_key'));
+        } catch (err) {
+            console.error('Checking for a locally-stored identity key failed:', err);
+        }
+        if (hasLocalKey) {
+            div.querySelector('#did-status').textContent =
+                'An identity key is already stored on this account (likely copied in via import) but not published on this server yet.';
+            setDidState(false, 'publish');
         } else {
             div.querySelector('#did-status').textContent = 'No DID registered yet.';
-            setDidState(false);
+            setDidState(false, 'generate');
+        }
+    }
+
+    // Registers the DID using the identity key already stored locally (e.g. carried over by
+    // account export/import) instead of generating a new one -- preserves the link to whatever
+    // account that key originally came from.
+    async function publishExistingDid() {
+        const statusEl = div.querySelector('#did-status');
+        try {
+            const token  = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
+            const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
+            if (!token || !encKey) {
+                statusEl.textContent = 'Not logged in — please log in to your account server before publishing a DID.';
+                return;
+            }
+
+            statusEl.textContent = 'Reading stored identity key…';
+            const kvRow = await window.CList.storage.kv.get('_did_identity_key');
+            if (!kvRow) {
+                statusEl.textContent = 'No identity key found on this account to publish.';
+                return;
+            }
+            const { publicKeyJwk, didKey } = await derivePublicKeyJwkAndDidKey(kvRow.value, encKey);
+
+            statusEl.textContent = 'Registering DID…';
+            const res = await fetch(`${window.CList.config.flaskSiteUrl}/auth/did`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                body: JSON.stringify({ publicKeyJwk, didKey, service: [], alsoKnownAs: [] })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(`DID registration failed (${data.error || res.status}). Check that you are logged in to the correct account server.`);
+
+            statusEl.innerHTML = `<strong>DID published.</strong><br>did:key: <code>${data.didKey}</code>`;
+            setDidState(true);
+            loadAccounts();
+            if (typeof refreshCollabRegistrations === 'function') {
+                refreshCollabRegistrations().catch(() => {});
+            }
+        } catch (err) {
+            console.error('publishExistingDid failed:', err);
+            statusEl.textContent = err.message || 'An unexpected error occurred. See browser console for details.';
+        }
+    }
+
+    // Signs a challenge with this account's identity private key and verifies it against another
+    // account's publicly-published key (fetched fresh, no auth needed) -- proving the two accounts
+    // share the same did:key without either account's private key ever leaving its own device.
+    async function proveIdentity() {
+        const resultEl = div.querySelector('#prove-identity-result');
+        const otherUrl = div.querySelector('#prove-other-url').value.trim().replace(/\/$/, '');
+        const otherUsername = div.querySelector('#prove-other-username').value.trim().toLowerCase();
+        if (!otherUrl || !otherUsername) {
+            resultEl.textContent = "Enter the other account's server URL and username.";
+            return;
+        }
+
+        resultEl.textContent = "Fetching the other account's public key…";
+        let otherDoc;
+        try {
+            const res = await fetch(`${otherUrl}/users/${otherUsername}/did.json`);
+            if (!res.ok) throw new Error(`no DID found for ${otherUsername} at ${otherUrl} (${res.status})`);
+            otherDoc = await res.json();
+        } catch (err) {
+            console.error('Fetching other DID document failed:', err);
+            resultEl.textContent = `Could not fetch the other account's DID document: ${err.message}`;
+            return;
+        }
+        const otherPublicKeyJwk = otherDoc.verificationMethod?.[0]?.publicKeyJwk;
+        const otherDidKey = otherDoc.alsoKnownAs?.find(a => a.startsWith('did:key:'));
+        if (!otherPublicKeyJwk) {
+            resultEl.textContent = 'That account has no public key on file.';
+            return;
+        }
+
+        const token  = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
+        const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
+        if (!token || !encKey) {
+            resultEl.textContent = 'Not logged in — please log in first.';
+            return;
+        }
+
+        resultEl.textContent = 'Signing a challenge with your private key…';
+        let privateKey;
+        try {
+            const kvRow = await window.CList.storage.kv.get('_did_identity_key');
+            if (!kvRow) throw new Error('no identity key stored for this account');
+            privateKey = await decryptIdentityPrivateKey(kvRow.value, encKey);
+        } catch (err) {
+            console.error('Could not load identity private key:', err);
+            resultEl.textContent = `Could not load your identity key: ${err.message}`;
+            return;
+        }
+
+        const challenge = `CList identity proof — ${new Date().toISOString()}`;
+        let signature, verified;
+        try {
+            signature = await signWithIdentityKey(privateKey, challenge);
+            verified  = await verifyIdentitySignature(otherPublicKeyJwk, challenge, signature);
+        } catch (err) {
+            console.error('Sign/verify failed:', err);
+            resultEl.textContent = `Sign/verify failed: ${err.message}`;
+            return;
+        }
+
+        const otherLabel = `${otherUsername}@${new URL(otherUrl).hostname}`;
+        if (verified) {
+            resultEl.innerHTML = `<strong>Proven.</strong> This account's key signed a challenge that verifies against ${otherLabel}'s published public key — same did:key, same identity.${otherDidKey ? `<br><code>${otherDidKey}</code>` : ''}`;
+        } else {
+            resultEl.innerHTML = `<strong>Not the same key.</strong> The signature did not verify against ${otherLabel}'s published public key.`;
         }
     }
 
     div.querySelector('#did-update-btn').onclick = () => updateDid();
-    div.querySelector('#did-btn').onclick = () => generateAndRegisterDid();
-    div.querySelector('#did-remove-btn').onclick = () => removeDid();
+    // Destructive -- deletes the identity key (and, for hosted accounts, the published DID
+    // document) -- so require a password confirmation before it runs.
+    div.querySelector('#did-remove-btn').onclick = () => confirmWithPassword(
+        'This will permanently remove your identity key' +
+        (localMode ? '.' : ' and delete your published DID document.') +
+        ' This cannot be undone.',
+        () => removeDid()
+    );
+    div.querySelector('#prove-identity-btn').onclick = () => proveIdentity();
 
     checkExistingDid();
-    loadAccounts();
+    if (!localMode) loadAccounts();
 
 
     // ── Account migration ─────────────────────────────────────────────────────
 
     let _migrateCtx = null;
-
-    async function exportAllKVRaw(serverUrl, token) {
-        const res = await fetch(`${serverUrl}/get_kvs/`, {
-            headers: { 'Authorization': 'Bearer ' + token }
-        });
-        if (!res.ok) throw new Error(`Could not read accounts from source server (${res.status})`);
-        return await res.json();
-    }
 
     async function putKV(serverUrl, token, key, value) {
         const res = await fetch(`${serverUrl}/add_kv/`, {
@@ -2086,6 +2325,14 @@ function kvstoreDidPanel() {
         } else if (!res.ok) {
             throw new Error(`Upload failed (${res.status})`);
         }
+    }
+
+    async function putDidDocument(serverUrl, token, { publicKeyJwk, didKey, service, alsoKnownAs }) {
+        await fetch(`${serverUrl}/auth/did`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            body: JSON.stringify({ publicKeyJwk, didKey, service, alsoKnownAs })
+        });
     }
 
     async function migratePrepare() {
@@ -2113,19 +2360,21 @@ function kvstoreDidPanel() {
         }
 
         try {
-            progressEl.textContent = 'Exporting accounts from source server…';
-            const kvs = await exportAllKVRaw(window.CList.config.flaskSiteUrl, oldToken);
+            progressEl.textContent = localMode ? 'Reading accounts from this device…' : 'Exporting accounts from source server…';
+            // storage.kv.list() hits the same /get_kvs/-shaped interface for both backends
+            // (kvstore-remote.js for a hosted source, local-kvstore.js for a Local source), so
+            // this works unchanged regardless of where the source account lives.
+            const kvs = await window.CList.storage.kv.list();
 
             let accountCount = 0;
             for (const kv of kvs.filter(k => !k.key.startsWith('_'))) {
                 try { await decryptWithKey(oldEncKey, kv.value); accountCount++; } catch {}
             }
 
-            let hasDid = false;
-            try {
-                const didRes = await fetch(`${window.CList.config.flaskSiteUrl}/users/${oldUsername}/did.json`);
-                hasDid = didRes.ok;
-            } catch {}
+            // hasDid means "there's an identity private key to carry over" -- for a Local source
+            // there's no did.json to check, but the key's presence in kvs (just fetched above) is
+            // the whole state anyway, same as checkExistingDid()'s local branch.
+            const hasDid = kvs.some(k => k.key === '_did_identity_key');
 
             progressEl.textContent = doRegister
                 ? 'Registering on destination server…'
@@ -2159,22 +2408,52 @@ function kvstoreDidPanel() {
             }
             const loginData = await loginRes.json();
 
+            // Check what's already on the destination account before we overwrite anything --
+            // the per-key upload in migrateRun() is a blind PUT keyed by name, so any destination
+            // entry that shares a key with the source (most notably '_did_identity_key', the one
+            // fixed-name system key) would otherwise be silently clobbered with no way back.
+            let destKvs = [];
+            try {
+                const destRes = await fetch(`${newUrl}/get_kvs/`, {
+                    headers: { 'Authorization': 'Bearer ' + loginData.token }
+                });
+                if (destRes.ok) destKvs = await destRes.json();
+            } catch { /* if this fails, treat as no conflicts -- migrateRun's own per-key PUTs will surface the real error */ }
+            const destKeySet = new Set(destKvs.map(k => k.key));
+            const conflictCount = kvs.filter(k => destKeySet.has(k.key)).length;
+            const didConflict = hasDid && destKeySet.has('_did_identity_key');
+
             _migrateCtx = {
                 oldUrl: window.CList.config.flaskSiteUrl, oldToken, oldEncKey, oldUsername,
                 newUrl, newToken: loginData.token, newEncKey, newUsername,
-                hasDid, kvs, accountCount
+                hasDid, kvs, accountCount, conflictCount, didConflict
             };
 
-            const srcHost = new URL(window.CList.config.flaskSiteUrl).hostname;
+            const srcHost = localMode ? 'this device (Local)' : new URL(window.CList.config.flaskSiteUrl).hostname;
             const dstHost = new URL(newUrl).hostname;
+            const didPreviewLine = hasDid
+                ? (localMode
+                    ? '<li>Your did:key identity will be registered on the destination server</li>'
+                    : '<li>DID identity will be linked between old and new servers</li>')
+                : '';
+            const overwriteWarning = conflictCount > 0 ? `
+                <div style="font-size:0.85em; color:#842029; background:#f8d7da; padding:0.5em 0.7em; border-radius:4px; margin:0.6em 0;">
+                    <strong>Warning:</strong> The destination account already has ${conflictCount} entr${conflictCount !== 1 ? 'ies' : 'y'}
+                    that will be permanently overwritten by this migration${didConflict ? ', including its existing DID identity' : ''}.
+                    <label style="display:block; margin-top:0.4em; font-weight:normal;">
+                        <input type="checkbox" id="migrate-overwrite-confirm" style="margin-right:0.4em;">
+                        I understand this will overwrite existing data on the destination account.
+                    </label>
+                </div>` : '';
             div.querySelector('#migrate-preview').innerHTML = `
                 <p><strong>Ready to migrate:</strong></p>
                 <ul style="margin:0.4em 0 0.6em 1.2em; padding:0;">
                     <li>${accountCount} account${accountCount !== 1 ? 's' : ''} from <strong>${srcHost}</strong> (${kvs.filter(k => !k.key.startsWith('_')).length} total entries)</li>
                     <li>${kvs.filter(k => k.key.startsWith('_')).length} system key${kvs.filter(k => k.key.startsWith('_')).length !== 1 ? 's' : ''}${hasDid ? ' (including your DID private key)' : ''}</li>
-                    ${hasDid ? '<li>DID identity will be linked between old and new servers</li>' : ''}
+                    ${didPreviewLine}
                 </ul>
                 <p><strong>Destination:</strong> ${dstHost} as <strong>${newUsername}</strong></p>
+                ${overwriteWarning}
                 <p style="font-size:0.85em; color:#856404; background:#fff3cd; padding:0.5em 0.7em; border-radius:4px; margin:0.6em 0 0;">
                     Your source account will not be deleted. To switch servers after migration, log out and use the "Change" link on the login screen.
                 </p>`;
@@ -2191,7 +2470,17 @@ function kvstoreDidPanel() {
 
     async function migrateRun() {
         if (!_migrateCtx) return;
-        const { oldUrl, oldToken, oldEncKey, oldUsername, newUrl, newToken, newEncKey, newUsername, hasDid, kvs } = _migrateCtx;
+        const { oldUrl, oldToken, oldEncKey, oldUsername, newUrl, newToken, newEncKey, newUsername, hasDid, kvs, conflictCount } = _migrateCtx;
+
+        if (conflictCount > 0) {
+            const confirmEl = div.querySelector('#migrate-overwrite-confirm');
+            if (!confirmEl || !confirmEl.checked) {
+                const progressEl = div.querySelector('#migrate-progress');
+                progressEl.style.display = 'block';
+                progressEl.textContent = 'Please check the overwrite-confirmation box above before running the migration.';
+                return;
+            }
+        }
 
         const progressEl = div.querySelector('#migrate-progress');
         progressEl.style.display = 'block';
@@ -2213,7 +2502,21 @@ function kvstoreDidPanel() {
                 progressEl.textContent = `Migrating: ${done + errors} / ${kvs.length} entries…`;
             }
 
-            if (hasDid) {
+            if (hasDid && localMode) {
+                // No old server to fetch a did.json from or link back to -- derive the public
+                // key/did:key straight from the _did_identity_key entry already in kvs (the
+                // private key itself was already carried over by the loop above) and register
+                // it fresh on the new server, same as publishExistingDid()'s hosted-side logic.
+                progressEl.textContent = 'Registering identity on destination server…';
+                try {
+                    const kvRow = kvs.find(k => k.key === '_did_identity_key');
+                    const { publicKeyJwk, didKey } = await derivePublicKeyJwkAndDidKey(kvRow.value, oldEncKey);
+                    await putDidDocument(newUrl, newToken, { publicKeyJwk, didKey, service: [], alsoKnownAs: [] });
+                } catch (err) {
+                    console.warn('DID registration on destination failed:', err);
+                    errors++;
+                }
+            } else if (hasDid) {
                 progressEl.textContent = 'Linking DID between servers…';
                 try {
                     const oldDidRes = await fetch(`${oldUrl}/users/${oldUsername}/did.json`);
@@ -2232,21 +2535,13 @@ function kvstoreDidPanel() {
                                 .filter(a => !a.startsWith('did:key:'));
                             if (!newAlsoKnownAs.includes(oldDidWeb)) newAlsoKnownAs.push(oldDidWeb);
 
-                            await fetch(`${newUrl}/auth/did`, {
-                                method: 'PUT',
-                                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + newToken },
-                                body: JSON.stringify({ publicKeyJwk, didKey, service: services, alsoKnownAs: newAlsoKnownAs })
-                            });
+                            await putDidDocument(newUrl, newToken, { publicKeyJwk, didKey, service: services, alsoKnownAs: newAlsoKnownAs });
 
                             // alsoKnownAs for old server: include new server's did:web
                             const oldAlsoKnownAs = [...newAlsoKnownAs];
                             if (!oldAlsoKnownAs.includes(newDidWeb)) oldAlsoKnownAs.push(newDidWeb);
 
-                            await fetch(`${oldUrl}/auth/did`, {
-                                method: 'PUT',
-                                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + oldToken },
-                                body: JSON.stringify({ publicKeyJwk, didKey, service: services, alsoKnownAs: oldAlsoKnownAs })
-                            });
+                            await putDidDocument(oldUrl, oldToken, { publicKeyJwk, didKey, service: services, alsoKnownAs: oldAlsoKnownAs });
                         }
                     }
                 } catch (err) {
@@ -2255,12 +2550,17 @@ function kvstoreDidPanel() {
                 }
             }
 
-            const srcHost = new URL(oldUrl).hostname;
+            const srcHost = localMode ? 'this device (Local)' : new URL(oldUrl).hostname;
             const dstHost = new URL(newUrl).hostname;
+            const didDoneLine = hasDid
+                ? (localMode
+                    ? `<p>Your did:key identity was registered on <strong>${dstHost}</strong>.</p>`
+                    : `<p>DID identity linked between <strong>${srcHost}</strong> and <strong>${dstHost}</strong>.</p>`)
+                : '';
             progressEl.innerHTML = `
                 <p style="color:green; font-weight:bold;">Migration complete!</p>
                 <p>${done} of ${kvs.length} entries migrated successfully.${errors > 0 ? ` <span style="color:#c44;">(${errors} error${errors !== 1 ? 's' : ''} — see browser console)</span>` : ''}</p>
-                ${hasDid ? `<p>DID identity linked between <strong>${srcHost}</strong> and <strong>${dstHost}</strong>.</p>` : ''}
+                ${didDoneLine}
                 <p style="font-size:0.85em; margin-top:0.8em;"><strong>Next steps:</strong> Log out, then use the "Change" link on the login screen to switch to <strong>${dstHost}</strong>.</p>`;
 
         } catch (err) {
@@ -2307,6 +2607,20 @@ function kvstoreOptionsPanel() {
                 <button class="nav-btn" id="options-webmention-toggle">WebMention: Off</button>
                 <p class="nav-desc">When on, notifies source URLs via <a href="https://www.w3.org/TR/webmention/" target="_blank">WebMention</a> after each publish.</p>
             </div>
+            <div class="nav-item">
+                <h3>Migrate Account Data</h3>
+                <p>Right now you are running CList from <strong id="options-current-location"></strong>.</p>
+                <p>If you want to run CList from a new location you need to export your account data from here, and
+                    import it there. Here's the process:</p>
+                <ul style="margin:0 0 .5rem; padding-left:1.2em;">
+                    <li style="font-size:0.8rem; color:#666;">in the old location, click "Export", enter your password, and save the file to your computer</li>
+                    <li style="font-size:0.8rem; color:#666;">register with a username and password at the new location, and log in</li>
+                    <li style="font-size:0.8rem; color:#666;">in the new location, click "Import", choose the file, then enter the password you used in the old location to unlock it</li>
+                </ul>
+                <button class="nav-btn" id="options-export-local-account">Export</button>
+                <button class="nav-btn" id="options-import-local-account">Import</button>
+                <input id="optionsImportLocalAccountInput" type="file" accept="application/json" style="display:none;">
+            </div>
             <p style="margin-top:1em; font-size:0.85em;"><a href="about.html" target="_blank">About CList</a></p>
         </div>
     `;
@@ -2314,8 +2628,70 @@ function kvstoreOptionsPanel() {
     const backBtn = div.querySelector('#options-back-btn');
     const darkBtn = div.querySelector('#options-dark-mode-toggle');
     const webBtn  = div.querySelector('#options-webmention-toggle');
+    const exportLocalBtn  = div.querySelector('#options-export-local-account');
+    const importLocalBtn  = div.querySelector('#options-import-local-account');
+    const importLocalInput = div.querySelector('#optionsImportLocalAccountInput');
 
     backBtn.onclick = () => history.back();
+    div.querySelector('#options-current-location').textContent = window.location.host;
+    exportLocalBtn.onclick = () => {
+        if (!window.CList.state.username || window.CList.state.username === 'none') {
+            showErrorModal('Log in first, then export.', { title: 'Not logged in' });
+            return;
+        }
+        confirmWithPassword(
+            'Enter your current password to encrypt the export file:',
+            async (password) => {
+                try {
+                    await exportAccountData(password);
+                    showStatusMessage('Account exported.');
+                } catch (err) {
+                    console.error('Account export failed:', err);
+                    showErrorModal(err.message, { title: 'Export failed' });
+                }
+            },
+            { confirmLabel: 'Export', confirmClass: 'kv-save-btn' }
+        );
+    };
+    importLocalBtn.onclick = () => importLocalInput.click();
+    importLocalInput.onchange = async () => {
+        const file = importLocalInput.files && importLocalInput.files[0];
+        importLocalInput.value = '';
+        if (!file) return;
+        const payload = await parseLocalAccountExportFile(file);
+        if (!payload) return;
+        confirmWithPassword(
+            `Enter the password for "${escapeHtml(payload.username)}" (as it was in the old location) to unlock this export:`,
+            async (password) => {
+                try {
+                    const { imported, skipped } = await unlockAndImportAccountData(payload, password);
+
+                    window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl);
+                    updateUIVisibility();
+                    if (typeof populatePostOptions === 'function') populatePostOptions(window.CList.accounts);
+                    if (typeof populateReadAccountList === 'function') populateReadAccountList(window.CList.accounts);
+
+                    const importedMsg = `Imported ${imported} item${imported === 1 ? '' : 's'}.`;
+                    if (skipped.length > 0) {
+                        showErrorModal(
+                            `${importedMsg} Skipped ${skipped.length} item${skipped.length === 1 ? '' : 's'} that already existed on this account: ${skipped.join(', ')}`,
+                            { title: 'Some items were not imported' }
+                        );
+                    } else {
+                        showStatusMessage(importedMsg);
+                    }
+                } catch (err) {
+                    console.error('Local account import failed:', err);
+                    showErrorModal(err.message, { title: 'Import failed' });
+                }
+            },
+            {
+                verify: (password) => verifyExportPassword(payload, password),
+                confirmLabel: 'Unlock & Import',
+                confirmClass: 'kv-save-btn',
+            }
+        );
+    };
 
     function updateToggle() {
         const isDark = document.documentElement.classList.contains('dark-mode');
@@ -2377,25 +2753,25 @@ function playAppSettings() {
 // left, settings pane on the right. Mobile keeps the single-pane left-panel
 // flow (kvstoreAppSettingsPanel) instead of this modal.
 function openAppSettingsModal() {
-    closeAppSettingsModal();
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'display:flex; flex-direction:column; height:100%;';
 
-    const overlay = document.createElement('div');
-    overlay.id = 'appSettingsModal';
-    overlay.style.cssText = 'display:flex; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;';
+    const headerRow = document.createElement('div');
+    headerRow.className = 'modal-header-row';
+    const headerTitle = document.createElement('h2');
+    headerTitle.textContent = 'App Settings';
+    const headerCloseBtn = document.createElement('button');
+    headerCloseBtn.textContent = 'X';
+    headerCloseBtn.onclick = closeAppSettingsModal;
+    headerRow.appendChild(headerTitle);
+    headerRow.appendChild(headerCloseBtn);
 
-    const box = document.createElement('div');
-    box.style.cssText = 'background:#fff; border-radius:8px; width:80vw; height:80vh; position:relative; display:flex; overflow:hidden;';
-
-    const closeBtn = document.createElement('span');
-    closeBtn.textContent = '✕';
-    closeBtn.title = 'Close';
-    closeBtn.style.cssText = 'position:absolute; top:10px; right:14px; cursor:pointer; font-size:1.3em; line-height:1; color:#555; z-index:1;';
-    closeBtn.onclick = closeAppSettingsModal;
+    const body = document.createElement('div');
+    body.style.cssText = 'display:flex; flex:1; overflow:hidden;';
 
     const nav = document.createElement('div');
-    nav.style.cssText = 'width:300px; flex-shrink:0; border-right:1px solid #ddd; overflow-y:auto; padding:16px 0; box-sizing:border-box;';
-    nav.innerHTML = `<h3 style="margin:0 16px 12px;">App Settings</h3>` +
-        ADMIN_SETTINGS_APPS.map(a => `
+    nav.style.cssText = 'width:300px; flex-shrink:0; border-right:1px solid var(--border-light); overflow-y:auto; padding:16px 0; box-sizing:border-box;';
+    nav.innerHTML = ADMIN_SETTINGS_APPS.map(a => `
             <button class="account-button" data-app-base="${escapeHtml(a.baseUrl)}" style="display:block;width:100%;text-align:left;margin-bottom:2px;padding-left:16px;box-sizing:border-box;">
                 <span>${escapeHtml(a.label)}</span>
             </button>`).join('');
@@ -2413,55 +2789,52 @@ function openAppSettingsModal() {
         };
     });
 
-    box.appendChild(closeBtn);
-    box.appendChild(nav);
-    box.appendChild(detail);
-    overlay.appendChild(box);
-    document.body.appendChild(overlay);
+    body.appendChild(nav);
+    body.appendChild(detail);
+    wrapper.appendChild(headerRow);
+    wrapper.appendChild(body);
+
+    showModal(wrapper, { wide: true, hideDefaultClose: true });
 }
 
 function closeAppSettingsModal() {
-    const existing = document.getElementById('appSettingsModal');
-    if (existing) existing.remove();
+    document.getElementById('generic-modal')?.remove();
 }
 
-// Small overlay listing what each settings field does, sourced from the
+// Small popup listing what each settings field does, sourced from the
 // backend schema's "help" text (see admin_settings.py's SettingField.help).
-// Layered above #appSettingsModal (and works standalone over the mobile
-// left-pane flow too, since it's just appended to <body>).
+// Opened from the "Help" button inside the open App Settings modal, so it
+// uses showStackedModal() (not showModal()) to layer on top without
+// destroying the Settings modal underneath it.
 function openAdminSettingsHelpModal(appLabel, schema) {
-    closeAdminSettingsHelpModal();
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'max-width:420px;';
 
-    const overlay = document.createElement('div');
-    overlay.id = 'adminSettingsHelpModal';
-    overlay.style.cssText = 'display:flex; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:10000; align-items:center; justify-content:center;';
-
-    const box = document.createElement('div');
-    box.style.cssText = 'background:#fff; border-radius:8px; max-width:480px; width:90%; max-height:80vh; overflow-y:auto; padding:1.5em; position:relative; box-sizing:border-box;';
-
-    const closeBtn = document.createElement('span');
-    closeBtn.textContent = '✕';
-    closeBtn.title = 'Close';
-    closeBtn.style.cssText = 'position:absolute; top:10px; right:14px; cursor:pointer; font-size:1.3em; line-height:1; color:#555;';
-    closeBtn.onclick = closeAdminSettingsHelpModal;
+    const headerRow = document.createElement('div');
+    headerRow.className = 'modal-header-row';
+    const headerTitle = document.createElement('h2');
+    headerTitle.textContent = `${appLabel} — Field Help`;
+    const headerCloseBtn = document.createElement('button');
+    headerCloseBtn.textContent = 'X';
+    headerCloseBtn.onclick = closeAdminSettingsHelpModal;
+    headerRow.appendChild(headerTitle);
+    headerRow.appendChild(headerCloseBtn);
 
     const body = document.createElement('div');
-    body.innerHTML = `<h3 style="margin-top:0;">${escapeHtml(appLabel)} — Field Help</h3>` +
-        schema.map(f => `
+    body.innerHTML = schema.map(f => `
             <p style="margin-bottom:1em;">
                 <strong>${escapeHtml(f.label)}</strong><br>
-                <span style="font-size:0.9em;color:#555;">${escapeHtml(f.help || 'No additional detail available.')}</span>
+                <span style="font-size:0.9em;color:var(--text-main);opacity:0.75;">${escapeHtml(f.help || 'No additional detail available.')}</span>
             </p>`).join('');
 
-    box.appendChild(closeBtn);
-    box.appendChild(body);
-    overlay.appendChild(box);
-    document.body.appendChild(overlay);
+    wrapper.appendChild(headerRow);
+    wrapper.appendChild(body);
+
+    showStackedModal(wrapper, { hideDefaultClose: true });
 }
 
 function closeAdminSettingsHelpModal() {
-    const existing = document.getElementById('adminSettingsHelpModal');
-    if (existing) existing.remove();
+    closeStackedModal();
 }
 
 // Apps that have adopted the generic admin-settings backend pattern (the
@@ -2784,9 +3157,13 @@ window.addEventListener('popstate', (e) => {
             // Find the selected account
             const selectedAccount = window.CList.accounts.find(account => account.key === selectedKey);
             if (selectedAccount) {
-           
+
                 // Parse the JSON string in the value field
-                const accountData = JSON.parse(selectedAccount.value);
+                const accountData = parseAccountValue(selectedAccount);
+                if (!accountData) {
+                    showErrorModal('This account\'s data could not be read.', { title: 'Corrupt Account' });
+                    return;
+                }
                 let accountName = accountData.instance;
                 baseURL = extractBaseUrl(accountName);
                 accessToken = accountData.id;
@@ -3101,7 +3478,8 @@ window.addEventListener('popstate', (e) => {
                 }))).filter(a => a !== null);
 
                 const failedCount = accounts.filter(a => {
-                    try { return JSON.parse(a.value).type === 'bad'; } catch(e) { return true; }
+                    const parsed = parseAccountValue(a);
+                    return !parsed || parsed.type === 'bad';
                 }).length;
                 if (failedCount > 0 && failedCount === accounts.length) {
                     showErrorModal('Session key invalid — please log out and log back in to decrypt your accounts.', { title: 'Session key invalid' });
@@ -3296,6 +3674,88 @@ async function getEncKey(siteUrl) {
     if (!b64) return null;
     const raw = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
     return window.crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+}
+
+/**
+ * Re-checks a password against the current session without any server round trip: re-derives
+ * encKey from the entered password and compares it to the encKey already stored in
+ * sessionStorage from login (deriveEncKey is deterministic for a given password+username, and
+ * the password itself never needs to leave the browser to confirm it). Used to gate destructive
+ * actions (DID regenerate/remove) behind a password prompt even for Local accounts, which have
+ * no server to check a password against.
+ * @param {string} password
+ * @returns {Promise<boolean>}
+ */
+async function verifyPassword(password) {
+    const username = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.USERNAME);
+    if (!username) return false;
+    const storedB64 = sessionStorage.getItem(`${window.CList.config.flaskSiteUrl}_${username}_encKey`);
+    if (!storedB64) return false;
+    const candidateKey = await deriveEncKey(password, username);
+    const rawCandidate = await window.crypto.subtle.exportKey('raw', candidateKey);
+    const candidateB64 = btoa(String.fromCharCode(...new Uint8Array(rawCandidate)));
+    return candidateB64 === storedB64;
+}
+
+/**
+ * Prompts for a password in a modal before running an action — the one password-prompt UI for
+ * the whole app. Covers two shapes of caller:
+ *  - gating a destructive action on the *current* session's password (DID regenerate/remove):
+ *    defaults are enough, onConfirm's argument can be ignored.
+ *  - needing the password *value* itself, verified against something other than the current
+ *    session (export/import, where the password is key material and import's is for a different,
+ *    not-currently-logged-in account) — pass opts.verify.
+ * onConfirm only runs once verify() returns true; it receives the entered password either way.
+ * @param {string} message - explains what's about to happen (inserted as HTML — caller must
+ *   escapeHtml() any untrusted text first, e.g. a username from an imported file)
+ * @param {(password: string) => void} onConfirm
+ * @param {object} [opts]
+ * @param {(password: string) => Promise<boolean>} [opts.verify] - defaults to verifyPassword()
+ *   (checks against the current session's password)
+ * @param {string} [opts.confirmLabel] - defaults to 'Confirm'
+ * @param {string} [opts.confirmClass] - defaults to 'kv-delete-btn' (red, for destructive actions)
+ */
+function confirmWithPassword(message, onConfirm, opts = {}) {
+    const { verify = verifyPassword, confirmLabel = 'Confirm', confirmClass = 'kv-delete-btn' } = opts;
+
+    const box = document.createElement('div');
+    box.innerHTML = `
+        <h3 style="margin-top:0;">Confirm Password</h3>
+        <p>${message}</p>
+        <input type="password" id="confirm-pw-input" placeholder="Password" autocomplete="current-password"
+            style="width:100%; box-sizing:border-box; padding:0.35em 0.5em; font-size:0.9em; border:1px solid #ccc; border-radius:4px;">
+        <p id="confirm-pw-error" style="color:#c44; font-size:0.85em; min-height:1.2em; margin:0.3em 0 0;"></p>
+        <div class="kv-action-buttons">
+            <button class="kv-action-btn ${confirmClass}" id="confirm-pw-ok">${confirmLabel}</button>
+            <button class="kv-action-btn kv-cancel-btn" id="confirm-pw-cancel">Cancel</button>
+        </div>
+    `;
+
+    const input   = box.querySelector('#confirm-pw-input');
+    const errEl   = box.querySelector('#confirm-pw-error');
+    const okBtn   = box.querySelector('#confirm-pw-ok');
+    const cancelBtn = box.querySelector('#confirm-pw-cancel');
+
+    cancelBtn.onclick = () => document.getElementById('generic-modal')?.remove();
+
+    const attemptConfirm = async () => {
+        okBtn.disabled = true;
+        const ok = await verify(input.value);
+        if (!ok) {
+            errEl.textContent = 'Incorrect password.';
+            okBtn.disabled = false;
+            input.focus();
+            return;
+        }
+        const password = input.value;
+        document.getElementById('generic-modal')?.remove();
+        onConfirm(password);
+    };
+    okBtn.onclick = attemptConfirm;
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') attemptConfirm(); });
+
+    showModal(box, { hideDefaultClose: true });
+    input.focus();
 }
 
 /**

@@ -26,8 +26,7 @@ window.CList.schemas['Gist'] = {
     }
 
     function makeFilename(title, mimeType) {
-        const slug = (title || 'clist-export')
-            .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').substring(0, 50);
+        const slug = slugify(title, { maxLength: 50, fallback: 'clist-export' });
         return `${slug}.${mimeToExt(mimeType)}`;
     }
 
@@ -50,7 +49,7 @@ window.CList.schemas['Gist'] = {
                     files: { [filename]: { content } },
                 }),
             });
-            if (!resp.ok) throw new Error(`Gist error ${resp.status}: ${await resp.text()}`);
+            await assertOk(resp, 'Gist error');
             const data = await resp.json();
             // raw URL lets other tools consume the file directly
             const rawUrl = data.files?.[filename]?.raw_url;
@@ -78,7 +77,7 @@ window.CList.schemas['Gist'] = {
                 },
                 body: JSON.stringify({ files: { [filename]: { content } } }),
             });
-            if (!resp.ok) throw new Error(`Gist update error ${resp.status}: ${await resp.text()}`);
+            await assertOk(resp, 'Gist update error');
             const data = await resp.json();
             const rawUrl = data.files?.[filename]?.raw_url;
             return { url: rawUrl || data.html_url };
@@ -92,7 +91,7 @@ window.CList.schemas['Gist'] = {
                     'Accept':        'application/vnd.github+json',
                 },
             });
-            if (!resp.ok) throw new Error(`Gist delete error ${resp.status}: ${await resp.text()}`);
+            await assertOk(resp, 'Gist delete error');
         },
     };
 })();

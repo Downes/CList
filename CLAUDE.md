@@ -24,6 +24,15 @@ See [README.md](README.md) for full architecture, kvstore/CORS details, and file
   `publishers`, `savers`, `loaders`, `editorHandlers`, helpers in `ui.js`). Register into it instead
   of adding a new `case` branch, a new one-off function, or a second implementation of the same
   idea elsewhere in the codebase.
+- **Reuse shared helpers before writing new logic** — `utilities.js` holds plain top-level helper
+  functions (fetch/parse/error-check, account lookup, IndexedDB, base64/crypto, text/HTML cleanup,
+  etc.) shared across files; `ui.js` holds shared UI helpers (modals, clipboard, pagination
+  buttons — see Modal Pattern / Button Pattern below). Before writing new fetch, parse, validation,
+  account-lookup, or DOM-building logic, run `grep -n "^function \|^async function " js/utilities.js`
+  and skim `ui.js` for anything UI-related. Extend an existing helper's signature if it's close but
+  not quite sufficient, rather than writing a parallel inline version. New general-purpose helpers
+  belong in `utilities.js` as plain top-level functions, following the existing convention — not
+  namespaced under `window.CList` unless they're UI-specific (then `ui.js`).
 
 ## File Structure
 
@@ -88,6 +97,28 @@ btn.textContent = 'Label';
 - `.btn-small` — compact variant for buttons inside panels, pickers, and inline controls; same colours, smaller padding and font
 - `.btn-secondary` — grey (`#888`) override; combine with `.btn` or `.btn-small` for cancel / destructive-abort actions
 - **Do not** invent new button styles. Do not add service-specific CSS classes or inline style attributes for buttons.
+
+## Modal Pattern
+
+- **`showModal(content, opts)`** (`interface.js`) — the standard modal builder for any dialog or
+  panel. Always replaces the single `#generic-modal` instance, so it cannot have two independent
+  modals open at once. Accepts `opts.wide` (80vw/80vh) and `opts.hideDefaultClose` (suppresses the
+  built-in "Close" button for callers supplying their own). Use the `.modal-header-row` convention
+  (title `h2` + "X" button, `justify-content: space-between`) for custom headers instead of
+  `hideDefaultClose: false`'s plain footer button, when a modal needs a close control in its header.
+- **`showStackedModal(content, opts)` / `closeStackedModal()`** (`interface.js`) — a second,
+  independent modal layer (`#generic-modal-stacked`) for a dialog opened *from within* an
+  already-open `showModal()` modal (e.g. a help/info popup triggered by a button inside a settings
+  panel). Use this instead of a one-off hand-built overlay whenever a modal needs to appear on top
+  of another open modal without destroying it — `showModal()` would otherwise remove the modal
+  underneath. Same `opts.wide` / `opts.hideDefaultClose` API as `showModal()`. See
+  `openAdminSettingsHelpModal()` in `kvstore.js` for the reference usage (Help popup stacked over
+  the App Settings modal).
+- **`buildDialogModal(title, bodyNode, buttons)`** (`ui.js`) — shared shell for a title + body +
+  action-button-row dialog (confirm/cancel, save-as-filename, etc.), built on `showModal()`.
+  `buttons` is `[{label, secondary, onClick(close)}, …]`. Use this instead of hand-building the
+  box/heading/button-row structure — see `showErrorModal()`, `fallbackDownload()` (`files.js`), and
+  `_localrssConfirm()` (`localrss.js`) for existing usage.
 
 ## Error Handling
 

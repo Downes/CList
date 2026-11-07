@@ -55,7 +55,7 @@ let _bskyPds   = null;
                 <button class="clist-action-btn${isLiked ? ' action-active' : ''}" title="Like" data-record-uri="${_he(likeUri)}" onclick="handleBlueskyAction('${_heJs(postUri)}','${_heJs(postCid)}','${_heJs(postId)}','favorite',this)"><span class="material-icons md-18 md-light">favorite</span></button>
                 <button class="clist-action-btn${isReposted ? ' action-active' : ''}" title="Repost" data-record-uri="${_he(repostUri)}" onclick="handleBlueskyAction('${_heJs(postUri)}','${_heJs(postCid)}','${_heJs(postId)}','repost',this)"><span class="material-icons md-18 md-light">autorenew</span></button>
                 ${inThread ? `<button class="clist-action-btn" title="View thread" onclick="displayThread('${_heJs(threadUri)}')"><span class="material-icons md-18 md-light">dynamic_feed</span></button>` : ''}
-                <button class="clist-action-btn" title="Open in browser" onclick="openInBrowser('${_heJs(postUrl)}', '${_heJs(_itemID)}')"><span class="material-icons md-18 md-light">launch</span></button>
+                ${openInBrowserButton(postUrl, _itemID)}
             `;
         },
     };
@@ -137,12 +137,10 @@ async function createBlueskySession() {
         return { accessToken: _bskyToken, did: _bskyDid, pds: _bskyPds };
     }
 
-    if (window.CList.accounts.length === 0) {
-        try {
-            window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl);
-        } catch (error) {
-            throw new Error('Could not load accounts: ' + error.message);
-        }
+    try {
+        await ensureAccountsLoaded();
+    } catch (error) {
+        throw new Error('Could not load accounts: ' + error.message);
     }
 
     window.CList.accounts.forEach(account => {
@@ -726,82 +724,41 @@ async function displayBlueskyNotifications(notifications, cursor, isFirstPage) {
     };
 
     for (const notif of notifications) {
-        const statusBox = document.createElement('div');
-        statusBox.classList.add('status-box');
-
-        const statusContent = document.createElement('div');
-        statusContent.classList.add('status-content');
-        statusBox.appendChild(statusContent);
-
         const handle = notif.author.handle;
         const name   = notif.author.displayName || handle;
         const label  = reasonLabels[notif.reason] || notif.reason;
 
-        const headerDiv = document.createElement('div');
-        headerDiv.classList.add('reblog-info');
-        headerDiv.innerHTML = `<a href="#" onclick="fetchBlueskyUserFeed('${handle}'); return false;">${name}</a> (@${handle}) ${label}`;
-        statusContent.appendChild(headerDiv);
-
-        // mention / reply / quote carry the post text in the notification record
+        // mention / reply / quote carry the post text in the notification record —
+        // these are real posts, so route them through the same normalizer and
+        // registry-driven rendering (makeListing) as any other Bluesky post. That
+        // gets Like/Repost/Reply "for free" via readers['Bluesky'].statusActions,
+        // instead of hand-building a parallel, lighter-weight action set.
         if (['mention', 'reply', 'quote'].includes(notif.reason) && notif.record?.text) {
-            const postId  = notif.uri.split('/').pop();
-            const postUrl = `https://bsky.app/profile/${handle}/post/${postId}`;
-
-            let translatedContent;
-            try {
-                translatedContent = await processTranslationWithTimeout(notif.record.text);
-            } catch (e) {
-                translatedContent = notif.record.text;
-            }
-
-            const statusSpecific = document.createElement('div');
-            statusSpecific.classList.add('statusSpecific');
-            statusSpecific.id = postId;
-            statusSpecific.innerHTML = `<p>${translatedContent}</p>`;
-            statusContent.appendChild(statusSpecific);
-
-            statusSpecific.reference = {
-                service:     'Bluesky',
-                author_name: name,
-                author_id:   handle,
-                url:         postUrl,
-                title:       'Bluesky',
-                created_at:  notif.indexedAt,
-                id:          postId,
-                summary:     notif.record.text.slice(0, 140),
-                replyToken:  { type: 'Bluesky', uri: notif.uri, cid: notif.cid },
+            const pseudoPost = {
+                uri: notif.uri, cid: notif.cid, author: notif.author,
+                record: notif.record, viewer: {},
             };
-
-            const actionButtons = document.createElement('div');
-            actionButtons.classList.add('status-actions');
-            actionButtons.innerHTML = `
-                <button class="clist-action-btn" title="Open in browser" onclick="openInBrowser('${postUrl}', '${postId}')"><span class="material-icons md-18 md-light">launch</span></button>
-                <button class="clist-action-btn" id="collect-btn-${postId}" onclick="collectItem('${postId}');" title="Add to collection"><span class="material-icons md-18 md-light">library_add</span></button>
-                <button class="clist-action-btn chat-only-btn" onclick="shareToChat('${postId}');" title="Share to chat"><span class="material-icons md-18 md-light">chat_bubble_outline</span></button>
-            `;
-            statusContent.appendChild(actionButtons);
-
-            const clistButtons = document.createElement('div');
-            clistButtons.classList.add('clist-actions');
-            clistButtons.innerHTML = `
-                <button class="clist-action-btn" onclick="loadContentToEditor('${postId}');" title="Load in editor"><span class="material-icons md-18 md-light">arrow_right</span></button>
-                <button class="clist-action-btn" id="anno-btn-${postId}" onclick="openAnnotationEditor('${postId}');" title="Write about this"><span class="material-icons md-18 md-light">arrow_forward</span></button>
-            `;
-
-            statusBox.appendChild(clistButtons);
+            const item = await normalizeBlueskyPost(pseudoPost);
+            // Replace the generic "wrote:" phrasing with the actual notification reason.
+            item.titleHtml = `<a href="#" onclick="fetchBlueskyUserFeed('${_heJs(handle)}'); return false;" title="View User Feed">${_he(name)}</a> (@${_he(handle)}) ${_he(label)}: ${_he(item.desc)}`;
+            feedContainer.appendChild(window.CList.ui.listing(item));
+            continue;
         }
 
+        // like / repost / follow: the notification payload doesn't carry the
+        // subject post's body, so there's nothing actionable to show — just who
+        // did what.
+        const statusBox = document.createElement('div');
+        statusBox.classList.add('status-box');
+        const statusContent = document.createElement('div');
+        statusContent.classList.add('status-content');
+        const headerDiv = document.createElement('div');
+        headerDiv.classList.add('reblog-info');
+        headerDiv.innerHTML = `<a href="#" onclick="fetchBlueskyUserFeed('${_heJs(handle)}'); return false;">${_he(name)}</a> (@${_he(handle)}) ${_he(label)}`;
+        statusContent.appendChild(headerDiv);
+        statusBox.appendChild(statusContent);
         feedContainer.appendChild(statusBox);
     }
 
-    const existingButton = document.getElementById('loadMoreButton');
-    if (existingButton) existingButton.remove();
-    if (cursor) {
-        const loadMoreButton = document.createElement('button');
-        loadMoreButton.id = 'loadMoreButton';
-        loadMoreButton.className = 'btn';
-        loadMoreButton.innerText = 'Load More';
-        loadMoreButton.onclick = () => fetchBlueskyNotifications(cursor);
-        feedContainer.appendChild(loadMoreButton);
-    }
+    window.CList.ui.renderLoadMoreButton(feedContainer, cursor ? () => fetchBlueskyNotifications(cursor) : null);
 }

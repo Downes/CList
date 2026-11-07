@@ -31,7 +31,7 @@ window.CList.schemas['JSONBin'] = {
                 },
                 body: content,
             });
-            if (!resp.ok) throw new Error(`JSONBin error ${resp.status}: ${await resp.text()}`);
+            await assertOk(resp, 'JSONBin error');
             const data = await resp.json();
             const id = data.metadata?.id;
             if (!id) throw new Error('JSONBin returned no bin ID');
@@ -47,7 +47,7 @@ window.CList.schemas['JSONBin'] = {
                 },
                 body: content,
             });
-            if (!resp.ok) throw new Error(`JSONBin update error ${resp.status}: ${await resp.text()}`);
+            await assertOk(resp, 'JSONBin update error');
             return { url: `${API}/${serviceId}?meta=false` };
         },
 
@@ -56,7 +56,7 @@ window.CList.schemas['JSONBin'] = {
                 method: 'DELETE',
                 headers: { 'X-Master-Key': accountData.id },
             });
-            if (!resp.ok) throw new Error(`JSONBin delete error ${resp.status}: ${await resp.text()}`);
+            await assertOk(resp, 'JSONBin delete error');
         },
     };
 })();

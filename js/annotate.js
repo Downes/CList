@@ -138,14 +138,8 @@ function _appendAddForm(panel, itemID, url, writeAccts, token) {
     const visLabel = document.createElement('label');
     visLabel.textContent = 'Visibility:';
 
-    const visSelect = document.createElement('select');
+    const visSelect = buildVisibilitySelect();
     visSelect.style.cssText = 'font-size:0.8rem;width:auto;padding:2px 4px;margin:0;';
-    [['public','Public'],['private','Private']].forEach(([val, text]) => {
-        const opt = document.createElement('option');
-        opt.value = val;
-        opt.textContent = text;
-        visSelect.appendChild(opt);
-    });
 
     visRow.appendChild(visLabel);
     visRow.appendChild(visSelect);
@@ -155,14 +149,8 @@ function _appendAddForm(panel, itemID, url, writeAccts, token) {
     if (writeAccts.length > 1) {
         const storeLabel = document.createElement('label');
         storeLabel.textContent = 'Store:';
-        storeSelect = document.createElement('select');
+        storeSelect = buildAccountSelect(writeAccts);
         storeSelect.style.cssText = 'font-size:0.8rem;width:auto;padding:2px 4px;margin:0;';
-        writeAccts.forEach((acct, i) => {
-            const opt = document.createElement('option');
-            opt.value = i;
-            opt.textContent = acct.title || acct.instance;
-            storeSelect.appendChild(opt);
-        });
         visRow.appendChild(storeLabel);
         visRow.appendChild(storeSelect);
     }
@@ -408,13 +396,8 @@ async function _offerCollectAfterAnnotation(ref) {
     try {
         const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
         if (!encKey) return;
-        const kvs = await window.CList.storage.kv.list();
-        for (const kv of kvs.filter(k => k.key.startsWith('collection:'))) {
-            try {
-                const items = JSON.parse(await decryptWithKey(encKey, kv.value)) || [];
-                if (items.some(i => i.url === ref.url)) return;
-            } catch { continue; }
-        }
+        const records = await fetchDecryptedKvRecordsByPrefix('collection:', encKey);
+        if (records.some(({ value }) => _parseCollectionData(value).items.some(i => i.url === ref.url))) return;
     } catch (e) {
         if (e.code !== 'NotAuthenticated') console.error('[annotations] collection check error', e);
         return;
@@ -510,7 +493,7 @@ async function _getFederatedAnnotationAccounts() {
     // Decrypt each follow to get the target DID
     const followedDids = (await Promise.all(followKvs.map(async kv => {
         try {
-            const data = JSON.parse(await decryptWithKey(encKey, kv.value));
+            const data = await decryptKVJson(encKey, kv.value);
             return data.did || null;
         } catch { return null; }
     }))).filter(Boolean);
@@ -565,7 +548,7 @@ async function _getFollowedDids() {
         kvs.filter(kv => kv.key.startsWith('social:following:'))
            .map(async kv => {
                try {
-                   const data = JSON.parse(await decryptWithKey(encKey, kv.value));
+                   const data = await decryptKVJson(encKey, kv.value);
                    return data.did || null;
                } catch { return null; }
            })

@@ -83,11 +83,6 @@ async function _showCollectionPicker(itemId, opts = {}) {
 // Normalize a decrypted collection value — handles the old (bare array), the
 // pre-UUID ({ items, publishedUrls }), and the current ({ id, title, items,
 // publishedUrls }) formats.
-function _parseCollectionData(raw) {
-    if (Array.isArray(raw)) return { id: null, title: null, items: raw, publishedUrls: [] };
-    return { id: raw.id || null, title: raw.title || null, items: raw.items || [], publishedUrls: raw.publishedUrls || [] };
-}
-
 // Generate a fresh UUID v4 primary key for a brand-new collection. The kvstore
 // key stays a bare UUID (matching the existing page:${uuid} convention); id is
 // the same UUID formatted as a urn:uuid: string for display and for the
@@ -118,44 +113,19 @@ function _resolveCollectionIdentity(key, id) {
 // of those needs a slightly different parsed shape) rather than refactoring
 // those pre-existing call sites.
 async function _fetchAllCollections(token, encKey) {
-    let kvs;
-    try {
-        kvs = await window.CList.storage.kv.list();
-    } catch (err) {
-        throw new Error(err.code === 'NotAuthenticated' ? 'Not logged in' : `kvstore error: ${err.message}`);
-    }
-
-    const collections = [];
-    for (const kv of (kvs || [])) {
-        if (!kv.key.startsWith('collection:')) continue;
-        try {
-            const colData = _parseCollectionData(JSON.parse(await decryptWithKey(encKey, kv.value)));
-            collections.push({ key: kv.key, id: colData.id, title: colData.title || kv.key.replace(/^collection:/, ''), items: colData.items, publishedUrls: colData.publishedUrls });
-        } catch { /* skip corrupt entries */ }
-    }
-    return collections;
+    const records = await fetchDecryptedKvRecordsByPrefix('collection:', encKey);
+    return records.map(({ key, value }) => {
+        const colData = _parseCollectionData(value);
+        return { key, id: colData.id, title: colData.title || key.replace(/^collection:/, ''), items: colData.items, publishedUrls: colData.publishedUrls };
+    });
 }
 
 // Fetches all standalone published pages (kvstore `page:` records) — the
 // leaf-page half of the collection editor's "+ From page or collection"
 // picker. Mirrors _fetchAllCollections but for page: records.
 async function _fetchAllPublishedPages(token, encKey) {
-    let kvs;
-    try {
-        kvs = await window.CList.storage.kv.list();
-    } catch (err) {
-        throw new Error(err.code === 'NotAuthenticated' ? 'Not logged in' : `kvstore error: ${err.message}`);
-    }
-
-    const pages = [];
-    for (const kv of (kvs || [])) {
-        if (!kv.key.startsWith('page:')) continue;
-        try {
-            const rec = JSON.parse(await decryptWithKey(encKey, kv.value));
-            pages.push({ pageKey: kv.key, ...rec });
-        } catch { /* skip corrupt entries */ }
-    }
-    return pages;
+    const records = await fetchDecryptedKvRecordsByPrefix('page:', encKey);
+    return records.map(({ key, value }) => ({ pageKey: key, ...value }));
 }
 
 // Finds one collection by its urn:uuid id (as stored in a role:'contains'
@@ -232,7 +202,7 @@ async function _kvSaveItems(key, id, title, items, token, encKey, publishedUrls 
     try {
         await window.CList.storage.kv.put(key, encrypted);
     } catch (err) {
-        throw new Error(err.code === 'NotAuthenticated' ? 'Not logged in' : `kvstore error: ${err.message}`);
+        throw new Error(kvErrorMessage(err));
     }
 }
 
@@ -240,13 +210,7 @@ async function _kvSaveItems(key, id, title, items, token, encKey, publishedUrls 
 // onSelect(name, encValue) is called when the user picks or creates a collection.
 // anchorEl is excluded from the outside-click handler (pass null if not needed).
 function _buildCollectionPickerContents(picker, collections, onSelect, anchorEl) {
-    const outsideHandler = (e) => {
-        if (!picker.contains(e.target) && e.target !== anchorEl) {
-            picker.remove();
-            document.removeEventListener('click', outsideHandler, true);
-        }
-    };
-    setTimeout(() => document.addEventListener('click', outsideHandler, true), 0);
+    dismissOnOutsideClick(picker, anchorEl);
 
     if (!collections.length) {
         const msg = document.createElement('p');
@@ -413,7 +377,7 @@ async function _removeItemFromCollection(col, item, token, encKey, countSpan, it
         try {
             await window.CList.storage.kv.update(col.key, encrypted);
         } catch (err) {
-            throw new Error(err.code === 'NotAuthenticated' ? 'Not logged in' : `kvstore error: ${err.message}`);
+            throw new Error(kvErrorMessage(err));
         }
         countSpan.textContent = `${col.items.length} item${col.items.length !== 1 ? 's' : ''}`;
         _renderCollectionItems(col, token, encKey, countSpan, itemsDiv);
@@ -1128,14 +1092,14 @@ window.showSavedCollections = async function() {
                 try {
                     kvs = await window.CList.storage.kv.list();
                 } catch (err) {
-                    throw new Error(err.code === 'NotAuthenticated' ? 'Not logged in' : `kvstore error: ${err.message}`);
+                    throw new Error(kvErrorMessage(err));
                 }
 
                 const pages = [];
                 for (const kv of (kvs || [])) {
                     if (kv.key.startsWith('collection:')) {
                         try {
-                            const raw = JSON.parse(await decryptWithKey(encKey, kv.value));
+                            const raw = await decryptKVJson(encKey, kv.value);
                             const col = _parseCollectionData(raw);
                             if (!col.publishedUrls?.length) continue;
                             const colName = col.title || kv.key.replace(/^collection:/, '');
@@ -1145,7 +1109,7 @@ window.showSavedCollections = async function() {
                         } catch { /* skip corrupt entries */ }
                     } else if (kv.key.startsWith('page:')) {
                         try {
-                            const rec = JSON.parse(await decryptWithKey(encKey, kv.value));
+                            const rec = await decryptKVJson(encKey, kv.value);
                             const format = (rec.mimeType || '').split('/')[1]?.toUpperCase() || '';
                             pages.push({ kind: 'page', pageKey: kv.key, format, ...rec });
                         } catch { /* skip corrupt entries */ }
@@ -1324,10 +1288,7 @@ window.showSavedCollections = async function() {
                         copyBtn.title     = 'Copy URL';
                         copyBtn.innerHTML = '<span class="material-icons md-18 md-light">content_copy</span>';
                         copyBtn.onclick   = () => {
-                            navigator.clipboard.writeText(page.url).then(
-                                () => showStatusMessage('URL copied.'),
-                                () => showErrorModal('Could not copy URL.', { title: 'Copy failed' })
-                            );
+                            copyToClipboard(page.url, { successMsg: 'URL copied.', failMsg: 'Could not copy URL.' });
                         };
                         actions.appendChild(copyBtn);
                     }
@@ -1377,7 +1338,7 @@ window.showSavedCollections = async function() {
                             const allKvs = await window.CList.storage.kv.list();
                             const colKv  = (allKvs || []).find(k => k.key === page.collectionKey);
                             if (colKv) {
-                                const raw = JSON.parse(await decryptWithKey(encKey, colKv.value));
+                                const raw = await decryptKVJson(encKey, colKv.value);
                                 const col = _parseCollectionData(raw);
                                 col.publishedUrls = (col.publishedUrls || []).filter(p => p.url !== page.url);
                                 const encrypted = await encryptWithKey(encKey, JSON.stringify({ id: col.id, title: col.title, items: col.items, publishedUrls: col.publishedUrls }));
@@ -1847,15 +1808,7 @@ window.playCollectionSave = async function playCollectionSave() {
         if (!fmt) { showErrorModal('Unknown format.', { title: 'Unknown format' }); return; }
         const flatItems = encKey ? await _flattenForExport(items, identity.id, token, encKey) : items;
         const content = fmt.serialize(name, flatItems, identity.id);
-        const blob    = new Blob([content], { type: fmt.mimeType });
-        const url     = URL.createObjectURL(blob);
-        const a       = document.createElement('a');
-        a.href        = url;
-        a.download    = `${name}.${fmt.ext}`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        downloadBlob(new Blob([content], { type: fmt.mimeType }), `${name}.${fmt.ext}`);
         showStatusMessage(`Downloaded as ${name}.${fmt.ext}`);
     });
     list.appendChild(fileBtn);
@@ -1894,10 +1847,7 @@ window.playCollectionSave = async function playCollectionSave() {
     // ── Save to Dropbox ── (same serialized output as "Save to file", uploaded
     // in place of a browser download; mirrors dropbox.js's generic saver, which
     // doesn't apply here since collections need format-specific serialization)
-    const dropboxAccount = token ? (window.CList.accounts || []).find(a => {
-        const v = parseAccountValue(a);
-        return v && v.type === 'Dropbox' && (v.permissions || '').includes('b');
-    }) : null;
+    const dropboxAccount = token ? findAccountByType('Dropbox', { permission: 'b' })?.account : null;
     if (dropboxAccount) {
         const dbxBtn = document.createElement('button');
         dbxBtn.className = 'account-button';
@@ -1992,7 +1942,7 @@ async function _touchPublishedUrlEntry(collectionKey, serviceId) {
     const kvs = await window.CList.storage.kv.list();
     const kv = (kvs || []).find(k => k.key === collectionKey);
     if (!kv) return;
-    const raw = JSON.parse(await decryptWithKey(encKey, kv.value));
+    const raw = await decryptKVJson(encKey, kv.value);
     const col = _parseCollectionData(raw);
     const entry = (col.publishedUrls || []).find(p => p.serviceId === serviceId);
     if (entry) entry.publishedAt = new Date().toISOString();
@@ -2015,7 +1965,7 @@ async function _updatePagesCatalog(token, encKey, binAccount) {
         let catalogMeta = {};
         const catalogKv = (kvs || []).find(kv => kv.key === 'clist:pages-catalog');
         if (catalogKv) {
-            try { catalogMeta = JSON.parse(await decryptWithKey(encKey, catalogKv.value)); } catch {}
+            try { catalogMeta = await decryptKVJson(encKey, catalogKv.value); } catch {}
         }
 
         // Collect all published URLs across all collections and standalone pages —
@@ -2028,7 +1978,7 @@ async function _updatePagesCatalog(token, encKey, binAccount) {
         for (const kv of (kvs || [])) {
             if (kv.key.startsWith('collection:')) {
                 try {
-                    const raw = JSON.parse(await decryptWithKey(encKey, kv.value));
+                    const raw = await decryptKVJson(encKey, kv.value);
                     const col = _parseCollectionData(raw);
                     if (!col.publishedUrls?.length) continue;
                     const colName = col.title || kv.key.replace(/^collection:/, '');
@@ -2038,7 +1988,7 @@ async function _updatePagesCatalog(token, encKey, binAccount) {
                 } catch {}
             } else if (kv.key.startsWith('page:')) {
                 try {
-                    const rec = JSON.parse(await decryptWithKey(encKey, kv.value));
+                    const rec = await decryptKVJson(encKey, kv.value);
                     if (!rec.url) continue;
                     pages.push({
                         name: rec.title || kv.key.replace(/^page:/, ''),
@@ -2196,10 +2146,8 @@ window.playCollectionPublish = async function playCollectionPublish() {
     if (!name) { showErrorModal('Please enter a collection title before publishing.'); return; }
 
     // Ensure accounts are loaded
-    if (!Array.isArray(window.CList.accounts) || !window.CList.accounts.length) {
-        try { window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl); }
-        catch (e) { showErrorModal('Could not load accounts: ' + e.message, { title: 'Load accounts failed' }); return; }
-    }
+    try { await ensureAccountsLoaded(); }
+    catch (e) { showErrorModal('Could not load accounts: ' + e.message, { title: 'Load accounts failed' }); return; }
 
     const postOptionsDiv = document.getElementById('post-options');
     const postResultDiv  = document.getElementById('post-result');
@@ -2402,8 +2350,7 @@ window.playCollectionPublish = async function playCollectionPublish() {
                 _activeCollection = { col: { key: identity.key, id: identity.id, name, items, publishedUrls: allPublishedUrls }, token, encKey };
                 _refreshIdDisplay();
                 const catalogBinAccount = primaryBinAccount
-                    || (window.CList.accounts || []).map(a => parseAccountValue(a)).filter(Boolean)
-                        .find(pv => pv.type === 'CListBin' && (pv.permissions || '').includes('b'));
+                    || findAccountByType('CListBin', { permission: 'b' })?.parsedValue;
                 if (catalogBinAccount) _updatePagesCatalog(token, encKey, catalogBinAccount);
             }).catch(e => console.error('[pages catalog] post-publish update failed:', e));
         }
@@ -2464,13 +2411,10 @@ async function postCollectionToWebPage() {
     const adapter = window.CList.binPublishers?.['CListBin'];
     if (!adapter) { showErrorModal('Web-page publishing is not available.', { title: 'Publishing unavailable' }); return; }
 
-    let accounts = window.CList.accounts;
-    if (!Array.isArray(accounts) || accounts.length === 0) {
-        try { accounts = window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl); }
-        catch (e) { showErrorModal('Error getting accounts: ' + e.message, { title: 'Load accounts failed' }); return; }
-    }
-    const binAccount = accounts.map(parseAccountValue).filter(Boolean)
-        .find(v => v.type === 'CListBin' && (v.permissions || '').includes('b'));
+    let accounts;
+    try { accounts = await ensureAccountsLoaded(); }
+    catch (e) { showErrorModal('Error getting accounts: ' + e.message, { title: 'Load accounts failed' }); return; }
+    const binAccount = findAccountByType('CListBin', { permission: 'b', accounts })?.parsedValue;
     if (!binAccount) { showErrorModal('No web-page destination set up yet — log out and back in to add one.', { title: 'No destination configured' }); return; }
 
     const formatId = document.getElementById('write-format')?.value || 'rss';

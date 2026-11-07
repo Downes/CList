@@ -149,12 +149,10 @@ const OAuthClient = {
     async _generatePKCE() {
         const verifierBytes = new Uint8Array(32);
         crypto.getRandomValues(verifierBytes);
-        const codeVerifier = btoa(String.fromCharCode(...verifierBytes))
-            .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+        const codeVerifier = base64UrlEncode(verifierBytes);
 
         const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(codeVerifier));
-        const codeChallenge = btoa(String.fromCharCode(...new Uint8Array(digest)))
-            .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+        const codeChallenge = base64UrlEncode(digest);
 
         return { codeVerifier, codeChallenge };
     },
@@ -163,5 +161,63 @@ const OAuthClient = {
         const bytes = new Uint8Array(16);
         crypto.getRandomValues(bytes);
         return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+    },
+
+    // Shared "pick up an OAuth redirect" boilerplate. callback.html stores its result in
+    // localStorage under a single shared key regardless of provider; this reads it once per
+    // page load, fires onResult(data) only for the matching provider, and clears the key either
+    // way so a stale result can't be picked up twice or by the wrong provider's listener.
+    // Used both for flows started via login() above (data has accessToken/extra/accountKey) and
+    // for providers with their own non-standard callback shape (e.g. WordPress's siteUrl/
+    // userLogin/password) — this only standardizes the parse/match/remove, not the payload shape.
+    onCallback(providerType, onResult) {
+        document.addEventListener('DOMContentLoaded', async function () {
+            const raw = localStorage.getItem(window.CList.keys.OAUTH_CALLBACK_RESULT);
+            if (!raw) return;
+            let data;
+            try { data = JSON.parse(raw); } catch (e) { console.error('Bad oauth_callback_result', e); return; }
+            if (data.providerType !== providerType) return;
+            localStorage.removeItem(window.CList.keys.OAUTH_CALLBACK_RESULT);
+            await onResult(data);
+        });
+    },
+
+    // Shared "finish OAuth flow" save: encrypts instanceData, stores it under accountKey in
+    // kvstore, refreshes the in-memory account list/UI, and reports success/failure via the
+    // standard modal/status helpers (see CLAUDE.md "Error Handling"). afterRefresh (optional,
+    // async) runs any provider-specific UI refresh beyond the universal updateUIVisibility()
+    // call (e.g. repopulating a reader/post-options list), before the "saved" status message.
+    async saveAccount(providerLabel, accountKey, instanceData, { afterRefresh } = {}) {
+        const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
+        if (!encKey) { showErrorModal('Encryption key missing — please log in again.', { title: 'Encryption key missing' }); return; }
+
+        let encryptedValue;
+        try {
+            encryptedValue = await encryptWithKey(encKey, JSON.stringify(instanceData));
+        } catch (err) {
+            console.error(`Failed to encrypt ${providerLabel} account data:`, err);
+            showErrorModal(`Could not save ${providerLabel} account — encryption failed. Try logging in again.`, { title: 'Save failed' });
+            return;
+        }
+
+        try {
+            await window.CList.storage.kv.put(accountKey, encryptedValue);
+        } catch (err) {
+            if (err.code === 'NotAuthenticated') showErrorModal(`Please log in to kvstore before authorizing ${providerLabel}.`, { title: 'Not logged in' });
+            else showErrorModal(`Failed to save ${providerLabel} account to kvstore.`, { title: 'Save failed' });
+            return;
+        }
+
+        try {
+            window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl);
+            if (window.CList.accounts) {
+                updateUIVisibility();
+                if (afterRefresh) await afterRefresh();
+            }
+            showStatusMessage(`${providerLabel} account authorized and saved.`);
+        } catch (error) {
+            showErrorModal(`Account saved — but could not refresh: ${error.message}`, { title: 'Refresh failed' });
+        }
+        if (typeof playAccounts === 'function') playAccounts();
     },
 };

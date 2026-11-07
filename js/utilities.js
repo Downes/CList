@@ -320,6 +320,252 @@ function parseAccountValue(account) {
     }
 }
 
+// Fall back to a plain-text title derived from the content when the post has no
+// title of its own — shared by publishers (Blogger, WordPress) that always require
+// a title field even though CList posts are often written without one.
+function derivePlainTitle(title, content) {
+    return removeHtml(title).trim()
+        || content.replace(/<[^>]+>/g, '').trim().substring(0, 70).replace(/\s\S*$/, '') + '…';
+}
+
+// Shared by every third-party relay/bridge integration (Discord bridge, proxyp, Oasis, Collab,
+// kvstore's own channel picker) that requires a valid kvstore Bearer token on each request —
+// read it the same way every service integration in this codebase does.
+function kvstoreAuthHeader() {
+    const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
+}
+
+// Decrypt a kvstore record's encrypted value and JSON.parse it — the standard
+// shape for reading any non-account kvstore record (collections, pages, catalog
+// metadata, DID service entries, etc.). Throws on decrypt/parse failure, same as
+// the inline `JSON.parse(await decryptWithKey(encKey, value))` it replaces —
+// callers that want to skip corrupt/undecryptable records still wrap this in
+// their own try/catch exactly as before.
+async function decryptKVJson(encKey, value) {
+    return JSON.parse(await decryptWithKey(encKey, value));
+}
+
+// Standard error message for a failed window.CList.storage.kv.* call —
+// distinguishes "not logged in" from any other kvstore failure.
+function kvErrorMessage(err) {
+    return err.code === 'NotAuthenticated' ? 'Not logged in' : `kvstore error: ${err.message}`;
+}
+
+// Throws if a fetch response isn't ok, using the same "<label> <status>: <body>" shape
+// used across the bin-publisher modules (clistbin.js, jsonbin.js, gist.js, 0x0.js).
+async function assertOk(resp, label) {
+    if (!resp.ok) throw new Error(`${label} ${resp.status}: ${await resp.text()}`);
+}
+
+// Normalizes a decrypted collection record to { id, title, items, publishedUrls } —
+// collections saved before publishedUrls existed are a bare array; current saves are
+// always the wrapped object (see collections.js's _kvSaveItems). Shared by collections.js
+// and annotate.js's "already in a collection?" check, so both agree on the current shape.
+function _parseCollectionData(raw) {
+    if (Array.isArray(raw)) return { id: null, title: null, items: raw, publishedUrls: [] };
+    return { id: raw.id || null, title: raw.title || null, items: raw.items || [], publishedUrls: raw.publishedUrls || [] };
+}
+
+// Lists kvstore records, filters by key prefix, and decrypts+JSON-parses each — the
+// shared list/filter/decrypt/skip-corrupt mechanics behind collections.js's
+// _fetchAllCollections/_fetchAllPublishedPages and annotate.js's "already collected?"
+// check. Each caller still reshapes the raw decrypted value itself (collection records and
+// page records have different shapes) — this only consolidates the fetch loop itself, not
+// the other, deliberately separate per-UI fetch loops in collections.js (see the comment
+// above _fetchAllCollections there).
+async function fetchDecryptedKvRecordsByPrefix(prefix, encKey) {
+    let kvs;
+    try {
+        kvs = await window.CList.storage.kv.list();
+    } catch (err) {
+        const wrapped = new Error(kvErrorMessage(err));
+        wrapped.code = err.code;
+        throw wrapped;
+    }
+    const records = [];
+    for (const kv of (kvs || [])) {
+        if (!kv.key.startsWith(prefix)) continue;
+        try {
+            records.push({ key: kv.key, value: await decryptKVJson(encKey, kv.value) });
+        } catch { /* skip corrupt entries */ }
+    }
+    return records;
+}
+
+// Find the first account carrying a given permission letter (e.g. 'g' for
+// ChatGPT, 'z' for summarization, 't' for translation).
+// Returns { account, parsedValue } for the first match, or null if none found.
+function findAccountByPermission(permissionChar) {
+    const accounts = (window.CList && window.CList.accounts) || [];
+    for (const account of accounts) {
+        const parsedValue = parseAccountValue(account);
+        if (parsedValue && parsedValue.permissions && parsedValue.permissions.includes(permissionChar)) {
+            return { account, parsedValue };
+        }
+    }
+    return null;
+}
+
+// Finds the account carrying permissionChar and extracts its API key (id) + API
+// URL (instance) — the shared lookup behind chatgpt.js's generateNewTemplateFromChatGPT
+// and summarize.js's summarizeText. Throws errorMessage verbatim (callers keep their own
+// service-specific wording) if no account is found or it's missing either field.
+function requireAccountWithPermission(permissionChar, errorMessage) {
+    const found = findAccountByPermission(permissionChar);
+    const apiKey = found?.parsedValue?.id || null;
+    const apiUrl = found?.parsedValue?.instance || null;
+    if (!apiKey || !apiUrl) throw new Error(errorMessage);
+    return { apiKey, apiUrl };
+}
+
+// Fetches window.CList.accounts if it isn't already loaded (mirrors getAccounts'
+// own throw-on-failure — callers keep their own try/catch, error message, and
+// fallback behavior exactly as before). A no-op when accounts are already present.
+async function ensureAccountsLoaded() {
+    if (!Array.isArray(window.CList.accounts) || window.CList.accounts.length === 0) {
+        window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl);
+    }
+    return window.CList.accounts;
+}
+
+// Find the first account of a given type (e.g. 'Dropbox', 'CListBin', 'Collab'),
+// optionally also requiring a permission letter (e.g. 'b' for "bin"/upload targets).
+// Searches `opts.accounts` if given, else the global window.CList.accounts list.
+// Returns { account, parsedValue } for the first match, or null if none found.
+function findAccountByType(type, opts = {}) {
+    const accounts = opts.accounts || (window.CList && window.CList.accounts) || [];
+    for (const account of accounts) {
+        const parsedValue = parseAccountValue(account);
+        if (parsedValue && parsedValue.type === type
+            && (!opts.permission || (parsedValue.permissions || '').includes(opts.permission))) {
+            return { account, parsedValue };
+        }
+    }
+    return null;
+}
+
+// Trigger a browser download of a Blob via a temporary, invisible <a> link.
+// Pass an existing Blob (e.g. from resp.blob()) directly, or build one inline:
+// downloadBlob(new Blob([content], { type: mimeType }), filename).
+function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+}
+
+// Lowercases, collapses runs of non-alphanumerics to a single '-', trims leading/trailing
+// '-', then truncates to maxLength. Falls back to `fallback` if the result is empty.
+function slugify(text, { maxLength = 50, fallback = '' } = {}) {
+    return (text || '').toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, maxLength)
+        || fallback;
+}
+
+// Base64url (RFC 4648 §5) encode — accepts a string, or bytes (Uint8Array/ArrayBuffer),
+// e.g. a crypto.subtle result. Used anywhere a token/signature/challenge needs to be
+// URL- and filename-safe (no '+', '/', or '=' padding): PKCE verifiers/challenges,
+// Ed25519 signatures, proxy-encoded origins.
+function base64UrlEncode(input) {
+    const binary = typeof input === 'string'
+        ? input
+        : String.fromCharCode(...new Uint8Array(input));
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+// Inverse of base64UrlEncode, for the common case where the original input was bytes
+// (a signature, a public key's raw x-coordinate) rather than a text string.
+function base64UrlDecodeToBytes(str) {
+    return Uint8Array.from(atob(str.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+}
+
+// ---- Shared IndexedDB request wrapper (local-kvstore.js, page-store-idb.js) ----
+
+// Wraps a single IDBRequest (e.g. an objectStore.get()/getAll()) in a Promise, resolving
+// with its result (or defaultValue if falsy, matching the `|| null`/`|| []` each caller
+// used inline) on success. Only the per-request wrapper is shared — local-kvstore.js and
+// page-store-idb.js keep their own separate openDb()/schema-upgrade logic, since their
+// IndexedDB schemas are genuinely different (multi-store users/kv/sessions vs. a single
+// pages store). Writes that resolve on transaction.oncomplete rather than a request's own
+// onsuccess (put/add/delete/the existence-gated updates) aren't this shape and stay as-is.
+function idbRequest(req, defaultValue) {
+    return new Promise((resolve, reject) => {
+        req.onsuccess = () => resolve(req.result || defaultValue);
+        req.onerror = () => reject(req.error);
+    });
+}
+
+// ---- Shared real-time-doc identity helpers (collab.js, latex.js) ----
+
+// Convert wss:// URL to https:// for REST calls
+function wsUrlToRestBase(wsUrl) {
+    return wsUrl.replace(/^wss?:\/\//, 'https://').replace(/\/$/, '');
+}
+
+// Derive the short-host identifier used in document namespaces.
+// kvstore.mooc.ca  →  mooc.ca   (strip default 'kvstore.' prefix)
+// accounts.mooc.ca →  accounts.mooc.ca  (non-default subdomain, keep as-is)
+function kvShortHost(kvUrl) {
+    try {
+        const host = new URL(kvUrl).hostname;
+        return host.startsWith('kvstore.') ? host.slice('kvstore.'.length) : host;
+    } catch { return ''; }
+}
+
+// Generate a short random slug for new untitled documents (e.g. "a3f8k2")
+function generateDocSlug() {
+    return Math.random().toString(36).slice(2, 8);
+}
+
+// Fetch the current user's did:key from their DID document on the kvstore.
+// Returns the did:key string, or null if unavailable. Result is cached — shared
+// across every real-time-doc module (collab.js, latex.js), since it's the same
+// user and DID document regardless of which editor is asking.
+let _cachedDidKey = null;
+async function getUserDidKey() {
+    if (_cachedDidKey) return _cachedDidKey;
+    const myUser = (window.CList.state.username && window.CList.state.username !== 'none' && window.CList.state.username !== '') ? window.CList.state.username : null;
+    if (!myUser) return null;
+    try {
+        const res = await fetch(`${window.CList.config.flaskSiteUrl}/users/${myUser}/did.json`);
+        if (!res.ok) return null;
+        const doc = await res.json();
+        const didKey = (Array.isArray(doc.alsoKnownAs) ? doc.alsoKnownAs : [])
+            .find(id => typeof id === 'string' && id.startsWith('did:key:')) || null;
+        _cachedDidKey = didKey;
+        return _cachedDidKey;
+    } catch {
+        return null;
+    }
+}
+
+// Expand a bare local name to a fully-namespaced document ID using the user's
+// did:key (preferred) or username@shortHost fallback. `opts.namespace` (e.g.
+// "latex") inserts an extra path segment so different editors' documents never
+// collide on the same bare name.
+async function expandDocId(localName, opts = {}) {
+    if (localName.includes('/')) return localName; // already namespaced
+    const prefix = opts.namespace ? `${opts.namespace}/` : '';
+    const didKey = await getUserDidKey();
+    if (didKey) return `${didKey}/${prefix}${localName}`;
+    const myUser = (window.CList.state.username && window.CList.state.username !== 'none' && window.CList.state.username !== '') ? window.CList.state.username : null;
+    const shortHost = kvShortHost(window.CList.config.flaskSiteUrl);
+    if (myUser && shortHost) return `${myUser}@${shortHost}/${prefix}${localName}`;
+    return `${prefix}${localName}`;
+}
+
+// Shared body of getLatexShareLink/getCollabShareLink (latex.js/collab.js) — builds the
+// REST share URL for a real-time doc from its current ws:// server URL and doc ID.
+function getRealtimeDocShareLink(wsUrl, docId, mode) {
+    const pathId = docId.split('/').map(encodeURIComponent).join('/');
+    return `${wsUrlToRestBase(wsUrl)}/doc/${pathId}/${mode}`;
+}
+
 
 // ---- HTML sanitizer for feed/annotation content ----
 // Keeps safe formatting tags; strips scripts, iframes, objects, forms, and

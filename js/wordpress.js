@@ -26,8 +26,7 @@ window.CList.schemas['WordPress'] = {
     window.CList.publishers['WordPress'] = {
         acceptedFormats: ['html', 'md', 'text'],
         publish: async (accountData, title, content) => {
-            const plainTitle = removeHtml(title).trim()
-                || content.replace(/<[^>]+>/g, '').trim().substring(0, 70).replace(/\s\S*$/, '') + '…';
+            const plainTitle = derivePlainTitle(title, content);
             return await publishPost(
                 extractBaseUrl(accountData.instance),
                 extractAccountName(accountData.instance),
@@ -111,51 +110,15 @@ function wpAuthStart(siteUrl) {
 }
 
 // On page load, check whether we're returning from a WordPress authorization.
-// callback.html stores the result in localStorage; we pick it up here and save to kvstore.
-document.addEventListener('DOMContentLoaded', async function () {
-    const raw = localStorage.getItem(window.CList.keys.OAUTH_CALLBACK_RESULT);
-    if (!raw) return;
-    let data;
-    try { data = JSON.parse(raw); } catch (e) { return; }
-    if (data.providerType !== 'WordPress') return;
-    localStorage.removeItem(window.CList.keys.OAUTH_CALLBACK_RESULT);
-    await saveWordPressAccount(data.siteUrl, data.userLogin, data.password);
+// callback.html stores the result in localStorage; OAuthClient.onCallback picks it up and
+// saves to kvstore via OAuthClient.saveAccount. (WordPress's own callback flow doesn't go
+// through OAuthClient.login() — its result shape is siteUrl/userLogin/password rather than
+// accessToken/extra — but it's stored under the same shared key, so onCallback still applies.)
+OAuthClient.onCallback('WordPress', async data => {
+    const host = new URL(data.siteUrl).host;
+    const accountKey = `${data.userLogin}@${host}`;
+    const instanceData = { type: 'WordPress', id: data.password, title: host, permissions: 'w' };
+    await OAuthClient.saveAccount('WordPress', accountKey, instanceData, {
+        afterRefresh: () => populatePostOptions(window.CList.accounts),
+    });
 });
-
-async function saveWordPressAccount(siteUrl, userLogin, password) {
-    const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
-    if (!encKey) { showErrorModal('Encryption key missing — please log in again.', { title: 'Encryption Key Missing' }); return; }
-
-    const host = new URL(siteUrl).host;
-    const accountKey = `${userLogin}@${host}`;
-    const instanceData = { type: 'WordPress', id: password, title: host, permissions: 'w' };
-
-    let encryptedValue;
-    try {
-        encryptedValue = await encryptWithKey(encKey, JSON.stringify(instanceData));
-    } catch (err) {
-        console.error('Failed to encrypt WordPress account data:', err);
-        showErrorModal('Could not save WordPress account — encryption failed. Try logging in again.', { title: 'Account Save Failed' });
-        return;
-    }
-
-    try {
-        await window.CList.storage.kv.put(accountKey, encryptedValue);
-    } catch (err) {
-        if (err.code === 'NotAuthenticated') showErrorModal('Please log in to kvstore before authorizing WordPress.', { title: 'Not Logged In' });
-        else showErrorModal('Failed to save WordPress account to kvstore.', { title: 'Account Save Failed' });
-        return;
-    }
-
-    try {
-        window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl);
-        if (window.CList.accounts) {
-            updateUIVisibility();
-            populatePostOptions(window.CList.accounts);
-        }
-        showStatusMessage('WordPress account authorized and saved.');
-    } catch (error) {
-        showErrorModal('Account saved — but could not refresh. Try reloading: ' + error.message, { title: 'Account Refresh Failed' });
-    }
-    playAccounts();
-}

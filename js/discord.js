@@ -22,13 +22,6 @@ window.CList.schemas['Discord'] = {
 
 const DISCORD_BRIDGE_URL = 'https://discord.mooc.ca';
 
-// The bridge requires a valid kvstore Bearer token on every non-admin request —
-// read it the same way every other service integration in this codebase does.
-function discordAuthHeader() {
-    const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
-    return token ? { 'Authorization': `Bearer ${token}` } : {};
-}
-
 // The currently selected Discord account (set by the reader handler's initialize()),
 // used by loadDiscordMessages() so polling always targets the right channel.
 let currentDiscordChannel = null;
@@ -44,7 +37,7 @@ async function loadDiscordMessages() {
     try {
         const resp = await fetch(
             `${DISCORD_BRIDGE_URL}/messages?channel=${encodeURIComponent(currentDiscordChannel)}`,
-            { headers: discordAuthHeader() }
+            { headers: kvstoreAuthHeader() }
         );
         if (!resp.ok) throw new Error(`Bridge request failed: HTTP ${resp.status}`);
         data = await resp.json();
@@ -105,7 +98,7 @@ async function normalizeDiscordMessage(raw) {
             try {
                 const resp = await fetch(`${DISCORD_BRIDGE_URL}/send`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', ...discordAuthHeader() },
+                    headers: { 'Content-Type': 'application/json', ...kvstoreAuthHeader() },
                     body: JSON.stringify({ channel: accountData.channel, content: removeHtml(content) }),
                 });
                 const result = await resp.json().catch(() => ({}));

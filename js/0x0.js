@@ -23,7 +23,7 @@ window.CList.schemas['0x0'] = {
             form.append('file', blob, (title || 'clist-export').replace(/\s+/g, '-'));
 
             const resp = await fetch('https://0x0.st', { method: 'POST', body: form });
-            if (!resp.ok) throw new Error(`0x0.st error ${resp.status}: ${await resp.text()}`);
+            await assertOk(resp, '0x0.st error');
             const url = (await resp.text()).trim();
             return { url, serviceId: url };
         },

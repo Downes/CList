@@ -147,9 +147,7 @@ async function playRead() {
     }
 
     try {
-        if (!window.CList.accounts || window.CList.accounts.length === 0) {
-            window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl);
-        }
+        await ensureAccountsLoaded();
         populateReadAccountList(window.CList.accounts);
     } catch (error) {
         showErrorModal('Could not load accounts — try logging out and back in. ' + error.message, { title: 'Could Not Load Accounts' });

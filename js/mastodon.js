@@ -70,7 +70,7 @@ let accessToken = null;
                         <button class="clist-action-btn${isFavourited ? ' action-active' : ''}" title="Favourite" onclick="handleMastodonAction('${_heJs(statusId)}', 'favorite', this)"><span class="material-icons md-18 md-light">favorite</span></button>
                         <button class="clist-action-btn${isBookmarked ? ' action-active' : ''}" title="Bookmark" onclick="handleMastodonAction('${_heJs(statusId)}', 'bookmark', this)"><span class="material-icons md-18 md-light">bookmarks</span></button>
                         ${threadsBtn}
-                        <button class="clist-action-btn" title="Open in browser" onclick="openInBrowser('${_heJs(_itemUrl)}', '${_heJs(_itemID)}')"><span class="material-icons md-18 md-light">launch</span></button>
+                        ${openInBrowserButton(_itemUrl, _itemID)}
                     `;
                 },
                 feedFunctions: {
@@ -312,24 +312,6 @@ async function constructThreadData(threadData, statusID, baseURL, accessToken) {
 
 
 
-function renderMastodonNextPageButton(feedContainer, nextPageUrl, onLoadNext) {
-    let btn = document.getElementById('nextPageButton');
-    if (nextPageUrl) {
-        if (!btn) {
-            btn = document.createElement('button');
-            btn.id = 'nextPageButton';
-            btn.className = 'btn';
-            btn.textContent = 'Load Next Page';
-            feedContainer.appendChild(btn);
-        }
-        btn.onclick = () => onLoadNext(nextPageUrl);
-        btn.style.display = '';
-    } else if (btn) {
-        btn.style.display = 'none';
-    }
-    if (btn) feedContainer.appendChild(btn);
-}
-
 // Function to load and display Mastodon feeds (GET requests)
 // baseURL and accessToken are global variables
 let nextPageUrl = null;  // To store the URL for the next page
@@ -533,7 +515,8 @@ function displayMastodonNotifications(data, page, nextPageUrl, feedContainer) {
         }
     }
 
-    renderMastodonNextPageButton(feedContainer, nextPageUrl, loadMastodonNotifications);
+    window.CList.ui.renderLoadMoreButton(feedContainer, nextPageUrl ? () => loadMastodonNotifications(nextPageUrl) : null,
+        { btnId: 'nextPageButton', label: 'Load Next Page' });
 }
 
 
@@ -894,49 +877,14 @@ async function mastodonOAuthStart(title, username, permissions) {
 }
 
 // On page load, check whether we're returning from a Mastodon OAuth callback.
-// callback.html stores the result in localStorage; we pick it up here and save to kvstore.
-document.addEventListener('DOMContentLoaded', async function () {
-    const raw = localStorage.getItem(window.CList.keys.OAUTH_CALLBACK_RESULT);
-    if (!raw) return;
-    let data;
-    try { data = JSON.parse(raw); } catch (e) { console.error('Bad oauth_callback_result', e); return; }
-    if (data.providerType !== 'Mastodon') return;
-    localStorage.removeItem(window.CList.keys.OAUTH_CALLBACK_RESULT);
-    await saveMastodonAccount(data.extra.title || data.accountKey, data.accountKey, data.accessToken, data.extra.permissions);
-});
-
-async function saveMastodonAccount(title, username, accessToken, permissions) {
-    const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
-    if (!encKey) { showErrorModal('Encryption key missing — please log in again.', { title: 'Encryption key missing' }); return; }
-
-    const instanceData = { type: 'Mastodon', id: accessToken, title: title, permissions: permissions || 'rw' };
-    let encryptedValue;
-    try {
-        encryptedValue = await encryptWithKey(encKey, JSON.stringify(instanceData));
-    } catch (err) {
-        console.error('Failed to encrypt Mastodon account data:', err);
-        showErrorModal('Could not save Mastodon account — encryption failed. Try logging in again.', { title: 'Save failed' });
-        return;
-    }
-
-    try {
-        await window.CList.storage.kv.put(username, encryptedValue);
-    } catch (err) {
-        if (err.code === 'NotAuthenticated') showErrorModal('Please log in to kvstore before authorizing Mastodon.', { title: 'Not logged in' });
-        else showErrorModal('Failed to save Mastodon account to kvstore.', { title: 'Save failed' });
-        return;
-    }
-
-    try {
-        window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl);
-        if (window.CList.accounts) {
-            updateUIVisibility();
+// callback.html stores the result in localStorage; OAuthClient.onCallback picks it up and
+// saves to kvstore via OAuthClient.saveAccount.
+OAuthClient.onCallback('Mastodon', async data => {
+    const instanceData = { type: 'Mastodon', id: data.accessToken, title: data.extra.title || data.accountKey, permissions: data.extra.permissions || 'rw' };
+    await OAuthClient.saveAccount('Mastodon', data.accountKey, instanceData, {
+        afterRefresh: async () => {
             await playRead();
             populateReadAccountList(window.CList.accounts);
-        }
-        showStatusMessage('Mastodon account authorized and saved.');
-    } catch (error) {
-        showErrorModal('Account saved — but could not refresh feed. Try reloading: ' + error.message, { title: 'Feed refresh failed' });
-    }
-    playAccounts();
-}
+        },
+    });
+});

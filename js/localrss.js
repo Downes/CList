@@ -169,7 +169,7 @@ async function _localrssProbeLocal() {
 // base64url-encodes an origin for the launcher's generic proxy path
 // (/proxy/<encoded-origin>/...) -- must match _decode_proxy_origin in launcher.py.
 function _localrssProxyEncodeOrigin(origin) {
-    return btoa(origin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    return base64UrlEncode(origin);
 }
 
 async function _localrssResolveServiceUrl(accountData) {
@@ -205,6 +205,15 @@ function _localrssConnectionStatusText(accountData) {
         && accountData._effectiveServiceUrl !== accountData.serviceUrl;
     const target = accountData.serviceUrl || '(no service URL)';
     return viaProxy ? `Connected to ${target} (via launcher proxy)` : `Connected to ${target}`;
+}
+
+// Shared "GET <path> on the current LocalRSS server, with auth headers" plumbing used by
+// every /api/* read below. Callers still do their own resp.json()/resp.blob() parsing and
+// not-ok handling, since those differ (some tolerate a parse failure, some don't; some throw
+// on !resp.ok, some fail silently) per endpoint.
+function _localrssGet(accountData, path, query) {
+    const url = _localrssUrl(accountData, path) + (query ? `?${query}` : '');
+    return fetch(url, { headers: _localrssAuthHeaders() });
 }
 
 async function _localrssPost(path, body) {
@@ -285,8 +294,7 @@ async function _localrssSyncHasAudio(accountData) {
     if (!accountData) return;
     let isPodcast = false;
     try {
-        const statsUrl = _localrssUrl(accountData, '/api/stats') + `?db=${encodeURIComponent(accountData.database)}`;
-        const resp = await fetch(statsUrl, { headers: _localrssAuthHeaders() });
+        const resp = await _localrssGet(accountData, '/api/stats', `db=${encodeURIComponent(accountData.database)}`);
         const data = await resp.json().catch(() => null);
         if (!resp.ok || !data) return;
         isPodcast = !!data.has_audio_majority;
@@ -326,11 +334,10 @@ async function localrssLoad(append = false) {
             const audioList = document.getElementById('audio-list');
             if (audioList) audioList.innerHTML = '';
         }
-        const url = _localrssUrl(localrssCurrentAccount, '/api/items')
-            + `?db=${encodeURIComponent(localrssCurrentAccount.database)}`
+        const resp = await _localrssGet(localrssCurrentAccount, '/api/items',
+            `db=${encodeURIComponent(localrssCurrentAccount.database)}`
             + `&filter=${encodeURIComponent(localrssFilter)}`
-            + `&limit=${LOCALRSS_PAGE_SIZE}&offset=${localrssOffset}`;
-        const resp = await fetch(url, { headers: _localrssAuthHeaders() });
+            + `&limit=${LOCALRSS_PAGE_SIZE}&offset=${localrssOffset}`);
         const items = await resp.json().catch(() => null);
         if (!resp.ok) throw new Error((items && items.error) || `HTTP ${resp.status}`);
         if (!Array.isArray(items)) throw new Error('Unexpected response from server');
@@ -385,9 +392,7 @@ async function localrssLoadFeedList() {
     if (!fc) return;
     showLoader();
     try {
-        const url = _localrssUrl(localrssCurrentAccount, '/api/feeds')
-            + `?db=${encodeURIComponent(localrssCurrentAccount.database)}&limit=1000`;
-        const resp = await fetch(url, { headers: _localrssAuthHeaders() });
+        const resp = await _localrssGet(localrssCurrentAccount, '/api/feeds', `db=${encodeURIComponent(localrssCurrentAccount.database)}&limit=1000`);
         const data = await resp.json().catch(() => null);
         if (!resp.ok || !data) throw new Error((data && data.error) || `HTTP ${resp.status}`);
         const feeds = data.feeds || [];
@@ -853,42 +858,20 @@ function _localrssImportExportSection(div) {
 // ---- Panel actions ----
 
 function _localrssConfirm(message, title, onConfirm) {
-    const box = document.createElement('div');
-
-    const heading = document.createElement('h2');
-    heading.className = 'error-modal-title';
-    heading.textContent = title;
-    box.appendChild(heading);
-
     const msg = document.createElement('p');
     msg.textContent = message;
-    box.appendChild(msg);
 
-    const row = document.createElement('div');
-    row.className = 'error-modal-actions';
-
-    const confirmBtn = document.createElement('button');
-    confirmBtn.className = 'btn';
-    confirmBtn.textContent = 'OK';
-    confirmBtn.onclick = () => { document.getElementById('generic-modal')?.remove(); onConfirm(); };
-    row.appendChild(confirmBtn);
-
-    const cancelBtn = document.createElement('button');
-    cancelBtn.className = 'btn btn-secondary';
-    cancelBtn.textContent = 'Cancel';
-    cancelBtn.onclick = () => document.getElementById('generic-modal')?.remove();
-    row.appendChild(cancelBtn);
-
-    box.appendChild(row);
-    showModal(box, { hideDefaultClose: true });
+    buildDialogModal(title, msg, [
+        { label: 'OK', onClick: (close) => { close(); onConfirm(); } },
+        { label: 'Cancel', secondary: true, onClick: (close) => close() }
+    ]);
 }
 
 async function _localrssRefreshStats() {
     const pill = document.getElementById('localrss-stats-pill');
     if (!pill || !localrssCurrentAccount) return;
     try {
-        const url = _localrssUrl(localrssCurrentAccount, '/api/stats') + `?db=${encodeURIComponent(localrssCurrentAccount.database)}`;
-        const resp = await fetch(url, { headers: _localrssAuthHeaders() });
+        const resp = await _localrssGet(localrssCurrentAccount, '/api/stats', `db=${encodeURIComponent(localrssCurrentAccount.database)}`);
         const data = await resp.json();
         if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
         pill.textContent = `feeds=${data.feeds}  unread=${data.unread}  bookmarked=${data.bookmarked}  retention=${data.retention_days}d`;
@@ -906,9 +889,7 @@ async function _localrssSearchPosts() {
     if (!q || !fc) return;
     if (status) { status.style.display = ''; status.textContent = 'Searching…'; }
     try {
-        const url = _localrssUrl(localrssCurrentAccount, '/api/items')
-            + `?db=${encodeURIComponent(localrssCurrentAccount.database)}&q=${encodeURIComponent(q)}`;
-        const resp = await fetch(url, { headers: _localrssAuthHeaders() });
+        const resp = await _localrssGet(localrssCurrentAccount, '/api/items', `db=${encodeURIComponent(localrssCurrentAccount.database)}&q=${encodeURIComponent(q)}`);
         const items = await resp.json();
         if (!resp.ok) throw new Error((items && items.error) || `HTTP ${resp.status}`);
         if (status) status.textContent = `${items.length} result${items.length !== 1 ? 's' : ''}.`;
@@ -961,9 +942,7 @@ async function _localrssCreateFeed() {
 async function _localrssFetchAllFeeds() {
     const cacheKey = `${localrssCurrentAccount.serviceUrl}|${localrssCurrentAccount.database}`;
     if (_localrssAllFeedsCache && _localrssAllFeedsCacheKey === cacheKey) return _localrssAllFeedsCache;
-    const url = _localrssUrl(localrssCurrentAccount, '/api/feeds')
-        + `?db=${encodeURIComponent(localrssCurrentAccount.database)}&limit=1000`;
-    const resp = await fetch(url, { headers: _localrssAuthHeaders() });
+    const resp = await _localrssGet(localrssCurrentAccount, '/api/feeds', `db=${encodeURIComponent(localrssCurrentAccount.database)}&limit=1000`);
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
     _localrssAllFeedsCache = data.feeds;
@@ -1012,9 +991,7 @@ async function _localrssOpenFeedEditor(feedSummary) {
     const status = document.getElementById('localrss-feed-editor-status');
     if (!editor) return;
     try {
-        const url = _localrssUrl(localrssCurrentAccount, `/api/feed/${feedSummary.id}`)
-            + `?db=${encodeURIComponent(localrssCurrentAccount.database)}`;
-        const resp = await fetch(url, { headers: _localrssAuthHeaders() });
+        const resp = await _localrssGet(localrssCurrentAccount, `/api/feed/${feedSummary.id}`, `db=${encodeURIComponent(localrssCurrentAccount.database)}`);
         const data = await resp.json();
         if (!resp.ok || !data.ok) throw new Error((data && data.error) || `HTTP ${resp.status}`);
         const feed = data.feed;
@@ -1088,9 +1065,7 @@ async function _localrssRenderFeedItems(feedId, titleText) {
     const fc = window.CList.ui.view.feedContainer;
     if (!feedId || !fc) return;
     try {
-        const url = _localrssUrl(localrssCurrentAccount, '/api/items')
-            + `?db=${encodeURIComponent(localrssCurrentAccount.database)}&feed_id=${feedId}`;
-        const resp = await fetch(url, { headers: _localrssAuthHeaders() });
+        const resp = await _localrssGet(localrssCurrentAccount, '/api/items', `db=${encodeURIComponent(localrssCurrentAccount.database)}&feed_id=${feedId}`);
         const items = await resp.json();
         if (!resp.ok) throw new Error((items && items.error) || `HTTP ${resp.status}`);
         await window.CList.ui.renderFeed(items, fc, {
@@ -1302,19 +1277,10 @@ async function _localrssExportOpml() {
     const status = document.getElementById('localrss-opml-export-status');
     if (status) status.textContent = 'Exporting…';
     try {
-        const url = _localrssUrl(localrssCurrentAccount, '/api/opml_export')
-            + `?db=${encodeURIComponent(localrssCurrentAccount.database)}`;
-        const resp = await fetch(url, { headers: _localrssAuthHeaders() });
+        const resp = await _localrssGet(localrssCurrentAccount, '/api/opml_export', `db=${encodeURIComponent(localrssCurrentAccount.database)}`);
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const blob = await resp.blob();
-        const objectUrl = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = objectUrl;
-        a.download = `${localrssCurrentAccount.database || 'feeds'}.opml`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(objectUrl);
+        downloadBlob(blob, `${localrssCurrentAccount.database || 'feeds'}.opml`);
         if (status) status.textContent = 'Exported.';
     } catch (e) {
         console.error('LocalRSS: OPML export failed', e);

@@ -93,7 +93,6 @@ window.CList.schemas['Collab'] = {
     let currentDocId       = null
     let currentDocTitle    = ''
     let currentWsUrl       = COLLAB_WS_URL  // updated each time we connect
-    let cachedDidKey       = null  // did:key fetched from user's DID document, cached
     let dupCheckTimer      = null  // debounce timer for duplicate-title check
     let sharedRefs         = null  // Y.Map synced across all collaborators: url → JSON ref string
 
@@ -123,23 +122,12 @@ window.CList.schemas['Collab'] = {
             const accts = (Array.isArray(window.CList.accounts) && window.CList.accounts.length)
                 ? window.CList.accounts
                 : await getAccounts(window.CList.config.flaskSiteUrl)
-            const found = accts.find(a => {
-                const d = parseAccountValue(a)
-                return d && d.type === 'Collab'
-            })
-            if (found) {
-                const d = parseAccountValue(found)
-                if (d.instance) return d.instance
-            }
+            const found = findAccountByType('Collab', { accounts: accts })
+            if (found && found.parsedValue.instance) return found.parsedValue.instance
         } catch (e) {
             console.warn('Could not look up Collab account, using default server:', e)
         }
         return COLLAB_WS_URL
-    }
-
-    // Convert wss:// URL to https:// for REST calls
-    function wsUrlToRestBase(wsUrl) {
-        return wsUrl.replace(/^wss?:\/\//, 'https://').replace(/\/$/, '')
     }
 
     // Return true if str looks like a collab share URL (contains /doc/ path).
@@ -179,21 +167,6 @@ window.CList.schemas['Collab'] = {
         if (titleEl) titleEl.textContent = value
     }
 
-    // Derive the short-host identifier used in document namespaces.
-    // kvstore.mooc.ca  →  mooc.ca   (strip default 'kvstore.' prefix)
-    // accounts.mooc.ca →  accounts.mooc.ca  (non-default subdomain, keep as-is)
-    function kvShortHost(kvUrl) {
-        try {
-            const host = new URL(kvUrl).hostname
-            return host.startsWith('kvstore.') ? host.slice('kvstore.'.length) : host
-        } catch { return '' }
-    }
-
-    // Generate a short random slug for new untitled documents (e.g. "a3f8k2")
-    function generateDocSlug() {
-        return Math.random().toString(36).slice(2, 8)
-    }
-
     // Strip the namespace prefix from a document ID for display in the title input.
     // "did:key:z6Mk.../my-notes"  →  "my-notes"
     // "stephen@mooc.ca/my-notes"  →  "my-notes"
@@ -202,37 +175,6 @@ window.CList.schemas['Collab'] = {
         if (!docId) return ''
         const slash = docId.lastIndexOf('/')
         return slash >= 0 ? docId.slice(slash + 1) : docId
-    }
-
-    // Expand a bare local name to a fully-namespaced document ID using the user's
-    // did:key (preferred) or username@shortHost fallback.
-    async function expandDocId(localName) {
-        if (localName.includes('/')) return localName  // already namespaced
-        const didKey = await getUserDidKey()
-        if (didKey) return `${didKey}/${localName}`
-        const myUser = (window.CList.state.username && window.CList.state.username !== 'none' && window.CList.state.username !== '') ? window.CList.state.username : null
-        const shortHost = kvShortHost(window.CList.config.flaskSiteUrl)
-        if (myUser && shortHost) return `${myUser}@${shortHost}/${localName}`
-        return localName
-    }
-
-    // Fetch the current user's did:key from their DID document on the kvstore.
-    // Returns the did:key string, or null if unavailable.  Result is cached.
-    async function getUserDidKey() {
-        if (cachedDidKey) return cachedDidKey
-        const myUser = (window.CList.state.username && window.CList.state.username !== 'none' && window.CList.state.username !== '') ? window.CList.state.username : null
-        if (!myUser) return null
-        try {
-            const res = await fetch(`${window.CList.config.flaskSiteUrl}/users/${myUser}/did.json`)
-            if (!res.ok) return null
-            const doc = await res.json()
-            const didKey = (Array.isArray(doc.alsoKnownAs) ? doc.alsoKnownAs : [])
-                .find(id => typeof id === 'string' && id.startsWith('did:key:')) || null
-            cachedDidKey = didKey
-            return cachedDidKey
-        } catch {
-            return null
-        }
     }
 
     // Initialize TipTap with a local Y.Doc only (no Hocuspocus) so the editor is
@@ -293,11 +235,10 @@ window.CList.schemas['Collab'] = {
 
         const wsUrl = await getCollabWsUrl()
         const base  = wsUrlToRestBase(wsUrl)
-        const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN) || ''
         try {
             const pathId = docId.split('/').map(encodeURIComponent).join('/')
             const resp = await fetch(`${base}/api/documents/${pathId}`, {
-                headers: token ? { Authorization: `Bearer ${token}` } : {}
+                headers: kvstoreAuthHeader()
             })
             if (!resp.ok) { warning.style.display = 'none'; return }
 
@@ -382,14 +323,11 @@ window.CList.schemas['Collab'] = {
     // --- Sharing helpers ---
 
     function getCollabShareLink(mode) {
-        const pathId = currentDocId.split('/').map(encodeURIComponent).join('/')
-        return `${wsUrlToRestBase(currentWsUrl)}/doc/${pathId}/${mode}`
+        return getRealtimeDocShareLink(currentWsUrl, currentDocId, mode)
     }
 
     window.copyCollabLink = function(mode) {
-        navigator.clipboard.writeText(getCollabShareLink(mode))
-            .then(() => showStatusMessage('Link copied to clipboard.'))
-            .catch(() => showErrorModal('Copy failed — select the link and copy manually.', { title: 'Copy failed' }))
+        copyToClipboard(getCollabShareLink(mode), { successMsg: 'Link copied to clipboard.' })
     }
 
     window.shareCollabViaChat = function(mode) {
@@ -497,13 +435,12 @@ window.CList.schemas['Collab'] = {
         if (!currentDocId) { showErrorModal('Join a document first before sharing.', { title: 'No document to share' }); return }
 
         const base     = wsUrlToRestBase(currentWsUrl)
-        const token    = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN) || ''
         const docTitle = currentDocTitle || currentDocId
 
         let allowAnon = false
         try {
             const resp = await fetch(`${base}/api/documents/${encodeURIComponent(currentDocId)}`, {
-                headers: token ? { Authorization: `Bearer ${token}` } : {}
+                headers: kvstoreAuthHeader()
             })
             if (resp.ok) allowAnon = !!(await resp.json()).allow_anonymous
         } catch { /* use default */ }
@@ -935,9 +872,7 @@ window.CList.schemas['Collab'] = {
             if (typeof initializeEditor === 'function' && currentEditor !== 'collab') {
                 await initializeEditor('collab')
             }
-            const slug = (collectionName || '').toLowerCase()
-                .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)
-                || generateDocSlug()
+            const slug = slugify(collectionName, { maxLength: 40, fallback: generateDocSlug() })
             const docId = await expandDocId(slug)
             setDocTitle(slug)
             currentDocTitle = collectionName || slug

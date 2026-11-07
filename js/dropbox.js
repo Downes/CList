@@ -40,16 +40,9 @@ async function dropboxOAuthStart(appKey, title, permissions, folder) {
 }
 
 // ── OAuth callback ────────────────────────────────────────────────────────────
-// callback.html stores the result in localStorage; pick it up here after redirect.
+// callback.html stores the result in localStorage; OAuthClient.onCallback picks it up.
 
-document.addEventListener('DOMContentLoaded', async function () {
-    const raw = localStorage.getItem(window.CList.keys.OAUTH_CALLBACK_RESULT);
-    if (!raw) return;
-    let data;
-    try { data = JSON.parse(raw); } catch (e) { console.error('Bad oauth_callback_result', e); return; }
-    if (data.providerType !== 'Dropbox') return;
-    localStorage.removeItem(window.CList.keys.OAUTH_CALLBACK_RESULT);
-
+OAuthClient.onCallback('Dropbox', async data => {
     const ex = data.extra || {};
     await _saveDropboxAccount(
         ex.title       || 'Dropbox',
@@ -61,36 +54,11 @@ document.addEventListener('DOMContentLoaded', async function () {
     );
 });
 
+// Also called by the token-refresh path (_dropboxRefreshAndPersist below), which is why this
+// stays a named function rather than being inlined into the onCallback handler above.
 async function _saveDropboxAccount(title, appKey, folder, permissions, accessToken, refreshToken) {
-    const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
-    if (!encKey) { showErrorModal('Encryption key missing — please log in again.', { title: 'Encryption key missing' }); return; }
-
     const accountData = { type: 'Dropbox', appKey, folder, permissions, id: accessToken, refresh: refreshToken };
-    let encryptedValue;
-    try {
-        encryptedValue = await encryptWithKey(encKey, JSON.stringify(accountData));
-    } catch (err) {
-        console.error('Failed to encrypt Dropbox account data:', err);
-        showErrorModal('Could not save Dropbox account — encryption failed.', { title: 'Encryption failed' });
-        return;
-    }
-
-    try {
-        await window.CList.storage.kv.put(title, encryptedValue);
-    } catch (err) {
-        if (err.code === 'NotAuthenticated') showErrorModal('Please log in to kvstore before authorizing Dropbox.', { title: 'Not logged in' });
-        else showErrorModal('Failed to save Dropbox account to kvstore.', { title: 'Save failed' });
-        return;
-    }
-
-    try {
-        window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl);
-        if (window.CList.accounts) updateUIVisibility();
-        showStatusMessage('Dropbox account authorized and saved.');
-    } catch (err) {
-        showErrorModal('Account saved — could not refresh account list: ' + err.message, { title: 'Account list refresh failed' });
-    }
-    if (typeof playAccounts === 'function') playAccounts();
+    await OAuthClient.saveAccount('Dropbox', title, accountData);
 }
 
 // ── Token refresh ─────────────────────────────────────────────────────────────
@@ -266,9 +234,7 @@ function _promptDropboxOverwrite(statusEl, filename, doOverwrite) {
 
 (function () {
     function _slug(title) {
-        return (title || 'clist-post')
-            .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').substring(0, 60)
-            || 'clist-post';
+        return slugify(title, { maxLength: 60, fallback: 'clist-post' });
     }
 
     window.CList.savers = window.CList.savers || [];
@@ -279,21 +245,14 @@ function _promptDropboxOverwrite(statusEl, filename, doOverwrite) {
         // also match the account TYPE (Dropbox specifically), which the flags alone can't express.
         requiresLogin:   true,
         requiresAccount: true,
-        visible: () => typeof isRegistered === 'function' && isRegistered() && (window.CList.accounts || []).some(a => {
-            const v = parseAccountValue(a);
-            return v && v.type === 'Dropbox' && (v.permissions || '').includes('b');
-        }),
+        visible: () => typeof isRegistered === 'function' && isRegistered() && !!findAccountByType('Dropbox', { permission: 'b' }),
         save: async () => {
-            const accounts = window.CList.accounts || [];
-            const account  = accounts.find(a => {
-                const v = parseAccountValue(a);
-                return v && v.type === 'Dropbox' && (v.permissions || '').includes('b');
-            });
-            if (!account) {
+            const found = findAccountByType('Dropbox', { permission: 'b' });
+            if (!found) {
                 showErrorModal('No Dropbox account configured. Add one in Accounts.', { title: 'No Dropbox account' });
                 return; // let publish.js close the pane as normal
             }
-            const accountData = parseAccountValue(account);
+            const accountData = found.parsedValue;
 
             // A loaded file (kind: 'file') with no references round-trips as raw,
             // unwrapped content under its exact original filename — it never had
@@ -335,7 +294,7 @@ function _promptDropboxOverwrite(statusEl, filename, doOverwrite) {
             statusEl.textContent = 'Checking Dropbox…';
 
             // Ensure a valid token, refreshing silently if needed.
-            const _withRefresh = _dropboxWithRefresh(account, accountData, statusEl);
+            const _withRefresh = _dropboxWithRefresh(found.account, accountData, statusEl);
 
             let exists;
             try {
@@ -421,25 +380,19 @@ function _promptDropboxOverwrite(statusEl, filename, doOverwrite) {
         // also match the account TYPE (Dropbox specifically), which the flags alone can't express.
         requiresLogin:   true,
         requiresAccount: true,
-        visible: () => typeof isRegistered === 'function' && isRegistered() && (window.CList.accounts || []).some(a => {
-            const v = parseAccountValue(a);
-            return v && v.type === 'Dropbox';
-        }),
+        visible: () => typeof isRegistered === 'function' && isRegistered() && !!findAccountByType('Dropbox'),
         load: () => new Promise(resolve => {
             const optionsDiv = window.CList.ui.view.loadOptions;
             optionsDiv.innerHTML = '<p class="list-tip">Loading Dropbox files…</p>';
 
             (async () => {
-                const accounts = window.CList.accounts || [];
-                const account  = accounts.find(a => {
-                    const v = parseAccountValue(a);
-                    return v && v.type === 'Dropbox';
-                });
-                if (!account) {
+                const found = findAccountByType('Dropbox');
+                if (!found) {
                     optionsDiv.innerHTML = '<p class="list-tip">No Dropbox account configured.</p>';
                     return resolve(null);
                 }
-                const accountData = parseAccountValue(account);
+                const account     = found.account;
+                const accountData = found.parsedValue;
 
                 let listing;
                 try {

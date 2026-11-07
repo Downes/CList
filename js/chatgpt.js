@@ -28,38 +28,14 @@ async function generateNewTemplateFromChatGPT(templateType, outputFormat) {
     // Get generater from accounts
     // Assumes 'accounts' array has been preloaded
     // If necessary, fetch the accounts from the KVstore
-    if (window.CList.accounts.length === 0) {
-        try {
-            // Fetch the accounts from the KVstore
-            window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl);
-
-        } catch (error) {
-            showErrorModal('Error getting Editor accounts: ' + error.message, { title: 'Account lookup failed' });
-        }
+    try {
+        await ensureAccountsLoaded();
+    } catch (error) {
+        showErrorModal('Error getting Editor accounts: ' + error.message, { title: 'Account lookup failed' });
     }
 
-    let API_KEY = null;
-    let API_URL = null;
-    const accounts = window.CList.accounts || [];
-
-    accounts.forEach(account => {                           // Check the accounts
-        const parsedValue = parseAccountValue(account);
-        if (!parsedValue) return;
-        console.log("checking account: ", parsedValue);
-        if (parsedValue.permissions.includes('g')) {  // Check if 'permissions' contains 'g'
-            console.log("FOUND account: ", parsedValue);
-            console.log("parsedValue.id: ", parsedValue.id);
-            console.log("parsedValue.key: ", parsedValue.key);
-            API_KEY = parsedValue.id;
-            API_URL = parsedValue.instance;
-        }
-    });
-
-
-    // Check for required values and handle errors
-    if (!API_KEY || !API_URL) {
-        throw new Error('No ChatGPT account found. Open Accounts and add an account with permission "g".');
-    }
+    const { apiKey: API_KEY, apiUrl: API_URL } = requireAccountWithPermission('g',
+        'No ChatGPT account found. Open Accounts and add an account with permission "g".');
 
 
     const maxTokens = 2000; // Adjust based on your needs

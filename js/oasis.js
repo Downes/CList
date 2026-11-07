@@ -6,7 +6,7 @@
         label: 'OASIS OERs',
         icon: 'school',
         statusActions: (item,itemID,itemLink) => {
-            oasisStatusActions = `<button class="clist-action-btn" title="Open in browser" onClick="openInBrowser('${itemLink}', '${itemID}')"><span class="material-icons md-18 md-light">launch</span></button>`;
+            oasisStatusActions = openInBrowserButton(itemLink, itemID);
 
             // Enlarge Content
             if (item._hasExpandableContent) { oasisStatusActions += `<button class="clist-action-btn" title="Expand" onClick="toggleEntryExpanded('${itemID}');"><span class="material-icons md-18 md-light">zoom_out_map</span></button>`; }
@@ -55,13 +55,11 @@ async function oasisSearch(query,start) {
     //params.apikey = apiKey;
 
     try {
-        // proxyp.mooc.ca requires a valid kvstore Bearer token on every request.
-        const kvToken = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
         const response = await fetch(proxyUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
-                ...(kvToken ? { 'Authorization': `Bearer ${kvToken}` } : {}),
+                ...kvstoreAuthHeader(),
             },
             body: new URLSearchParams(params),
         });

@@ -32,6 +32,14 @@ window.openInBrowser = function(url, itemId) {
     window.CList._lastOpenedWindowRef   = ref;
 };
 
+// Standard "Open in browser" action button, shared by every reader's statusActions
+// renderer. _heJs is defined in reader.js, which loads after this file — safe here
+// since the button's HTML string isn't built until a feed actually renders, well
+// after all deferred scripts have run.
+window.openInBrowserButton = function(url, itemId) {
+    return `<button class="clist-action-btn" title="Open in browser" onclick="openInBrowser('${_heJs(url)}', '${_heJs(itemId)}')"><span class="material-icons md-18 md-light">launch</span></button>`;
+};
+
 window._extractDropUrl = function(uriList, html) {
     if (uriList) {
         const first = uriList.split('\n').map(l => l.trim()).find(l => l && !l.startsWith('#'));
@@ -502,12 +510,13 @@ window.CList.ui.showStatusMessage = function(message) {
     }, 3000);
 };
 
-// ── showErrorModal ────────────────────────────────────────────────────────────
-// Full-screen modal (via showModal) for errors that block the user from
-// completing an action (e.g. a required-field check before save/publish) —
-// unlike showStatusMessage, this can't be missed or auto-dismiss unnoticed.
-
-window.CList.ui.showErrorModal = function(message, { title = 'Error' } = {}) {
+// ── buildDialogModal ──────────────────────────────────────────────────────────
+// Shared shell for the title + body + action-button-row dialogs used by
+// showErrorModal below, fallbackDownload (files.js), and _localrssConfirm
+// (localrss.js) — all three built this same box/heading/.error-modal-actions
+// structure by hand before calling showModal(). `buttons` is an array of
+// {label, secondary, onClick(close)}; appended in the order given.
+window.CList.ui.buildDialogModal = function(title, bodyNode, buttons) {
     const box = document.createElement('div');
 
     const heading = document.createElement('h2');
@@ -515,23 +524,96 @@ window.CList.ui.showErrorModal = function(message, { title = 'Error' } = {}) {
     heading.textContent = title;
     box.appendChild(heading);
 
-    const msg = document.createElement('p');
-    msg.className = 'error-message';
-    msg.textContent = message;
-    box.appendChild(msg);
+    box.appendChild(bodyNode);
 
     const row = document.createElement('div');
     row.className = 'error-modal-actions';
-    const okBtn = document.createElement('button');
-    okBtn.className = 'btn';
-    okBtn.textContent = 'OK';
-    okBtn.onclick = () => document.getElementById('generic-modal')?.remove();
-    row.appendChild(okBtn);
+    const close = () => document.getElementById('generic-modal')?.remove();
+
+    const buttonEls = buttons.map(spec => {
+        const btn = document.createElement('button');
+        btn.className = spec.secondary ? 'btn btn-secondary' : 'btn';
+        btn.textContent = spec.label;
+        btn.onclick = () => spec.onClick(close);
+        row.appendChild(btn);
+        return btn;
+    });
     box.appendChild(row);
 
     showModal(box, { hideDefaultClose: true });
-    okBtn.focus();
+    return { close, buttons: buttonEls };
 };
+window.buildDialogModal = window.CList.ui.buildDialogModal;
+
+// ── showErrorModal ────────────────────────────────────────────────────────────
+// Full-screen modal (via showModal) for errors that block the user from
+// completing an action (e.g. a required-field check before save/publish) —
+// unlike showStatusMessage, this can't be missed or auto-dismiss unnoticed.
+
+window.CList.ui.showErrorModal = function(message, { title = 'Error' } = {}) {
+    const msg = document.createElement('p');
+    msg.className = 'error-message';
+    msg.textContent = message;
+
+    const { buttons } = buildDialogModal(title, msg, [
+        { label: 'OK', onClick: (close) => close() }
+    ]);
+    buttons[0].focus();
+};
+
+// ── copyToClipboard ───────────────────────────────────────────────────────────
+// Copies text and reports success/failure via showStatusMessage/showErrorModal
+// — the pattern repeated at every "copy link"/"copy URL" button.
+window.CList.ui.copyToClipboard = function(text, { successMsg = 'Copied to clipboard.', failMsg = 'Copy failed — select the text and copy manually.' } = {}) {
+    return navigator.clipboard.writeText(text)
+        .then(() => showStatusMessage(successMsg))
+        .catch(() => showErrorModal(failMsg, { title: 'Copy failed' }));
+};
+window.copyToClipboard = window.CList.ui.copyToClipboard;
+
+// ── buildVisibilitySelect / buildAccountSelect ───────────────────────────────
+// Shared <select> builders for the annotation-send UI (annotate.js, annotate-editor.js).
+// Callers set their own style.cssText afterward — these only populate options.
+
+window.CList.ui.buildVisibilitySelect = function() {
+    const select = document.createElement('select');
+    [['public', 'Public'], ['private', 'Private']].forEach(([val, text]) => {
+        const opt = document.createElement('option');
+        opt.value = val;
+        opt.textContent = text;
+        select.appendChild(opt);
+    });
+    return select;
+};
+window.buildVisibilitySelect = window.CList.ui.buildVisibilitySelect;
+
+window.CList.ui.buildAccountSelect = function(accounts) {
+    const select = document.createElement('select');
+    accounts.forEach((acct, i) => {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.textContent = acct.title || acct.instance;
+        select.appendChild(opt);
+    });
+    return select;
+};
+window.buildAccountSelect = window.CList.ui.buildAccountSelect;
+
+// ── dismissOnOutsideClick ─────────────────────────────────────────────────────
+// Removes `el` and detaches itself on the first click outside of `el` (and not
+// on `anchorEl`, e.g. the button that opened it — pass null if not needed).
+// Listener is attached on a deferred setTimeout so the click that opened `el`
+// doesn't itself immediately dismiss it.
+window.CList.ui.dismissOnOutsideClick = function(el, anchorEl) {
+    const outsideHandler = (e) => {
+        if (!el.contains(e.target) && e.target !== anchorEl) {
+            el.remove();
+            document.removeEventListener('click', outsideHandler, true);
+        }
+    };
+    setTimeout(() => document.addEventListener('click', outsideHandler, true), 0);
+};
+window.dismissOnOutsideClick = window.CList.ui.dismissOnOutsideClick;
 
 // ── isHandlerVisible ──────────────────────────────────────────────────────────
 // Shared capability gate for the loaders/savers/editorHandlers registries (see
@@ -552,6 +634,24 @@ window.CList.ui.isHandlerVisible = function(handler) {
     if (requiresLogin && !(typeof isRegistered === 'function' && isRegistered())) return false;
     if (requiresAccount && !(window.CList.accounts || []).length) return false;
     return true;
+};
+
+// ── renderLoadMoreButton ─────────────────────────────────────────────────────
+// Removes any existing button with btnId, then (if onLoadMore is given) adds a
+// fresh one wired to it. Shared by renderFeed below and by feed/list renderers
+// that paginate outside renderFeed's own per-item loop (e.g. Bluesky
+// notifications' mixed listing/status-box items) but still want the same
+// load-more button behavior instead of a one-off copy of it.
+window.CList.ui.renderLoadMoreButton = function(container, onLoadMore, { btnId = 'loadMoreButton', label = 'Load More' } = {}) {
+    document.getElementById(btnId)?.remove();
+    if (onLoadMore) {
+        const btn = document.createElement('button');
+        btn.id = btnId;
+        btn.className = 'btn';
+        btn.textContent = label;
+        btn.onclick = onLoadMore;
+        container.appendChild(btn);
+    }
 };
 
 // ── renderFeed ────────────────────────────────────────────────────────────────
@@ -587,15 +687,7 @@ window.CList.ui.renderFeed = async function(rawItems, container, {
         container.appendChild(makeListing(await normalize(rawItem)));
     }
 
-    document.getElementById(loadMoreBtnId)?.remove();
-    if (onLoadMore) {
-        const btn = document.createElement('button');
-        btn.id = loadMoreBtnId;
-        btn.className = 'btn';
-        btn.textContent = 'Load More';
-        btn.onclick = onLoadMore;
-        container.appendChild(btn);
-    }
+    window.CList.ui.renderLoadMoreButton(container, onLoadMore, { btnId: loadMoreBtnId });
 
     window.checkAnnotationsBatch?.();
 };

@@ -7,7 +7,7 @@
         label: 'Google',
         logoSrc: 'assets/icons/google.svg',
         statusActions: (item,itemID,itemLink) => {
-            return `<button class="clist-action-btn" title="Open in browser" onClick="openInBrowser('${itemLink}', '${itemID}')"><span class="material-icons md-18 md-light">launch</span></button>`;
+            return openInBrowserButton(itemLink, itemID);
         },
         feedFunctions: {
             'Web': function() { window.CList.readers['google'].search(); },
@@ -39,14 +39,10 @@ async function googleSearch(query,type,start) {
         // Get generater from accounts
     // Assumes 'accounts' array has been preloaded
     // If necessary, fetch the accounts from the KVstore
-    if (window.CList.accounts.length === 0) {
-        try {
-            // Fetch the accounts from the KVstore
-            window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl);
-
-        } catch (error) {
-            showErrorModal('Error getting accounts: ' + error.message, { title: 'Account lookup failed' });
-        }
+    try {
+        await ensureAccountsLoaded();
+    } catch (error) {
+        showErrorModal('Error getting accounts: ' + error.message, { title: 'Account lookup failed' });
     }
     
     let API_KEY = null;

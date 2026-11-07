@@ -528,6 +528,21 @@ body a:hover, html a:hover { text-decoration: underline; }
   text-overflow: ellipsis;
 }
 
+/* Overrides .pane-status-item's single-line layout so Identity/Data can stack as two lines
+   without affecting #editor-status, which reuses .pane-status-item and stays single-line. */
+#current-status {
+  height: auto;
+  min-height: 41px;
+}
+
+#identityDiv {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  white-space: normal;
+  line-height: 1.25;
+}
+
 #selectedAccount {
   flex: 0 0 auto;
   padding: 10px;
@@ -873,7 +888,7 @@ body a:hover, html a:hover { text-decoration: underline; }
 }
 
 /* Generic Modal */
-#generic-modal {
+#generic-modal, #generic-modal-stacked {
   position: fixed;
   top: 0;
   left: 0;
@@ -886,7 +901,14 @@ body a:hover, html a:hover { text-decoration: underline; }
   z-index: 10000;
 }
 
-#modal-content {
+/* #generic-modal-stacked is for a modal (e.g. a help popup) opened from
+   within an already-open #generic-modal — see showStackedModal() in
+   interface.js. It needs a higher z-index to render on top of it. */
+#generic-modal-stacked {
+  z-index: 10001;
+}
+
+#modal-content, #modal-content-stacked {
   background-color: var(--bg-panel);
   color: var(--text-main);
   padding: 28px 32px;
@@ -898,7 +920,7 @@ body a:hover, html a:hover { text-decoration: underline; }
   position: relative;
 }
 
-#modal-content.modal-content--wide {
+#modal-content.modal-content--wide, #modal-content-stacked.modal-content--wide {
   width: 80vw;
   height: 80vh;
   max-width: 80vw;
@@ -1147,7 +1169,7 @@ html.dark-mode .save-button {
 html.dark-mode .save-button:hover  { background-color: #3a3a3a; }
 html.dark-mode .save-button:active { background-color: #3a5a3a; }
 html.dark-mode .loader { border-color: #3a3a3a; border-top-color: var(--highlight-color); }
-html.dark-mode #modal-content {
+html.dark-mode #modal-content, html.dark-mode #modal-content-stacked {
     background-color: #252525; color: #e0e0e0;
     box-shadow: 0 4px 10px rgba(0,0,0,0.6);
 }

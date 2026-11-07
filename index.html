@@ -34,7 +34,7 @@
     <!-- CList application namespace -->
     <script>
         window.CList = {
-            config:     { flaskSiteUrl: 'https://kvstore.mooc.ca', adminUsername: 'downes' },
+            config:     { flaskSiteUrl: 'http://local.clist', adminUsername: 'downes' },
             state:      { username: 'none' },
             accounts:   [],
             schemas:    {},
@@ -51,10 +51,14 @@
                 KVSTORE_URL:           'clist_kvstore_url',
             }
         };
-        const _savedKvUrl = localStorage.getItem(window.CList.keys.KVSTORE_URL);
-        if (_savedKvUrl) window.CList.config.flaskSiteUrl = _savedKvUrl;
+        // Launcher's configured default applies first; an explicit saved user choice
+        // (e.g. "Local (this device only)") must win over it, not be clobbered by it,
+        // or local-mode login gets reset to the launcher's remote kvstore on every
+        // page reload -- including the one after an OAuth round trip.
         if (window._launcherConfig && window._launcherConfig.kvstoreUrl)
             window.CList.config.flaskSiteUrl = window._launcherConfig.kvstoreUrl;
+        const _savedKvUrl = localStorage.getItem(window.CList.keys.KVSTORE_URL);
+        if (_savedKvUrl) window.CList.config.flaskSiteUrl = _savedKvUrl;
     </script>
 
     <!-- Default base URLs for remote services, admin-configurable via the paired
@@ -306,6 +310,7 @@
 <script src="js/local-kvstore.js" defer></script>
 <script src="js/utilities.js" defer></script>
 <script src="js/ui.js" defer></script>
+<script src="js/account-transfer.js" defer></script>  <!-- Export/import account data (Local or hosted); calls window.CList.storage.kv.* (storage.js + adapters below), crypto_utils.js, ui.js, kvstore.js's getEncKey -- all resolved by call time since nothing here runs until a button click, well after every deferred script has executed -->
 <script src="js/references.js" defer></script>
 <script src="js/crypto_utils.js" defer></script>
 <script src="js/storage.js" defer></script>          <!-- window.CList.storage.kv.* facade; defines KvStoreError, must load before the two adapters below -->
@@ -420,7 +425,8 @@
                 <div style="font-size:0.75em; color:var(--text-muted); margin-top:.4em;">
                     "Local" stores your account and credentials only in this browser — nothing is sent to any server.
                     Collab, shared annotations, following, and P2P chat need a real server to reach you, so those
-                    aren't available in Local mode. You can't use the same Local account on another device or browser.
+                    aren't available in Local mode. A Local account isn't automatically visible on another
+                    device or browser — see Options for Export/Import to move it manually.
                 </div>
             </label>
             <div style="display:flex; gap:.5em; justify-content:flex-end;">

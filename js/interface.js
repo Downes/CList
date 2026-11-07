@@ -538,6 +538,44 @@ function showModal(content, opts = {}) {
     document.body.appendChild(modal);
 }
 
+// Secondary modal layered above #generic-modal — for help/info popups opened
+// from within an already-open modal, where showModal() would otherwise
+// destroy whatever's underneath it (it only ever keeps one #generic-modal
+// alive at a time). Only removes any existing *stacked* modal, leaving the
+// base #generic-modal (and anything in it, like unsaved form input) intact.
+function showStackedModal(content, opts = {}) {
+    const existingModal = document.getElementById('generic-modal-stacked');
+    if (existingModal) existingModal.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'generic-modal-stacked';
+
+    const modalContent = document.createElement('div');
+    modalContent.id = 'modal-content-stacked';
+    if (opts.wide) modalContent.classList.add('modal-content--wide');
+
+    if (typeof content === 'string') {
+        modalContent.innerHTML = content;
+    } else {
+        modalContent.appendChild(content);
+    }
+
+    if (!opts.hideDefaultClose) {
+        const closeButton = document.createElement('button');
+        closeButton.textContent = 'Close';
+        closeButton.style.position = 'absolute';
+        closeButton.addEventListener('click', () => modal.remove());
+        modalContent.appendChild(closeButton);
+    }
+
+    modal.appendChild(modalContent);
+    document.body.appendChild(modal);
+}
+
+function closeStackedModal() {
+    document.getElementById('generic-modal-stacked')?.remove();
+}
+
 function showLoader() {
     const loader = window.CList.ui.view.loadingIndicator;
     if (loader) {

@@ -17,26 +17,8 @@ async function summarizeText(textToSummarize, type) {
     // Get summarizer from accounts
     // Assumes 'accounts' array has been preloaded
     
-    let apiKey = null;
-    let url = null;
-
-     accounts.forEach(account => {                           // Check the accounts
-        const parsedValue = parseAccountValue(account);
-        if (!parsedValue) return;
-        console.log("checking account: ", parsedValue);
-        if (parsedValue.permissions.includes('z')) {  // Check if 'permissions' contains 'z'
-            console.log("FOUND account: ", parsedValue);
-            console.log("parsedValue.id: ", parsedValue.id);
-            console.log("parsedValue.key: ", parsedValue.key);
-            apiKey = parsedValue.id;
-            url = parsedValue.instance;
-        }
-    });
-
-
-    if (!apiKey || !url) {
-        throw new Error("No AI account found. Add an account with permission 'z' to use summarization.");
-    }
+    const { apiKey, apiUrl: url } = requireAccountWithPermission('z',
+        "No AI account found. Add an account with permission 'z' to use summarization.");
 
 
     let prompt;
@@ -82,7 +64,7 @@ async function handleSummarize(input,output,type) {
     const summaryText = document.getElementById(output);
     // const summarizeBtn = document.getElementById("summarizeBtn");
 
-    inputText = getInputText(input);
+    const inputText = getInputText(input);
 
     summaryText.textContent = "Summarizing... Please wait.";
     summaryText.className = "";

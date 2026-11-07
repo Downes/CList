@@ -410,55 +410,26 @@ async function _writeLocalFile(fileContent, id, suggestedName) {
 
 function fallbackDownload(fileContent, suggestedName) {
     // Ask for a filename via the app's own modal — prompt() is banned project-wide.
-    const box = document.createElement('div');
-
-    const heading = document.createElement('h2');
-    heading.className = 'error-modal-title';
-    heading.textContent = 'Save file';
-    box.appendChild(heading);
-
     const input = document.createElement('input');
     input.type = 'text';
     input.value = suggestedName || 'content.txt';
     input.style.width = '100%';
-    box.appendChild(input);
 
-    const row = document.createElement('div');
-    row.className = 'error-modal-actions';
-
-    const doDownload = () => {
+    const doDownload = (close) => {
         const fileName = input.value.trim();
         if (!fileName) return;
 
-        const blob = new Blob([fileContent], { type: "text/plain" });
-        const url = URL.createObjectURL(blob);
-
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = fileName;
-        a.click();
-
-        URL.revokeObjectURL(url); // Clean up
-        document.getElementById('generic-modal')?.remove();
+        downloadBlob(new Blob([fileContent], { type: "text/plain" }), fileName);
+        close();
         showStatusMessage('File downloaded — check your downloads folder.');
     };
 
-    const cancelBtn = document.createElement('button');
-    cancelBtn.className = 'btn btn-secondary';
-    cancelBtn.textContent = 'Cancel';
-    cancelBtn.onclick = () => document.getElementById('generic-modal')?.remove();
-    row.appendChild(cancelBtn);
+    const { close } = buildDialogModal('Save file', input, [
+        { label: 'Cancel', secondary: true, onClick: (close) => close() },
+        { label: 'Save', onClick: doDownload }
+    ]);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') doDownload(close); });
 
-    const saveBtn = document.createElement('button');
-    saveBtn.className = 'btn';
-    saveBtn.textContent = 'Save';
-    saveBtn.onclick = doDownload;
-    row.appendChild(saveBtn);
-
-    box.appendChild(row);
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') doDownload(); });
-
-    showModal(box, { hideDefaultClose: true });
     input.focus();
     input.select();
 }

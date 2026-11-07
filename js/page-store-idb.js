@@ -57,19 +57,11 @@ function _pageStoreOpenDb() {
 
 // Plain read outside any write transaction — no existence-then-write race to guard here.
 function _pageStoreGet(id) {
-    return _pageStoreOpenDb().then(db => new Promise((resolve, reject) => {
-        const req = db.transaction(PAGE_STORE_STORE_NAME, 'readonly').objectStore(PAGE_STORE_STORE_NAME).get(id);
-        req.onsuccess = () => resolve(req.result || null);
-        req.onerror = () => reject(req.error);
-    }));
+    return _pageStoreOpenDb().then(db => idbRequest(db.transaction(PAGE_STORE_STORE_NAME, 'readonly').objectStore(PAGE_STORE_STORE_NAME).get(id), null));
 }
 
 function _pageStoreGetAll() {
-    return _pageStoreOpenDb().then(db => new Promise((resolve, reject) => {
-        const req = db.transaction(PAGE_STORE_STORE_NAME, 'readonly').objectStore(PAGE_STORE_STORE_NAME).getAll();
-        req.onsuccess = () => resolve(req.result || []);
-        req.onerror = () => reject(req.error);
-    }));
+    return _pageStoreOpenDb().then(db => idbRequest(db.transaction(PAGE_STORE_STORE_NAME, 'readonly').objectStore(PAGE_STORE_STORE_NAME).getAll(), []));
 }
 
 // The one combined check+write primitive required by save()/remove(): runs `decide`

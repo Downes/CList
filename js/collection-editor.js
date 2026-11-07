@@ -323,13 +323,7 @@ async function _showAddEntryFromExistingPicker(draftItems, col, token, encKey, r
     picker.innerHTML = '<p class="feed-status-message">Loading…</p>';
     anchorEl.parentElement.insertBefore(picker, anchorEl.nextSibling);
 
-    const outsideHandler = (e) => {
-        if (!picker.contains(e.target) && e.target !== anchorEl) {
-            picker.remove();
-            document.removeEventListener('click', outsideHandler, true);
-        }
-    };
-    setTimeout(() => document.addEventListener('click', outsideHandler, true), 0);
+    dismissOnOutsideClick(picker, anchorEl);
 
     try {
         const [collections, pages] = await Promise.all([
@@ -461,10 +455,7 @@ async function _publishLocalEntry(item, refresh) {
         const adapter = window.CList.binPublishers?.['CListBin'];
         if (!adapter) { showErrorModal('Web-page publishing is not available.', { title: 'Publishing unavailable' }); return; }
 
-        let accounts = window.CList.accounts;
-        if (!Array.isArray(accounts) || accounts.length === 0) {
-            accounts = window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl);
-        }
+        const accounts = await ensureAccountsLoaded();
         const binAccount = accounts.map(parseAccountValue).filter(Boolean)
             .find(v => v.type === 'CListBin' && (v.permissions || '').includes('b'));
         if (!binAccount) { showErrorModal('No web-page destination set up yet — log out and back in to add one.', { title: 'No destination set up' }); return; }

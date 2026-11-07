@@ -70,11 +70,7 @@ window.CList.LOCAL_KVSTORE_URL = 'http://local.clist';
     }
 
     function idbGet(storeName, key) {
-        return openDb().then(db => new Promise((resolve, reject) => {
-            const req = db.transaction(storeName, 'readonly').objectStore(storeName).get(key);
-            req.onsuccess = () => resolve(req.result || null);
-            req.onerror = () => reject(req.error);
-        }));
+        return openDb().then(db => idbRequest(db.transaction(storeName, 'readonly').objectStore(storeName).get(key), null));
     }
 
     function idbPut(storeName, value) {
@@ -165,11 +161,7 @@ window.CList.LOCAL_KVSTORE_URL = 'http://local.clist';
     }
 
     function idbGetAllByIndex(storeName, indexName, value) {
-        return openDb().then(db => new Promise((resolve, reject) => {
-            const req = db.transaction(storeName, 'readonly').objectStore(storeName).index(indexName).getAll(value);
-            req.onsuccess = () => resolve(req.result || []);
-            req.onerror = () => reject(req.error);
-        }));
+        return openDb().then(db => idbRequest(db.transaction(storeName, 'readonly').objectStore(storeName).index(indexName).getAll(value), []));
     }
 
     // Hash auth_hash again before storing it, the same way the real server stores bcrypt(auth_hash)

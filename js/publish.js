@@ -78,12 +78,10 @@ async function playPost() {
         throw new Error('Error: Accounts array not found; maybe you need to log in.');
     }
 
-    if (window.CList.accounts.length === 0) {
-        try {
-            window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl);
-        } catch (error) {
-            showErrorModal('Error getting accounts: ' + error.message, { title: 'Could not load accounts' });
-        }
+    try {
+        await ensureAccountsLoaded();
+    } catch (error) {
+        showErrorModal('Error getting accounts: ' + error.message, { title: 'Could not load accounts' });
     }
 
     populatePostOptions(window.CList.accounts);
@@ -241,14 +239,12 @@ async function postToWebPage() {
         return;
     }
 
-    let accounts = window.CList.accounts;
-    if (!Array.isArray(accounts) || accounts.length === 0) {
-        try {
-            accounts = window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl);
-        } catch (e) {
-            showErrorModal('Error getting accounts: ' + e.message, { title: 'Could not load accounts' });
-            return;
-        }
+    let accounts;
+    try {
+        accounts = await ensureAccountsLoaded();
+    } catch (e) {
+        showErrorModal('Error getting accounts: ' + e.message, { title: 'Could not load accounts' });
+        return;
     }
     const binAccount = accounts.map(parseAccountValue).filter(Boolean)
         .find(v => v.type === 'CListBin' && (v.permissions || '').includes('b'));
@@ -446,7 +442,7 @@ async function _saveWebPageRecord(record) {
     try {
         await window.CList.storage.kv.put(key, encrypted);
     } catch (err) {
-        throw new Error(err.code === 'NotAuthenticated' ? 'Not logged in' : `kvstore error: ${err.message}`);
+        throw new Error(kvErrorMessage(err));
     }
     return key;
 }
@@ -549,7 +545,7 @@ async function _touchOrForkWebPageRecord(pageKey, id, extra = {}) {
     const kvs = await window.CList.storage.kv.list();
     const kv = (kvs || []).find(k => k.key === pageKey);
     if (!kv) return { pageKey, id, forked: false };
-    const rec = JSON.parse(await decryptWithKey(encKey, kv.value));
+    const rec = await decryptKVJson(encKey, kv.value);
 
     const currentDid = _currentAuthorDid();
     const sameAuthor = await _isSameAuthor(rec.authorDid, currentDid);

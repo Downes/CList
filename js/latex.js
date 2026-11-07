@@ -66,7 +66,6 @@
     let currentDocId       = null
     let currentDocTitle    = ''
     let currentWsUrl       = COLLAB_WS_URL  // updated each time we connect
-    let cachedDidKey       = null  // did:key fetched from user's DID document, cached
     let sharedRefs         = null  // Y.Map synced across all collaborators: url → JSON ref string
 
     // --- Load dependencies lazily ---
@@ -107,23 +106,12 @@
             const accts = (Array.isArray(window.CList.accounts) && window.CList.accounts.length)
                 ? window.CList.accounts
                 : await getAccounts(window.CList.config.flaskSiteUrl)
-            const found = accts.find(a => {
-                const d = parseAccountValue(a)
-                return d && d.type === 'Collab'
-            })
-            if (found) {
-                const d = parseAccountValue(found)
-                if (d.instance) return d.instance
-            }
+            const found = findAccountByType('Collab', { accounts: accts })
+            if (found && found.parsedValue.instance) return found.parsedValue.instance
         } catch (e) {
             console.warn('Could not look up Collab account, using default server:', e)
         }
         return COLLAB_WS_URL
-    }
-
-    // Convert wss:// URL to https:// for REST calls
-    function wsUrlToRestBase(wsUrl) {
-        return wsUrl.replace(/^wss?:\/\//, 'https://').replace(/\/$/, '')
     }
 
     // Set the document title in both the doc-id input and the CList write-title field.
@@ -140,49 +128,6 @@
         if (!docId) return ''
         const slash = docId.lastIndexOf('/')
         return slash >= 0 ? docId.slice(slash + 1) : docId
-    }
-
-    // Derive the short-host identifier used in document namespaces.
-    function kvShortHost(kvUrl) {
-        try {
-            const host = new URL(kvUrl).hostname
-            return host.startsWith('kvstore.') ? host.slice('kvstore.'.length) : host
-        } catch { return '' }
-    }
-
-    // Generate a short random slug for new untitled documents (e.g. "a3f8k2")
-    function generateDocSlug() {
-        return Math.random().toString(36).slice(2, 8)
-    }
-
-    // Expand a bare local name to a fully-namespaced document ID, inserting a "latex/"
-    // segment so this never collides with a same-named collab.js (rich-text) document.
-    async function expandDocId(localName) {
-        if (localName.includes('/')) return localName  // already namespaced
-        const didKey = await getUserDidKey()
-        if (didKey) return `${didKey}/latex/${localName}`
-        const myUser = (window.CList.state.username && window.CList.state.username !== 'none' && window.CList.state.username !== '') ? window.CList.state.username : null
-        const shortHost = kvShortHost(window.CList.config.flaskSiteUrl)
-        if (myUser && shortHost) return `${myUser}@${shortHost}/latex/${localName}`
-        return `latex/${localName}`
-    }
-
-    // Fetch the current user's did:key from their DID document on the kvstore.
-    async function getUserDidKey() {
-        if (cachedDidKey) return cachedDidKey
-        const myUser = (window.CList.state.username && window.CList.state.username !== 'none' && window.CList.state.username !== '') ? window.CList.state.username : null
-        if (!myUser) return null
-        try {
-            const res = await fetch(`${window.CList.config.flaskSiteUrl}/users/${myUser}/did.json`)
-            if (!res.ok) return null
-            const doc = await res.json()
-            const didKey = (Array.isArray(doc.alsoKnownAs) ? doc.alsoKnownAs : [])
-                .find(id => typeof id === 'string' && id.startsWith('did:key:')) || null
-            cachedDidKey = didKey
-            return cachedDidKey
-        } catch {
-            return null
-        }
     }
 
     // --- Connect to a collaborative document ---
@@ -281,7 +226,7 @@
         const input = document.getElementById('latex-doc-id')
         const localName = input ? input.value.trim() : ''
         if (!localName) return
-        const docId = await expandDocId(localName)
+        const docId = await expandDocId(localName, { namespace: 'latex' })
         currentDocTitle = ''
         try {
             await connectToDoc(docId)
@@ -314,8 +259,7 @@
     // --- Sharing ---
 
     function getLatexShareLink(mode) {
-        const pathId = currentDocId.split('/').map(encodeURIComponent).join('/')
-        return `${wsUrlToRestBase(currentWsUrl)}/doc/${pathId}/${mode}`
+        return getRealtimeDocShareLink(currentWsUrl, currentDocId, mode)
     }
 
     function shareLatexDoc() {
@@ -345,9 +289,7 @@
     }
 
     window.copyLatexLink = function(link) {
-        navigator.clipboard.writeText(link)
-            .then(() => showStatusMessage('Link copied.'))
-            .catch(e => showErrorModal('Could not copy link: ' + e.message, { title: 'Copy failed' }))
+        copyToClipboard(link, { successMsg: 'Link copied.', failMsg: 'Could not copy link — select the link and copy manually.' })
     }
 
     // --- Bibliography serializer (references.js's Reference[] → \thebibliography) ---
@@ -560,7 +502,7 @@
                 const slug = generateDocSlug()
                 setDocTitle(slug)
                 try {
-                    const docId = await expandDocId(slug)
+                    const docId = await expandDocId(slug, { namespace: 'latex' })
                     await connectToDoc(docId)
                 } catch (e) {
                     console.error('Failed to start LaTeX document:', e)

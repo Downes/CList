@@ -27,23 +27,9 @@ async function handleTranslation() {
 }
 
 function getTranslationAccount() {
-
     // Find the account with permission 't'
-    // Assumes accounts array loaded with getAccounts()
-    const targetAccount = window.CList.accounts.find(account => {
-        const parsedValue = parseAccountValue(account);
-        return parsedValue && parsedValue.permissions.includes('t');
-    });
-
-    // Extract the key and id
-    let TranslationProjectId = null;
-    let TranslationApiKey = null;
-    if (targetAccount) {
-        const parsedValue = parseAccountValue(targetAccount);
-        TranslationProjectId = targetAccount.key;
-        TranslationApiKey = parsedValue.id;  // Unfortunate mixing of variable names, oh well
-    }
-    return TranslationApiKey;
+    const found = findAccountByPermission('t');
+    return found ? found.parsedValue.id : null;
 }
 
 // Function to detect the language of input text
