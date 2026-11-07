@@ -8,6 +8,24 @@
 //
 //  This software carries NO WARRANTY OF ANY KIND.
 //  This software is provided "AS IS," and you, its user, assume all risks when using it.
+//
+//  Contents, in order:
+//    1. Pane layout — DOM refs & state
+//    2. Pane state persistence (save/restore across sessions)
+//    3. Pane open/close/resize
+//    4. Left/right panel content & overlay sections
+//    5. Feed menu
+//    6. Feed entry navigation (expand/collapse, keyboard, swipe)
+//    7. Mobile pane swipe navigation
+//    8. Modal dialogs
+//
+//  Function declarations are hoisted and event-listener callbacks only run
+//  after the whole script has loaded, so the order of the sections below is
+//  purely for readability — nothing here depends on file position.
+
+// ============================================================================
+// 1. Pane layout — DOM refs & state
+// ============================================================================
 
 const mainContent = document.getElementById('main-content');
 const leftPane = document.getElementById('left-pane');
@@ -26,6 +44,17 @@ let isRightPaneOpen = false;
 
 const PANE_STATE_KEY_LOGGEDOUT = 'clist_pane_state';
 const PANE_STATE_KEY_LOGGEDIN  = 'clist_pane_state_loggedin';
+
+let initialReadRight = 0;
+let endX = 0;
+
+// Which pane last had focus — read by both the pane open/close functions below
+// and by the mobile swipe-navigation section, so swipes know where "current" is.
+let currentPane = 'read-pane';
+
+// ============================================================================
+// 2. Pane state persistence (save/restore across sessions)
+// ============================================================================
 
 function activePaneStateKey() {
     return (typeof hasValidSession === 'function' && hasValidSession())
@@ -103,8 +132,9 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 });
 
-let initialReadRight = 0;
-let endX = 0;
+// ============================================================================
+// 3. Pane open/close/resize
+// ============================================================================
 
 function openLeftPane() {
     const isMobile = window.innerWidth <= 768;
@@ -165,6 +195,32 @@ function closeRightPane() {
     savePaneState();
 }
 
+function snapPanes(direction) {
+    const mainContentRect = mainContent.getBoundingClientRect();
+    const readPaneRect = readPane.getBoundingClientRect();
+    const ratio = readPaneRect.width / mainContentRect.width;
+
+    if (direction === 'left') {
+        if (ratio > 0.65) {
+            readPane.style.flex = '0.5';
+            writePane.style.flex = '0.5';
+        } else {
+            readPane.style.flex = '0';
+            writePane.style.flex = '1';
+        }
+    } else {
+        if (ratio < 0.35) {
+            readPane.style.flex = '0.5';
+            writePane.style.flex = '0.5';
+        } else {
+            readPane.style.flex = '1';
+            writePane.style.flex = '0';
+        }
+    }
+    savePaneState();
+}
+
+// Drag-to-resize: the divider between the read and write panes.
 divider.addEventListener("mousedown", (e) => {
     isDragging = true;
     document.body.style.cursor = "col-resize";
@@ -191,76 +247,9 @@ document.addEventListener("mouseup", () => {
     document.body.style.cursor = "";
 });
 
-function snapPanes(direction) {
-    const mainContentRect = mainContent.getBoundingClientRect();
-    const readPaneRect = readPane.getBoundingClientRect();
-    const ratio = readPaneRect.width / mainContentRect.width;
-
-    if (direction === 'left') {
-        if (ratio > 0.65) {
-            readPane.style.flex = '0.5';
-            writePane.style.flex = '0.5';
-        } else {
-            readPane.style.flex = '0';
-            writePane.style.flex = '1';
-        }
-    } else {
-        if (ratio < 0.35) {
-            readPane.style.flex = '0.5';
-            writePane.style.flex = '0.5';
-        } else {
-            readPane.style.flex = '1';
-            writePane.style.flex = '0';
-        }
-    }
-    savePaneState();
-}
-
-function setupFeedButtons(instanceType) {
-    const buttonsContainer = window.CList.ui.view.feedMenu;
-    if (!buttonsContainer) {
-        console.error('Error: The element with ID "feed-menu" does not exist, so there is no place to put the feed buttons.');
-        showErrorModal('Error loading feed — feed menu element not found.', { title: 'Feed load failed' });
-        return;
-    }
-    buttonsContainer.innerHTML = '';
-
-    const handler = window.CList.readers[instanceType];
-    if (!handler || !handler.feedFunctions || Object.keys(handler.feedFunctions).length === 0) {
-        console.error(`No feed functions defined for instance type: ${instanceType}`);
-        return;
-    }
-    const feedFunctions = handler.feedFunctions;
-
-    for (const [feedType, feedAction] of Object.entries(feedFunctions)) {
-        const button = document.createElement('button');
-        button.className = 'btn btn-small feed-filter-btn';
-        button.textContent = feedType;
-        button.onclick = () => {
-            feedAction();
-            // "Refresh" reloads the current view rather than switching to a new
-            // one, so it never becomes the active indicator itself.
-            if (feedType === 'Refresh') return;
-            buttonsContainer.querySelectorAll('.feed-filter-btn.is-active')
-                .forEach(b => b.classList.remove('is-active'));
-            button.classList.add('is-active');
-        };
-        buttonsContainer.appendChild(button);
-    }
-
-    // Readers initialize directly into their default view (e.g. "Unread")
-    // without going through a button click, so highlight it up front.
-    const defaultBtn = Array.from(buttonsContainer.querySelectorAll('.feed-filter-btn'))
-        .find(b => b.textContent !== 'Refresh');
-    if (defaultBtn) defaultBtn.classList.add('is-active');
-
-    const translateBtn = document.createElement('button');
-    translateBtn.id = 'translation-toggle-btn';
-    translateBtn.className = 'btn btn-small';
-    translateBtn.textContent = 'Translate: ' + (translationEnabled ? 'ON' : 'OFF');
-    translateBtn.onclick = toggleTranslation;
-    buttonsContainer.appendChild(translateBtn);
-}
+// ============================================================================
+// 4. Left/right panel content & overlay sections
+// ============================================================================
 
 function openLeftInterface(content) {
     openLeftPane();
@@ -333,6 +322,60 @@ function toggleLeftOverlaySection(id) {
         el.style.display = 'none';
     }
 }
+
+// ============================================================================
+// 5. Feed menu
+// ============================================================================
+
+function setupFeedButtons(instanceType) {
+    const buttonsContainer = window.CList.ui.view.feedMenu;
+    if (!buttonsContainer) {
+        console.error('Error: The element with ID "feed-menu" does not exist, so there is no place to put the feed buttons.');
+        showErrorModal('Error loading feed — feed menu element not found.', { title: 'Feed load failed' });
+        return;
+    }
+    buttonsContainer.innerHTML = '';
+
+    const handler = window.CList.readers[instanceType];
+    if (!handler || !handler.feedFunctions || Object.keys(handler.feedFunctions).length === 0) {
+        console.error(`No feed functions defined for instance type: ${instanceType}`);
+        return;
+    }
+    const feedFunctions = handler.feedFunctions;
+
+    for (const [feedType, feedAction] of Object.entries(feedFunctions)) {
+        const button = document.createElement('button');
+        button.className = 'btn btn-small feed-filter-btn';
+        button.textContent = feedType;
+        button.onclick = () => {
+            feedAction();
+            // "Refresh" reloads the current view rather than switching to a new
+            // one, so it never becomes the active indicator itself.
+            if (feedType === 'Refresh') return;
+            buttonsContainer.querySelectorAll('.feed-filter-btn.is-active')
+                .forEach(b => b.classList.remove('is-active'));
+            button.classList.add('is-active');
+        };
+        buttonsContainer.appendChild(button);
+    }
+
+    // Readers initialize directly into their default view (e.g. "Unread")
+    // without going through a button click, so highlight it up front.
+    const defaultBtn = Array.from(buttonsContainer.querySelectorAll('.feed-filter-btn'))
+        .find(b => b.textContent !== 'Refresh');
+    if (defaultBtn) defaultBtn.classList.add('is-active');
+
+    const translateBtn = document.createElement('button');
+    translateBtn.id = 'translation-toggle-btn';
+    translateBtn.className = 'btn btn-small';
+    translateBtn.textContent = 'Translate: ' + (translationEnabled ? 'ON' : 'OFF');
+    translateBtn.onclick = toggleTranslation;
+    buttonsContainer.appendChild(translateBtn);
+}
+
+// ============================================================================
+// 6. Feed entry navigation (expand/collapse, keyboard, swipe)
+// ============================================================================
 
 let currentEntryEl = null;
 
@@ -453,8 +496,11 @@ document.getElementById('feed-container')?.addEventListener('touchend', (e) => {
 
 window.toggleEntryExpanded = toggleEntryExpanded;
 
+// ============================================================================
+// 7. Mobile pane swipe navigation
+// ============================================================================
+
 let startX = 0;
-let currentPane = 'read-pane';
 
 const swipeActions = {
     'left-pane': {
@@ -508,6 +554,10 @@ function mobShowLeft() {
 function mobShowRight() {
     openRightPane();
 }
+
+// ============================================================================
+// 8. Modal dialogs
+// ============================================================================
 
 function showModal(content, opts = {}) {
     const existingModal = document.getElementById('generic-modal');

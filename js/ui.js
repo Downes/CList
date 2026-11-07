@@ -1,19 +1,85 @@
 //  ui.js  —  CList.ui factory functions
 //  Part of CList, the next generation of learning and connecting with your community
 //
-//  Each function takes data and returns a DOM element (no side effects).
-//  Backward-compatible bare-name globals are aliased at the bottom of this file.
+//  Each function takes data and returns a DOM element (no side effects), unless
+//  noted otherwise. Bare-name globals are aliased immediately after the
+//  CList.ui.* function they point to, for backward compatibility with existing
+//  call sites.
 //
 //  Copyright Stephen Downes 2025
 //  Licensed under Creative Commons Attribution 4.0 International https://creativecommons.org/licenses/by/4.0/
 //
 //  This software carries NO WARRANTY OF ANY KIND.
 //  This software is provided "AS IS," and you, its user, assume all risks when using it.
+//
+//  Contents, in order:
+//    1. Namespace setup
+//    2. Structural DOM refs (window.CList.ui.view)
+//    3. Drag-and-drop reference attribution
+//    4. Account & selection widgets
+//    5. Feed item rendering
+//    6. User feedback: status messages, errors, dialogs
+//    7. Misc DOM utilities
+//    8. Capability gating
+//
+//  Ordering note: window.CList.ui must be created (section 1) before any
+//  window.CList.ui.X assignment runs, since those assignments set properties
+//  on it at parse time. Everything else below — function declarations and
+//  event-listener registrations alike — only runs later, after the whole
+//  script has loaded, so section order otherwise doesn't affect behavior.
+
+// ============================================================================
+// 1. Namespace setup
+// ============================================================================
 
 window.CList = window.CList || {};
 window.CList.ui = {};
 
-// ── External-window registry for drag-and-drop reference attribution ─────────
+// ============================================================================
+// 2. Structural DOM refs (window.CList.ui.view)
+// ============================================================================
+// Single source of truth for structural DOM element references.
+// Use window.CList.ui.view.* instead of repeated getElementById calls.
+
+// Initialized at script load time (ui.js is deferred, so the DOM is fully
+// parsed by the time this runs — all static index.html elements exist).
+// Dynamic elements (read-account-list, account-status, write-column) are
+// created at runtime and must be looked up with getElementById when used.
+window.CList.ui.view = {
+    // App shell
+    mainWindow:       document.getElementById('main-window'),
+    leftPane:         document.getElementById('left-pane'),
+    rightPane:        document.getElementById('right-pane'),
+    readPane:         document.getElementById('read-pane'),
+    writePaneEl:      document.getElementById('write-pane'),
+    identityDiv:      document.getElementById('identityDiv'),
+    loadingIndicator: document.getElementById('loading-indicator'),
+
+    // Read pane
+    feedMenu:         document.getElementById('feed-menu'),
+    feedContainer:    document.getElementById('feed-container'),
+
+    // Write pane
+    writePaneContent: document.getElementById('write-pane-content'),
+    writeTitle:       document.getElementById('write-title'),
+    textColumn:       document.getElementById('text-column'),
+    writeTags:        document.getElementById('write-tags'),
+    referencesButton: document.getElementById('references-button'),
+
+    // Right pane
+    postResult:       document.getElementById('post-result'),
+    loadOptions:      document.getElementById('load-options'),
+};
+
+// ============================================================================
+// 3. Drag-and-drop reference attribution
+// ============================================================================
+// Dragging a link out of the read pane (or out of a popup opened via
+// openInBrowser) into the write pane should attribute the resulting reference
+// to whatever was dragged. This section tracks "windows opened from CList" and
+// resolves a drop/paste back to the right reference.
+
+// External-window registry for drag-and-drop reference attribution
 window.CList._openedWindowRefs    = {};
 window.CList._lastOpenedWindowRef = null;
 
@@ -98,6 +164,10 @@ window.addEventListener('message', function(e) {
     window.CList._lastOpenedWindowRef   = ref;
 });
 
+// ============================================================================
+// 4. Account & selection widgets
+// ============================================================================
+
 // ── accountList ──────────────────────────────────────────────────────────────
 // Returns a div of account-select buttons filtered and styled per type.
 // tip       — instruction string shown above the buttons
@@ -134,6 +204,57 @@ window.CList.ui.accountList = function(tip, accounts, filterFn, onClickFn) {
 
     return container;
 };
+window.makeAccountList = window.CList.ui.accountList;
+
+// ── editorButton ──────────────────────────────────────────────────────────────
+// Returns a button for the editor-switcher panel.
+
+window.CList.ui.editorButton = function(label, icon, onClick) {
+    const btn = document.createElement('button');
+    btn.className = 'account-button';
+    const iconEl = document.createElement('span');
+    iconEl.className = 'material-icons';
+    iconEl.textContent = icon || 'edit';
+    const nameEl = document.createElement('span');
+    nameEl.textContent = label;
+    btn.appendChild(iconEl);
+    btn.appendChild(nameEl);
+    btn.addEventListener('click', async () => onClick());
+    return btn;
+};
+window.makeEditorButton = window.CList.ui.editorButton;
+
+// ── buildVisibilitySelect / buildAccountSelect ───────────────────────────────
+// Shared <select> builders for the annotation-send UI (annotate.js, annotate-editor.js).
+// Callers set their own style.cssText afterward — these only populate options.
+
+window.CList.ui.buildVisibilitySelect = function() {
+    const select = document.createElement('select');
+    [['public', 'Public'], ['private', 'Private']].forEach(([val, text]) => {
+        const opt = document.createElement('option');
+        opt.value = val;
+        opt.textContent = text;
+        select.appendChild(opt);
+    });
+    return select;
+};
+window.buildVisibilitySelect = window.CList.ui.buildVisibilitySelect;
+
+window.CList.ui.buildAccountSelect = function(accounts) {
+    const select = document.createElement('select');
+    accounts.forEach((acct, i) => {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.textContent = acct.title || acct.instance;
+        select.appendChild(opt);
+    });
+    return select;
+};
+window.buildAccountSelect = window.CList.ui.buildAccountSelect;
+
+// ============================================================================
+// 5. Feed item rendering
+// ============================================================================
 
 // ── video embeds ──────────────────────────────────────────────────────────────
 // Service-specific detection lives in youtube.js / peertube.js, each registering
@@ -380,23 +501,7 @@ window.CList.ui.listing = function makeListing(
 
     return statusBox;
 };
-
-// ── editorButton ──────────────────────────────────────────────────────────────
-// Returns a button for the editor-switcher panel.
-
-window.CList.ui.editorButton = function(label, icon, onClick) {
-    const btn = document.createElement('button');
-    btn.className = 'account-button';
-    const iconEl = document.createElement('span');
-    iconEl.className = 'material-icons';
-    iconEl.textContent = icon || 'edit';
-    const nameEl = document.createElement('span');
-    nameEl.textContent = label;
-    btn.appendChild(iconEl);
-    btn.appendChild(nameEl);
-    btn.addEventListener('click', async () => onClick());
-    return btn;
-};
+window.makeListing = window.CList.ui.listing;
 
 // ── feedHeader ────────────────────────────────────────────────────────────────
 // Returns a feed-header div with title, description, and optional action buttons.
@@ -445,196 +550,7 @@ window.CList.ui.feedHeader = function(type, typevalue) {
 
     return feedHeaderDiv;
 };
-
-// ── serviceError ──────────────────────────────────────────────────────────────
-// Appends a structured error message div to container (element or ID string).
-
-window.CList.ui.serviceError = function(container, title, message, actionHtml = '') {
-    const msg = document.createElement('div');
-    msg.className = 'error-message';
-    msg.innerHTML = `<p><strong>${title}:</strong> ${message}</p>`
-        + (actionHtml ? `<p>${actionHtml}</p>` : '');
-    if (typeof container === 'string') container = document.getElementById(container);
-    if (container) container.appendChild(msg);
-};
-
-// ── view ──────────────────────────────────────────────────────────────────────
-// Single source of truth for structural DOM element references.
-// Use window.CList.ui.view.* instead of repeated getElementById calls.
-
-// Initialized at script load time (ui.js is deferred, so the DOM is fully
-// parsed by the time this runs — all static index.html elements exist).
-// Dynamic elements (read-account-list, account-status, write-column) are
-// created at runtime and must be looked up with getElementById when used.
-window.CList.ui.view = {
-    // App shell
-    mainWindow:       document.getElementById('main-window'),
-    leftPane:         document.getElementById('left-pane'),
-    rightPane:        document.getElementById('right-pane'),
-    readPane:         document.getElementById('read-pane'),
-    writePaneEl:      document.getElementById('write-pane'),
-    identityDiv:      document.getElementById('identityDiv'),
-    loadingIndicator: document.getElementById('loading-indicator'),
-
-    // Read pane
-    feedMenu:         document.getElementById('feed-menu'),
-    feedContainer:    document.getElementById('feed-container'),
-
-    // Write pane
-    writePaneContent: document.getElementById('write-pane-content'),
-    writeTitle:       document.getElementById('write-title'),
-    textColumn:       document.getElementById('text-column'),
-    writeTags:        document.getElementById('write-tags'),
-    referencesButton: document.getElementById('references-button'),
-
-    // Right pane
-    postResult:       document.getElementById('post-result'),
-    loadOptions:      document.getElementById('load-options'),
-};
-
-// ── showStatusMessage ─────────────────────────────────────────────────────────
-// Transient message in #identityDiv (the same bar that otherwise shows the
-// login identity); auto-restores after 3 s. Debounced so that overlapping
-// calls don't race to restore the identity label too early.
-
-window.CList.ui.showStatusMessage = function(message) {
-    const identityDiv = window.CList.ui.view?.identityDiv;
-    if (!identityDiv) {
-        console.error('identityDiv element not found.');
-        return;
-    }
-    identityDiv.textContent = message;
-    clearTimeout(window.CList.ui._statusMessageTimer);
-    window.CList.ui._statusMessageTimer = setTimeout(() => {
-        if (typeof renderIdentityLabel === 'function') renderIdentityLabel();
-    }, 3000);
-};
-
-// ── buildDialogModal ──────────────────────────────────────────────────────────
-// Shared shell for the title + body + action-button-row dialogs used by
-// showErrorModal below, fallbackDownload (files.js), and _localrssConfirm
-// (localrss.js) — all three built this same box/heading/.error-modal-actions
-// structure by hand before calling showModal(). `buttons` is an array of
-// {label, secondary, onClick(close)}; appended in the order given.
-window.CList.ui.buildDialogModal = function(title, bodyNode, buttons) {
-    const box = document.createElement('div');
-
-    const heading = document.createElement('h2');
-    heading.className = 'error-modal-title';
-    heading.textContent = title;
-    box.appendChild(heading);
-
-    box.appendChild(bodyNode);
-
-    const row = document.createElement('div');
-    row.className = 'error-modal-actions';
-    const close = () => document.getElementById('generic-modal')?.remove();
-
-    const buttonEls = buttons.map(spec => {
-        const btn = document.createElement('button');
-        btn.className = spec.secondary ? 'btn btn-secondary' : 'btn';
-        btn.textContent = spec.label;
-        btn.onclick = () => spec.onClick(close);
-        row.appendChild(btn);
-        return btn;
-    });
-    box.appendChild(row);
-
-    showModal(box, { hideDefaultClose: true });
-    return { close, buttons: buttonEls };
-};
-window.buildDialogModal = window.CList.ui.buildDialogModal;
-
-// ── showErrorModal ────────────────────────────────────────────────────────────
-// Full-screen modal (via showModal) for errors that block the user from
-// completing an action (e.g. a required-field check before save/publish) —
-// unlike showStatusMessage, this can't be missed or auto-dismiss unnoticed.
-
-window.CList.ui.showErrorModal = function(message, { title = 'Error' } = {}) {
-    const msg = document.createElement('p');
-    msg.className = 'error-message';
-    msg.textContent = message;
-
-    const { buttons } = buildDialogModal(title, msg, [
-        { label: 'OK', onClick: (close) => close() }
-    ]);
-    buttons[0].focus();
-};
-
-// ── copyToClipboard ───────────────────────────────────────────────────────────
-// Copies text and reports success/failure via showStatusMessage/showErrorModal
-// — the pattern repeated at every "copy link"/"copy URL" button.
-window.CList.ui.copyToClipboard = function(text, { successMsg = 'Copied to clipboard.', failMsg = 'Copy failed — select the text and copy manually.' } = {}) {
-    return navigator.clipboard.writeText(text)
-        .then(() => showStatusMessage(successMsg))
-        .catch(() => showErrorModal(failMsg, { title: 'Copy failed' }));
-};
-window.copyToClipboard = window.CList.ui.copyToClipboard;
-
-// ── buildVisibilitySelect / buildAccountSelect ───────────────────────────────
-// Shared <select> builders for the annotation-send UI (annotate.js, annotate-editor.js).
-// Callers set their own style.cssText afterward — these only populate options.
-
-window.CList.ui.buildVisibilitySelect = function() {
-    const select = document.createElement('select');
-    [['public', 'Public'], ['private', 'Private']].forEach(([val, text]) => {
-        const opt = document.createElement('option');
-        opt.value = val;
-        opt.textContent = text;
-        select.appendChild(opt);
-    });
-    return select;
-};
-window.buildVisibilitySelect = window.CList.ui.buildVisibilitySelect;
-
-window.CList.ui.buildAccountSelect = function(accounts) {
-    const select = document.createElement('select');
-    accounts.forEach((acct, i) => {
-        const opt = document.createElement('option');
-        opt.value = i;
-        opt.textContent = acct.title || acct.instance;
-        select.appendChild(opt);
-    });
-    return select;
-};
-window.buildAccountSelect = window.CList.ui.buildAccountSelect;
-
-// ── dismissOnOutsideClick ─────────────────────────────────────────────────────
-// Removes `el` and detaches itself on the first click outside of `el` (and not
-// on `anchorEl`, e.g. the button that opened it — pass null if not needed).
-// Listener is attached on a deferred setTimeout so the click that opened `el`
-// doesn't itself immediately dismiss it.
-window.CList.ui.dismissOnOutsideClick = function(el, anchorEl) {
-    const outsideHandler = (e) => {
-        if (!el.contains(e.target) && e.target !== anchorEl) {
-            el.remove();
-            document.removeEventListener('click', outsideHandler, true);
-        }
-    };
-    setTimeout(() => document.addEventListener('click', outsideHandler, true), 0);
-};
-window.dismissOnOutsideClick = window.CList.ui.dismissOnOutsideClick;
-
-// ── isHandlerVisible ──────────────────────────────────────────────────────────
-// Shared capability gate for the loaders/savers/editorHandlers registries (see
-// docs/storage-model.md "Capability flags"). A handler declares requiresLogin
-// and/or requiresAccount; either flag defaults to true (fail closed) when the
-// handler doesn't declare it at all, so a handler that forgets to state its
-// requirements stays hidden instead of silently showing up for a logged-out
-// visitor — the opposite of the old per-file visible()-or-nothing convention,
-// which defaulted to always-visible. A handler's own visible() — for checks
-// these two flags can't express, e.g. Dropbox needing a Dropbox-TYPED account,
-// not just any account — always wins outright over the flags.
-window.CList.ui.isHandlerVisible = function(handler) {
-    if (typeof handler.visible === 'function') return handler.visible();
-
-    const requiresLogin   = handler.requiresLogin   !== false;
-    const requiresAccount = handler.requiresAccount  !== false;
-
-    if (requiresLogin && !(typeof isRegistered === 'function' && isRegistered())) return false;
-    if (requiresAccount && !(window.CList.accounts || []).length) return false;
-    return true;
-};
+window.createFeedHeader = window.CList.ui.feedHeader;
 
 // ── renderLoadMoreButton ─────────────────────────────────────────────────────
 // Removes any existing button with btnId, then (if onLoadMore is given) adds a
@@ -692,14 +608,146 @@ window.CList.ui.renderFeed = async function(rawItems, container, {
     window.checkAnnotationsBatch?.();
 };
 
-// ── backward-compatible globals ───────────────────────────────────────────────
-// Existing call sites use bare names; these aliases keep them working.
+// ============================================================================
+// 6. User feedback: status messages, errors, dialogs
+// ============================================================================
 
-window.makeAccountList     = window.CList.ui.accountList;
-window.makeListing         = window.CList.ui.listing;
-window.makeEditorButton    = window.CList.ui.editorButton;
-window.createFeedHeader    = window.CList.ui.feedHeader;
-window.showServiceError    = window.CList.ui.serviceError;
-window.showStatusMessage   = window.CList.ui.showStatusMessage;
-window.showErrorModal      = window.CList.ui.showErrorModal;
-window.isHandlerVisible    = window.CList.ui.isHandlerVisible;
+// ── showStatusMessage ─────────────────────────────────────────────────────────
+// Transient message in #identityDiv (the same bar that otherwise shows the
+// login identity); auto-restores after 3 s. Debounced so that overlapping
+// calls don't race to restore the identity label too early.
+
+window.CList.ui.showStatusMessage = function(message) {
+    const identityDiv = window.CList.ui.view?.identityDiv;
+    if (!identityDiv) {
+        console.error('identityDiv element not found.');
+        return;
+    }
+    identityDiv.textContent = message;
+    clearTimeout(window.CList.ui._statusMessageTimer);
+    window.CList.ui._statusMessageTimer = setTimeout(() => {
+        if (typeof renderIdentityLabel === 'function') renderIdentityLabel();
+    }, 3000);
+};
+window.showStatusMessage = window.CList.ui.showStatusMessage;
+
+// ── buildDialogModal ──────────────────────────────────────────────────────────
+// Shared shell for the title + body + action-button-row dialogs used by
+// showErrorModal below, fallbackDownload (files.js), and _localrssConfirm
+// (localrss.js) — all three built this same box/heading/.error-modal-actions
+// structure by hand before calling showModal(). `buttons` is an array of
+// {label, secondary, onClick(close)}; appended in the order given.
+window.CList.ui.buildDialogModal = function(title, bodyNode, buttons) {
+    const box = document.createElement('div');
+
+    const heading = document.createElement('h2');
+    heading.className = 'error-modal-title';
+    heading.textContent = title;
+    box.appendChild(heading);
+
+    box.appendChild(bodyNode);
+
+    const row = document.createElement('div');
+    row.className = 'error-modal-actions';
+    const close = () => document.getElementById('generic-modal')?.remove();
+
+    const buttonEls = buttons.map(spec => {
+        const btn = document.createElement('button');
+        btn.className = spec.secondary ? 'btn btn-secondary' : 'btn';
+        btn.textContent = spec.label;
+        btn.onclick = () => spec.onClick(close);
+        row.appendChild(btn);
+        return btn;
+    });
+    box.appendChild(row);
+
+    showModal(box, { hideDefaultClose: true });
+    return { close, buttons: buttonEls };
+};
+window.buildDialogModal = window.CList.ui.buildDialogModal;
+
+// ── showErrorModal ────────────────────────────────────────────────────────────
+// Full-screen modal (via showModal) for errors that block the user from
+// completing an action (e.g. a required-field check before save/publish) —
+// unlike showStatusMessage, this can't be missed or auto-dismiss unnoticed.
+
+window.CList.ui.showErrorModal = function(message, { title = 'Error' } = {}) {
+    const msg = document.createElement('p');
+    msg.className = 'error-message';
+    msg.textContent = message;
+
+    const { buttons } = buildDialogModal(title, msg, [
+        { label: 'OK', onClick: (close) => close() }
+    ]);
+    buttons[0].focus();
+};
+window.showErrorModal = window.CList.ui.showErrorModal;
+
+// ── serviceError ──────────────────────────────────────────────────────────────
+// Appends a structured error message div to container (element or ID string).
+
+window.CList.ui.serviceError = function(container, title, message, actionHtml = '') {
+    const msg = document.createElement('div');
+    msg.className = 'error-message';
+    msg.innerHTML = `<p><strong>${title}:</strong> ${message}</p>`
+        + (actionHtml ? `<p>${actionHtml}</p>` : '');
+    if (typeof container === 'string') container = document.getElementById(container);
+    if (container) container.appendChild(msg);
+};
+window.showServiceError = window.CList.ui.serviceError;
+
+// ============================================================================
+// 7. Misc DOM utilities
+// ============================================================================
+
+// ── copyToClipboard ───────────────────────────────────────────────────────────
+// Copies text and reports success/failure via showStatusMessage/showErrorModal
+// — the pattern repeated at every "copy link"/"copy URL" button.
+window.CList.ui.copyToClipboard = function(text, { successMsg = 'Copied to clipboard.', failMsg = 'Copy failed — select the text and copy manually.' } = {}) {
+    return navigator.clipboard.writeText(text)
+        .then(() => showStatusMessage(successMsg))
+        .catch(() => showErrorModal(failMsg, { title: 'Copy failed' }));
+};
+window.copyToClipboard = window.CList.ui.copyToClipboard;
+
+// ── dismissOnOutsideClick ─────────────────────────────────────────────────────
+// Removes `el` and detaches itself on the first click outside of `el` (and not
+// on `anchorEl`, e.g. the button that opened it — pass null if not needed).
+// Listener is attached on a deferred setTimeout so the click that opened `el`
+// doesn't itself immediately dismiss it.
+window.CList.ui.dismissOnOutsideClick = function(el, anchorEl) {
+    const outsideHandler = (e) => {
+        if (!el.contains(e.target) && e.target !== anchorEl) {
+            el.remove();
+            document.removeEventListener('click', outsideHandler, true);
+        }
+    };
+    setTimeout(() => document.addEventListener('click', outsideHandler, true), 0);
+};
+window.dismissOnOutsideClick = window.CList.ui.dismissOnOutsideClick;
+
+// ============================================================================
+// 8. Capability gating
+// ============================================================================
+
+// ── isHandlerVisible ──────────────────────────────────────────────────────────
+// Shared capability gate for the loaders/savers/editorHandlers registries (see
+// docs/storage-model.md "Capability flags"). A handler declares requiresLogin
+// and/or requiresAccount; either flag defaults to true (fail closed) when the
+// handler doesn't declare it at all, so a handler that forgets to state its
+// requirements stays hidden instead of silently showing up for a logged-out
+// visitor — the opposite of the old per-file visible()-or-nothing convention,
+// which defaulted to always-visible. A handler's own visible() — for checks
+// these two flags can't express, e.g. Dropbox needing a Dropbox-TYPED account,
+// not just any account — always wins outright over the flags.
+window.CList.ui.isHandlerVisible = function(handler) {
+    if (typeof handler.visible === 'function') return handler.visible();
+
+    const requiresLogin   = handler.requiresLogin   !== false;
+    const requiresAccount = handler.requiresAccount  !== false;
+
+    if (requiresLogin && !(typeof isRegistered === 'function' && isRegistered())) return false;
+    if (requiresAccount && !(window.CList.accounts || []).length) return false;
+    return true;
+};
+window.isHandlerVisible = window.CList.ui.isHandlerVisible;
