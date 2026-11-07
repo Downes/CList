@@ -681,6 +681,15 @@ function getRealtimeDocShareLink(wsUrl, docId, mode) {
     return `${wsUrlToRestBase(wsUrl)}/doc/${pathId}/${mode}`;
 }
 
+// Prefers a reference's human author name over its feed/handle or service —
+// shared by the quote-attribution and bracket-citation logic in annotate.js/ui.js
+// so both show the same name instead of one showing a handle and the other a name.
+function referenceDisplayName(ref) {
+    if (ref.author_name && ref.author_name !== '(unknown author)') return ref.author_name;
+    if (ref.feed && ref.feed !== '(no feed specified)') return ref.feed;
+    return ref.service || 'Unknown';
+}
+
 // ============================================================================
 // 10. Global error handling
 // ============================================================================

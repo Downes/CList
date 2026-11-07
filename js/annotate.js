@@ -225,11 +225,8 @@ window.clistAnnotate = function(itemId) {
     const selection = window.getSelection();
     const selectedText = selection ? selection.toString().trim() : '';
     const textToQuote = selectedText || el.reference.summary || '';
-    const isUnknownAuthor = !el.reference.author_name || el.reference.author_name === '(unknown author)';
-    const attribution = isUnknownAuthor
-        ? (el.reference.feed && el.reference.feed !== '(no feed specified)' ? el.reference.feed : el.reference.service || 'Unknown')
-        : el.reference.author_name;
-    const feedTitle = (el.reference.feed && el.reference.feed !== '(no feed specified)') ? el.reference.feed : (el.reference.service || 'Unknown');
+    const attribution = referenceDisplayName(el.reference);
+    const feedTitle = attribution;
 
     // HTML-capable editors get the quote escaped and wrapped for HTML; plain-text
     // editors keep the quote-only behavior. The bracket citation is appended by

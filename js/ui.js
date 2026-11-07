@@ -88,7 +88,10 @@ window.CList._lastOpenedWindowRef = null;
 // drop case that previously had no mechanism at all to identify its source entry.
 window.CList._lastDragStartRef = null;
 document.addEventListener('dragstart', function(e) {
-    const specific = e.target.closest ? e.target.closest('.statusSpecific') : null;
+    // A plain text-selection drag hands us the Text node itself as e.target,
+    // which has no .closest() — walk up to its parent element first.
+    const el = e.target.nodeType === Node.TEXT_NODE ? e.target.parentElement : e.target;
+    const specific = el && el.closest ? el.closest('.statusSpecific') : null;
     window.CList._lastDragStartRef = specific?.reference || null;
 }, true);
 
@@ -130,14 +133,29 @@ window.openInBrowserButton = function(url, itemId) {
     return `<button class="clist-action-btn" title="Open in browser" onclick="openInBrowser('${_heJs(url)}', '${_heJs(itemId)}')"><span class="material-icons md-18 md-light">launch</span></button>`;
 };
 
+// Browsers resolve a relative in-page href (e.g. the entry's own placeholder
+// href="#" "[Link]" anchor) against location.href before handing it to us via
+// text/uri-list — so it no longer literally starts with "#" by the time we see
+// it, it's an absolute URL pointing right back at this page. Such a URL is never
+// a legitimate dragged-from reference (CList only cites external feed content),
+// so reject anything same-origin rather than just anything #-prefixed.
+function _isUsableDropUrl(candidate) {
+    if (!candidate) return false;
+    try { return new URL(candidate, location.href).origin !== location.origin; }
+    catch (_) { return false; }
+}
+
 window._extractDropUrl = function(uriList, html) {
     if (uriList) {
-        const first = uriList.split('\n').map(l => l.trim()).find(l => l && !l.startsWith('#'));
+        const first = uriList.split('\n').map(l => l.trim()).find(l => l && !l.startsWith('#') && _isUsableDropUrl(l));
         if (first) return first;
     }
     if (html) {
-        const m = html.match(/href=["']([^"'#][^"']*?)["']/i);
-        if (m) return m[1];
+        const matches = html.match(/href=["'][^"']*["']/gi) || [];
+        for (const m of matches) {
+            const candidate = m.match(/href=["']([^"']*)["']/i)[1];
+            if (_isUsableDropUrl(candidate)) return candidate;
+        }
     }
     return null;
 };
@@ -204,7 +222,7 @@ function _dispatchDroppedRef(e, dt, ref) {
         handler.insertLink({
             content,
             entryUrl: ref.url,
-            feedTitle: (ref.feed && ref.feed !== '(no feed specified)') ? ref.feed : (ref.service || 'Unknown'),
+            feedTitle: referenceDisplayName(ref),
             reference: { ...ref },
         });
     }

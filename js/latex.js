@@ -316,6 +316,17 @@
         return `\\begin{thebibliography}{99}\n${items}\n\\end{thebibliography}`
     }
 
+    // --- Inline citation text for insertLink/insertLinkVia (plain "(Author, Year)",
+    // not a \cite{} macro — there's no stable citation key until a bibliography has
+    // actually been generated; see referencesToLatexBibliography/BIBLIOGRAPHY_RE below) ---
+
+    function _citationText(reference) {
+        if (!reference) return ''
+        const author = escapeLatex(referenceDisplayName(reference))
+        const year   = reference.created_at ? reference.created_at.slice(0, 4) : 'n.d.'
+        return `(${author}, ${year})`
+    }
+
     // --- Insert text at the CodeMirror cursor ---
 
     function insertAtCursor(text) {
@@ -551,15 +562,18 @@
         // no setContent — collaborative editor, same reasoning as collab/etherpad/collection
 
         // insertLink/insertLinkVia bodies are intentionally identical — LaTeX bibliography
-        // text is generated separately on demand (Insert bibliography button), so there's no
-        // inline citation to vary; both just insert plain text and push the reference.
+        // text is generated separately on demand (Insert bibliography button). Each insert
+        // also drops a literal "(Author, Year)" text citation right after the inserted text —
+        // not a \cite{} macro, since there's no stable \bibitem key until a bibliography has
+        // actually been generated.
         insertLink: ({ content, reference }) => {
             if (!cmView) {
                 showErrorModal('Join a document first, then load content into it.', { title: 'No document loaded' })
                 return
             }
             const text = (content.type === 'text/html') ? cleanHTMLContent(content.value) : content.value
-            if (text) insertAtCursor(text)
+            const citation = _citationText(reference)
+            if (text) insertAtCursor(citation ? `${text} ${citation}` : text)
             _pushLatexReference(reference)
         },
         insertLinkVia: ({ content, reference }) => {
@@ -568,7 +582,8 @@
                 return
             }
             const text = (content.type === 'text/html') ? cleanHTMLContent(content.value) : content.value
-            if (text) insertAtCursor(text)
+            const citation = _citationText(reference)
+            if (text) insertAtCursor(citation ? `${text} ${citation}` : text)
             _pushLatexReference(reference)
         },
     }

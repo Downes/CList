@@ -43,6 +43,18 @@ function getReferences() {
     return window.CList.state.references;
 }
 
+// Close the references panel and restore the editor's own content area underneath it.
+// Shared by playRefs()'s close branch and switchToEditor() (editors.js), which calls this
+// unconditionally on every editor switch so a panel left open doesn't turn into a dead end —
+// the target editor may have zero references, which hides the Refs toggle button entirely,
+// leaving no way to close a panel that's still showing.
+function closeReferencesPanel() {
+    const panel = document.getElementById('clist-references-panel');
+    const content = document.getElementById('write-pane-content');
+    if (panel) panel.style.display = 'none';
+    if (content) content.style.display = '';
+}
+
 // Toggle the references panel — swaps write-pane-content for the refs list.
 window.playRefs = function() {
     const panel = document.getElementById('clist-references-panel');
@@ -50,10 +62,14 @@ window.playRefs = function() {
         if (typeof showErrorModal === 'function') showErrorModal('No references yet.', { title: 'No references' });
         return;
     }
-    const hidden  = window.getComputedStyle(panel).display === 'none';
-    const content = document.getElementById('write-pane-content');
-    panel.style.display = hidden ? 'block' : 'none';
-    if (content) content.style.display = hidden ? 'none' : '';
+    const hidden = window.getComputedStyle(panel).display === 'none';
+    if (hidden) {
+        const content = document.getElementById('write-pane-content');
+        panel.style.display = 'block';
+        if (content) content.style.display = 'none';
+    } else {
+        closeReferencesPanel();
+    }
 };
 
 // Clear all references and hide the panel.

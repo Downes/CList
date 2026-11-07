@@ -704,6 +704,7 @@ async function switchToEditor(editorType, carriedContent, account) {
     // Callers carrying a page forward explicitly (loadSavedPage(), _offerEditorChoice())
     // re-set it right after calling us, overriding whatever got restored here.
     _parkCurrentEditorState();
+    closeReferencesPanel();
     await initializeEditor(editorType, account ?? null);
     _restoreEditorState(currentEditor, currentEditorAccount);
 
