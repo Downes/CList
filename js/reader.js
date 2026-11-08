@@ -195,6 +195,7 @@ function findPanel() {
 
     Object.entries(window.CList.readers).forEach(([key, handler]) => {
         if (typeof handler.search !== 'function') return;
+        if (!window.CList.ui.isHandlerVisible(handler)) return;
         const btn = document.createElement('button');
         btn.className = 'account-button';
         btn.addEventListener('click', () => {

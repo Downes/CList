@@ -465,6 +465,30 @@ function kvstoreAuthHeader() {
     return token ? { 'Authorization': `Bearer ${token}` } : {};
 }
 
+// Cached across the page's lifetime — {enabled, key} once fetched, so repeated
+// proxyp calls on one page load don't each re-fetch /public-key.
+let _proxypAccessKeyCache = null;
+
+// Lets a logged-out visitor use proxyp: fetches the admin-declared access key from
+// proxyp's public (deliberately unauthenticated) /public-key endpoint and returns it
+// as a header, or {} if the bypass is off or no key is set. A Bearer token from
+// kvstoreAuthHeader() always takes priority over this when present — this is only
+// the fallback for callers with no logged-in session. See /srv/apps/proxyp/CLAUDE.md
+// for why this key can't be a true secret.
+async function proxypAccessKeyHeader() {
+    if (_proxypAccessKeyCache === null) {
+        try {
+            const resp = await fetch(`${window.CList.defaults.PROXYP}/public-key`);
+            _proxypAccessKeyCache = resp.ok ? await resp.json() : { enabled: false };
+        } catch (_) {
+            _proxypAccessKeyCache = { enabled: false };
+        }
+    }
+    return (_proxypAccessKeyCache.enabled && _proxypAccessKeyCache.key)
+        ? { 'X-Access-Key': _proxypAccessKeyCache.key }
+        : {};
+}
+
 // Standard error message for a failed window.CList.storage.kv.* call —
 // distinguishes "not logged in" from any other kvstore failure.
 function kvErrorMessage(err) {

@@ -6,6 +6,8 @@
     const googHandler = {
         label: 'Google',
         logoSrc: 'assets/icons/google.svg',
+        requiresLogin:   true,
+        requiresAccount: true,
         statusActions: (item,itemID,itemLink) => {
             return openInBrowserButton(itemLink, itemID);
         },

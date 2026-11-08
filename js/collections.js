@@ -1598,10 +1598,29 @@ window.showSavedCollections = async function() {
                 status.textContent   = 'Fetching…';
 
                 try {
-                    const resp = await fetch(url);
+                    // Routed through proxyp, not a direct fetch(url) — the target site's
+                    // CORS policy blocks a raw cross-origin fetch from the browser (see
+                    // /srv/apps/proxyp/CLAUDE.md). A Bearer token (logged in) or the
+                    // admin-declared access key (logged out, if enabled) authorizes it.
+                    const headers = { ...kvstoreAuthHeader(), ...(await proxypAccessKeyHeader()) };
+                    const resp = await fetch(`${window.CList.defaults.PROXYP}?${new URLSearchParams({ url })}`, { headers });
                     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
                     const contentType = resp.headers.get('Content-Type') || '';
                     const text        = await resp.text();
+
+                    // Proxyp's convention: a reachable-but-failed upstream request still
+                    // returns HTTP 200, with a JSON {"error": "..."} body instead of the
+                    // real content — resp.ok alone no longer means "got the real page"
+                    // once proxied, so check for that shape explicitly.
+                    if (contentType.includes('application/json')) {
+                        let proxypError = null;
+                        try {
+                            const parsed = JSON.parse(text);
+                            if (parsed && typeof parsed.error === 'string') proxypError = parsed.error;
+                        } catch (_) { /* not JSON, or not proxyp's error shape — fall through */ }
+                        if (proxypError) throw new Error(proxypError);
+                    }
+
                     const format      = _detectFormat(contentType, url);
 
                     // Route through the shared loadSavedPage() path — same as "Load

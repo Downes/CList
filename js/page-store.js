@@ -9,7 +9,10 @@
 //
 //  Public API — see docs/storage-model.md "PageStore — target interface" for the authoritative
 //  surface this implements. Always local (IndexedDB via js/page-store-idb.js, loaded before this
-//  file), independent of KVStore mode/login. Not aware of, and not called by, the KVStore facade.
+//  file), not aware of, and not called by, the KVStore facade. The save/load registry entries
+//  below require login (requiresLogin: true) even though the storage itself is login-independent —
+//  logged-out IndexedDB usage was found to be unreliable, so the Save/Load panels hide this option
+//  until the visitor logs in.
 
 window.CList = window.CList || {};
 
@@ -328,7 +331,7 @@ window.CList = window.CList || {};
     window.CList.savers.push({
         label: 'Save to CList (local)',
         icon: 'save',
-        requiresLogin:   false,
+        requiresLogin:   true,
         requiresAccount: false,
         save: async () => {
             const handler = editorHandlers[currentEditor];
@@ -498,7 +501,7 @@ function _showImportPagesPicker(renderTarget) {
     window.CList.loaders.push({
         label: 'CList (local)',
         icon: 'folder',
-        requiresLogin:   false,
+        requiresLogin:   true,
         requiresAccount: false,
         load: async () => {
             let summaries;

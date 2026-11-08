@@ -6,4 +6,5 @@ window.CList.defaults = {
     ANNOTATIONS: "https://annotations.mooc.ca",
     COLLAB: "https://collab.mooc.ca",
     DISCUSSIONS: "https://discussions.mooc.ca",
+    PROXYP: "https://proxyp.mooc.ca",
 };

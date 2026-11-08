@@ -5,6 +5,8 @@
     const oasisHandler = {
         label: 'OASIS OERs',
         icon: 'school',
+        requiresLogin:   false,
+        requiresAccount: false,
         statusActions: (item,itemID,itemLink) => {
             oasisStatusActions = openInBrowserButton(itemLink, itemID);
 

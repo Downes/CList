@@ -6,6 +6,8 @@
     const ddgHandler = {
         label: 'DuckDuckGo',
         logoSrc: 'assets/icons/duckduckgo.svg',
+        requiresLogin:   false,
+        requiresAccount: false,
         statusActions: (item,itemID,itemLink) => {
             const expandBtn = item._hasExpandableContent
                 ? `<button class="clist-action-btn" title="Expand" onClick="toggleEntryExpanded('${itemID}');"><span class="material-icons md-18 md-light">zoom_out_map</span></button>`

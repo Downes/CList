@@ -78,6 +78,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (!window.CList.state.username || window.CList.state.username === "none") {
         setLoggedOutUI();
+        // Show the one-time logout notice left by KVlogout() (survives its reload), then clear it.
+        const _logoutMsg = sessionStorage.getItem('clist_logout_message');
+        if (_logoutMsg) {
+            sessionStorage.removeItem('clist_logout_message');
+            identityDiv.textContent = _logoutMsg;
+        }
     } else {
         // Fetch accounts on reload so Read/Post buttons reflect the user's saved accounts.
         // (accounts array is empty at page load; it's normally populated only after login)
@@ -2883,6 +2889,10 @@ const ADMIN_SETTINGS_APPS = [
         label: 'Discussions', baseUrl: window.CList.defaults.DISCUSSIONS,
         description: 'Peer discovery / signaling service for CList P2P chat — stores ephemeral PeerJS peer IDs so users can find and join each other\'s discussions.',
     },
+    {
+        label: 'Proxyp', baseUrl: window.CList.defaults.PROXYP,
+        description: 'Cross-domain HTTP relay — lets CList fetch external URLs ("Load from URL", Etherpad/OASIS bridges) without browser CORS restrictions.',
+    },
 ];
 
 // Extra headers a given admin-settings app's auth gate requires beyond the
@@ -3329,7 +3339,13 @@ window.addEventListener('popstate', (e) => {
                 </div>`;
         }
 
-        // Function to handle logout
+        // Function to handle logout — clears persistent auth state, then does a full
+        // page reload so every pane (feed, write/editor) and all in-memory state
+        // (account arrays, parked editor states, references, live Collab/LaTeX
+        // connections, etc.) starts clean, rather than trying to manually unwind
+        // each module's state one at a time. clist_logout_message survives the
+        // reload (sessionStorage) so the bootstrap handler can show the usual
+        // "logged out" notice once, then clears it.
         function KVlogout() {
 
             // Remove the token cookies and session encryption key
@@ -3340,29 +3356,15 @@ window.addEventListener('popstate', (e) => {
             if (_logoutUser) sessionStorage.removeItem(`${window.CList.config.flaskSiteUrl}_${_logoutUser}_encKey`);
             sessionStorage.removeItem(window.CList.config.flaskSiteUrl + '_encKey'); // clean up any legacy key
 
+            // Clear any editor drafts (saveDraft() in editors.js/tinymce.js) — these also live
+            // in sessionStorage, so they'd otherwise survive the reload below and get offered
+            // back via offerDraftRestore()'s "restore your last session?" prompt on next load.
+            Object.keys(sessionStorage)
+                .filter(k => k.startsWith('clist_draft_'))
+                .forEach(k => sessionStorage.removeItem(k));
 
-            // Clear the account list
-            const element = document.getElementById('read-account-list');
-            if (element) element.style.display = 'none';
-            if (element) element.value='';
-            window.CList.accounts = [];
-
-            window.CList.state.username = '';  // Clear the username
-            // Clear the baseURL and accessToken input fields and selected option in the dropdown
-            document.getElementById('baseURL').value = '';
-            document.getElementById('accessToken').value = '';
-
-
-            // Reset left content
-            document.querySelectorAll('#left-content > div').forEach(div => div.style.display = 'none');
-
-            // Display logout message
-           //alert('You have been logged out.');
-
-            loginRequired("You have been logged out.");
-
-            // Optionally redirect to the home page or keep the user on the same page
-            // window.location.href = '/';
+            sessionStorage.setItem('clist_logout_message', 'You have been logged out.');
+            window.location.reload();
         };
 
 

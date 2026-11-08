@@ -308,7 +308,7 @@
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="js/local-kvstore.js" defer></script>
-<script src="js/utilities.js" defer></script>
+<script src="js/utilities.js?v=1" defer></script>
 <script src="js/ui.js?v=5" defer></script>
 <script src="js/account-transfer.js" defer></script>  <!-- Export/import account data (Local or hosted); calls window.CList.storage.kv.* (storage.js + adapters below), crypto_utils.js, ui.js, kvstore.js's getEncKey -- all resolved by call time since nothing here runs until a button click, well after every deferred script has executed -->
 <script src="js/references.js" defer></script>
@@ -316,7 +316,7 @@
 <script src="js/storage.js" defer></script>          <!-- window.CList.storage.kv.* facade; defines KvStoreError, must load before the two adapters below -->
 <script src="js/kvstore-remote.js" defer></script>  <!-- storage.js facade: HTTP adapter -->
 <script src="js/kvstore-local.js" defer></script>   <!-- storage.js facade: IndexedDB adapter; must load after local-kvstore.js and storage.js -->
-<script src="js/kvstore.js?v=2" defer></script>     <!-- Loads usere and account data -->
+<script src="js/kvstore.js?v=5" defer></script>     <!-- Loads usere and account data -->
 <script src="js/editors.js?v=2" defer></script>   <!-- Major function handlers-->
 <script src="js/reader.js?v=5" defer></script>
 <script src="js/oauth-config.js" defer></script>
@@ -333,6 +333,7 @@
 <script src="js/googlesearch.js" defer></script>
 <script src="js/duckduckgo.js" defer></script>
 <script src="js/oasis.js" defer></script>
+<script src="js/openalex.js" defer></script>
 
 <!--script src="js/audio.js" defer></script -->          <!-- Audio -->
 
@@ -350,7 +351,7 @@
 <script src="js/annotate.js?v=5" defer></script>   <!-- Annotation store -->
 <script src="js/annotate-editor.js?v=1" defer></script>   <!-- Dedicated annotation editor -->
 <script src="js/collection-formats.js" defer></script> <!-- Collection format interpreters -->
-<script src="js/collections.js" defer></script> <!-- Collections -->
+<script src="js/collections.js?v=1" defer></script> <!-- Collections -->
 <script src="js/collection-editor.js?v=1" defer></script>
 <script src="js/jsonbin.js" defer></script>
 <script src="js/gist.js" defer></script>
