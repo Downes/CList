@@ -982,13 +982,16 @@ body a:hover, html a:hover { text-decoration: underline; }
     overflow: hidden;
   }
 
+  /* !important beats the inline flex style that the desktop drag-to-resize/snap
+     logic (interface.js) leaves on these elements — without it, a saved desktop
+     split (e.g. flex:1/flex:0) collapses one pane's flex-basis to 0% and lets the
+     other grow to fill the whole 200vw #main-content track, doubling its width. */
   #read-pane, #write-pane {
     width: 100vw;
     height: 100%;
-    flex: none;
     position: relative;
     overflow: auto;
-    flex: 1 0 auto;
+    flex: 1 0 auto !important;
   }
 
   #left-pane.pane-open {
@@ -1005,7 +1008,7 @@ body a:hover, html a:hover { text-decoration: underline; }
     #main-content, #main-window { width: 200vw; }
     #read-pane, #write-pane {
       width: 100vw;
-      flex: 1 0 100vw;
+      flex: 1 0 100vw !important;
       -webkit-flex-shrink: 0;
       flex-shrink: 0;
     }

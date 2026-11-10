@@ -581,6 +581,24 @@ function mobShowRight() {
     openRightPane();
 }
 
+// On mobile, #left-pane is an absolutely-positioned overlay covering the whole
+// read pane (see the max-width:768px rule for #left-pane.pane-open), so picking
+// an account/feed/search-service to read from it loads the result into
+// #feed-container behind the overlay, where it can't be seen. Closing the
+// overlay afterward moves the visitor straight to the read pane, same as a
+// swipe. Scoped to these three lists specifically (not .account-button
+// generally, which is also the generic styled-button class used by unrelated
+// left-pane panels like Accounts and App Settings, where a click shouldn't
+// bounce the visitor out mid-task): #read-account-list (readPanel(), reader.js),
+// #find-section (findPanel(), reader.js), #public-feeds-list
+// (renderPublicFeedsList(), public-feeds.js).
+leftPane.addEventListener('click', (e) => {
+    if (window.innerWidth > 768) return;
+    if (e.target.closest(
+        '#read-account-list .account-button, #find-section .account-button, #public-feeds-list .account-button'
+    )) closeLeftPane();
+});
+
 // ============================================================================
 // 8. Modal dialogs
 // ============================================================================
