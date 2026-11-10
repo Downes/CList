@@ -653,7 +653,7 @@ window.CList.ui.listing = function makeListing(
     }
     statusActions.innerHTML = _statusActionsHtml || '';
     statusActions.insertAdjacentHTML('beforeend', `
-      <button class="clist-action-btn" id="collect-btn-${itemID}" onclick="collectItem('${itemID}');" title="Add to collection"><span class="material-icons md-18 md-light">library_add</span></button>
+      <button class="clist-action-btn login-only-btn" id="collect-btn-${itemID}" onclick="collectItem('${itemID}');" title="Add to collection"><span class="material-icons md-18 md-light">library_add</span></button>
       <button class="clist-action-btn chat-only-btn" onclick="shareToChat('${itemID}');" title="Share to chat"><span class="material-icons md-18 md-light">chat_bubble_outline</span></button>
     `);
 

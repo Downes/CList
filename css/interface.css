@@ -1014,7 +1014,11 @@ body a:hover, html a:hover { text-decoration: underline; }
     }
   }
 
-  body:not(.user-registered) .clist-action-btn { display: none; }
+  /* Only "Add to collection" actually requires login (collectItem() shows its
+     own "please log in" modal otherwise) — Expand, Open in browser, and
+     "Write about this" all work for guests and must stay visible. Scoped to
+     .login-only-btn instead of the whole .clist-action-btn class. */
+  body:not(.user-registered) .login-only-btn { display: none; }
 }
 
 .clist-action-btn {

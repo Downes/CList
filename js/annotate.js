@@ -249,11 +249,11 @@ window.clistAnnotate = function(itemId) {
     const { content, feedTitle } = _buildQuoteContent(el.reference, handler);
     handler.insertLink({ content, entryUrl: el.reference.url, feedTitle, reference: { ...el.reference } });
 
-    if (typeof snapPanes === 'function' && typeof mainContent !== 'undefined' && typeof readPane !== 'undefined') {
+    if (window.innerWidth <= 768) {
+        if (typeof mobShowWrite === 'function') mobShowWrite();
+    } else if (typeof snapPanes === 'function' && typeof mainContent !== 'undefined' && typeof readPane !== 'undefined') {
         const ratio = readPane.getBoundingClientRect().width / mainContent.getBoundingClientRect().width;
         if (ratio > 0.65) snapPanes('left');
-    } else if (typeof mobShowWrite === 'function') {
-        mobShowWrite();
     }
 };
 
@@ -288,11 +288,11 @@ window.openAnnotationEditor = function(itemId) {
     }
 
     // Show write pane if the divider is at the far right (read pane taking >65% of width)
-    if (typeof snapPanes === 'function' && typeof mainContent !== 'undefined' && typeof readPane !== 'undefined') {
+    if (window.innerWidth <= 768) {
+        if (typeof mobShowWrite === 'function') mobShowWrite();
+    } else if (typeof snapPanes === 'function' && typeof mainContent !== 'undefined' && typeof readPane !== 'undefined') {
         const ratio = readPane.getBoundingClientRect().width / mainContent.getBoundingClientRect().width;
         if (ratio > 0.65) snapPanes('left');
-    } else if (typeof mobShowWrite === 'function') {
-        mobShowWrite();
     }
 };
 
@@ -1133,7 +1133,7 @@ function _buildAnnotationItem(anno, options = {}) {
     // "Read annotations" button injected here by checkAnnotationsBatch when count > 0
 
     const collectBtn = document.createElement('button');
-    collectBtn.className = 'clist-action-btn';
+    collectBtn.className = 'clist-action-btn login-only-btn';
     collectBtn.id = `collect-btn-${itemID}`;
     collectBtn.title = 'Add to collection';
     collectBtn.innerHTML = '<span class="material-icons md-18 md-light">library_add</span>';
