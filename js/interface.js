@@ -472,6 +472,32 @@ document.addEventListener('keydown', (e) => {
     else if (key === 'x') { e.preventDefault(); toggleCurrentEntry(); }
 });
 
+// Alt+A — quickly open/switch to the Annotate editor, seeded from the current text
+// selection if there is one, else from the current (j/k-navigated) feed entry's reference.
+// Records the editor that was active beforehand so the Send button can switch back to it.
+document.addEventListener('keydown', (e) => {
+    if (!e.altKey || e.ctrlKey || e.metaKey || e.key.toLowerCase() !== 'a' || _typingInField()) return;
+    e.preventDefault();
+
+    let reference = null;
+    if (currentEntryEl) {
+        const specific = currentEntryEl.querySelector('.statusSpecific');
+        reference = specific?.reference || null;
+    }
+    if (!reference) {
+        showErrorModal('No feed item selected to annotate.', { title: 'Nothing to annotate' });
+        return;
+    }
+
+    const returnTo = (currentEditor === 'annotate-edit') ? null : currentEditor;
+    switchToEditor('annotate-edit').then(() => {
+        if (returnTo) _annotateReturnEditor = returnTo;
+        const handler = editorHandlers['annotate-edit'];
+        const { content, feedTitle } = _buildQuoteContent(reference, handler);
+        handler.insertLink({ content, entryUrl: reference.url, feedTitle, reference: { ...reference } });
+    });
+});
+
 document.getElementById('feed-container')?.addEventListener('dblclick', (e) => {
     if (e.target.closest('a, button, img')) return;
     const box = e.target.closest('.status-box');

@@ -329,13 +329,20 @@ body a:hover, html a:hover { text-decoration: underline; }
   position: relative;
 }
 
-#write-pane-content {
+#write-editor-area {
   flex: 1;
   min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+#write-pane-content {
+  position: absolute;
+  inset: 0;
   margin: 5px 10px;
   overflow-y: auto;
-  position: relative;
   display: block;
+  box-sizing: border-box;
 }
 
 #write-title-row {
@@ -436,12 +443,25 @@ body a:hover, html a:hover { text-decoration: underline; }
 }
 
 .allReferences {
+  position: absolute;
+  inset: 0;
   width: 100%;
-  flex: 1;
-  min-height: 0;
   background-color: var(--bg-panel);
   overflow-y: auto;
-  display: none;
+  transform: translateY(100%);
+  transition: transform 0.5s ease;  /* matches #right-pane/#left-pane drawer timing */
+  z-index: 10;  /* above TinyMCE's toolbar (.tox-editor-header, z-index: 2) */
+}
+
+.allReferences.open {
+  transform: translateY(0);
+}
+
+/* .allReferences has no padding of its own (only its row children carry side margins),
+   so the shared .modal-header-row needs matching horizontal margin here to line up
+   with the rows below instead of running edge-to-edge. */
+.allReferences .modal-header-row {
+  margin: 10px 10px 10px 10px;
 }
 
 #divider {
@@ -1102,7 +1122,7 @@ body.chat-active .chat-only-btn { display: inline-flex; }
 .modal-header-row button {
   font-size: 0.875rem;
   margin: 0;
-  padding: 4;
+  padding: 4px 8px;
   cursor: pointer;
 }
 
@@ -1211,9 +1231,15 @@ html.dark-mode #modal-content, html.dark-mode #modal-content-stacked {
 .collection-items-expanded .btn { margin: 8px 12px 4px; }
 .collection-confirm-btn   { padding: 3px 10px; font-size: 0.8rem; margin: 0; }
 
+#write-tags-bar {
+  display: flex; align-items: center; gap: 8px;
+  border-top: 1px solid var(--border-light);
+  flex-shrink: 0;
+}
+
 #write-tags {
   display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
-  padding: 10px 10px; border-top: 1px solid var(--border-light);
+  padding: 10px 10px; flex: 1; min-width: 0;
   min-height: 30px; font-size: 0.85rem; position: relative;
 }
 .write-tags-label { color: var(--text-light); font-size: 0.8rem; white-space: nowrap; margin-right: 4px; }
@@ -1279,6 +1305,23 @@ html.dark-mode #modal-content, html.dark-mode #modal-content-stacked {
 }
 .collection-editor-input:focus { outline: none; border-color: var(--highlight-color); }
 textarea.collection-editor-input { min-height: 60px; resize: vertical; }
+
+.ref-citation-line { flex: 1; min-width: 0; line-height: 1.6; }
+
+.ref-field-text {
+  display: inline; cursor: text; color: var(--text-main);
+  border-bottom: 1px dashed transparent;
+}
+.ref-field-text:hover { border-bottom-color: var(--border-main); }
+
+.ref-field-input {
+  display: inline-block; width: auto; min-width: 60px; max-width: 100%;
+  font-size: inherit; font-family: inherit; padding: 0 2px;
+}
+
+.ref-citation-date {
+  font: inherit; color: inherit;
+}
 
 .tox-tinymce,
 .tox-edit-area { border-color: var(--border-main) !important; }

@@ -1,102 +1,106 @@
-// annotate-editor.js — Dedicated single-item annotation editor for the write-pane
+// annotate-editor.js — Annotation editor for the write-pane
 // Part of CList, the next generation of learning and connecting with your community
 //
 // Depends on: utilities.js (escapeHtml, showStatusMessage, showErrorModal, parseAccountValue,
 //             getSiteSpecificCookie, getAccounts, cleanHTMLContent), kvstore.js, editors.js
 //             (currentEditor, editorHandlers, switchToEditor), tags.js (getWriteTags),
-//             annotate.js (_submitAnnotation — loads before this file).
+//             tinymce.js (createReference, pushAndDisplayReference, displayCurrentReference,
+//             displayReferences), references.js (getReferences), annotate.js
+//             (_submitAnnotation — loads before this file).
 //
-// Unlike every other editor, this one always targets exactly one feed item, set fresh by the
-// "Annotate" (pencil) button each time it's clicked — never resumed from a previous session the
-// way editorStates park/restore works for other editors. _annoEditReference is therefore kept
-// outside that park/restore system entirely (same reasoning as collection-editor.js's
-// _activeCollection/_draftItems), so switching away to another editor and back to a *different*
-// item via a fresh pencil click can never show stale data from the last item annotated.
+// A normal editor like any other: it takes citations via the shared insertLink/insertLinkVia
+// contract (the "Write about this" arrow button, or the Alt+A shortcut in interface.js) and
+// keeps its own reference list via the generic editorStates park/restore in editors.js, same
+// as texteditor/tinymce/latex/collab. Reached via Alt+A (interface.js) rather than a dedicated
+// open button.
 
-let _annoEditReference = null; // { title, url, author_name, feed, created_at, summary, id, ... } | null
+// Editor to switch back to after a successful Send — set by whatever opened this editor
+// (currently only the Alt+A shortcut in interface.js) when it wasn't already active.
+let _annotateReturnEditor = null;
 
-// Pencil-button handler — always opens a fresh editor targeting the clicked item, discarding
-// whatever item a previously-open annotation editor was showing. This is intentionally different
-// from the "Write about this" arrow button (clistAnnotate, in annotate.js), which inserts quoted
-// text into whatever editor is currently open instead of forcing a switch.
-window.clistAnnotateEdit = function(itemId) {
-    const el = document.getElementById(itemId);
-    if (!el || !el.reference) {
-        showErrorModal('No reference found for this item.', { title: 'No reference' });
-        return;
-    }
-
-    _annoEditReference = { ...el.reference };
-
-    if (typeof switchToEditor === 'function') {
-        switchToEditor('annotate-edit', null);
-    } else {
-        console.error('switchToEditor is not defined');
-    }
-
-    if (typeof snapPanes === 'function' && typeof mainContent !== 'undefined' && typeof readPane !== 'undefined') {
-        const ratio = readPane.getBoundingClientRect().width / mainContent.getBoundingClientRect().width;
-        if (ratio > 0.65) snapPanes('left');
-    } else if (typeof mobShowWrite === 'function') {
-        mobShowWrite();
-    }
-};
-
-// Render the editor panel: prefilled Title/URL/Author/Feed/Date fields (read-only — they
-// describe the item being annotated, not something this editor publishes itself), a body
-// textarea pre-seeded with a quoted excerpt, and a bottom Send control.
+// Render the editor panel: editable Title/URL/Author/Feed/Image fields for the reference being
+// annotated, a Description body textarea (content arrives via loadContent/insertLink, same as
+// every other editor), and a bottom Send control. Fields modeled on gRSShopper's ghub post-edit
+// screen.
 async function _renderAnnotateEditor(container) {
     container.innerHTML = '';
-    const ref = _annoEditReference || {};
 
     const header = document.createElement('div');
     header.className = 'list-tip';
-    header.textContent = 'Annotate this item';
+    header.textContent = 'Annotate';
     container.appendChild(header);
 
-    [
-        { key: 'title',       label: 'Title' },
-        { key: 'url',         label: 'URL' },
-        { key: 'author_name', label: 'Author' },
-        { key: 'feed',        label: 'Feed / Source' },
-        { key: 'created_at',  label: 'Date' },
-    ].forEach(({ key, label }) => {
-        const wrapper = document.createElement('div');
-        wrapper.className = 'collection-editor-field';
-        const labelEl = document.createElement('label');
-        labelEl.textContent = label;
-        wrapper.appendChild(labelEl);
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.value = ref[key] || '';
-        input.readOnly = true;
-        input.className = 'collection-editor-input';
-        wrapper.appendChild(input);
-        container.appendChild(wrapper);
-    });
+    const fieldsSection = document.createElement('div');
+    fieldsSection.id = 'annotate-ref-fields';
+    container.appendChild(fieldsSection);
+    _renderAnnotateRefFields(fieldsSection);
 
     const bodyWrapper = document.createElement('div');
     bodyWrapper.className = 'collection-editor-field';
     const bodyLabel = document.createElement('label');
-    bodyLabel.textContent = 'Annotation';
+    bodyLabel.textContent = 'Description';
     bodyWrapper.appendChild(bodyLabel);
 
     const body = document.createElement('textarea');
     body.id = 'annotate-edit-body';
     body.rows = 8;
     body.style.cssText = 'width:100%;box-sizing:border-box;';
-    const isUnknownAuthor = !ref.author_name || ref.author_name === '(unknown author)';
-    const attribution = isUnknownAuthor
-        ? (ref.feed && ref.feed !== '(no feed specified)' ? ref.feed : ref.service || 'Unknown')
-        : ref.author_name;
-    body.value = ref.summary ? `${attribution} wrote: "${ref.summary}"\n\n` : '';
     bodyWrapper.appendChild(body);
     container.appendChild(bodyWrapper);
 
     const sendSection = document.createElement('div');
+    sendSection.id = 'annotate-send-section';
     sendSection.style.cssText = 'margin-top:10px;';
     container.appendChild(sendSection);
     await _renderSendControls(sendSection, body);
+}
+
+// Editable Title/URL/Author/Feed/Image fields for the reference this annotation targets —
+// the same reference (getReferences()[0]) that _renderSendControls's Send handler reads as
+// `target`. Edits write straight back into that reference object; no re-render needed.
+// Renders nothing until a reference exists (nothing to edit yet).
+function _renderAnnotateRefFields(container) {
+    container.innerHTML = '';
+    const ref = getReferences()[0];
+    if (!ref) return;
+
+    const makeField = (label, key) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'collection-editor-field';
+        const fieldLabel = document.createElement('label');
+        fieldLabel.textContent = label;
+        wrapper.appendChild(fieldLabel);
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'collection-editor-input';
+        input.value = ref[key] || '';
+        input.addEventListener('change', () => { ref[key] = input.value; });
+        wrapper.appendChild(input);
+        container.appendChild(wrapper);
+    };
+
+    makeField('Title', 'title');
+    makeField('URL', 'url');
+    makeField('Author', 'author_name');
+    makeField('Feed', 'feed');
+    makeField('Image', 'image');
+}
+
+// Re-renders just the Send row (account/visibility pickers + gating message) without
+// touching the body textarea — called after a reference is added to an already-open
+// annotate-edit editor (insertLink/insertLinkVia/loadContent), since the gating on
+// getReferences().length needs to flip from "nothing to annotate yet" to the real controls.
+function _refreshAnnotateSendControls() {
+    const sendSection = document.getElementById('annotate-send-section');
+    const body = document.getElementById('annotate-edit-body');
+    if (sendSection && body) _renderSendControls(sendSection, body);
+}
+
+// Re-renders the ref-fields block — called alongside _refreshAnnotateSendControls() for the
+// same reason: the fields are empty (not rendered) until a reference exists.
+function _refreshAnnotateRefFields() {
+    const fieldsSection = document.getElementById('annotate-ref-fields');
+    if (fieldsSection) _renderAnnotateRefFields(fieldsSection);
 }
 
 async function _renderSendControls(sendSection, body) {
@@ -119,6 +123,14 @@ async function _renderSendControls(sendSection, body) {
         const msg = document.createElement('p');
         msg.className = 'feed-status-message';
         msg.textContent = 'No annotation account with write permission — add one in Account Settings.';
+        sendSection.appendChild(msg);
+        return;
+    }
+
+    if (!getReferences().length) {
+        const msg = document.createElement('p');
+        msg.className = 'feed-status-message';
+        msg.textContent = 'Nothing to annotate yet — use "Write about this" on a feed item, or Alt+A.';
         sendSection.appendChild(msg);
         return;
     }
@@ -150,7 +162,8 @@ async function _renderSendControls(sendSection, body) {
     sendSection.appendChild(row);
 
     sendBtn.addEventListener('click', async () => {
-        if (!_annoEditReference || !_annoEditReference.url) {
+        const target = getReferences()[0];
+        if (!target || !target.url) {
             showErrorModal('No target URL for this annotation.', { title: 'No target' });
             return;
         }
@@ -167,8 +180,15 @@ async function _renderSendControls(sendSection, body) {
         sendBtn.disabled = true;
         sendBtn.textContent = 'Sending…';
         try {
-            const ok = await _submitAnnotation(sendSection, _annoEditReference.id, _annoEditReference.url, bodyText, tags, visibility, acct, token);
-            if (ok) showStatusMessage(`Sent to ${acct.title || acct.instance}.`);
+            const ok = await _submitAnnotation(sendSection, target.id, target.url, bodyText, tags, visibility, acct, token);
+            if (ok) {
+                showStatusMessage(`Sent to ${acct.title || acct.instance}.`);
+                const returnTo = _annotateReturnEditor;
+                _annotateReturnEditor = null;
+                if (returnTo && returnTo !== 'annotate-edit') {
+                    await switchToEditor(returnTo);
+                }
+            }
         } finally {
             sendBtn.disabled = false;
             sendBtn.textContent = 'Send';
@@ -197,10 +217,11 @@ async function _renderSendControls(sendSection, body) {
                 div = document.createElement('div');
                 div.id = 'annotateEditDiv';
                 writePaneContent.appendChild(div);
+                await _renderAnnotateEditor(div);
             }
+            // Idempotent, like every other editor's initialize() — re-entering this editor
+            // (e.g. a second Alt+A press) must not wipe whatever's already been typed.
             div.style.display = 'block';
-
-            await _renderAnnotateEditor(div);
         },
 
         getContent: () => {
@@ -208,13 +229,15 @@ async function _renderSendControls(sendSection, body) {
             return ta ? ta.value.trim() : '';
         },
 
-        // Insertion target for the "Write about this" arrow button (clistAnnotate, via editors.js's
-        // global loadContent() dispatch) when this annotation editor is the active one — e.g.
-        // quoting a second passage into the annotation body while it's already open. Mirrors
-        // texteditor's cursor-splice insertion, minus the generic multi-reference citation-list
-        // bookkeeping (createReference/displayReferences), which doesn't apply here: this editor
-        // only ever has one target item, already tracked by _annoEditReference.
-        loadContent: ({ type, value }) => {
+        setContent: (value) => {
+            const ta = document.getElementById('annotate-edit-body');
+            if (ta) ta.value = value;
+        },
+
+        // Insertion target for the "Write about this" arrow button (clistAnnotate) and the
+        // Alt+A shortcut — mirrors texteditor's cursor-splice insertion plus the generic
+        // multi-reference citation-list bookkeeping shared by every editor.
+        loadContent: ({ type, value }, itemId) => {
             const itemContent = (type === 'text/html') ? cleanHTMLContent(value) : value;
             const textarea = document.getElementById('annotate-edit-body');
             if (!textarea) return;
@@ -226,6 +249,53 @@ async function _renderSendControls(sendSection, body) {
 
             const newCursorPosition = cursorPosition + itemContent.length;
             textarea.setSelectionRange(newCursorPosition, newCursorPosition);
+
+            if (itemId) {
+                const editorDiv = document.getElementById('annotateEditDiv');
+                const reference = createReference(itemId, editorDiv);
+                displayCurrentReference(reference, editorDiv);
+                displayReferences(editorDiv);
+                _refreshAnnotateSendControls();
+                _refreshAnnotateRefFields();
+            }
+        },
+
+        insertLink: ({ content, entryUrl, feedTitle, reference }) => {
+            const itemContent = (content.type === 'text/html') ? cleanHTMLContent(content.value) : content.value;
+            const textarea = document.getElementById('annotate-edit-body');
+            if (itemContent && textarea) {
+                const cursorPosition = textarea.selectionStart;
+                const textBefore = textarea.value.substring(0, cursorPosition);
+                const textAfter = textarea.value.substring(cursorPosition);
+                const insert = `${itemContent} [${feedTitle}]`;
+                textarea.value = textBefore + insert + textAfter;
+                const newCursorPosition = cursorPosition + insert.length;
+                textarea.setSelectionRange(newCursorPosition, newCursorPosition);
+            }
+            if (reference) {
+                pushAndDisplayReference(reference, document.getElementById('annotateEditDiv'));
+                _refreshAnnotateSendControls();
+                _refreshAnnotateRefFields();
+            }
+        },
+
+        insertLinkVia: ({ content, linkedUrl, linkedTitle, entryUrl, authorOrFeedTitle, reference }) => {
+            const itemContent = (content.type === 'text/html') ? cleanHTMLContent(content.value) : content.value;
+            const textarea = document.getElementById('annotate-edit-body');
+            if (itemContent && textarea) {
+                const cursorPosition = textarea.selectionStart;
+                const textBefore = textarea.value.substring(0, cursorPosition);
+                const textAfter = textarea.value.substring(cursorPosition);
+                const insert = `${itemContent} [${linkedTitle}, via ${authorOrFeedTitle}]`;
+                textarea.value = textBefore + insert + textAfter;
+                const newCursorPosition = cursorPosition + insert.length;
+                textarea.setSelectionRange(newCursorPosition, newCursorPosition);
+            }
+            if (reference) {
+                pushAndDisplayReference(reference, document.getElementById('annotateEditDiv'));
+                _refreshAnnotateSendControls();
+                _refreshAnnotateRefFields();
+            }
         },
     };
 })();

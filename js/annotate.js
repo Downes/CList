@@ -210,6 +210,30 @@ function _appendAddForm(panel, itemID, url, writeAccts, token) {
 
 // ── Open write-pane annotation editor ─────────────────────────────────────────
 
+// Builds the {content, feedTitle} pair for a quote-insert action: the current text
+// selection if there is one, else the reference's own summary, attributed via
+// referenceDisplayName. HTML-capable editors get the quote escaped and wrapped for HTML;
+// plain-text editors keep the quote-only behavior. The bracket citation itself is appended
+// by handler.insertLink/insertLinkVia, per editor type. Shared by the arrow button
+// (clistAnnotate, below) and the Alt+A "open Annotate editor" shortcut (interface.js) so
+// both quote the same way.
+function _buildQuoteContent(reference, handler) {
+    const selection = window.getSelection();
+    const selectedText = selection ? selection.toString().trim() : '';
+    const textToQuote = selectedText || reference.summary || '';
+    const attribution = referenceDisplayName(reference);
+    const feedTitle = attribution;
+
+    const supportsHtml = (handler.contentTypes || []).includes('text/html');
+    const content = textToQuote
+        ? (supportsHtml
+            ? { type: 'text/html', value: `${escapeHtml(attribution)} wrote: "${escapeHtml(textToQuote)}"` }
+            : { type: 'text/plain', value: `${attribution} wrote: "${textToQuote}"` })
+        : { type: supportsHtml ? 'text/html' : 'text/plain', value: '' };
+
+    return { content, feedTitle };
+}
+
 window.clistAnnotate = function(itemId) {
     const el = document.getElementById(itemId);
     if (!el || !el.reference) {
@@ -222,22 +246,7 @@ window.clistAnnotate = function(itemId) {
         return;
     }
 
-    const selection = window.getSelection();
-    const selectedText = selection ? selection.toString().trim() : '';
-    const textToQuote = selectedText || el.reference.summary || '';
-    const attribution = referenceDisplayName(el.reference);
-    const feedTitle = attribution;
-
-    // HTML-capable editors get the quote escaped and wrapped for HTML; plain-text
-    // editors keep the quote-only behavior. The bracket citation is appended by
-    // handler.insertLink itself, per editor type.
-    const supportsHtml = (handler.contentTypes || []).includes('text/html');
-    const content = textToQuote
-        ? (supportsHtml
-            ? { type: 'text/html', value: `${escapeHtml(attribution)} wrote: "${escapeHtml(textToQuote)}"` }
-            : { type: 'text/plain', value: `${attribution} wrote: "${textToQuote}"` })
-        : { type: supportsHtml ? 'text/html' : 'text/plain', value: '' };
-
+    const { content, feedTitle } = _buildQuoteContent(el.reference, handler);
     handler.insertLink({ content, entryUrl: el.reference.url, feedTitle, reference: { ...el.reference } });
 
     if (typeof snapPanes === 'function' && typeof mainContent !== 'undefined' && typeof readPane !== 'undefined') {
@@ -1083,7 +1092,8 @@ function _buildAnnotationItem(anno, options = {}) {
         title,
         feed:         svc,
         feedUrl:      null,
-        created_at:   anno.created || new Date().toISOString(),
+        created_at:   '',
+        cited_at:     anno.created || new Date().toISOString(),
         id:           itemID,
         isAnnotation: true,
     };

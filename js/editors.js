@@ -974,14 +974,21 @@ async function loadPredefinedContent(editorType) {
 }
 
 
-// Draft auto-save helpers — keyed by editor name in localStorage
+// Draft auto-save helpers — keyed by editor name in localStorage. The reference list is
+// saved alongside the body content (under a '_refs' suffix key) so restoring a draft also
+// restores whatever citations were attached to it, instead of leaving the restored text
+// orphaned with an empty References panel.
 
 function saveDraft(editorKey, value) {
-    if (value && value.trim()) sessionStorage.setItem('clist_draft_' + editorKey, value);
+    if (value && value.trim()) {
+        sessionStorage.setItem('clist_draft_' + editorKey, value);
+        sessionStorage.setItem('clist_draft_' + editorKey + '_refs', JSON.stringify(getReferences()));
+    }
 }
 
 function clearDraft(editorKey) {
     sessionStorage.removeItem('clist_draft_' + editorKey);
+    sessionStorage.removeItem('clist_draft_' + editorKey + '_refs');
 }
 
 function offerDraftRestore(editorKey, contentType) {
@@ -989,6 +996,12 @@ function offerDraftRestore(editorKey, contentType) {
     if (!draft) return;
     if (confirm('A draft was saved from your last session. Restore it?')) {
         loadContent({ type: contentType, value: draft });
+        try {
+            const refs = JSON.parse(sessionStorage.getItem('clist_draft_' + editorKey + '_refs') || '[]');
+            if (Array.isArray(refs) && refs.length) setReferences(refs);
+        } catch (e) {
+            console.error('Failed to restore draft references:', e);
+        }
     } else {
         clearDraft(editorKey);
     }

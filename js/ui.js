@@ -60,6 +60,7 @@ window.CList.ui.view = {
     feedContainer:    document.getElementById('feed-container'),
 
     // Write pane
+    writeEditorArea:  document.getElementById('write-editor-area'),
     writePaneContent: document.getElementById('write-pane-content'),
     writeTitle:       document.getElementById('write-title'),
     textColumn:       document.getElementById('text-column'),
@@ -99,7 +100,7 @@ function _makeMinimalRef(url, title) {
     let host = '';
     try { host = new URL(url).hostname; } catch (_) {}
     return { url, title: title || url, author_name: '', feed: host,
-        created_at: new Date().toISOString(), id: url };
+        created_at: '', cited_at: new Date().toISOString(), id: url };
 }
 
 window.openInBrowser = function(url, itemId) {
@@ -619,6 +620,7 @@ window.CList.ui.listing = function makeListing(
     }
 
     // Create reference object on the DOM element
+    const firstImage = (images || []).find(image => /^https?:\/\//i.test(image.preview_url));
     statusSpecific.reference = {
         service: service || null,
         author_name: itemAuthor || '(unknown author)',
@@ -628,9 +630,11 @@ window.CList.ui.listing = function makeListing(
         title: itemTitle || '(no title)',
         feed: itemFeed || '(no feed specified)',
         feedUrl: itemFeedUrl || null,
-        created_at: itemDate || new Date().toISOString(),
+        created_at: itemDate || '',
+        cited_at: new Date().toISOString(),
         id: itemID || '(no ID)',
         summary: (itemDesc || '').slice(0, 140),
+        image: firstImage ? firstImage.preview_url : '',
         ...(item.replyToken && { replyToken: item.replyToken }),
     };
 
@@ -658,7 +662,6 @@ window.CList.ui.listing = function makeListing(
     clistActions.classList.add('clist-actions');
     clistActions.innerHTML = `
       <button class="clist-action-btn" id="anno-btn-${itemID}" onclick="clistAnnotate('${itemID}');" title="Write about this"><span class="material-icons md-18 md-light">arrow_forward</span></button>
-      <button class="clist-action-btn" id="anno-edit-btn-${itemID}" onclick="clistAnnotateEdit('${itemID}');" title="Annotate"><span class="material-icons md-18 md-light">edit</span></button>
     `;
 
     // Assemble

@@ -794,7 +794,7 @@ function appendShareCard(data, sender) {
       }
       if (typeof pushReference === 'function') {
         pushReference({ url: data.url, title: data.title || data.url, author_name: displaySender,
-          feed: 'Chat share', created_at: new Date().toISOString(), id: data.url, guid: data.url });
+          feed: 'Chat share', created_at: '', cited_at: new Date().toISOString(), id: data.url, guid: data.url });
       }
     });
     actionsEl.appendChild(loadBtn);

@@ -724,7 +724,7 @@ window.CList.schemas['Collab'] = {
                     const url   = getCollabShareLink('read')
                     const title = currentDocTitle || currentDocId
                     if (typeof pushReference === 'function') {
-                        pushReference({ url, title, service: 'Collab', feed: 'Collab', author_name: '', created_at: new Date().toISOString() })
+                        pushReference({ url, title, service: 'Collab', feed: 'Collab', author_name: '', created_at: '', cited_at: new Date().toISOString() })
                     }
                     if (typeof loadContent === 'function') {
                         loadContent({ type: 'text/plain', value: '' }, null)

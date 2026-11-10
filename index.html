@@ -16,7 +16,7 @@
             document.documentElement.classList.add('dark-mode');
         }
     </script>
-    <link rel="stylesheet" href="css/interface.css?v=1">
+    <link rel="stylesheet" href="css/interface.css?v=2">
     <link rel="stylesheet" href="css/reader.css?v=1">
     <link rel="stylesheet" href="css/kvlist.css">
     <link rel="stylesheet" href="css/sidebar.css">
@@ -238,7 +238,6 @@
                         <button id="load-button" class="right btn" onclick="playLoad();">Load</button>
                         <button id="save-button" class="right btn" onclick="playSave()">Save</button>
                         <button id="post-button" class="right btn" onclick="playPost()" style="display:none">Post</button>
-                        <button id="references-button" class="right btn" onclick="playRefs()" style="display:none">Refs</button>
                         <button id="editor-indicator" class="btn" onclick="playEditorSwitch()" title="Switch editor">Editor</button>
                     </div>
                 </div>
@@ -263,15 +262,20 @@
                     <select id="write-format" title="Output format" style="display:none"></select>
                 </div>
 
-                <div id="write-pane-content">
-                    <div id="textEditorDiv" style="display:block" class="editor">
-                        <textarea id="text-column"></textarea>
-                        <div class="currentReferences"></div>
+                <div id="write-editor-area">
+                    <div id="write-pane-content">
+                        <div id="textEditorDiv" style="display:block" class="editor">
+                            <textarea id="text-column"></textarea>
+                            <div class="currentReferences"></div>
+                        </div>
                     </div>
+                    <div id="texteditor-references" class="allReferences"></div>
                 </div>
 
-                <div id="write-tags"></div>
-                <div id="texteditor-references" class="allReferences"></div>
+                <div id="write-tags-bar">
+                    <div id="write-tags"></div>
+                    <button id="references-button" class="right btn" onclick="playRefs()" style="display:none">Refs</button>
+                </div>
             </div> <!-- /write-pane -->
 
         </div> <!-- /main-content -->
@@ -309,7 +313,7 @@
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="js/local-kvstore.js" defer></script>
 <script src="js/utilities.js?v=1" defer></script>
-<script src="js/ui.js?v=5" defer></script>
+<script src="js/ui.js?v=6" defer></script>
 <script src="js/account-transfer.js" defer></script>  <!-- Export/import account data (Local or hosted); calls window.CList.storage.kv.* (storage.js + adapters below), crypto_utils.js, ui.js, kvstore.js's getEncKey -- all resolved by call time since nothing here runs until a button click, well after every deferred script has executed -->
 <script src="js/references.js" defer></script>
 <script src="js/crypto_utils.js" defer></script>
@@ -317,7 +321,7 @@
 <script src="js/kvstore-remote.js" defer></script>  <!-- storage.js facade: HTTP adapter -->
 <script src="js/kvstore-local.js" defer></script>   <!-- storage.js facade: IndexedDB adapter; must load after local-kvstore.js and storage.js -->
 <script src="js/kvstore.js?v=5" defer></script>     <!-- Loads usere and account data -->
-<script src="js/editors.js?v=2" defer></script>   <!-- Major function handlers-->
+<script src="js/editors.js?v=3" defer></script>   <!-- Major function handlers-->
 <script src="js/reader.js?v=5" defer></script>
 <script src="js/oauth-config.js" defer></script>
 <script src="js/oauth-strategies.js" defer></script>
@@ -348,8 +352,8 @@
 <script src="js/collab.js?v=2" defer></script>
 <script src="js/latex.js?v=3" defer></script>
 <script src="js/tags.js" defer></script>         <!-- Write-pane tag field -->
-<script src="js/annotate.js?v=5" defer></script>   <!-- Annotation store -->
-<script src="js/annotate-editor.js?v=1" defer></script>   <!-- Dedicated annotation editor -->
+<script src="js/annotate.js?v=6" defer></script>   <!-- Annotation store -->
+<script src="js/annotate-editor.js?v=2" defer></script>   <!-- Dedicated annotation editor -->
 <script src="js/collection-formats.js" defer></script> <!-- Collection format interpreters -->
 <script src="js/collections.js?v=1" defer></script> <!-- Collections -->
 <script src="js/collection-editor.js?v=1" defer></script>
