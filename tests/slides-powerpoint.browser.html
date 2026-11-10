@@ -1,0 +1,118 @@
+<!doctype html>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../css/interface.css">
+<link rel="stylesheet" href="../slides/clist-slides-poc/dist-embed/editor.css">
+<div id="host"></div><pre id="result">Running PowerPoint export tests...</pre>
+<script type="module">
+import * as dependencies from '../js/vendor/collab-editor-bundle.js'
+import { createSlideEditor } from '../slides/clist-slides-poc/dist-embed/editor.js'
+const check = (value, message) => { if (!value) throw new Error(message) }
+try {
+  const editor = createSlideEditor(document.getElementById('host'), { dependencies, documentName: 'Export test' })
+  const { Y } = dependencies, doc = editor.document, objects = doc.getMap('slide-objects')
+  const root = document.querySelector('.clist-slides'), control = id => root.querySelector(`[data-control="${id}"]`)
+  control('add-rectangle').click(); control('add-circle').click(); control('add-line').click()
+  let shapeIndex = 0
+  for (const box of objects.values()) if (box.get('kind') === 'shape') {
+    box.set('x', 90 + shapeIndex * 340); box.set('y', 500)
+    box.set('width', shapeIndex === 1 ? 120 : 250); box.set('height', shapeIndex === 1 ? 120 : 100)
+    shapeIndex++
+  }
+  for (const key of ['title', 'body']) objects.get(key).set('textColour', '#ffffff')
+  objects.get('title').set('fontSize', 48)
+  const text = doc.getXmlFragment('slide-text-body')
+  doc.transact(() => {
+    text.delete(0, text.length)
+    const paragraph = new Y.XmlElement('paragraph'), rich = new Y.XmlText()
+    paragraph.insert(0, [rich]); rich.insert(0, 'Bold & linked <text>', { bold: {}, italic: {}, link: { href: 'https://example.org/?a=1&b=2' } })
+    const list = new Y.XmlElement('orderedList'); list.setAttribute('start', 3)
+    for (const label of ['First item', 'Second item']) {
+      const item = new Y.XmlElement('listItem'), p = new Y.XmlElement('paragraph'), t = new Y.XmlText()
+      t.insert(0, label); p.insert(0, [t]); item.insert(0, [p]); list.insert(list.length, [item])
+    }
+    text.insert(0, [paragraph, list])
+    objects.get('body').set('fontSize', 32)
+    objects.get('body').set('rotation', 15)
+    doc.getMap('slide-notes').set('first', 'Private speaker notes & details')
+    doc.getMap('slide-backgrounds').set('first', '#112233')
+  })
+  const canvas = document.createElement('canvas'); canvas.width = 200; canvas.height = 100
+  const context = canvas.getContext('2d'); context.fillStyle = 'red'; context.fillRect(0, 0, 100, 100); context.fillStyle = 'blue'; context.fillRect(100, 0, 100, 100)
+  const image = new Y.Map(Object.entries({ kind: 'image', x: 900, y: 100, width: 100, height: 100, slide: 'first', layer: 20,
+    source: canvas.toDataURL(), alt: 'Two colour image', imageRatio: 2, imageFit: 'cover', cropX: 100, cropY: 50 }))
+  objects.set('test-image', image)
+  control('duplicate-slide').click()
+  const pages = [...doc.getMap('slide-pages').keys()]
+  check(pages.length === 2, 'fixture has two slides')
+  doc.getMap('slide-notes').set(pages.find(id => id !== 'first'), 'Second slide notes')
+
+  // A failed lazy load must reject visibly at the caller and permit a retry.
+  const append = document.head.append.bind(document.head)
+  document.head.append = (...nodes) => {
+    if (nodes[0]?.src?.includes('pptxgen.bundle.js')) { queueMicrotask(() => nodes[0].onerror()); return }
+    return append(...nodes)
+  }
+  let failed = false
+  try { await editor.exportPowerPoint() } catch (error) { failed = /could not load/.test(error.message) }
+  document.head.append = append
+  check(failed, 'failed library load is reported')
+
+  const before = JSON.stringify(editor.snapshot())
+  let downloaded, filename
+  const createUrl = URL.createObjectURL.bind(URL)
+  URL.createObjectURL = blob => { downloaded = blob; return createUrl(blob) }
+  HTMLAnchorElement.prototype.click = function () { filename = this.download }
+  const warnings = await editor.exportPowerPoint()
+  check(!warnings.length, 'standard shapes need no fallback')
+  check(filename === 'Export test.pptx', 'download filename')
+  check(downloaded instanceof Blob, 'browser produces a file blob')
+  check(before === JSON.stringify(editor.snapshot()), 'export leaves the deck unchanged')
+  const zip = await window.JSZip.loadAsync(downloaded)
+  const xml = async name => new DOMParser().parseFromString(await zip.file(name).async('string'), 'application/xml')
+  const presentation = await xml('ppt/presentation.xml')
+  check(presentation.getElementsByTagName('p:sldId').length === 2, 'two slide pages in exported deck')
+  const size = presentation.getElementsByTagName('p:sldSz')[0]
+  check(+size.getAttribute('cx') === 12192000 && +size.getAttribute('cy') === 6858000, '16:9 dimensions')
+  const first = await xml('ppt/slides/slide1.xml')
+  check(!first.getElementsByTagName('parsererror').length, 'valid slide XML')
+  check(first.documentElement.textContent.includes('Bold & linked <text>'), 'rich text and XML escaping')
+  check(first.querySelector('srgbClr')?.getAttribute('val') === '112233' || [...first.getElementsByTagName('a:srgbClr')].some(n => n.getAttribute('val') === '112233'), 'slide background')
+  for (const shape of ['rect', 'ellipse', 'line']) check([...first.getElementsByTagName('a:prstGeom')].some(n => n.getAttribute('prst') === shape), 'editable ' + shape)
+  check(first.getElementsByTagName('p:pic').length === 1, 'native image object')
+  check(first.getElementsByTagName('a:hlinkClick').length > 0, 'hyperlink')
+  check([...first.getElementsByTagName('a:rPr')].some(n => n.getAttribute('b') === '1' && n.getAttribute('i') === '1'), 'bold and italic')
+  check([...first.getElementsByTagName('a:rPr')].some(n => n.getAttribute('sz') === '2400'), 'pixel sizes converted to points')
+  check([...first.getElementsByTagName('a:xfrm')].some(n => n.getAttribute('rot') === '900000'), 'text rotation')
+  check(first.getElementsByTagName('a:buAutoNum').length === 2, 'ordered list paragraphs')
+  check([...first.getElementsByTagName('a:buAutoNum')].some(n => n.getAttribute('startAt') === '3'), 'ordered list starting number')
+  check((await zip.file('ppt/notesSlides/notesSlide1.xml').async('string')).includes('Private speaker notes &amp; details'), 'first slide notes')
+  check((await zip.file('ppt/notesSlides/notesSlide2.xml').async('string')).includes('Second slide notes'), 'second slide notes')
+  const media = Object.keys(zip.files).find(name => /^ppt\/media\/.*\.png$/.test(name))
+  check(media, 'embedded PNG image')
+  const picture = new Image(); picture.src = 'data:image/png;base64,' + await zip.file(media).async('base64'); await picture.decode()
+  const sample = document.createElement('canvas'); sample.width = sample.height = 1
+  sample.getContext('2d').drawImage(picture, 0, 0, 1, 1)
+  const pixel = sample.getContext('2d').getImageData(0, 0, 1, 1).data
+  check(pixel[2] > 240 && pixel[0] < 10, 'crop position preserved')
+
+  const custom = new Y.Map(Object.entries({ kind: 'shape', x: 300, y: 500, width: 100, height: 100, slide: 'first', layer: 30,
+    fillEnabled: true, fillColour: '#51b158', borderEnabled: true, borderWidth: 2, borderColour: '#000000',
+    shapeDefinition: { id: 'triangle-test', label: 'Custom triangle', width: 100, height: 100, defaults: {}, viewBox: [0,0,100,100], elements: [{tag: 'polygon', attributes: {points: '0,100 50,0 100,100'}}] } }))
+  objects.set('custom-test', custom)
+  const fallback = await editor.exportPowerPoint()
+  check(fallback.length === 1 && /Custom SVG/.test(fallback[0]), 'custom shape fallback is reported')
+  const previousDownload = downloaded
+  image.set('source', 'data:image/png;base64,AAAA')
+  failed = false
+  try { await editor.exportPowerPoint() } catch (error) { failed = true }
+  check(failed && downloaded === previousDownload, 'broken image prevents incomplete download')
+  document.body.dataset.result = 'PASS: lazy load retry, browser download, editable text/shapes, rich text, links, ordered lists, rotations, cropped images, notes, slide order, SVG fallback, unchanged document, image failure'
+  document.getElementById('result').textContent = document.body.dataset.result
+  // Used only by the local verification runner to inspect/render the generated file.
+  const output = document.createElement('pre'); output.id = 'pptx-base64'; output.textContent = await zip.generateAsync({ type: 'base64', compression: 'DEFLATE' }); document.body.append(output)
+} catch (error) {
+  console.error(error)
+  document.body.dataset.result = 'FAIL: ' + error.message
+  document.getElementById('result').textContent = document.body.dataset.result
+}
+</script>

@@ -1,0 +1,81 @@
+<!doctype html>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../css/interface.css">
+<link rel="stylesheet" href="../slides/clist-slides-poc/dist-embed/editor.css">
+<div id="host"></div><div id="write-title">Article test</div><div id="writeReferences"><p>Reference text</p></div>
+<div id="post-options"><button class="account-button" data-key="leftish" data-selected="true">Leftish</button></div><div id="post-result"></div><pre id="result">Checking article publishing...</pre>
+<script>
+window.CList={schemas:{},publishers:{},loaders:[],savers:[],config:{flaskSiteUrl:'https://store.invalid'},ui:{view:{writeTitle:document.getElementById('write-title'),postResult:document.getElementById('post-result')}}};
+window.OAuthClient={onCallback(){}};
+window.editorHandlers={};window.currentEditor='slides';window.currentLoadedPage=null;
+window.errors=[];window.showErrorModal=text=>errors.push(text);
+window.getReferences=()=>[];
+window.parseAccountValue=account=>account.parsedValue;
+window.getAccounts=async()=>[{key:'leftish',parsedValue:{type:'WordPress',title:'Leftish',instance:'tester@leftish.invalid',id:'dummy-password',permissions:'w'}}];
+window.derivePlainTitle=title=>title;window.extractBaseUrl=()=> 'https://leftish.invalid';window.extractAccountName=()=> 'tester';
+</script>
+<script src="../js/files.js"></script><script src="../js/wordpress.js"></script><script src="../js/publish.js"></script>
+<script type="module">
+import * as dependencies from '../js/vendor/collab-editor-bundle.js'
+import { createSlideEditor } from '../slides/clist-slides-poc/dist-embed/editor.js'
+const check=(value,message)=>{if(!value)throw new Error(message)}
+try {
+  const {Y}=dependencies,editor=createSlideEditor(document.getElementById('host'),{dependencies})
+  const control=id=>document.querySelector(`[data-control="${id}"]`),doc=editor.document
+
+  const fragment=doc.getXmlFragment('slide-text-body');fragment.delete(0,fragment.length)
+  const p=new Y.XmlElement('paragraph'),t=new Y.XmlText();fragment.insert(0,[p]);p.insert(0,[t])
+  t.applyDelta([{insert:'Readable ',attributes:{bold:{}}},{insert:'article with '},{insert:'a link',attributes:{link:{href:'https://example.org/'}}},{insert:' and <script> text.'}])
+  doc.getMap('slide-notes').set('first','PRIVATE_NOTES_NOT_FOR_BLOG')
+  const canvas=document.createElement('canvas');canvas.width=200;canvas.height=100;const ctx=canvas.getContext('2d');ctx.fillStyle='red';ctx.fillRect(0,0,100,100);ctx.fillStyle='blue';ctx.fillRect(100,0,100,100)
+  doc.getMap('slide-objects').set('photo',new Y.Map(Object.entries({kind:'image',slide:'first',layer:8,x:900,y:100,width:100,height:100,imageRatio:2,imageFit:'cover',cropX:100,cropY:50,source:canvas.toDataURL(),alt:'Blue crop photo'})))
+  control('duplicate-slide').click()
+  const before=JSON.stringify(editor.snapshot()),article=await editor.getArticleHtml(),parsed=new DOMParser().parseFromString(article,'text/html')
+  check([...parsed.querySelectorAll('h2')].map(n=>n.textContent).join(',')==='Slide 1,Slide 2','slide sections in order')
+  check(parsed.querySelector('strong')?.textContent==='Readable ','emphasis preserved')
+  check(parsed.querySelector('a')?.href==='https://example.org/','link preserved')
+  check(parsed.body.textContent.includes('<script> text.'),'text safely escaped')
+  check(!parsed.querySelector('script,style,svg,iframe,button,[class]'),'basic HTML without viewer or positioning')
+  check(parsed.images.length===2 && [...parsed.images].every(n=>n.src.startsWith('data:image/png;base64,')),'photos and diagrams embedded as PNG images')
+  check(!article.includes('PRIVATE_NOTES_NOT_FOR_BLOG') && !article.includes('clist-slides-yjs-v1'),'private notes and snapshot excluded')
+  check(before===JSON.stringify(editor.snapshot()),'article conversion leaves editable deck unchanged')
+  const image=new Image();await new Promise((resolve,reject)=>{image.onload=resolve;image.onerror=reject;image.src=[...parsed.images].find(n=>n.alt==='Blue crop photo').src})
+  const sample=document.createElement('canvas');sample.width=sample.height=1;sample.getContext('2d').drawImage(image,0,0,1,1)
+  const pixel=sample.getContext('2d').getImageData(0,0,1,1).data;check(pixel[2]>240 && pixel[0]<10,'image crop preserved')
+  editorHandlers.slides={getContent:()=>JSON.stringify(editor.snapshot()),getPostContent:()=>editor.getArticleHtml()}
+  check((await packagePost()).includes('clist-slides-yjs-v1'),'normal save packaging remains native')
+  const requests=[]
+  window.fetch=async(url,options)=>{
+    requests.push({url,options})
+    if(url.endsWith('/media'))return new Response(JSON.stringify({source_url:'https://leftish.invalid/media/'+requests.length+'.png'}),{status:201,headers:{'Content-Type':'application/json'}})
+    if(url.endsWith('/posts'))return new Response(JSON.stringify({link:'https://leftish.invalid/test-post'}),{status:201,headers:{'Content-Type':'application/json'}})
+    throw new Error('Unexpected network request '+url)
+  }
+  await postAll()
+  const uploads=requests.filter(r=>r.url.endsWith('/media')),posts=requests.filter(r=>r.url.endsWith('/posts'))
+  check(uploads.length===1,'duplicate images uploaded once per post')
+  check(uploads.every(r=>r.options.body instanceof FormData && r.options.body.get('file') instanceof Blob),'media API receives real image files')
+  check(uploads.some(r=>r.options.body.get('alt_text')==='Blue crop photo'),'media alt text preserved')
+  check(posts.length===1 && requests.at(-1)===posts[0],'post is sent after media uploads')
+  const post=JSON.parse(posts[0].options.body),postDoc=new DOMParser().parseFromString(post.content,'text/html')
+  check(post.status==='publish' && post.title==='Article test','normal WordPress posting preserved')
+  check(postDoc.querySelectorAll('h2').length===2 && postDoc.images.length===2,'WordPress receives complete article')
+  check([...postDoc.images].every(n=>n.src.startsWith('https://leftish.invalid/media/')),'embedded data rewritten to WordPress URLs')
+  check(!post.content.includes('clist-slides-yjs-v1') && !postDoc.querySelector('script,style,svg,iframe'),'no raw snapshot or unsupported viewer markup posted')
+  check(!errors.length,'no publish errors')
+  check(document.querySelector('#post-result a') || window.CList.ui.view.postResult.querySelector('a'),'successful publication displays its link')
+  window.fetch=async(url)=>new Response(JSON.stringify(url.endsWith('/media')?{source_url:'https://leftish.invalid/media/test.png'}:{id:123}),{status:201})
+  await postAll()
+  check(errors.at(-1).includes('post ID 123') && errors.at(-1).includes('before retrying'),'accepted response without a link reports post ID and avoids blind retries')
+  check(window.CList.ui.view.postResult.textContent.includes('returned no post link'),'missing publication link leaves a visible result')
+  check(!window.CList.ui.view.postResult.querySelector('[data-publish-progress]'),'progress clears after completion')
+  requests.length=0
+  window.fetch=async(url,options)=>{requests.push({url,options});return new Response(JSON.stringify({code:'test_upload_error',message:'Test upload storage is unavailable.'}),{status:500,headers:{'Content-Type':'application/json'}})}
+  await postAll()
+  check(requests.every(r=>!r.url.endsWith('/posts')) && errors.at(-1).includes('Image upload failed'),'upload failure stops the post and reports a visible error')
+  check(errors.at(-1).includes('test_upload_error: Test upload storage is unavailable.') && errors.at(-1).includes('HTTP 500'),'WordPress detailed error is preserved')
+  check(before===JSON.stringify(editor.snapshot()),'posting and failures never replace native data')
+  document.body.dataset.result='PASS: readable slide sections, basic HTML, safe text/links, PNG diagrams and cropped photos, no notes/JSON, native saves, full account publishing path, deduplicated media uploads, URL rewriting, alt text and upload failure safety (mocked network only)'
+  document.getElementById('result').textContent=document.body.dataset.result
+}catch(error){console.error(error);document.body.dataset.result='FAIL: '+error.message;document.getElementById('result').textContent=document.body.dataset.result}
+</script>

@@ -133,6 +133,7 @@ function restorePostContent(content, mimeType, filename) {
     // Handle binary content
     if (content instanceof ArrayBuffer) {
         console.log("Binary content received.");
+        if (/\.pptx$/i.test(filename || '')) mimeType = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
         return { type: mimeType, value: content, page };
     }
 
@@ -171,7 +172,7 @@ function parseHtmlContent(content, mimeType, page) {
 
 // Collects data from Write pane and packages it to save as a file or post
 
-async function packagePost() {
+async function packagePost({ forPublishing = false } = {}) {
     // Get title
 
     const titleValue = window.CList.ui.view.writeTitle.innerText;
@@ -179,11 +180,15 @@ async function packagePost() {
     // Get editor content
     const handler = editorHandlers[currentEditor];
     let contentValue;
-    if (handler && typeof handler.getContent === 'function') {
-        contentValue = await handler.getContent(); // Assign value to the variable
-    } else {
-        console.error("Unable to initialize content editor handler for write");
-        showErrorModal('Write error — could not read editor content.', { title: 'Write Error' });
+    try {
+        if (forPublishing && typeof handler?.getPostContent === 'function') contentValue = await handler.getPostContent();
+        else if (typeof handler?.getContent === 'function') contentValue = await handler.getContent();
+        else throw new Error('The editor content is unavailable.');
+        if (typeof contentValue !== 'string') throw new Error('The editor did not return text content.');
+    } catch (error) {
+        console.error('Could not prepare editor content:',error);
+        showErrorModal('Could not prepare the post: '+error.message,{title:'Post preparation failed'});
+        return null;
     }
 
 
@@ -198,7 +203,7 @@ async function packagePost() {
     // Append the title div
     const titleDiv = document.createElement('div');
     titleDiv.id = 'post-title';
-    titleDiv.innerHTML = titleValue; // Set HTML directly
+    titleDiv.textContent = titleValue;
     postDiv.appendChild(titleDiv);
 
     // Append the content div

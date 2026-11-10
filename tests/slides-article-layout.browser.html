@@ -1,0 +1,35 @@
+<!doctype html><meta charset="utf-8"><pre id="result">Checking…</pre>
+<script>window.addEventListener('error',event=>document.body.dataset.result='FAIL: '+event.message);setTimeout(()=>{if(!document.body.dataset.result)document.body.dataset.result='FAIL: export did not finish'},10000)</script>
+<script type="module">
+import { buildSlideArticle } from '../slides/clist-slides-poc/src/article-export.js'
+const check=(ok,message)=>{if(!ok)throw new Error(message)}
+try {
+  document.getElementById('result').textContent='Module loaded'
+  const article=await buildSlideArticle({slideIds:['diagram','photo'],renderSlide:(id,page)=>{
+    document.getElementById('result').textContent='Rendering '+id
+    const slide=page.createElement('div');slide.className='slide presenter-slide';slide.style.backgroundColor='white'
+    if(id==='diagram') slide.innerHTML='<div class="slide-object shape-object" style="left:10%;top:20%;width:30%;height:40%;z-index:0"><div class="shape-content"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="none"><rect width="100" height="100" fill="red"/></svg></div></div><div class="slide-object" style="left:12%;top:22%;width:25%;height:30%;z-index:1;--slide-font-size:3cqw;color:black"><div class="text-content"><div class="tiptap"><p>Diagram label</p></div></div></div>'
+    else {
+      const canvas=document.createElement('canvas');canvas.width=32;canvas.height=18;canvas.getContext('2d').fillRect(0,0,32,18)
+      slide.innerHTML='<div style="left:0%;top:0%;width:25%;height:25%"><div class="image-content"><img alt="Sized photo"></div></div>'
+      slide.querySelector('img').src=canvas.toDataURL()
+    }
+    return slide
+  }})
+  const page=new DOMParser().parseFromString(article,'text/html'),images=[...page.images]
+  document.getElementById('result').textContent='Article ready'
+  check(images.length===2,'one composite diagram and one photo')
+  check(images[0].width===720 && images[0].height===405,'diagram display bounded to article width')
+  check(images[1].width===320 && images[1].height===180,'photo retains slide display dimensions')
+  check(images.every(n=>n.style.maxWidth==='100%' && n.style.height==='auto'),'responsive image sizing')
+  check(images[0].alt.includes('Diagram label') && page.body.textContent.includes('Diagram label'),'labels retained in image alt and readable text')
+  const bitmap=new Image();await new Promise((resolve,reject)=>{bitmap.onload=resolve;bitmap.onerror=reject;bitmap.src=images[0].src})
+  const canvas=document.createElement('canvas');canvas.width=1280;canvas.height=720;const context=canvas.getContext('2d');context.drawImage(bitmap,0,0,1280,720)
+  const red=context.getImageData(200,350,1,1).data;check(red[0]>240 && red[1]<20,'diagram geometry rendered in position')
+  let dark=0;const pixels=context.getImageData(160,160,300,100).data
+  for(let i=0;i<pixels.length;i+=4)if(pixels[i]<100 && pixels[i+1]<100 && pixels[i+2]<100 && pixels[i+3]>240)dark++
+  check(dark>100,'diagram labels rendered into same image')
+  document.body.dataset.result='PASS: composite diagram geometry and labels, readable transcript, explicit photo and diagram dimensions, responsive images'
+}catch(error){document.body.dataset.result='FAIL: '+error.message;console.error(error)}
+document.getElementById('result').textContent=document.body.dataset.result
+</script>

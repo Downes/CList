@@ -1,0 +1,65 @@
+<!doctype html>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../css/interface.css">
+<link rel="stylesheet" href="../slides/clist-slides-poc/dist-embed/editor.css">
+<div id="host"></div><pre id="result">Checking standalone HTML export...</pre>
+<script type="module">
+import * as dependencies from '../js/vendor/collab-editor-bundle.js'
+import { createSlideEditor } from '../slides/clist-slides-poc/dist-embed/editor.js'
+const check=(value,message)=>{if(!value)throw new Error(message)}
+try {
+  const {Y}=dependencies, title='My </title><script>window.pwned=true<\/script> slides'
+  const editor=createSlideEditor(document.getElementById('host'),{dependencies,presentationTitle:()=>title})
+  const root=document.querySelector('.clist-slides'), control=id=>root.querySelector(`[data-control="${id}"]`)
+  const doc=editor.document, objects=doc.getMap('slide-objects')
+  control('add-rectangle').click()
+  const canvas=document.createElement('canvas');canvas.width=canvas.height=2;canvas.getContext('2d').fillRect(0,0,2,2)
+  const source=canvas.toDataURL()
+  objects.set('embedded-picture',new Y.Map(Object.entries({kind:'image',slide:'first',x:900,y:200,width:200,height:200,layer:10,source,alt:'Embedded photo'})))
+  doc.getMap('slide-notes').set('first','PRIVATE_NOTES_DO_NOT_EXPORT')
+  control('duplicate-slide').click()
+  const before=JSON.stringify(editor.snapshot())
+  const html=await editor.getHtml(), parsed=new DOMParser().parseFromString(html,'text/html')
+  check(html.startsWith('<!doctype html>'),'complete HTML document')
+  check(parsed.title===title,'title escaped safely')
+  check(parsed.querySelectorAll('.stage>.slide').length===2,'two slides in order')
+  check(parsed.querySelectorAll('.shape-content svg').length===2,'inline vector shapes')
+  check(parsed.querySelectorAll('img').length===2 && [...parsed.images].every(image=>image.getAttribute('src')===source),'all images embedded')
+  check(!parsed.querySelector('script[src],link[rel="stylesheet"],iframe,object'),'no external runtime dependencies')
+  check(!html.includes('PRIVATE_NOTES_DO_NOT_EXPORT') && !html.includes('clist-slides-yjs-v1'),'no notes or editable snapshot exported')
+  check(!parsed.querySelector('.object-grip,.resize-handle,.inspector,.toolbar,.slides-recovery'),'no editor controls')
+  check([...parsed.querySelectorAll('button')].every(button=>button.classList.contains('btn') && button.title),'standard labelled buttons')
+  check(before===JSON.stringify(editor.snapshot()),'export does not mutate the deck')
+  let downloaded,filename
+  const createUrl=URL.createObjectURL.bind(URL)
+  URL.createObjectURL=blob=>{downloaded=blob;return createUrl(blob)}
+  HTMLAnchorElement.prototype.click=function(){filename=this.download}
+  await editor.exportHtml()
+  check(downloaded?.type==='text/html;charset=utf-8' && filename.endsWith('.html'),'HTML download')
+  check((await downloaded.text()).includes('Slide navigation'),'download includes viewer')
+  const frame=document.createElement('iframe');frame.width='1000';frame.height='700';document.body.append(frame)
+  await new Promise(resolve=>{frame.onload=resolve;frame.srcdoc=html.replace('<script>','<script>window.__viewerErrors=[];window.addEventListener("error",event=>window.__viewerErrors.push(event.message));')})
+  const page=frame.contentDocument, win=frame.contentWindow, slides=[...page.querySelectorAll('.stage>.slide')]
+  check(!win.pwned,'title cannot inject script')
+  const shown=()=>slides.filter(slide=>!slide.hidden).map(slide=>slide.id).join(',')
+  check(shown()==='slide-1','first slide initially shown')
+  page.querySelector('[data-action="next"]').click();check(shown()==='slide-2','Next works')
+  page.querySelector('[data-action="previous"]').click();check(shown()==='slide-1','Previous works')
+  const key=name=>page.dispatchEvent(new win.KeyboardEvent('keydown',{key:name,bubbles:true,cancelable:true}))
+  key('End');check(shown()==='slide-2','End shows last slide')
+  key('Home');check(shown()==='slide-1','Home shows first slide')
+  key('ArrowRight');check(shown()==='slide-2','keyboard navigation')
+  check(page.querySelector('output').textContent==='2 / 2','slide counter')
+  check(win.getComputedStyle(slides[1]).containerType==='inline-size','responsive canvas units')
+  check(Math.abs(slides[1].getBoundingClientRect().width/slides[1].getBoundingClientRect().height-16/9)<0.01,'16:9 layout')
+  frame.width='360';frame.height='640'
+  check(slides[1].getBoundingClientRect().width<=360,'narrow screen layout fits')
+  check(!win.__viewerErrors.length,'viewer has no runtime errors: '+win.__viewerErrors.join('; '))
+  const previousDownload=downloaded
+  objects.get('embedded-picture').set('source','data:image/png;base64,AAAA')
+  let failed=false;try{await editor.exportHtml()}catch(error){failed=true}
+  check(failed && downloaded===previousDownload,'broken image prevents incomplete download')
+  document.body.dataset.result='PASS: complete standalone file, embedded images/SVG, safe title, no notes/runtime/editor controls, standard buttons, unchanged deck, download, browser navigation/counter, responsive layout and broken-image handling'
+  document.getElementById('result').textContent=document.body.dataset.result
+}catch(error){console.error(error);document.body.dataset.result='FAIL: '+error.message;document.getElementById('result').textContent=document.body.dataset.result}
+</script>

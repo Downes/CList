@@ -13,6 +13,7 @@
 .clist-slides .slide-list > button { display: block; width: 100%; padding: 0; }
 .clist-slides .slide-thumb { border-color: #dfe4ed; }
 .clist-slides .slide-thumb.selected { border-color: #4c72ed; }
+.clist-slides .slide-thumb.active-slide { outline: 2px solid var(--highlight-color, #2e7d32); outline-offset: 2px; }
 .clist-slides .mini-slide { position: relative; display: block; padding: 0; overflow: hidden; }
 .clist-slides .mini-object { position: absolute; overflow: hidden; font-size: 3px; text-align: left; color: #38465a; background: #edf0f5; }
 .clist-slides .slide-actions { display: flex; flex-wrap: wrap; gap: 5px; }

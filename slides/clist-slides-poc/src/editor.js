@@ -5,6 +5,14 @@ import { mountMarquee } from './marquee.js'
 import { mountCanvasZoom } from './zoom.js'
 import { setToolbarIcon } from './icons.js'
 import { createPresenterWindow, renderPresenterText } from './presenter.js'
+import { openSlidePrintView } from './print.js'
+import { exportPowerPoint, textRuns } from './powerpoint.js'
+import { readPowerPoint } from './powerpoint-import.js'
+import { createRecoverySnapshot } from './recovery-snapshot.js'
+import { moveSelectedSlides, dropSelectedSlides } from './slide-order.js'
+import { mountFindReplace } from './find-replace.js'
+import { buildStandaloneHtml, exportStandaloneHtml } from './html-export.js'
+import { buildSlideArticle } from './article-export.js'
 import { prepareSlideCatalogs, validateShapeDefinition, validateThemeDefinition } from './catalogs.js'
 
 // Dependencies are supplied by the host so CList uses one Yjs/Tiptap runtime.
@@ -54,8 +62,11 @@ let notes = doc.getMap('slide-notes')
 let references = doc.getMap('clist_refs')
 let design = doc.getMap('slide-design')
 let activeSlide = 'first'
+let selectedSlides = new Set(['first']), slideSelectionActive = 'first', slideAnchor = 'first'
 const views = new Map()
 const objectButtons = new Map()
+const thumbnailViews = new Map(), thumbnailObjectSlides = new Map(), thumbnailObjects = new Map(), dirtyThumbnails = new Set()
+let thumbnailBoxIds = new WeakMap(), thumbnailTextIds = new WeakMap(), allThumbnailsDirty = true, thumbnailOrder = ''
 let provider = null
 let connected = false
 const selectedIds = new Set()
@@ -79,8 +90,12 @@ let textOverflow = null
 let marquee = null
 let inspectorSelection = null
 let managingLayout = false
+let findReplace = null, navigatingFind = false
+const recoverySnapshot = createRecoverySnapshot({ getDocument: () => doc, encode: Y.encodeStateAsUpdate, getName: () => $('doc-name').value,
+  onError: error => { console.error('Background recovery failed:', error); status('Background recovery failed: ' + error.message, 'error') } })
 const canvasZoom = mountCanvasZoom(root, () => presenting)
 let draggedSlide = null
+let draggedSlides = []
 let slideDropBefore = null
 
 
@@ -91,6 +106,8 @@ function status(message, kind = '') {
   $('connection-status').textContent = message
   $('connection-status').className = `status ${kind}`
 }
+function notifyChange(update) { recoverySnapshot.changed(update); findReplace?.changed(); options.onChange?.() }
+function actionStatus(message) { if (options.onStatus) options.onStatus(message); else status(message) }
 function makeBox(id, x, y, width, height, imageSource = null, imageAlt = '') {
   const box = new Y.Map()
   box.set('x', x); box.set('y', y)
@@ -382,6 +399,81 @@ $('slide-background').addEventListener('change', event => {
 function slideIds() {
   return pages.size ? [...pages.keys()].sort((a, b) => (pages.get(a) - pages.get(b)) || a.localeCompare(b)) : ['first']
 }
+function indexThumbnailObject(id) {
+  const previous = thumbnailObjectSlides.get(id), box = objects.get(id)
+  if (previous !== undefined) {
+    dirtyThumbnails.add(previous)
+    thumbnailObjects.get(previous)?.delete(id)
+    if (!thumbnailObjects.get(previous)?.size) thumbnailObjects.delete(previous)
+    thumbnailObjectSlides.delete(id)
+  }
+  if (box instanceof Y.Map) {
+    const slideId = box.get('slide') || 'first'
+    thumbnailObjectSlides.set(id,slideId); thumbnailBoxIds.set(box,id)
+    if (!thumbnailObjects.has(slideId)) thumbnailObjects.set(slideId,new Set())
+    thumbnailObjects.get(slideId).add(id)
+    dirtyThumbnails.add(slideId)
+  }
+}
+function resetThumbnailIndex() {
+  thumbnailObjectSlides.clear(); thumbnailObjects.clear(); dirtyThumbnails.clear()
+  thumbnailBoxIds = new WeakMap(); thumbnailTextIds = new WeakMap()
+  objects.forEach((box,id)=>indexThumbnailObject(id))
+  allThumbnailsDirty = true
+}
+function markThumbnailChanges(transaction) {
+  // This runs before rendering observers, so an object move invalidates both slides.
+  for (const id of transaction.changed.get(objects) || []) if (id !== null) indexThumbnailObject(id)
+  for (const [type,keys] of transaction.changed) {
+    if (type === design) allThumbnailsDirty = true
+    else if (type === backgrounds) for (const id of keys) dirtyThumbnails.add(id)
+    else if (thumbnailBoxIds.has(type)) indexThumbnailObject(thumbnailBoxIds.get(type))
+    else {
+      let parent = type
+      while (parent.parent) parent = parent.parent
+      if (!(parent instanceof Y.XmlFragment)) continue
+      if (!thumbnailTextIds.has(parent)) {
+        for (const [name,fragment] of doc.share) if (name.startsWith('slide-text-')) thumbnailTextIds.set(fragment,name.slice(11))
+      }
+      const slideId = thumbnailObjectSlides.get(thumbnailTextIds.get(parent))
+      if (slideId !== undefined) dirtyThumbnails.add(slideId)
+    }
+  }
+}
+function reconcileSlideSelection(ids = slideIds()) {
+  if (!ids.includes(activeSlide)) activeSlide = ids[0]
+  if (slideSelectionActive !== activeSlide) {
+    selectedSlides = new Set([activeSlide]); slideAnchor = activeSlide
+  } else {
+    selectedSlides = new Set(ids.filter(id => selectedSlides.has(id)))
+    if (!selectedSlides.size) selectedSlides.add(activeSlide)
+  }
+  slideSelectionActive = activeSlide
+  if (!ids.includes(slideAnchor)) slideAnchor = activeSlide
+}
+function selectedSlideIds() { reconcileSlideSelection(); return slideIds().filter(id => selectedSlides.has(id)) }
+function setSlideSelection(ids, active = ids[0], anchor = active) {
+  selectedSlides = new Set(ids); activeSlide = active; slideSelectionActive = active; slideAnchor = anchor
+  selected = null; selectedIds.clear()
+}
+function focusActiveSlide() { $('slide-list').querySelector(`[data-slide-id="${activeSlide}"]`)?.focus({preventScroll:true}) }
+function selectSlide(id, event = {}) {
+  const ids = slideIds()
+  if (presenting || !ids.includes(id)) return
+  stopDrag(); reconcileSlideSelection(ids)
+  if (event.shiftKey) {
+    const from = ids.indexOf(slideAnchor), to = ids.indexOf(id)
+    const range = ids.slice(Math.min(from,to), Math.max(from,to)+1)
+    setSlideSelection(event.ctrlKey || event.metaKey ? [...selectedSlides,...range] : range,id,slideAnchor)
+  } else if (event.ctrlKey || event.metaKey) {
+    const next = new Set(selectedSlides)
+    if (next.has(id) && next.size > 1) next.delete(id)
+    else next.add(id)
+    setSlideSelection([...next],next.has(id) ? id : next.has(activeSlide) ? activeSlide : [...next][0],id)
+  } else setSlideSelection([id],id)
+  render()
+  focusActiveSlide()
+}
 function renderObjectList() {
   const list = $('object-list')
   const ids = orderedObjectIds().reverse()
@@ -421,6 +513,7 @@ function clearSlideDrop() {
 function finishSlideDrag() {
   clearSlideDrop()
   draggedSlide = null
+  draggedSlides = []
   slideDropBefore = null
 }
 const slideRail = root.querySelector('.rail')
@@ -428,10 +521,14 @@ slideRail.addEventListener('dragstart', event => {
   const button = event.target.closest('[data-slide-id]')
   if (!button || presenting || slideIds().length < 2 || !event.dataTransfer) { event.preventDefault(); return }
   stopDrag()
-  draggedSlide = button.dataset.slideId
+  const source = button.dataset.slideId
+  reconcileSlideSelection()
+  if (!selectedSlides.has(source)) setSlideSelection([source])
+  draggedSlide = source
+  draggedSlides = selectedSlideIds()
   event.dataTransfer.effectAllowed = 'move'
   event.dataTransfer.setData('text/plain', 'CList slide')
-  button.classList.add('slide-dragging')
+  for (const node of $('slide-list').querySelectorAll('[data-slide-id]')) if (draggedSlides.includes(node.dataset.slideId)) node.classList.add('slide-dragging')
 })
 slideRail.addEventListener('dragover', event => {
   if (!draggedSlide || presenting) return
@@ -443,7 +540,7 @@ slideRail.addEventListener('dragover', event => {
   slideDropBefore = before?.dataset.slideId || null
   const marker = before || buttons.at(-1)
   marker?.classList.add(before ? 'slide-drop-before' : 'slide-drop-after')
-  buttons.find(button => button.dataset.slideId === draggedSlide)?.classList.add('slide-dragging')
+  for (const button of buttons) if (draggedSlides.includes(button.dataset.slideId)) button.classList.add('slide-dragging')
   const rect = slideRail.getBoundingClientRect()
   if (event.clientY < rect.top + 35) slideRail.scrollTop -= 18
   else if (event.clientY > rect.bottom - 35) slideRail.scrollTop += 18
@@ -451,49 +548,82 @@ slideRail.addEventListener('dragover', event => {
 slideRail.addEventListener('dragleave', event => {
   if (!slideRail.contains(event.relatedTarget)) clearSlideDrop()
 })
-slideRail.addEventListener('dragend', finishSlideDrag)
+slideRail.addEventListener('dragend', () => { finishSlideDrag(); render() })
 slideRail.addEventListener('drop', event => {
   if (!draggedSlide || presenting) return
   event.preventDefault()
-  const source = draggedSlide, before = slideDropBefore
+  const sources = [...draggedSlides], before = slideDropBefore
   finishSlideDrag()
   const previous = slideIds()
-  if (!previous.includes(source) || source === before || (before && !previous.includes(before))) return
-  const next = previous.filter(id => id !== source)
-  next.splice(before ? next.indexOf(before) : next.length, 0, source)
+  const next = dropSelectedSlides(previous,sources,before)
   if (next.every((id, index) => id === previous[index])) return
-  activeSlide = source
   selected = null; selectedIds.clear()
   history?.stopCapturing()
   doc.transact(() => next.forEach((id, rank) => pages.set(id, rank)))
   history?.stopCapturing()
-  status('Slide moved to position ' + (next.indexOf(source) + 1))
+  focusActiveSlide()
+  actionStatus(sources.length === 1 ? 'Slide moved to position ' + (next.indexOf(sources[0]) + 1) : sources.length + ' slides moved')
+})
+slideRail.addEventListener('keydown', event => {
+  if (presenting || event.isComposing) return
+  const ids = slideIds(), index = ids.indexOf(activeSlide)
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') {
+    event.preventDefault(); event.stopPropagation()
+    setSlideSelection(ids,activeSlide,slideAnchor); render()
+    focusActiveSlide()
+  } else if (event.key === 'Escape') {
+    event.preventDefault(); event.stopPropagation(); selectSlide(activeSlide)
+  } else if (event.key === 'Delete' || event.key === 'Backspace') {
+    event.preventDefault(); event.stopPropagation(); if (!$('delete-slide').disabled) $('delete-slide').click()
+  } else if (['ArrowUp','ArrowDown'].includes(event.key)) {
+    event.preventDefault(); event.stopPropagation()
+    const direction = event.key === 'ArrowUp' ? -1 : 1
+    if (event.altKey) moveSlide(direction)
+    else if (ids[index+direction]) selectSlide(ids[index+direction],event)
+  }
 })
 function renderThumbnails() {
-  if (draggedSlide) finishSlideDrag()
   updatePresenter()
   renderObjectList()
   const ids = slideIds()
+  const order = JSON.stringify(ids)
+  if (draggedSlide && order !== thumbnailOrder) finishSlideDrag()
+  thumbnailOrder = order
+  reconcileSlideSelection(ids)
   const list = $('slide-list')
-  slideOrderActions.remove()
-  list.replaceChildren()
+  const current = new Set(ids)
+  for (const [id,view] of thumbnailViews) if (!current.has(id)) { view.button.remove(); thumbnailViews.delete(id); dirtyThumbnails.delete(id) }
+  let cursor = list.firstElementChild
   ids.forEach((id, index) => {
-    const button = document.createElement('button')
-    button.className = 'clist-action-btn'
-    button.title = 'Select slide ' + (index + 1) + '. Drag to reorder.'
-    button.dataset.slideId = id
-    button.draggable = ids.length > 1 && !presenting
-    button.setAttribute('aria-pressed', String(id === activeSlide))
-    const thumb = document.createElement('div')
-    thumb.className = 'slide-thumb' + (id === activeSlide ? ' selected' : '')
-    const preview = document.createElement('div')
-    preview.className = 'mini-slide'
-    preview.style.backgroundColor = slideBackground(id)
-    objects.forEach((box, boxId) => {
-      if (!(box instanceof Y.Map) || (box.get('slide') || 'first') !== id) return
+    let view = thumbnailViews.get(id)
+    if (!view) {
+      const button = document.createElement('button'), thumb = document.createElement('div'), preview = document.createElement('div'), label = document.createElement('span')
+      button.className = 'clist-action-btn'; button.dataset.slideId = id
+      preview.className = 'mini-slide'
+      thumb.append(preview,label); button.append(thumb)
+      button.addEventListener('click',event=>selectSlide(id,event))
+      view = {button,thumb,preview,label}; thumbnailViews.set(id,view); dirtyThumbnails.add(id)
+    }
+    const {button,thumb,preview,label} = view
+    const title = 'Slide ' + (index + 1) + '. Ctrl/Cmd-click to toggle; Shift-click for a range. Drag to move selected slides.'
+    if (button.title !== title) button.title = title
+    const draggable = ids.length > 1 && !presenting
+    if (button.draggable !== draggable) button.draggable = draggable
+    const pressed = String(selectedSlides.has(id))
+    if (button.getAttribute('aria-pressed') !== pressed) button.setAttribute('aria-pressed',pressed)
+    if (id === activeSlide) { if (!button.hasAttribute('aria-current')) button.setAttribute('aria-current','true') }
+    else if (button.hasAttribute('aria-current')) button.removeAttribute('aria-current')
+    const className = 'slide-thumb' + (selectedSlides.has(id) ? ' selected' : '') + (id === activeSlide ? ' active-slide' : '')
+    if (thumb.className !== className) thumb.className = className
+    if (allThumbnailsDirty || dirtyThumbnails.has(id)) {
+      preview.style.backgroundColor = slideBackground(id)
+      preview.replaceChildren()
+      const boxIds = [...(thumbnailObjects.get(id) || [])].sort((a,b)=>objectLayer(objects.get(a))-objectLayer(objects.get(b)) || a.localeCompare(b))
+      boxIds.forEach((boxId,layer) => {
+      const box = objects.get(boxId)
       const item = document.createElement('div')
       item.className = 'mini-object'
-      item.style.zIndex = String(orderedObjectIds(id).indexOf(boxId))
+      item.style.zIndex = String(layer)
       item.style.transform = `rotate(${Number(box.get('rotation')) || 0}deg)`
       item.style.left = (100 * box.get('x') / SW) + '%'
       item.style.top = (100 * box.get('y') / SH) + '%'
@@ -518,20 +648,27 @@ function renderThumbnails() {
         item.textContent = doc.getXmlFragment('slide-text-' + boxId).toString().replace(/<[^>]*>/g, ' ')
       }
       preview.append(item)
-    })
-    const label = document.createElement('span')
-    label.textContent = String(index + 1)
-    thumb.append(preview, label)
-    button.append(thumb)
-    button.addEventListener('click', () => { stopDrag(); selected = null; selectedIds.clear(); activeSlide = id; render() })
-    list.append(button)
-    if (id === activeSlide) list.append(slideOrderActions)
+      })
+    }
+    if (label.textContent !== String(index+1)) label.textContent = String(index+1)
+    if (cursor === slideOrderActions) cursor = cursor.nextElementSibling
+    if (cursor === button) cursor = cursor.nextElementSibling
+    else list.insertBefore(button,cursor)
   })
+  const activeButton = thumbnailViews.get(activeSlide)?.button
+  if (activeButton && activeButton.nextElementSibling !== slideOrderActions) list.insertBefore(slideOrderActions,activeButton.nextElementSibling)
+  dirtyThumbnails.clear(); allThumbnailsDirty = false
   const index = ids.indexOf(activeSlide)
-  $('slide-label').textContent = 'Slide ' + (index + 1) + ' of ' + ids.length
-  $('slide-up').disabled = index <= 0
-  $('slide-down').disabled = index >= ids.length - 1
-  $('delete-slide').disabled = ids.length <= 1
+  const count = selectedSlides.size
+  $('slide-label').textContent = 'Slide ' + (index + 1) + ' of ' + ids.length + (count > 1 ? ' · ' + count + ' selected' : '')
+  $('slide-up').disabled = presenting || moveSelectedSlides(ids,selectedSlides,-1).every((id,i)=>id===ids[i])
+  $('slide-down').disabled = presenting || moveSelectedSlides(ids,selectedSlides,1).every((id,i)=>id===ids[i])
+  $('duplicate-slide').disabled = presenting
+  $('duplicate-slide').title = count > 1 ? 'Duplicate ' + count + ' selected slides' : 'Duplicate the selected slide'
+  $('slide-up').title = $('slide-up').ariaLabel = 'Move selected slides earlier'
+  $('slide-down').title = $('slide-down').ariaLabel = 'Move selected slides later'
+  $('delete-slide').disabled = presenting || count >= ids.length
+  $('delete-slide').title = count >= ids.length ? 'At least one slide must remain' : count > 1 ? 'Delete ' + count + ' selected slides' : 'Delete selected slide'
   $('presentation-position').textContent = (index + 1) + ' / ' + ids.length
   $('previous-slide').disabled = index <= 0
   $('next-slide').disabled = index >= ids.length - 1
@@ -592,6 +729,7 @@ function copyGroupData(data, groups) {
   return copy
 }
 function revealSelectionControls(force = false) {
+  if (navigatingFind) return
   if (presenting) return
   const key = [...selectedIds].sort().map(id => id + ':' + (objects.get(id)?.get('kind') || 'text')).join('|')
   if (!force && key === inspectorSelection) return
@@ -899,6 +1037,7 @@ function stopDrag(e) {
   activePointer = null
   if (history) { history.captureTimeout = 500; history.stopCapturing() }
 }
+doc.on('beforeObserverCalls', markThumbnailChanges)
 objects.observeDeep(render)
 pages.observe(render)
   design.observe(render)
@@ -906,6 +1045,7 @@ pages.observe(render)
   references.observe(notifyReferences)
   notes.observe(renderNotes)
 doc.on('update', renderThumbnails)
+doc.on('update', notifyChange)
 $('add-slide').addEventListener('click', () => {
   if (presenting) return
   stopDrag()
@@ -951,74 +1091,104 @@ $('duplicate-slide').addEventListener('click', () => {
   if (presenting) return
   stopDrag()
   try {
-    const sourceSlide = activeSlide
+    const sources = selectedSlideIds()
     const order = slideIds()
-    const slideId = 'slide-' + crypto.randomUUID()
-    const groupIds = new Map()
-    const copies = orderedObjectIds(sourceSlide).map(id => {
-      const box = new Y.Map(Object.entries(copyGroupData(objects.get(id).toJSON(), groupIds)))
-      box.set('slide', slideId)
-      const copyId = newId()
-      const text = doc.getXmlFragment('slide-text-' + id).toArray().map(node => node.clone())
-      const fragment = doc.getXmlFragment('slide-text-' + copyId)
-      history?.addToScope(fragment)
-      return { id: copyId, box, fragment, text }
+    const slides = sources.map(source => {
+      const id = 'slide-' + crypto.randomUUID(), groupIds = new Map()
+      const copies = orderedObjectIds(source).map(objectId => {
+        const box = new Y.Map(Object.entries(copyGroupData(objects.get(objectId).toJSON(),groupIds)))
+        box.set('slide',id)
+        const key = newId(), fragment = doc.getXmlFragment('slide-text-' + key)
+        const text = doc.getXmlFragment('slide-text-' + objectId).toArray().map(node=>node.clone())
+        history?.addToScope(fragment)
+        return {id:key,box,fragment,text}
+      })
+      return {source,id,copies}
     })
-    order.splice(order.indexOf(sourceSlide) + 1, 0, slideId)
-    activeSlide = slideId
-    selected = null; selectedIds.clear()
+    const duplicates = slides.map(slide=>slide.id)
+    order.splice(order.indexOf(sources.at(-1))+1,0,...duplicates)
+    setSlideSelection(duplicates)
+    history?.stopCapturing()
     doc.transact(() => {
       order.forEach((id, rank) => pages.set(id, rank))
-      if (backgrounds.has(sourceSlide)) backgrounds.set(slideId, backgrounds.get(sourceSlide))
-      if (typeof notes.get(sourceSlide) === 'string') notes.set(slideId, notes.get(sourceSlide))
-      for (const copy of copies) {
-        objects.set(copy.id, copy.box)
-        if (copy.text.length) copy.fragment.insert(0, copy.text)
+      for (const slide of slides) {
+        if (backgrounds.has(slide.source)) backgrounds.set(slide.id,backgrounds.get(slide.source))
+        if (typeof notes.get(slide.source) === 'string') notes.set(slide.id,notes.get(slide.source))
+        for (const copy of slide.copies) {
+          objects.set(copy.id, copy.box)
+          if (copy.text.length) copy.fragment.insert(0, copy.text)
+        }
       }
     })
+    history?.stopCapturing()
     render()
-    status('Slide duplicated')
+    actionStatus(slides.length === 1 ? 'Slide duplicated' : slides.length + ' slides duplicated')
+    focusActiveSlide()
   } catch (error) {
     console.error('Slides duplication failed:', error)
     status('Could not duplicate slide: ' + error.message, 'error')
   }
 })
 function moveSlide(offset) {
+  if (presenting) return
+  stopDrag()
   const ids = slideIds()
-  const index = ids.indexOf(activeSlide)
-  const other = ids[index + offset]
-  if (!other) return
-  ;[ids[index], ids[index + offset]] = [ids[index + offset], ids[index]]
-  doc.transact(() => ids.forEach((id, rank) => pages.set(id, rank)))
+  const next = moveSelectedSlides(ids,selectedSlideIds(),offset)
+  if (next.every((id,i)=>id===ids[i])) return
+  history?.stopCapturing()
+  doc.transact(() => next.forEach((id, rank) => pages.set(id, rank)))
+  history?.stopCapturing()
+  focusActiveSlide()
 }
 $('slide-up').addEventListener('click', () => moveSlide(-1))
 $('slide-down').addEventListener('click', () => moveSlide(1))
 $('delete-slide').addEventListener('click', () => {
-  if (slideIds().length <= 1 || presenting) return
-  const target = activeSlide
-  const remove = () => deleteSlide(target)
+  const targets = selectedSlideIds(), ids = slideIds()
+  if (targets.length >= ids.length || presenting) return
+  const remove = () => deleteSlides(targets)
   if (typeof window.buildDialogModal === 'function') {
     const body = document.createElement('p')
-    body.textContent = 'Are you sure you want to delete slide ' + (slideIds().indexOf(target) + 1) + '? Its objects and speaker notes will be removed.'
-    window.buildDialogModal('Delete slide', body, [
+    body.textContent = targets.length === 1 ? 'Delete slide ' + (ids.indexOf(targets[0])+1) + '? Its objects and speaker notes will be removed.' : 'Delete ' + targets.length + ' selected slides? Their objects and speaker notes will be removed.'
+    window.buildDialogModal(targets.length === 1 ? 'Delete slide' : 'Delete slides', body, [
       { label: 'Cancel', secondary: true, onClick: close => close() },
-      { label: 'Delete slide', onClick: close => { close(); remove() } },
+      { label: targets.length === 1 ? 'Delete slide' : 'Delete slides', onClick: close => { close(); remove() } },
     ])
-  } else if (window.confirm('Are you sure you want to delete this slide?')) remove()
+  } else {
+    // Standalone demo: use the same standard button classes without CList's shell.
+    const dialog = document.createElement('dialog'), body = document.createElement('p')
+    body.textContent = 'Delete ' + targets.length + ' selected slide(s)?'
+    dialog.append(body)
+    for (const [label,secondary,action] of [['Cancel',true,()=>{}],['Delete slides',false,remove]]) {
+      const button = document.createElement('button')
+      button.className = secondary ? 'btn btn-secondary' : 'btn'; button.textContent = label
+      button.addEventListener('click', () => { dialog.close(); dialog.remove(); action() })
+      dialog.append(button)
+    }
+    dialog.addEventListener('cancel',()=>dialog.remove(),{once:true})
+    document.body.append(dialog); dialog.showModal()
+  }
 })
-function deleteSlide(removed) {
+function deleteSlides(targets) {
   const ids = slideIds()
-  if (ids.length <= 1 || !ids.includes(removed)) return
+  const removed = new Set(ids.filter(id=>targets.includes(id)))
+  if (presenting || !removed.size || removed.size >= ids.length) return
   stopDrag()
-  activeSlide = ids[Math.max(0, ids.indexOf(removed) - 1)]
-  selected = null; selectedIds.clear()
+  const remaining = ids.filter(id=>!removed.has(id))
+  const next = remaining[Math.min(ids.indexOf(activeSlide),remaining.length-1)]
+  const fragments = [...objects].filter(([,box])=>removed.has(box.get('slide') || 'first') && (!box.get('kind') || box.get('kind') === 'text')).map(([id])=>doc.getXmlFragment('slide-text-' + id))
+  for (const fragment of fragments) history?.addToScope(fragment)
+  setSlideSelection([next])
+  history?.stopCapturing()
   doc.transact(() => {
-    objects.forEach((box, id) => { if ((box.get('slide') || 'first') === removed) objects.delete(id) })
-    pages.delete(removed)
-    backgrounds.delete(removed)
-    notes.delete(removed)
+    objects.forEach((box, id) => { if (removed.has(box.get('slide') || 'first')) objects.delete(id) })
+    for (const fragment of fragments) if (fragment.length) fragment.delete(0,fragment.length)
+    // Materialize the implicit first slide before deleting it or other slides.
+    if (!pages.size) ids.forEach((id,rank)=>pages.set(id,rank))
+    for (const id of removed) { pages.delete(id); backgrounds.delete(id); notes.delete(id) }
   })
+  history?.stopCapturing()
   render()
+  focusActiveSlide()
 }
 
 $('save-layout').disabled = typeof options.onSaveLayout !== 'function'
@@ -1741,9 +1911,73 @@ function importContent(content, sourceReferences = []) {
 function snapshot() {
   if (!design.has('theme')) doc.transact(() => design.set('theme', structuredClone(currentTheme())), 'init')
   const bytes = Y.encodeStateAsUpdate(doc)
-  let binary = ''
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
-  return { format: 'clist-slides-yjs-v1', document: $('doc-name').value, update: btoa(binary) }
+  const chunks = []
+  for (let i = 0; i < bytes.length; i += 32768) chunks.push(String.fromCharCode(...bytes.subarray(i, i + 32768)))
+  return { format: 'clist-slides-yjs-v1', document: $('doc-name').value, update: btoa(chunks.join('')) }
+}
+async function importPowerPoint(data, filename) {
+  if (provider) throw new Error('Disconnect from collaboration before importing a PowerPoint file.')
+  if (presenting) throw new Error('Return to editing before importing a PowerPoint file.')
+  const plan = await readPowerPoint(data, filename)
+  // Preparation is asynchronous; recheck the editor before committing anything.
+  if (provider || presenting) throw new Error('Return to local editing before completing the import.')
+  const staged = new Y.Doc()
+  function textNode(source) {
+    const element = new Y.XmlElement(source.type)
+    for (const [key,value] of Object.entries(source.attrs || {})) element.setAttribute(key,value)
+    const children = []
+    let delta = []
+    const flushText = () => { if (delta.length) { const text = new Y.XmlText(); text.applyDelta(delta); children.push(text); delta = [] } }
+    for (const item of source.content || []) {
+      if (item.type === 'text') {
+        const marks = Object.fromEntries((item.marks || []).map(mark => [mark.type,mark.attrs || {}]))
+        delta.push({insert:item.text,attributes:marks})
+      } else { flushText(); children.push(textNode(item)) }
+    }
+    flushText()
+    if (children.length) element.insert(0,children)
+    return element
+  }
+  try {
+    const existing = slideIds(), stagedPages = staged.getMap('pages'), stagedObjects = staged.getMap('objects')
+    const firstOrder = Math.max(...existing.map(id=>pages.get(id) || 0)) + 1
+    for (const [index,page] of plan.slides.entries()) {
+      const id = 'slide-' + crypto.randomUUID()
+      stagedPages.set(id,{order:firstOrder+index,background:page.background,notes:page.notes})
+      page.objects.forEach((object,layer) => {
+        const key = newId(), {text,...properties} = object
+        if (properties.shapeDefinition) properties.shapeDefinition = validateShapeDefinition(properties.shapeDefinition)
+        stagedObjects.set(key,{...properties,slide:id,layer})
+        if (text) {
+          const fragment=staged.getXmlFragment('slide-text-' + key)
+          fragment.insert(0,text.map(textNode))
+        }
+      })
+    }
+    const entries = [...stagedObjects].map(([id,box]) => {
+      const fragment = box.kind === 'text' ? doc.getXmlFragment('slide-text-' + id) : null
+      if (fragment) history?.addToScope(fragment)
+      return {id,box:new Y.Map(Object.entries(box)),fragment,text:fragment ? staged.getXmlFragment('slide-text-' + id).toArray().map(node=>node.clone()) : []}
+    })
+    stopDrag(); history?.stopCapturing()
+    activeSlide = stagedPages.keys().next().value
+    selected = null; selectedIds.clear()
+    doc.transact(() => {
+      if (!pages.size) pages.set('first',0)
+      for (const [id,page] of stagedPages) {
+        pages.set(id,page.order); backgrounds.set(id,page.background)
+        if (page.notes) notes.set(id,page.notes)
+      }
+      for (const entry of entries) {
+        objects.set(entry.id,entry.box)
+        if (entry.fragment && entry.text.length) entry.fragment.insert(0,entry.text)
+      }
+    })
+    history?.stopCapturing()
+    render()
+    status(plan.slides.length + ' PowerPoint slides imported. Use Undo to remove the import.')
+    return {count:plan.slides.length,warnings:plan.warnings}
+  } finally { staged.destroy() }
 }
 function loadSnapshot(data) {
   if (provider) throw new Error('Disconnect from Hocuspocus before replacing the document')
@@ -1763,6 +1997,7 @@ function loadSnapshot(data) {
   }
 
   // The existing Tiptap instances and deep observer are bound to the old Y.Doc.
+  doc.off('beforeObserverCalls', markThumbnailChanges)
   objects.unobserveDeep(render)
   pages.unobserve(render)
   design.unobserve(render)
@@ -1770,6 +2005,7 @@ function loadSnapshot(data) {
   references.unobserve(notifyReferences)
   notes.unobserve(renderNotes)
   doc.off('update', renderThumbnails)
+  doc.off('update', notifyChange)
   for (const view of views.values()) {
     view.editor?.destroy()
     view.node.remove()
@@ -1789,6 +2025,8 @@ function loadSnapshot(data) {
   references = doc.getMap('clist_refs')
   design = doc.getMap('slide-design')
   activeSlide = slideIds()[0]
+  resetThumbnailIndex()
+  doc.on('beforeObserverCalls', markThumbnailChanges)
   objects.observeDeep(render)
   pages.observe(render)
   design.observe(render)
@@ -1796,11 +2034,13 @@ function loadSnapshot(data) {
   references.observe(notifyReferences)
   notes.observe(renderNotes)
   doc.on('update', renderThumbnails)
+  doc.on('update', notifyChange)
   seeded = true
   if (data.document) $('doc-name').value = data.document
   render()
   initializeHistory()
   notifyReferences()
+  notifyChange()
 }
 function disconnect() {
   connectionAttempt++
@@ -2019,6 +2259,42 @@ function presenterSlide(id, targetDocument) {
   }
   return preview
 }
+function powerPointModel() {
+  // Capture the entire deck before any asynchronous library/image loading.
+  return {
+    title: options.presentationTitle?.() || $('doc-name').value || 'CList presentation',
+    slides: slideIds().map(id => ({
+      background: slideBackground(id),
+      notes: typeof notes.get(id) === 'string' ? notes.get(id) : '',
+      objects: orderedObjectIds(id).map(key => {
+        const box = objects.get(key), kind = box.get('kind') || 'text'
+        const object = { id: key, kind, x: Number(box.get('x')) || 0, y: Number(box.get('y')) || 0,
+          width: Number(box.get('width')), height: Number(box.get('height')), rotation: Number(box.get('rotation')) || 0, style: boxStyle(box) }
+        if (!(object.width > 0 && object.height > 0)) throw new Error('An object has invalid dimensions: ' + key)
+        if (kind === 'text') {
+          object.format = textStyle(box)
+          object.runs = textRuns(renderPresenterText(doc.getXmlFragment('slide-text-' + key), document), object.format.size)
+        } else if (kind === 'image') {
+          object.source = safeImageSource(box.get('source'))
+          if (!object.source) throw new Error('An image has no valid source: ' + key)
+          object.alt = typeof box.get('alt') === 'string' ? box.get('alt') : ''
+          const crop = imageCrop(box)
+          object.crop = { ...crop }
+          if (crop.fit === 'cover') Object.assign(object.crop, cropImageSize(box))
+        } else if (kind === 'shape') {
+          object.definition = structuredClone(shapeDefinition(box))
+          const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+          drawShape(svg, box)
+          svg.setAttribute('width', object.width); svg.setAttribute('height', object.height)
+          // Standalone SVG images have no CSS query container.
+          for (const element of svg.querySelectorAll('[vector-effect]')) element.style.strokeWidth = (object.style.border ? Math.min(object.style.width, object.width, object.height) : 0) + 'px'
+          object.source = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(svg))
+        } else throw new Error('Unsupported slide object: ' + kind)
+        return object
+      }),
+    })),
+  }
+}
 function updatePresenter() {
   if (!presenter) return
   if (presenter.closed) { presenter = null; return }
@@ -2053,6 +2329,7 @@ function navigatePresentation(offset) {
   render()
 }
 function setPresenting(value) {
+  findReplace?.presenting(value)
   presenting = value
   closeLinkControls()
   updateHistoryButtons()
@@ -2121,11 +2398,50 @@ else if (options.seed !== false) seedIfEmpty()
 render()
 initializeHistory()
 updateSavedLayoutActions()
+findReplace = mountFindReplace({
+  root, Y, getDocument:()=>doc, canEdit:()=>!presenting,
+  getEntries:()=>slideIds().flatMap((slideId,index)=>[...(thumbnailObjects.get(slideId) || [])]
+    .sort((a,b)=>objectLayer(objects.get(a))-objectLayer(objects.get(b)) || a.localeCompare(b))
+    .filter(id=>!objects.get(id).get('kind') || objects.get(id).get('kind')==='text')
+    .map(id=>({id,slideId,slideNumber:index+1,locked:objects.get(id).get('locked')===true,fragment:doc.getXmlFragment('slide-text-'+id)}))),
+  selectedText:()=>{const editor=views.get(selected)?.editor;return editor ? editor.state.doc.textBetween(editor.state.selection.from,editor.state.selection.to,'\n') : ''},
+  jump:match=>{
+    navigatingFind = true
+    try {
+      stopDrag(); setSlideSelection([match.entry.slideId]); render(); select(match.entry.id)
+      const view = views.get(match.entry.id)
+      if (view?.editor) { view.editor.commands.setTextSelection({from:match.from,to:match.to}); view.editor.view.focus() }
+      view?.node.scrollIntoView({block:'nearest',inline:'nearest'})
+    } finally { navigatingFind = false }
+  },
+  transact:(matches,action)=>{
+    if (presenting) return
+    for (const fragment of new Set(matches.map(match=>match.entry.fragment))) history?.addToScope(fragment)
+    history?.stopCapturing()
+    doc.transact(action)
+    history?.stopCapturing()
+  },
+  report:actionStatus,
+  onError:error=>{
+    console.error('Slides find/replace failed:',error)
+    if (typeof window.showErrorModal==='function') window.showErrorModal(error.message,{title:'Find and replace failed'})
+    else status('Find and replace failed: '+error.message,'error')
+  },
+})
 return {
+  getArticleHtml: () => buildSlideArticle({slideIds:slideIds(),renderSlide:presenterSlide}),
+  getHtml: () => buildStandaloneHtml({slideIds:slideIds(),renderSlide:presenterSlide,title:options.presentationTitle?.() || $('doc-name').value || 'CList presentation'}),
+  exportHtml: () => exportStandaloneHtml({slideIds:slideIds(),renderSlide:presenterSlide,title:options.presentationTitle?.() || $('doc-name').value || 'CList presentation'}),
+  snapshotRecovery: recoverySnapshot.snapshot,
+  importPowerPoint,
+  exportPowerPoint: () => exportPowerPoint(powerPointModel()),
+  exportPdf: () => openSlidePrintView({ slideIds: slideIds(), renderSlide: presenterSlide, title: options.presentationTitle?.() || $('doc-name').value || 'CList presentation' }),
   snapshot, loadSnapshot, importContent, getReferences, addReferences, connect, disconnect, createSavedLayout, registerSavedLayout, removeSavedLayout,
   get document() { return doc },
   get connected() { return connected },
   destroy() {
+    findReplace?.destroy()
+    recoverySnapshot.destroy()
     textOverflow.destroy()
     marquee.destroy()
     canvasZoom.destroy()
@@ -2138,6 +2454,7 @@ return {
     if (presenting) exitPresentation().catch(reportConnectionError)
     disconnect()
     stopDrag()
+    doc.off('beforeObserverCalls', markThumbnailChanges)
     objects.unobserveDeep(render)
   pages.unobserve(render)
   design.unobserve(render)
@@ -2145,6 +2462,7 @@ return {
   references.unobserve(notifyReferences)
   notes.unobserve(renderNotes)
   doc.off('update', renderThumbnails)
+    doc.off('update', notifyChange)
     for (const view of views.values()) view.editor?.destroy()
     views.clear()
     destroyHistory()

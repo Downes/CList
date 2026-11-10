@@ -2,8 +2,69 @@
 ;(function () {
     const snapshotType = 'application/vnd.clist.slides+json'
     const layoutType = 'application/vnd.clist.slide-layout+json'
+    const powerPointType = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
     let instance = null
     let mounting = null
+    let recovery = null
+    let exportingPowerPoint = false
+    let importingPowerPoint = false
+
+    function importError(error) {
+        console.error('Slides PowerPoint import failed:', error)
+        showErrorModal('Could not import PowerPoint: ' + error.message + ' Your existing slides have been kept.', { title: 'PowerPoint import failed' })
+    }
+    async function importPowerPointContent(data, filename) {
+        if (importingPowerPoint) { showStatusMessage('A PowerPoint import is already running.'); return }
+        importingPowerPoint = true
+        try {
+            showStatusMessage('Reading PowerPoint presentation...')
+            const result = await instance.importPowerPoint(data, filename)
+            if (typeof closeLoadSurfaces === 'function') closeLoadSurfaces()
+            if (result.warnings.length) {
+                const body = document.createElement('div'), summary = document.createElement('p'), list = document.createElement('ul')
+                summary.textContent = result.count + ' slides added after your existing presentation. Use Undo to remove the import. The following content could not be reproduced exactly:'
+                for (const warning of result.warnings) {
+                    const item = document.createElement('li'); item.textContent = warning; list.append(item)
+                }
+                body.append(summary, list)
+                buildDialogModal('PowerPoint import report', body, [{ label: 'Close', onClick: close => close() }])
+            } else showStatusMessage(result.count + ' PowerPoint slides added. Use Undo to remove the import.')
+        } catch (error) { importError(error) }
+        finally { importingPowerPoint = false }
+    }
+    window.CList.loaders = window.CList.loaders || []
+    window.CList.loaders.push({
+        label: 'Recover slides', icon: 'restore', requiresLogin: false, requiresAccount: false,
+        visible: () => currentEditor === 'slides' && !!recovery,
+        load: async () => { await recovery.show(); return null },
+    })
+    window.CList.loaders.push({
+        label: 'Import PowerPoint', icon: 'slideshow', requiresLogin: false, requiresAccount: false,
+        visible: () => currentEditor === 'slides' && !!instance,
+        load: async () => {
+            try {
+                let file
+                if (window.showOpenFilePicker) {
+                    const [handle] = await window.showOpenFilePicker({ types: [{ description: 'PowerPoint presentation', accept: { [powerPointType]: ['.pptx'] } }], multiple: false })
+                    file = await handle.getFile()
+                } else {
+                    file = await new Promise(resolve => {
+                        const input = document.createElement('input')
+                        input.type = 'file'; input.accept = '.pptx'; input.hidden = true
+                        const finish = value => { input.remove(); resolve(value) }
+                        input.addEventListener('change', () => finish(input.files[0] || null), { once: true })
+                        input.addEventListener('cancel', () => finish(null), { once: true })
+                        document.body.append(input); input.click()
+                    })
+                }
+                if (!file) return null
+                if (!/\.pptx$/i.test(file.name)) throw new Error('Choose a .pptx file. Legacy .ppt files are not supported.')
+                if (file.size > 100 * 1024 * 1024) throw new Error('Choose a .pptx file smaller than 100 MB.')
+                await importPowerPointContent(await file.arrayBuffer(), file.name)
+            } catch (error) { if (error.name !== 'AbortError') importError(error) }
+            return null
+        },
+    })
 
     function syncSlideReferences() {
         if (instance && currentEditor === 'slides') setReferences(instance.getReferences())
@@ -96,6 +157,50 @@
     }
     window.CList.savers = window.CList.savers || []
     window.CList.savers.push({
+        label: 'Export slides as HTML', icon: 'html', requiresLogin: false, requiresAccount: false,
+        visible: () => currentEditor === 'slides' && !!instance,
+        save: async () => {
+            try { await instance.exportHtml(); showStatusMessage('HTML presentation downloaded.') }
+            catch (error) {
+                console.error('Slides HTML export failed:',error)
+                showErrorModal('Could not export slides as HTML: '+error.message,{title:'HTML export failed'})
+            }
+        },
+    })
+    window.CList.savers.push({
+        label: 'Export slides as PowerPoint',
+        icon: 'slideshow',
+        requiresLogin: false,
+        requiresAccount: false,
+        visible: () => currentEditor === 'slides' && !!instance,
+        save: async () => {
+            if (exportingPowerPoint) { showStatusMessage('PowerPoint export is already running.'); return }
+            exportingPowerPoint = true
+            showStatusMessage('Preparing PowerPoint export...')
+            try {
+                const warnings = await instance.exportPowerPoint()
+                showStatusMessage('PowerPoint export downloaded.' + (warnings.length ? ' ' + warnings.join(' ') : ''))
+            } catch (error) {
+                console.error('Slides PowerPoint export failed:', error)
+                showStatusMessage('Slides could not export as PowerPoint: ' + error.message)
+            } finally { exportingPowerPoint = false }
+        },
+    })
+    window.CList.savers.push({
+        label: 'Export slides as PDF',
+        icon: 'picture_as_pdf',
+        requiresLogin: false,
+        requiresAccount: false,
+        visible: () => currentEditor === 'slides' && !!instance,
+        save: async () => {
+            try { await instance.exportPdf() }
+            catch (error) {
+                console.error('Slides PDF export failed:', error)
+                showStatusMessage('Slides could not export as PDF: ' + error.message)
+            }
+        },
+    })
+    window.CList.savers.push({
         label: 'Save slide as layout',
         icon: 'dashboard',
         requiresLogin: false,
@@ -156,10 +261,12 @@
     editorHandlers.slides = {
         label: 'Slides',
         icon: 'slideshow',
-        contentTypes: [snapshotType, layoutType],
+        contentTypes: [snapshotType, layoutType, powerPointType],
         fileExtension: 'json',
         requiresAccount: false,
         initialize: async () => {
+            const loadingContent = !!pendingContent
+            let offerRecovery = false
             let container = document.getElementById('slidesDiv')
             if (!container) {
                 container = document.createElement('div')
@@ -172,8 +279,13 @@
                 try {
                     if (!mounting) {
                         mounting = (async () => {
-                            const { mountCListSlides } = await import('../slides/clist-slides-poc/clist.js')
-                            return mountCListSlides(container, { autoConnect: false, onReferencesChange: refs => { if (currentEditor === 'slides') setReferences(refs) }, onSaveLayout: () => window.CList.savers.find(saver => saver.label === 'Save slide as layout').save(), onRenameSavedLayout: layout => manageLayoutDialog(layout, false), onDeleteSavedLayout: layout => manageLayoutDialog(layout, true) })
+                            const { mountCListSlides } = await import('../slides/clist-slides-poc/clist.js?v=2')
+                            const { createSlideRecovery } = await import('./slides-recovery.js?v=4')
+                            const editor = await mountCListSlides(container, { autoConnect: false, presentationTitle: () => window.CList.ui.view.writeTitle?.textContent.trim() || '', onStatus: showStatusMessage, onChange: () => recovery?.changed(), onReferencesChange: refs => { if (currentEditor === 'slides') setReferences(refs) }, onSaveLayout: () => window.CList.savers.find(saver => saver.label === 'Save slide as layout').save(), onRenameSavedLayout: layout => manageLayoutDialog(layout, false), onDeleteSavedLayout: layout => manageLayoutDialog(layout, true) })
+                            recovery = createSlideRecovery({ editor, store: window.CList.pageStore, report: showStatusMessage, showError: showErrorModal,
+                                showDialog: body => buildDialogModal('Recover slides', body, [{ label: 'Close', onClick: close => close() }]).close })
+                            offerRecovery = true
+                            return editor
                         })()
                     }
                     instance = await mounting
@@ -189,9 +301,22 @@
             currentEditor = 'slides'
             await refreshSavedLayouts()
             await loadPredefinedContent('slides')
+            // Callers close their own Load/editor-switch surfaces after awaiting
+            // initialization. Offer recovery in the next task, after that cleanup.
+            // An explicit file load takes precedence; recovery remains in Load.
+            if (offerRecovery && !loadingContent) {
+                setTimeout(() => {
+                    if (currentEditor === 'slides') recovery.start().catch(error => {
+                        console.error('Slides recovery could not open:', error)
+                        showErrorModal('Could not open slide recovery: ' + error.message, { title: 'Slides recovery failed' })
+                    })
+                }, 0)
+            }
         },
         getDocId: () => instance ? 'slides' : null,
         resyncReferences: syncSlideReferences,
+        getPublishContent: async () => ({type:'text/html',value:instance ? await instance.getHtml() : ''}),
+        getPostContent: async () => instance ? await instance.getArticleHtml() : '',
         getContent: () => {
             if (!instance) return ''
             instance.addReferences(getReferences())
@@ -208,6 +333,7 @@
         },
         loadContent: ({ type, value }, itemId) => {
             if (!instance) return
+            if (type === powerPointType) { importPowerPointContent(value).catch(importError); return }
             try {
                 if (type === layoutType) {
                     instance.registerSavedLayout(typeof value === 'string' ? JSON.parse(value) : value)

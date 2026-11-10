@@ -1,0 +1,27 @@
+const { test } = require('node:test')
+const assert = require('node:assert/strict')
+const { readFileSync } = require('node:fs')
+const vm = require('node:vm')
+
+test('loaded-file notices use transient status without an extra row; publication controls remain', () => {
+    const elements = Object.fromEntries(['loaded-page-indicator','loaded-page-filename','republish-button','republish-status'].map(id => [id, { style: {}, removeAttribute() {} }]))
+    const messages = []
+    const context = vm.createContext({ currentLoadedPage: null, document: { getElementById: id => elements[id] }, showStatusMessage: text => messages.push(text) })
+    const source = readFileSync('js/editors.js','utf8')
+    vm.runInContext(source.slice(source.indexOf('function setLoadedPage('), source.indexOf('// Function to initialize an editor by type.')),context)
+    const file = { kind: 'file', title: 'Presentation.pptx' }
+    context.setLoadedPage(file)
+    assert.equal(messages[0], 'Loaded file: Presentation.pptx')
+    assert.equal(elements['loaded-page-indicator'].style.display, 'none')
+    assert.equal(elements['republish-button'].style.display, 'none')
+    assert.equal(context.currentLoadedPage.title, file.title, 'source metadata is retained')
+    context.setLoadedPage(file)
+    assert.equal(messages.length, 1, 'metadata refresh does not repeat notices')
+    context.setLoadedPage({ kind: 'local-page', id: 'saved', title: 'My slides' })
+    assert.equal(elements['loaded-page-indicator'].style.display, 'none')
+    context.setLoadedPage({ kind: 'local-page', id: 'published', title: 'Published slides', publicationUrl: 'https://example.org/slides' })
+    assert.equal(elements['loaded-page-indicator'].style.display, '')
+    assert.equal(elements['republish-button'].style.display, '')
+    context.setLoadedPage(null)
+    assert.equal(elements['loaded-page-indicator'].style.display, 'none')
+})

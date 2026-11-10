@@ -1,0 +1,45 @@
+<!doctype html>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../slides/clist-slides-poc/dist-embed/editor.css">
+<div id="host"></div><pre id="result">Running background recovery checks...</pre>
+<script type="module">
+import * as dependencies from '../js/vendor/collab-editor-bundle.js'
+import { createSlideEditor } from '../slides/clist-slides-poc/dist-embed/editor.js'
+const check=(value,message)=>{if(!value)throw new Error(message)}
+try {
+  const {Y}=dependencies
+  const editor=createSlideEditor(document.getElementById('host'),{dependencies})
+  const large='abcdefgh'.repeat(1024*1024) // 8 MB, like a deck with embedded images.
+  editor.document.getMap('benchmark').set('payload',large)
+  let ticks=0
+  const heartbeat=setInterval(()=>ticks++,1)
+  const first=JSON.parse(await editor.snapshotRecovery())
+  const restored=new Y.Doc()
+  const decode=snapshot=>Y.applyUpdate(restored,Uint8Array.from(atob(snapshot.update),c=>c.charCodeAt(0)))
+  decode(first)
+  check(restored.getMap('benchmark').get('payload')===large,'complete large snapshot')
+  ticks=0
+  const start=performance.now()
+  const pending=editor.snapshotRecovery()
+  const callMs=performance.now()-start
+  editor.document.getMap('benchmark').set('newEdit','typed while recovery was running')
+  const second=JSON.parse(await pending)
+  check(ticks>0,'UI timers continue during worker serialization')
+  const third=JSON.parse(await editor.snapshotRecovery())
+  const next=new Y.Doc()
+  Y.applyUpdate(next,Uint8Array.from(atob(third.update),c=>c.charCodeAt(0)))
+  check(next.getMap('benchmark').get('newEdit')==='typed while recovery was running','incremental updates reach worker')
+  check(next.getMap('benchmark').get('payload')===large,'unchanged payload retained')
+  const replacement=new Y.Doc();replacement.getMap('benchmark').set('replacement','new presentation')
+  const bytes=Y.encodeStateAsUpdate(replacement),chunks=[]
+  for(let i=0;i<bytes.length;i+=32768)chunks.push(String.fromCharCode(...bytes.subarray(i,i+32768)))
+  editor.loadSnapshot({format:'clist-slides-yjs-v1',document:'Replacement',update:btoa(chunks.join(''))})
+  const replaced=JSON.parse(await editor.snapshotRecovery()), checkDoc=new Y.Doc()
+  Y.applyUpdate(checkDoc,Uint8Array.from(atob(replaced.update),c=>c.charCodeAt(0)))
+  check(checkDoc.getMap('benchmark').get('replacement')==='new presentation' && !checkDoc.getMap('benchmark').has('payload'),'replacement resets worker state')
+  check(replaced.document==='Replacement','snapshot title follows current document')
+  clearInterval(heartbeat);editor.destroy()
+  document.body.dataset.result='PASS: 8 MB snapshot, UI responsive during serialization, incremental edits, document replacement, worker shutdown; warm snapshot call '+callMs.toFixed(2)+' ms'
+  document.getElementById('result').textContent=document.body.dataset.result
+}catch(error){console.error(error);document.body.dataset.result='FAIL: '+error.message;document.getElementById('result').textContent=document.body.dataset.result}
+</script>

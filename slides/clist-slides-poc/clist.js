@@ -1,4 +1,4 @@
-import { createSlideEditor, loadSlideCatalogs } from './dist-embed/editor.js'
+import { createSlideEditor, loadSlideCatalogs } from './dist-embed/editor.js?v=2'
 
 // Mount into any CList div. Caller owns the returned instance and its lifetime.
 export async function mountCListSlides(container, options = {}) {

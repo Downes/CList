@@ -825,8 +825,10 @@ function updateEditorIndicator() {
 // overwrite check have what they need to find the adapter/account and update
 // the right kvstore record.
 function setLoadedPage(page) {
+    const changed = page && (page.kind !== currentLoadedPage?.kind || page.id !== currentLoadedPage?.id || page.title !== currentLoadedPage?.title);
     currentLoadedPage = page ? { ...page } : null;
     updateLoadedPageUI();
+    if (changed) showStatusMessage((page.kind === 'file' ? 'Loaded file: ' : 'Loaded: ') + (page.title || 'Untitled'));
 }
 
 function updateLoadedPageUI() {
@@ -870,6 +872,9 @@ function updateLoadedPageUI() {
         currentLoadedPage.url ||
         currentLoadedPage.publicationUrl
     ));
+    // Source metadata stays in editor state. Only publication controls need a row;
+    // load confirmations use the standard transient status message instead.
+    if (indicator) indicator.style.display = hasPublicationLocation ? '' : 'none';
     if (republishBtn) republishBtn.style.display = hasPublicationLocation ? '' : 'none';
     if (statusEl) { statusEl.textContent = ''; statusEl.removeAttribute('data-state'); }
 }

@@ -1,0 +1,79 @@
+<!doctype html>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../css/interface.css">
+<link rel="stylesheet" href="../slides/clist-slides-poc/dist-embed/editor.css">
+<div id="host" style="width:1100px;height:800px"></div><pre id="result">Checking incremental thumbnails...</pre>
+<script type="module">
+import * as dependencies from '../js/vendor/collab-editor-bundle.js'
+import { createSlideEditor } from '../slides/clist-slides-poc/dist-embed/editor.js'
+const check=(value,message)=>{if(!value)throw new Error(message)}
+try {
+  const {Y}=dependencies, editor=createSlideEditor(document.getElementById('host'),{dependencies})
+  const doc=editor.document, objects=doc.getMap('slide-objects'), pages=doc.getMap('slide-pages')
+  doc.transact(()=>{
+    pages.set('first',0)
+    for(let i=1;i<200;i++) {
+      const slide='s'+i,id='object-'+i
+      pages.set(slide,i)
+      objects.set(id,new Y.Map(Object.entries({kind:'text',slide,x:10,y:10,width:400,height:100,layer:0})))
+      const paragraph=new Y.XmlElement('paragraph'),text=new Y.XmlText();text.insert(0,'Slide text '+i);paragraph.insert(0,[text]);doc.getXmlFragment('slide-text-'+id).insert(0,[paragraph])
+    }
+  })
+  const root=document.querySelector('.clist-slides'), list=root.querySelector('[data-control="slide-list"]'), rail=root.querySelector('.rail')
+  const buttons=new Map([...list.querySelectorAll('[data-slide-id]')].map(button=>[button.dataset.slideId,button]))
+  const preview=id=>buttons.get(id).querySelector('.mini-slide')
+  const originalChildren=new Map([...buttons.keys()].map(id=>[id,preview(id).firstElementChild]))
+  check(buttons.size===200,'200-slide fixture')
+  const observer=new MutationObserver(()=>{});observer.observe(list,{subtree:true,childList:true,attributes:true})
+  const changedPreviews=()=>new Set(observer.takeRecords().map(record=>record.target.closest?.('.mini-slide')?.closest('[data-slide-id]')?.dataset.slideId).filter(Boolean))
+  const stable=()=>{for(const [id,button] of buttons)if(pages.has(id))check(list.querySelector(`[data-slide-id="${id}"]`)===button,'stable button '+id)}
+  buttons.get('first').focus();rail.scrollTop=700
+  const scroll=rail.scrollTop,focus=document.activeElement
+  observer.takeRecords()
+  const start=performance.now()
+  const text=doc.getXmlFragment('slide-text-object-150').get(0).get(0)
+  text.insert(text.length,' updated')
+  const elapsed=performance.now()-start
+  check(JSON.stringify([...changedPreviews()])==='["s150"]','typing redraws only its own thumbnail')
+  stable()
+  check(document.activeElement===focus && rail.scrollTop===scroll,'typing preserves focus and rail scroll')
+  for(const [id,child]of originalChildren)if(id!=='s150')check(preview(id).firstElementChild===child,'unchanged preview '+id)
+  check(preview('s150').textContent.includes('updated'),'updated text shown')
+  doc.getMap('slide-notes').set('s100','Private notes')
+  check(changedPreviews().size===0,'notes do not redraw previews')
+  objects.get('object-150').set('x',100)
+  check(JSON.stringify([...changedPreviews()])==='["s150"]','geometry redraws one thumbnail')
+  objects.get('object-150').set('slide','s151')
+  const moved=changedPreviews()
+  check(moved.size===2 && moved.has('s150') && moved.has('s151'),'object migration refreshes old and new slides')
+  check(!preview('s150').textContent.includes('updated') && preview('s151').textContent.includes('updated'),'object index follows migration')
+  doc.getMap('slide-backgrounds').set('s50','#123456')
+  check(JSON.stringify([...changedPreviews()])==='["s50"]','background updates one thumbnail')
+  buttons.get('s10').dispatchEvent(new MouseEvent('click',{bubbles:true}))
+  check(changedPreviews().size===0,'selection does not redraw preview content')
+  root.querySelector('[data-control="slide-down"]').click()
+  check(changedPreviews().size===0,'reordering reuses previews')
+  stable()
+  root.querySelector('[data-control="undo"]').click();changedPreviews();stable()
+  const theme=doc.getMap('slide-design').get('theme')
+  doc.getMap('slide-design').set('theme',{...theme,textColour:'#aabbcc'})
+  const themed=changedPreviews()
+  check(themed.size===199 && !themed.has('s150'),'theme updates all nonempty dependent previews ('+themed.size+')')
+  // Edits in another slide must not cancel an in-progress slide drag.
+  const transfer=new DataTransfer()
+  buttons.get('s10').dispatchEvent(new DragEvent('dragstart',{bubbles:true,dataTransfer:transfer}))
+  const other=doc.getXmlFragment('slide-text-object-20').get(0).get(0);other.insert(other.length,' remote')
+  check(buttons.get('s10').classList.contains('slide-dragging'),'unrelated edit preserves drag state')
+  buttons.get('s10').dispatchEvent(new DragEvent('dragend',{bubbles:true,dataTransfer:transfer}))
+  observer.takeRecords()
+  const saved=editor.snapshot();editor.loadSnapshot(saved)
+  check(changedPreviews().size===199,'loading resets invalidation and text bindings')
+  stable()
+  const replacement=editor.document.getXmlFragment('slide-text-object-20').get(0).get(0)
+  replacement.insert(replacement.length,' after restore')
+  check(JSON.stringify([...changedPreviews()])==='["s20"]','restored document remains incremental')
+  observer.disconnect();editor.destroy()
+  document.body.dataset.result='PASS: 200 slides; targeted text/geometry/background redraws, object migration, notes/selection/reorder reuse, stable focus/scroll/buttons, theme invalidation, drag preservation and restore; edit '+elapsed.toFixed(2)+' ms'
+  document.getElementById('result').textContent=document.body.dataset.result
+}catch(error){console.error(error);document.body.dataset.result='FAIL: '+error.message;document.getElementById('result').textContent=document.body.dataset.result}
+</script>

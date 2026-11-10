@@ -1,0 +1,131 @@
+<!doctype html>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../css/interface.css">
+<link rel="stylesheet" href="../slides/clist-slides-poc/dist-embed/editor.css">
+<script src="../js/vendor/pptxgen.bundle.js"></script>
+<div id="host"></div><pre id="result">Running import tests...</pre>
+<script type="module">
+import * as dependencies from '../js/vendor/collab-editor-bundle.js'
+import { createSlideEditor } from '../slides/clist-slides-poc/dist-embed/editor.js'
+import { readPowerPoint } from '../slides/clist-slides-poc/src/powerpoint-import.js'
+const check=(value,message)=>{if(!value)throw new Error(message)}
+const P='http://schemas.openxmlformats.org/presentationml/2006/main', A='http://schemas.openxmlformats.org/drawingml/2006/main'
+const parse=text=>new DOMParser().parseFromString(text,'application/xml')
+const serialize=doc=>new XMLSerializer().serializeToString(doc)
+try {
+  document.body.dataset.step='fixture'
+  const pptx=new window.PptxGenJS();pptx.layout='LAYOUT_WIDE'
+  const one=pptx.addSlide();one.background={color:'112233'}
+  one.addText([{text:'First ',options:{bold:true}},{text:'linked <title>',options:{italic:true,hyperlink:{url:'https://example.org/?a=1&b=2'}}}],{x:1,y:1,w:6,h:1,fontFace:'Arial',fontSize:36,color:'FFFFFF',margin:0})
+  one.addShape(pptx.ShapeType.ellipse,{x:7,y:4,w:2,h:2,fill:{color:'51B158'},line:{color:'FFFFFF',width:2}})
+  one.addShape(pptx.ShapeType.rect,{x:1,y:4,w:2,h:1,fill:{color:'51B158'},line:{color:'FFFFFF',width:2}})
+  one.addText('Shape text',{x:1,y:4,w:2,h:1,fontSize:18,color:'FFFFFF',margin:0})
+  one.addNotes('First speaker notes & details')
+  const canvas=document.createElement('canvas');canvas.width=200;canvas.height=100
+  const ctx=canvas.getContext('2d');ctx.fillStyle='red';ctx.fillRect(0,0,100,100);ctx.fillStyle='blue';ctx.fillRect(100,0,100,100)
+  one.addImage({data:canvas.toDataURL(),x:10,y:1,w:1,h:1,altText:'Cropped colour image'})
+  const two=pptx.addSlide();two.background={color:'FFFFFF'}
+  two.addText('Second title',{x:2,y:2,w:5,h:1,fontFace:'Georgia',fontSize:32,color:'334455'})
+  two.addNotes('Second speaker notes')
+  const zip=await window.JSZip.loadAsync(await pptx.write({outputType:'arraybuffer'}))
+  document.body.dataset.step='fixture-xml'
+  const pres=parse(await zip.file('ppt/presentation.xml').async('string')), ids=pres.getElementsByTagNameNS(P,'sldIdLst')[0]
+  ids.insertBefore(ids.lastElementChild,ids.firstElementChild);zip.file('ppt/presentation.xml',serialize(pres))
+  const slide1=parse(await zip.file('ppt/slides/slide1.xml').async('string'))
+  const blipFill=slide1.getElementsByTagNameNS(P,'pic')[0].getElementsByTagNameNS(P,'blipFill')[0]
+  const srcRect=slide1.createElementNS(A,'a:srcRect');srcRect.setAttribute('l','50000');blipFill.insertBefore(srcRect,blipFill.lastElementChild)
+  const timing=slide1.createElementNS(P,'p:timing');slide1.documentElement.append(timing)
+  const tree=slide1.getElementsByTagNameNS(P,'spTree')[0]
+  const unsupported=slide1.createElementNS(P,'p:graphicFrame');tree.append(unsupported)
+  zip.file('ppt/slides/slide1.xml',serialize(slide1))
+  const buffer=await zip.generateAsync({type:'arraybuffer'})
+  document.body.dataset.step='parse-fixture'
+  const model=await readPowerPoint(buffer,'Order & crop.pptx')
+  check(model.slides.length===2,'two slides parsed')
+  check(model.slides[0].notes==='Second speaker notes','presentation relationship order')
+  check(model.slides[1].notes==='First speaker notes & details','speaker notes preserved')
+  check(model.slides[1].background.toLowerCase()==='#112233','background preserved')
+  const title=model.slides[1].objects.find(o=>o.kind==='text' && JSON.stringify(o.text).includes('linked <title>'))
+  check(title.fontSize===48 && title.x===96 && title.width===576,'units and font conversion')
+  check(title.text[0].content[0].marks.some(m=>m.type==='bold'),'bold mark')
+  check(title.text[0].content[1].marks.some(m=>m.type==='link' && m.attrs.href==='https://example.org/?a=1&b=2'),'safe hyperlink')
+  check(model.slides[1].objects.some(o=>o.kind==='shape' && o.shapeDefinition.label==='ellipse'),'editable shape')
+  const importedImage=model.slides[1].objects.find(o=>o.kind==='image')
+  const image=new Image();await new Promise((resolve,reject)=>{image.onload=resolve;image.onerror=reject;image.src=importedImage.source})
+  const sample=document.createElement('canvas');sample.width=sample.height=1;sample.getContext('2d').drawImage(image,0,0,1,1)
+  const pixel=sample.getContext('2d').getImageData(0,0,1,1).data
+  check(pixel[2]>240 && pixel[0]<10,'source crop preserved')
+  check(model.warnings.some(w=>/chart, table or SmartArt/.test(w)) && model.warnings.some(w=>/Animations/.test(w)),'unsupported content reported')
+
+  const editor=createSlideEditor(document.getElementById('host'),{dependencies})
+  const beforeObjects=editor.document.getMap('slide-objects').size
+  document.body.dataset.step='editor-import'
+  const result=await editor.importPowerPoint(buffer,'Test.pptx')
+  const objects=editor.document.getMap('slide-objects'), pages=editor.document.getMap('slide-pages')
+  check(result.count===2 && pages.size===3,'slides appended without replacing original')
+  check(objects.has('title') && objects.has('body'),'original objects kept')
+  const textEntry=[...objects].find(([id,box])=>box.get('kind')==='text' && editor.document.getXmlFragment('slide-text-'+id).toString().includes('linked'))
+  check(textEntry,'text imported into Yjs')
+  const fragment=editor.document.getXmlFragment('slide-text-'+textEntry[0])
+  check(fragment.toString().indexOf('First ')<fragment.toString().indexOf('linked'),'rich text runs remain in order')
+  check(document.querySelector('.tiptap')?.textContent.includes('Second title'),'first imported slide is selected and rendered')
+  document.querySelector('[data-control="undo"]').click()
+  check(objects.size===beforeObjects && pages.size===0,'one undo removes the whole import')
+  document.querySelector('[data-control="redo"]').click()
+  check(objects.size>beforeObjects && pages.size===3,'redo restores imported slides')
+  const beforeFailure=JSON.stringify(editor.snapshot())
+  let failed=false
+  try{await editor.importPowerPoint(new Uint8Array([1,2,3]).buffer,'bad.pptx')}catch(error){failed=true}
+  check(failed && beforeFailure===JSON.stringify(editor.snapshot()),'invalid ZIP leaves working deck unchanged')
+
+  // Inherited geometry, theme colours, group transforms, and external media handling.
+  document.body.dataset.step='inheritance'
+  const inherited=await window.JSZip.loadAsync(buffer)
+  const layout=parse(await inherited.file('ppt/slideLayouts/slideLayout1.xml').async('string'))
+  const layoutTree=layout.getElementsByTagNameNS(P,'spTree')[0]
+  const template=layout.importNode(slide1.getElementsByTagNameNS(P,'sp')[0],true)
+  const nv=template.getElementsByTagNameNS(P,'nvPr')[0], ph=layout.createElementNS(P,'p:ph');ph.setAttribute('type','title');ph.setAttribute('idx','77');nv.append(ph)
+  template.getElementsByTagNameNS(A,'off')[0].setAttribute('x','1905000')
+  layoutTree.append(template);inherited.file('ppt/slideLayouts/slideLayout1.xml',serialize(layout))
+  const slide2=parse(await inherited.file('ppt/slides/slide2.xml').async('string')), shape=slide2.getElementsByTagNameNS(P,'sp')[0]
+  const placeholder=slide2.createElementNS(P,'p:ph');placeholder.setAttribute('type','title');placeholder.setAttribute('idx','77');shape.getElementsByTagNameNS(P,'nvPr')[0].append(placeholder)
+  shape.getElementsByTagNameNS(A,'xfrm')[0].remove()
+  const background=slide2.getElementsByTagNameNS(P,'bg')[0]
+  background.innerHTML='<p:bgPr xmlns:p="'+P+'"><a:solidFill xmlns:a="'+A+'"><a:schemeClr val="accent1"/></a:solidFill></p:bgPr>'
+  inherited.file('ppt/slides/slide2.xml',serialize(slide2))
+  const inheritedPlan=await readPowerPoint(await inherited.generateAsync({type:'arraybuffer'}),'Inherited.pptx')
+  check(inheritedPlan.slides[0].objects.find(o=>o.kind==='text').x===200,'layout placeholder position inherited')
+  check(/^#[0-9a-f]{6}$/i.test(inheritedPlan.slides[0].background) && inheritedPlan.slides[0].background.toLowerCase()!=='#ffffff','theme background resolved')
+
+  const grouped=await window.JSZip.loadAsync(buffer)
+  const groupSlide=parse(await grouped.file('ppt/slides/slide1.xml').async('string')), groupTree=groupSlide.getElementsByTagNameNS(P,'spTree')[0]
+  const group=groupSlide.createElementNS(P,'p:grpSp')
+  group.innerHTML='<p:grpSpPr xmlns:p="'+P+'"><a:xfrm xmlns:a="'+A+'"><a:off x="952500" y="1905000"/><a:ext cx="1905000" cy="1905000"/><a:chOff x="0" y="0"/><a:chExt cx="952500" cy="952500"/></a:xfrm></p:grpSpPr>'
+  const ellipse=[...groupTree.children].find(n=>n.getElementsByTagNameNS(A,'prstGeom')[0]?.getAttribute('prst')==='ellipse').cloneNode(true)
+  const position=ellipse.getElementsByTagNameNS(A,'xfrm')[0]
+  position.innerHTML='<a:off xmlns:a="'+A+'" x="0" y="0"/><a:ext xmlns:a="'+A+'" cx="952500" cy="952500"/>'
+  group.append(ellipse);groupTree.append(group)
+  const linked=groupSlide.getElementsByTagNameNS(P,'pic')[0].cloneNode(true)
+  linked.getElementsByTagNameNS(A,'blip')[0].setAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','r:embed','external-test')
+  groupTree.append(linked);grouped.file('ppt/slides/slide1.xml',serialize(groupSlide))
+  const relDoc=parse(await grouped.file('ppt/slides/_rels/slide1.xml.rels').async('string')), external=relDoc.createElementNS(relDoc.documentElement.namespaceURI,'Relationship')
+  external.setAttribute('Id','external-test');external.setAttribute('Type','http://schemas.openxmlformats.org/officeDocument/2006/relationships/image');external.setAttribute('TargetMode','External');external.setAttribute('Target','https://example.invalid/never-fetch.png');relDoc.documentElement.append(external)
+  grouped.file('ppt/slides/_rels/slide1.xml.rels',serialize(relDoc))
+  document.body.dataset.step='groups'
+  const groupedPlan=await readPowerPoint(await grouped.generateAsync({type:'arraybuffer'}),'Groups.pptx')
+  check(groupedPlan.slides[1].objects.some(o=>o.kind==='shape' && o.x===100 && o.y===200 && o.width===200 && o.height===200),'group transform preserves object geometry')
+  check(groupedPlan.warnings.some(w=>/Grouped objects/.test(w)) && groupedPlan.warnings.some(w=>/no external images were fetched/.test(w)),'groups and external media reported')
+  check(groupedPlan.slides[1].objects.filter(o=>o.kind==='image').length===1,'external picture not fetched or added')
+
+  const root=document.querySelector('.clist-slides');root.requestFullscreen=async()=>{}
+  document.body.dataset.step='mode-change'
+  const beforePresent=JSON.stringify(editor.snapshot()), pending=editor.importPowerPoint(buffer,'Pending.pptx')
+  document.querySelector('[data-control="present"]').click()
+  failed=false;try{await pending}catch(error){failed=/local editing/.test(error.message)}
+  check(failed && beforePresent===JSON.stringify(editor.snapshot()),'mode change during parsing prevents commit')
+  document.querySelector('[data-control="exit-presentation"]').click()
+
+  document.body.dataset.result='PASS: slide order, editable rich text and shapes, units, notes, cropped images, warnings, inherited placeholders/theme, grouped geometry, external media, append, undo/redo, mode change and failed imports preserve work'
+  document.getElementById('result').textContent=document.body.dataset.result
+}catch(error){console.error(error);document.body.dataset.result='FAIL: '+error.message;document.getElementById('result').textContent=document.body.dataset.result}
+</script>

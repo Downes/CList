@@ -1,0 +1,79 @@
+<!doctype html>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../css/interface.css">
+<link rel="stylesheet" href="../slides/clist-slides-poc/dist-embed/editor.css">
+<div id="host"></div><pre id="result">Checking Find and Replace...</pre>
+<script type="module">
+import * as dependencies from '../js/vendor/collab-editor-bundle.js'
+import { createSlideEditor } from '../slides/clist-slides-poc/dist-embed/editor.js'
+const check=(value,message)=>{if(!value)throw new Error(message)}
+try {
+  const {Y}=dependencies,messages=[],errors=[]
+  window.showErrorModal=message=>errors.push(message)
+  const editor=createSlideEditor(document.getElementById('host'),{dependencies,onStatus:message=>messages.push(message)})
+  const root=document.querySelector('.clist-slides'),control=id=>root.querySelector(`[data-control="${id}"]`),panel=root.querySelector('[data-panel="find"]')
+  const doc=()=>editor.document, plain=id=>doc().getXmlFragment('slide-text-'+id).toArray().flatMap(p=>p.toArray()).flatMap(t=>t.toDelta?.()||[]).map(p=>p.insert).join('')
+  doc().transact(()=>{
+    const fragment=doc().getXmlFragment('slide-text-title');fragment.delete(0,fragment.length)
+    const paragraph=new Y.XmlElement('paragraph'),text=new Y.XmlText();fragment.insert(0,[paragraph]);paragraph.insert(0,[text])
+    text.applyDelta([{insert:'Cat ',attributes:{bold:{}}},{insert:'cat '},{insert:'catalogue ',attributes:{italic:{}}},{insert:'cat',attributes:{link:{href:'https://example.org/'}}}])
+    for(const [index,id,locked,value]of [[1,'second',false,'CAT and cat.'],[2,'locked',true,'cat']]) {
+      doc().getMap('slide-pages').set(id,index)
+      doc().getMap('slide-objects').set(id,new Y.Map(Object.entries({kind:'text',slide:id,x:100,y:100,width:700,height:150,layer:0,locked,fontSize:32})))
+      const p=new Y.XmlElement('paragraph'),t=new Y.XmlText();doc().getXmlFragment('slide-text-'+id).insert(0,[p]);p.insert(0,[t]);t.insert(0,value)
+    }
+    doc().getMap('slide-pages').set('first',0);doc().getMap('slide-notes').set('first','cat in notes')
+  })
+  const baseline=editor.snapshot()
+  const enter=(field,options={})=>field.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,...options}))
+  const search=(value,matchCase=false,wholeWord=false)=>{
+    control('open-find').click();control('find-query').value=value
+    control('find-case').checked=matchCase;control('find-word').checked=wholeWord
+    control('find-query').dispatchEvent(new Event('input',{bubbles:true}));enter(control('find-query'))
+  }
+  const reset=()=>editor.loadSnapshot(baseline)
+  search('cat')
+  check(panel.open,'Find remains open when jumping to a match')
+  check(control('find-results').children.length===7,'matches across all slides including locked text')
+  check(window.getSelection().toString()==='Cat','matched text selected in editor')
+  check(root.querySelector('[data-slide-id="first"]').getAttribute('aria-current')==='true','first match opens first slide')
+  for(let i=0;i<4;i++) control('find-next').click()
+  check(root.querySelector('[data-slide-id="second"]').getAttribute('aria-current')==='true','Next navigates to another slide')
+  check(window.getSelection().toString()==='CAT','cross-slide exact selection')
+  control('find-previous').click()
+  check(root.querySelector('[data-slide-id="first"]').getAttribute('aria-current')==='true','Previous navigates back')
+  search('cat',true,true)
+  check(control('find-results').children.length===4,'case and whole-word options')
+  search('missing')
+  check(control('find-results').children.length===0 && control('find-replace-all').disabled,'no matches handled')
+  search('Cat',true,true);control('find-replacement').value='Dog';control('find-replace').click()
+  check(plain('title')==='Dog cat catalogue cat','replace current only')
+  check(doc().getXmlFragment('slide-text-title').get(0).get(0).toDelta()[0].attributes.bold,'replacement retains bold')
+  check(doc().getXmlFragment('slide-text-title').get(0).get(0).toDelta().at(-1).attributes.link.href==='https://example.org/','surrounding link retained')
+  control('undo').click();check(plain('title')==='Cat cat catalogue cat','one-step Undo for replacement')
+  control('redo').click();check(plain('title').startsWith('Dog'),'Redo replacement')
+  reset();search('cat',false,true);control('find-replacement').value='dog';control('find-replace-all').click()
+  check(plain('title')==='dog dog catalogue dog' && plain('second')==='dog and dog.','replace all across slides')
+  check(plain('locked')==='cat','locked text unchanged')
+  check(doc().getMap('slide-notes').get('first')==='cat in notes','notes outside slide-text scope')
+  check(messages.some(message=>message.includes('Replaced 5 matches.') && message.includes('Skipped 1')),'standard host feedback reports replaced and skipped counts')
+  control('undo').click();check(plain('title')==='Cat cat catalogue cat' && plain('second')==='CAT and cat.','one-step Undo for entire batch')
+  control('redo').click();check(plain('second')==='dog and dog.','batch redo')
+  reset();search('Cat',true,true)
+  const text=doc().getXmlFragment('slide-text-title').get(0).get(0)
+  doc().transact(()=>{text.delete(0,3);text.insert(0,'Changed')})
+  control('find-replacement').value='stale';control('find-replace').click()
+  check(plain('title').startsWith('Changed') && !plain('title').includes('stale'),'stale match is revalidated before replacement')
+  control('find-query').focus();control('find-query').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))
+  check(!panel.open && document.activeElement===control('open-find'),'Escape closes inspector section')
+  root.dispatchEvent(new KeyboardEvent('keydown',{key:'h',ctrlKey:true,bubbles:true,cancelable:true}))
+  check(panel.open && document.activeElement===control('find-replacement'),'Ctrl+H opens replacement')
+  root.requestFullscreen=async()=>{};control('present').click()
+  const before=plain('title');control('find-replace-all').click()
+  check(!panel.open && control('open-find').disabled && plain('title')===before,'presentation mode blocks find/replace edits')
+  control('exit-presentation').click()
+  check(!errors.length,'no search errors')
+  document.body.dataset.result='PASS: cross-slide search and exact selection, next/previous, case/whole words, current/all replacements, rich formatting/links, locked text, undo/redo, stale-match safety, shortcuts and presentation guard'
+  document.getElementById('result').textContent=document.body.dataset.result
+}catch(error){console.error(error);document.body.dataset.result='FAIL: '+error.message;document.getElementById('result').textContent=document.body.dataset.result}
+</script>

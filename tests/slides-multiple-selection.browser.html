@@ -1,0 +1,97 @@
+<!doctype html>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../css/interface.css">
+<link rel="stylesheet" href="../slides/clist-slides-poc/dist-embed/editor.css">
+<div id="host"></div><pre id="result">Running slide selection checks...</pre>
+<script type="module">
+import * as dependencies from '../js/vendor/collab-editor-bundle.js'
+import { createSlideEditor } from '../slides/clist-slides-poc/dist-embed/editor.js'
+const check=(value,message)=>{if(!value)throw new Error(message)}
+const same=(actual,expected,message)=>check(JSON.stringify(actual)===JSON.stringify(expected),message+': '+JSON.stringify(actual))
+try {
+  const {Y}=dependencies, messages=[]
+  const editor=createSlideEditor(document.getElementById('host'),{dependencies,onStatus:text=>messages.push(text)})
+  const root=document.querySelector('.clist-slides'), rail=root.querySelector('.rail'), control=id=>root.querySelector(`[data-control="${id}"]`)
+  const order=()=>[...editor.document.getMap('slide-pages')].sort((a,b)=>a[1]-b[1]).map(([id])=>id)
+  const selected=()=>[...control('slide-list').querySelectorAll('[aria-pressed="true"]')].map(n=>n.dataset.slideId)
+  const click=(id,options={})=>control('slide-list').querySelector(`[data-slide-id="${id}"]`).dispatchEvent(new MouseEvent('click',{bubbles:true,...options}))
+  const key=(key,options={})=>rail.dispatchEvent(new KeyboardEvent('keydown',{key,bubbles:true,...options}))
+  const doc=editor.document
+  doc.transact(()=>{
+    for(const [index,id] of ['first','b','c','d','e'].entries()) {
+      doc.getMap('slide-pages').set(id,index)
+      doc.getMap('slide-notes').set(id,'Notes '+id)
+      doc.getMap('slide-backgrounds').set(id,'#112233')
+      if(id!=='first') {
+        const objectId='text-'+id, box=new Y.Map(Object.entries({kind:'text',slide:id,x:100,y:100,width:500,height:150,layer:0}))
+        doc.getMap('slide-objects').set(objectId,box)
+        const p=new Y.XmlElement('paragraph'), t=new Y.XmlText();t.insert(0,'Text '+id);p.insert(0,[t]);doc.getXmlFragment('slide-text-'+objectId).insert(0,[p])
+      }
+    }
+    for(const id of ['title','body']) doc.getMap('slide-objects').get(id).set('groupId','original-group')
+    doc.getMap('slide-objects').get('title').set('locked',true)
+    const canvas=document.createElement('canvas');canvas.width=canvas.height=1
+    doc.getMap('slide-objects').set('picture',new Y.Map(Object.entries({kind:'image',slide:'first',x:10,y:10,width:10,height:10,layer:2,source:canvas.toDataURL(),alt:'Test image',cropX:30})))
+    doc.getMap('slide-objects').set('shape',new Y.Map(Object.entries({kind:'shape',shapeType:'rectangle',slide:'first',x:200,y:100,width:100,height:100,layer:3,fillEnabled:true})))
+  })
+  const baseline=editor.snapshot(), initialObjects=doc.getMap('slide-objects').size
+  const reset=()=>editor.loadSnapshot(baseline)
+  click('first');click('c',{ctrlKey:true})
+  same(selected(),['first','c'],'disjoint selection')
+  check(control('slide-label').textContent.includes('2 selected'),'selection count uses existing label')
+  check(control('slide-list').querySelectorAll('[aria-current="true"]').length===1,'one active slide')
+  click('e',{shiftKey:true});same(selected(),['c','d','e'],'shift range from anchor')
+  click('b',{metaKey:true});same(selected(),['b','c','d','e'],'Cmd-click adds selection')
+  click('b');same(selected(),['b'],'plain click resets selection')
+  key('ArrowDown',{shiftKey:true});same(selected(),['b','c'],'keyboard extends range')
+  key('a',{ctrlKey:true});same(selected(),['first','b','c','d','e'],'select all in rail')
+  check(control('delete-slide').disabled,'cannot delete all slides')
+  key('Escape');same(selected(),['c'],'escape keeps active slide')
+
+  click('first');click('c',{ctrlKey:true});click('e',{ctrlKey:true})
+  control('slide-up').click();same(order(),['first','c','b','e','d'],'move disjoint slides one place earlier')
+  same(selected(),['first','c','e'],'move retains selection')
+  control('undo').click();same(order(),['first','b','c','d','e'],'one undo restores move')
+  control('duplicate-slide').click()
+  const copies=order().slice(5)
+  check(copies.length===3,'duplicates selected slides as a block')
+  same(selected(),copies,'new copies are selected')
+  const objects=editor.document.getMap('slide-objects')
+  const firstCopy=[...objects].filter(([,box])=>box.get('slide')===copies[0])
+  check(firstCopy.length===4,'copies text, image and shape objects')
+  check(firstCopy.find(([,box])=>box.get('locked')),'locking preserved')
+  const groupIds=firstCopy.map(([,box])=>box.get('groupId')).filter(Boolean)
+  check(groupIds.length===2 && groupIds[0]===groupIds[1] && groupIds[0]!=='original-group','copied groups are independent')
+  same(copies.map(id=>editor.document.getMap('slide-notes').get(id)),['Notes first','Notes c','Notes e'],'notes copied in deck order')
+  check(firstCopy.some(([,box])=>box.get('kind')==='image' && box.get('cropX')===30),'image crop preserved')
+  check(firstCopy.some(([id,box])=>!box.get('kind') && editor.document.getXmlFragment('slide-text-'+id).toString().includes('Collaborative slides')),'rich text copied')
+  control('undo').click();same(order(),['first','b','c','d','e'],'one undo removes duplicate batch')
+  check(objects.size===initialObjects,'undo restores object count')
+  control('redo').click();check(order().length===8,'redo restores batch')
+
+  reset();click('first');click('c',{ctrlKey:true})
+  let confirmation
+  window.buildDialogModal=(title,body,buttons)=>{confirmation={title,body,buttons};return {close(){}}}
+  control('delete-slide').click();check(confirmation.title==='Delete slides','standard batch confirmation')
+  confirmation.buttons[0].onClick(()=>{});check(order().length===5,'cancel preserves slides')
+  control('delete-slide').click();confirmation.buttons[1].onClick(()=>{})
+  same(order(),['b','d','e'],'deletes only selected slides')
+  check(!editor.document.getMap('slide-notes').has('first') && !editor.document.getMap('slide-backgrounds').has('c'),'deletion removes notes and backgrounds')
+  control('undo').click();same(order(),['first','b','c','d','e'],'one undo restores deleted batch')
+  check(editor.document.getXmlFragment('slide-text-title').toString().includes('Collaborative slides'),'undo restores text')
+  check(editor.document.getMap('slide-notes').get('first')==='Notes first','undo restores notes')
+
+  reset();click('b');click('d',{ctrlKey:true})
+  const transfer=new DataTransfer(), dragged=control('slide-list').querySelector('[data-slide-id="b"]')
+  dragged.dispatchEvent(new DragEvent('dragstart',{bubbles:true,dataTransfer:transfer}))
+  const end=control('slide-list').querySelector('[data-slide-id="e"]').getBoundingClientRect().bottom+10
+  rail.dispatchEvent(new DragEvent('dragover',{bubbles:true,cancelable:true,dataTransfer:transfer,clientY:end}))
+  rail.dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer:transfer,clientY:end}))
+  same(order(),['first','c','e','b','d'],'drag moves selection as a block')
+  same(selected(),['b','d'],'drag retains selected slides')
+  control('undo').click();same(order(),['first','b','c','d','e'],'one undo restores drag order')
+  check(messages.some(text=>text==='3 slides duplicated'),'batch feedback uses host messaging')
+  document.body.dataset.result='PASS: Ctrl/Cmd and range selection, keyboard selection, batch move/duplicate/delete, one-step undo/redo, contents/notes/groups/crops, standard confirmation, group drag and last-slide protection'
+  document.getElementById('result').textContent=document.body.dataset.result
+} catch(error){console.error(error);document.body.dataset.result='FAIL: '+error.message;document.getElementById('result').textContent=document.body.dataset.result}
+</script>

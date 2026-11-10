@@ -39,17 +39,74 @@ window.CList.schemas['WordPress'] = {
 })();
 
 
+async function _wordpressThrowApiError(response, context, suffix = '') {
+    const raw = await response.text();
+    const plain = text => new DOMParser().parseFromString(text,'text/html').body.textContent.replace(/\s+/g,' ').trim().slice(0,1600);
+    let detail = plain(raw);
+    if (raw.trim().startsWith('{')) {
+        try {
+            const error = JSON.parse(raw);
+            detail = [error.code,error.message].filter(value=>typeof value==='string' && value).map(plain).join(': ') || detail;
+        } catch (error) {
+            throw new Error(context+' (HTTP '+response.status+'): '+(detail || 'The server returned unreadable error details.')+suffix);
+        }
+    }
+    throw new Error(context+' (HTTP '+response.status+'): '+(detail || 'WordPress returned no error details.')+suffix);
+}
+
+async function _wordpressUploadEmbeddedImages(instance, authorization, content) {
+    const page = new DOMParser().parseFromString(content,'text/html');
+    const images = [...page.querySelectorAll('img')].filter(image=>(image.getAttribute('src') || '').startsWith('data:'));
+    if (!images.length) return content;
+    const uploads = new Map();
+    const total = new Set(images.map(image => image.getAttribute('src'))).size;
+    // Validate all embedded formats before beginning uploads.
+    for (const image of images) {
+        if (!/^data:image\/(png|jpeg|gif|webp);base64,[a-z0-9+/=\s]+$/i.test(image.getAttribute('src'))) throw new Error('An embedded image is not a supported PNG, JPEG, GIF or WebP image.');
+    }
+    for (const image of images) {
+        const source = image.getAttribute('src');
+        if (!uploads.has(source)) {
+            const match = source.match(/^data:(image\/(png|jpeg|gif|webp));base64,([\s\S]+)$/i);
+            const binary = atob(match[3]), bytes = new Uint8Array(binary.length);
+            for (let index=0;index<binary.length;index++) bytes[index]=binary.charCodeAt(index);
+            const form = new FormData();
+            const filename = 'clist-image-'+(uploads.size+1)+'.'+(match[2].toLowerCase()==='jpeg'?'jpg':match[2].toLowerCase());
+            form.append('file',new Blob([bytes],{type:match[1].toLowerCase()}),filename);
+            if (image.alt) form.append('alt_text',image.alt);
+            if (typeof updatePostProgress === 'function') updatePostProgress('WordPress: uploading image '+(uploads.size+1)+' of '+total+'…');
+            const response = await _wordpressRequest(instance.replace(/\/$/,'')+'/wp-json/wp/v2/media',{method:'POST',headers:{Authorization:authorization},body:form});
+            if (!response.ok) await _wordpressThrowApiError(response,'Image upload failed for '+filename,'. The post was not sent.');
+            const media = await response.json();
+            if (typeof media.source_url !== 'string' || !/^https?:\/\//i.test(media.source_url)) throw new Error('WordPress did not return a valid URL for an uploaded image.');
+            uploads.set(source,media.source_url);
+        }
+        image.setAttribute('src',uploads.get(source));
+    }
+    return page.body.innerHTML;
+}
+
+async function _wordpressRequest(url, options) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 120000);
+    try {
+        const response = await fetch(url, { ...options, signal: controller.signal });
+        // Read the body under the same timeout, including a stalled server response.
+        const body = await response.text();
+        return { ok: response.ok, status: response.status, text: async () => body, json: async () => JSON.parse(body) };
+    } catch (error) {
+        if (controller.signal.aborted) throw new Error('WordPress did not finish responding within two minutes. Check WordPress posts and media before retrying; the last request may have been accepted.');
+        throw error;
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
 async function publishPost(instance,username,password,title,content) {
     //const contentWindow = document.getElementById('content-window').innerHTML; // Get the content of the editable div
    // const title = "New Post from Content Window"; // You can change this dynamically if needed
 
     const url = instance+'/wp-json/wp/v2/posts'; // WordPress REST API endpoint for posts
-
-    const postData = {
-      title: title,
-      content: content,
-      status: 'publish' // This will publish the post immediately; use 'draft' if you want it saved as a draft
-    };
 
     // Create the Basic Auth header
     const headers = new Headers();
@@ -57,7 +114,10 @@ async function publishPost(instance,username,password,title,content) {
     headers.set('Content-Type', 'application/json');
 
     try {
-      const response = await fetch(url, {
+      const preparedContent = await _wordpressUploadEmbeddedImages(instance,headers.get('Authorization'),content);
+      const postData = { title, content:preparedContent, status:'publish' };
+      if (typeof updatePostProgress === 'function') updatePostProgress('WordPress: images uploaded; creating the article…');
+      const response = await _wordpressRequest(url, {
         method: 'POST',
         headers: headers,
         body: JSON.stringify(postData)
@@ -66,10 +126,13 @@ async function publishPost(instance,username,password,title,content) {
       if (response.ok) {
         const post = await response.json();
         const postURL = post.link; // Retrieve the URL of the published post
+        if (typeof postURL !== 'string' || !/^https?:\/\//i.test(postURL)) {
+          throw new Error('WordPress accepted the post request but returned no valid post link'+(post.id ? ' (post ID '+post.id+')' : '')+'. Check WordPress Posts before retrying.');
+        }
         console.log('Post published successfully at URL:', postURL);
         return postURL; // Return the URL
       } else {
-        throw new Error('Error publishing Wordpress post: ' + response.statusText);
+        await _wordpressThrowApiError(response,'WordPress post request failed');
       }
     } catch (error) {
       console.error('Failed to publish Wordpress post:', error);

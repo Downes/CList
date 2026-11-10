@@ -221,17 +221,33 @@ async function _isSameAuthor(existingAuthorDid, currentDid) {
     }
 }
 
+// Editors may publish a viewable format while retaining a different editable save format.
+async function _getWebPageEditorContent(handler, fallbackType) {
+    const result = typeof handler?.getPublishContent === 'function'
+        ? await handler.getPublishContent()
+        : { type: fallbackType || handler?.contentTypes?.[0] || 'text/plain', value: typeof handler?.getContent === 'function' ? await handler.getContent() : '' };
+    if (!result || typeof result.value !== 'string' || typeof result.type !== 'string') throw new Error('The editor returned invalid web-page content.');
+    return result;
+}
+
 async function postToWebPage() {
     const resultDiv = window.CList.ui.view.postResult;
     resultDiv.innerHTML = '';
 
     const handler = editorHandlers[currentEditor];
-    const rawContent = (handler && typeof handler.getContent === 'function') ? await handler.getContent() : '';
+    let output;
+    try { output = await _getWebPageEditorContent(handler); }
+    catch (error) {
+        console.error('Web-page content could not be prepared:',error);
+        showErrorModal('Could not prepare the web page: '+error.message,{title:'Publishing failed'});
+        return;
+    }
+    const rawContent = output.value;
     if (!rawContent || !rawContent.trim()) {
         showErrorModal('Nothing to publish — the editor is empty.', { title: 'Nothing to publish' });
         return;
     }
-    const mimeType = (handler.contentTypes && handler.contentTypes[0]) || 'text/plain';
+    const mimeType = output.type;
 
     const adapter = window.CList.binPublishers?.['CListBin'];
     if (!adapter) {
@@ -486,7 +502,14 @@ async function _republishStandalonePage() {
     if (!account) return;
 
     const handler = editorHandlers[currentEditor];
-    const rawContent = (handler && typeof handler.getContent === 'function') ? await handler.getContent() : '';
+    let output;
+    try { output = await _getWebPageEditorContent(handler,page.mimeType); }
+    catch (error) {
+        console.error('Republish content could not be prepared:',error);
+        showErrorModal('Could not prepare the web page: '+error.message,{title:'Republish failed'});
+        return;
+    }
+    const rawContent = output.value;
     if (!rawContent || !rawContent.trim()) {
         showRepublishStatus('Nothing to republish — the editor is empty.', true);
         return;
@@ -496,11 +519,13 @@ async function _republishStandalonePage() {
     // A legacy record saved before identity embedding existed gets one minted
     // now, same rule as the Post-panel overwrite path.
     const id = page.id || `urn:uuid:${crypto.randomUUID()}`;
-    const content = _embedWebPageIdentity(rawContent, page.mimeType, page.title, id);
+    const content = _embedWebPageIdentity(rawContent, output.type, page.title, id);
 
     try {
-        await adapter.update(page.serviceId, content, page.mimeType, account);
-        const touched = await _touchOrForkWebPageRecord(page.pageKey, id);
+        await adapter.update(page.serviceId, content, output.type, account);
+        const touched = await _touchOrForkWebPageRecord(page.pageKey, id,{mimeType:output.type});
+        page.mimeType = output.type;
+        page.format = (output.type.split('/')[1] || '').toUpperCase();
         page.id = touched.id;
         page.pageKey = touched.pageKey;
         showRepublishStatus(touched.forked
@@ -620,12 +645,42 @@ function populateSaveOptions() {
 
 
 async function postAll() {
+    const button = document.getElementById('final-post-button');
+    if (button?.disabled) return;
+    if (button) button.disabled = true;
+    try {
+        await _postAllSelected();
+    } catch (error) {
+        console.error('Publishing did not complete:', error);
+        showPostMessage(window.CList.ui.view.postResult, 'Publishing did not complete: ' + error.message);
+        showErrorModal('Publishing did not complete: ' + error.message, { title: 'Publishing Failed' });
+    } finally {
+        window.CList.ui.view.postResult.querySelector('[data-publish-progress]')?.remove();
+        if (button) button.disabled = false;
+    }
+}
 
-    const post = await packagePost();
+function updatePostProgress(text) {
+    const result = window.CList.ui.view.postResult;
+    let progress = result.querySelector('[data-publish-progress]');
+    if (!progress) {
+        progress = document.createElement('p');
+        progress.className = 'feed-status-message';
+        progress.dataset.publishProgress = 'true';
+        progress.setAttribute('role', 'status');
+        result.appendChild(progress);
+    }
+    progress.textContent = text;
+}
+
+async function _postAllSelected() {
+
+    const post = await packagePost({ forPublishing: true });
     if (!post) return; // packagePost() already displayed the error (e.g. missing title)
     const writeColumnTitle = window.CList.ui.view.writeTitle.innerText.trim();
     const resultDiv = window.CList.ui.view.postResult;
     resultDiv.innerHTML = '';
+    updatePostProgress('Preparing publication…');
 
     const allAccounts = await getAccounts(window.CList.config.flaskSiteUrl);
 
@@ -640,13 +695,14 @@ async function postAll() {
             const accountData = parseAccountValue(account);
             if (!accountData) return null;
             const maxLen = parseInt(accountData.maxlength, 10);
-            const charLimit = (!isNaN(maxLen) && maxLen > 0) ? maxLen : 1000000;
+            const charLimit = (!isNaN(maxLen) && maxLen > 0) ? maxLen : Number.POSITIVE_INFINITY;
             return { key, charLimit };
         })
         .filter(Boolean)
         .sort((a, b) => b.charLimit - a.charLimit);
 
     let publishedURL = null;
+    if (!selectedAccounts.length) throw new Error('No valid publishing account is selected.');
 
     for (const selected of selectedAccounts) {
         const account = allAccounts.find(acc => acc.key === selected.key);
@@ -686,12 +742,19 @@ async function postAll() {
         }
 
         const refs = getReferences();
+        updatePostProgress('Publishing to ' + (accountData.title || accountData.type) + '…');
         const url = await handler.publish(accountData, writeColumnTitle, contentToPost, refs);
         if (url) {
             if (!publishedURL) publishedURL = url;
             const p = document.createElement('p');
             p.className = 'feed-status-message';
-            p.innerHTML = `Published to ${accountData.title || accountData.type}: <a href="${url}" target="_blank">${url}</a>`;
+            p.append(document.createTextNode(`Published to ${accountData.title || accountData.type}: `));
+            const link = document.createElement('a');
+            link.href = url;
+            link.target = '_blank';
+            link.rel = 'noopener';
+            link.textContent = url;
+            p.appendChild(link);
             resultDiv.appendChild(p);
 
             // A local-page keeps its local identity when published to a social
@@ -714,6 +777,8 @@ async function postAll() {
                     showPostMessage(resultDiv, "Published, but could not update the local page's publication status: " + e.message);
                 }
             }
+        } else {
+            showPostMessage(resultDiv, (accountData.title || accountData.type) + ' returned no post link. Check its posts before retrying; publication could not be confirmed.');
         }
     }
 
