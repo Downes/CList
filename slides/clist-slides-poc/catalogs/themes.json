@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "themes": [
+    {
+      "id": "classic",
+      "label": "Classic",
+      "fontFamily": "system",
+      "fontSize": 33.28,
+      "textColour": "#202b3d",
+      "background": "#ffffff",
+      "fillColour": "#51b158",
+      "borderColour": "#202b3d"
+    },
+    {
+      "id": "midnight",
+      "label": "Midnight",
+      "fontFamily": "arial",
+      "fontSize": 33.28,
+      "textColour": "#f1f5f9",
+      "background": "#142033",
+      "fillColour": "#397ab8",
+      "borderColour": "#a6caed"
+    },
+    {
+      "id": "paper",
+      "label": "Paper",
+      "fontFamily": "georgia",
+      "fontSize": 33.28,
+      "textColour": "#392f28",
+      "background": "#fff8e8",
+      "fillColour": "#dbb571",
+      "borderColour": "#76573a"
+    },
+    {
+      "id": "ocean",
+      "label": "Ocean",
+      "fontFamily": "verdana",
+      "fontSize": 33.28,
+      "textColour": "#13354b",
+      "background": "#edf8fc",
+      "fillColour": "#56b6bd",
+      "borderColour": "#216479"
+    }
+  ]
+}

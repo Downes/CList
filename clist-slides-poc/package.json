@@ -1,0 +1,23 @@
+{
+  "name": "clist-slides-poc",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "collab": "node server.js"
+  },
+  "dependencies": {
+    "@hocuspocus/provider": "^3.4.0",
+    "@hocuspocus/server": "^3.4.0",
+    "@tiptap/core": "^3.0.0",
+    "@tiptap/extension-collaboration": "^3.0.0",
+    "@tiptap/starter-kit": "^3.0.0",
+    "yjs": "^13.6.0"
+  },
+  "devDependencies": {
+    "vite": "^7.0.0"
+  }
+}

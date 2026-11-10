@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CList Slides — collaborative proof of concept</title>
+</head>
+<body>
+  <main class="app">
+    <header class="toolbar">
+      <div class="brand"><span class="brand-mark">▣</span><strong>CList Slides</strong><span class="pill">prototype</span></div>
+      <div class="tools">
+        <button id="add-text" title="Add a text box">+ Text box</button>
+        <button id="duplicate" title="Duplicate selected box">Duplicate</button>
+        <button id="delete" title="Delete selected box">Delete</button>
+        <span class="rule"></span>
+        <button id="bold" title="Bold selected text"><b>B</b></button>
+        <button id="italic" title="Italic selected text"><i>I</i></button>
+        <span class="rule"></span>
+        <button id="export" title="Export a Yjs snapshot">Export</button>
+        <button id="import" title="Import a Yjs snapshot">Import</button>
+        <input id="import-file" type="file" accept=".json,application/json" hidden />
+      </div>
+      <span id="connection-status" class="status">Local only</span>
+    </header>
+    <section class="workspace">
+      <aside class="rail"><div class="rail-title">SLIDES</div><div class="slide-thumb selected"><div class="mini-slide"><div class="mini-line"></div><div class="mini-line short"></div></div><span>1</span></div><p class="rail-hint">Single-slide<br/>proof of concept</p></aside>
+      <div class="canvas-space">
+        <div class="canvas-top"><span>Slide 1</span><span class="hint">Drag from the top bar · Resize at the corner · Click in a box to edit</span></div>
+        <div id="slide" class="slide" aria-label="Editable 16:9 slide"></div>
+        <div class="canvas-bottom"><span>1280 × 720</span><span id="count">2 text boxes</span></div>
+      </div>
+      <aside class="inspector"><div class="inspector-title">PRESENTATION</div><label for="server-url">Hocuspocus WebSocket URL</label><input id="server-url" placeholder="ws://localhost:1234" autocomplete="off" /><label for="doc-name">Document name</label><input id="doc-name" autocomplete="off" /><label for="token">Auth token (optional)</label><input id="token" type="password" autocomplete="off" /><button id="connect" class="primary">Connect</button><p class="helper">Open this page in two tabs with the same URL and document name to test live collaboration.</p><div class="separator"></div><div class="inspector-title">SELECTED OBJECT</div><div id="selection-details" class="selection-details">Select a text box</div><p class="helper">Text is collaboratively edited with Tiptap + Yjs; coordinates are synchronized through Y.Map.</p></aside>
+    </section>
+  </main>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

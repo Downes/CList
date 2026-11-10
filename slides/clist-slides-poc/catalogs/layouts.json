@@ -1,0 +1,88 @@
+{
+  "version": 1,
+  "layouts": [
+    {
+      "id": "blank",
+      "label": "Blank",
+      "objects": []
+    },
+    {
+      "id": "title",
+      "label": "Title",
+      "objects": [
+        {
+          "kind": "text",
+          "x": 100,
+          "y": 260,
+          "width": 1080,
+          "height": 140,
+          "text": "Presentation title",
+          "fontSize": 64,
+          "textAlign": "center"
+        }
+      ]
+    },
+    {
+      "id": "title-body",
+      "label": "Title and body",
+      "objects": [
+        {
+          "kind": "text",
+          "x": 100,
+          "y": 70,
+          "width": 1080,
+          "height": 110,
+          "text": "Slide title",
+          "fontSize": 52,
+          "textAlign": "left"
+        },
+        {
+          "kind": "text",
+          "x": 100,
+          "y": 220,
+          "width": 1080,
+          "height": 400,
+          "text": "Add your content here.",
+          "fontSize": 32,
+          "textAlign": "left"
+        }
+      ]
+    },
+    {
+      "id": "two-columns",
+      "label": "Two columns",
+      "objects": [
+        {
+          "kind": "text",
+          "x": 100,
+          "y": 70,
+          "width": 1080,
+          "height": 110,
+          "text": "Slide title",
+          "fontSize": 52,
+          "textAlign": "left"
+        },
+        {
+          "kind": "text",
+          "x": 100,
+          "y": 220,
+          "width": 500,
+          "height": 400,
+          "text": "Left column",
+          "fontSize": 32,
+          "textAlign": "left"
+        },
+        {
+          "kind": "text",
+          "x": 680,
+          "y": 220,
+          "width": 500,
+          "height": 400,
+          "text": "Right column",
+          "fontSize": 32,
+          "textAlign": "left"
+        }
+      ]
+    }
+  ]
+}

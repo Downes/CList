@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "shapes": [
+    {
+      "id": "rectangle",
+      "label": "Rectangle",
+      "width": 320,
+      "height": 220,
+      "defaults": {
+        "fillEnabled": true,
+        "fillColour": "#51b158",
+        "borderEnabled": true,
+        "borderColour": "#202b3d",
+        "borderWidth": 2
+      },
+      "viewBox": [
+        0,
+        0,
+        1000,
+        1000
+      ],
+      "elements": [
+        {
+          "tag": "rect",
+          "attributes": {
+            "x": 0,
+            "y": 0,
+            "width": 1000,
+            "height": 1000
+          }
+        }
+      ]
+    },
+    {
+      "id": "circle",
+      "label": "Circle",
+      "width": 220,
+      "height": 220,
+      "defaults": {
+        "fillEnabled": true,
+        "fillColour": "#51b158",
+        "borderEnabled": true,
+        "borderColour": "#202b3d",
+        "borderWidth": 2
+      },
+      "viewBox": [
+        0,
+        0,
+        1000,
+        1000
+      ],
+      "elements": [
+        {
+          "tag": "ellipse",
+          "attributes": {
+            "cx": 500,
+            "cy": 500,
+            "rx": 500,
+            "ry": 500
+          }
+        }
+      ]
+    },
+    {
+      "id": "line",
+      "label": "Line",
+      "width": 360,
+      "height": 4,
+      "defaults": {
+        "fillEnabled": false,
+        "borderEnabled": true,
+        "borderColour": "#202b3d",
+        "borderWidth": 4
+      },
+      "viewBox": [
+        0,
+        0,
+        1000,
+        1000
+      ],
+      "elements": [
+        {
+          "tag": "line",
+          "attributes": {
+            "x1": 0,
+            "y1": 0,
+            "x2": 1000,
+            "y2": 1000
+          }
+        }
+      ]
+    }
+  ]
+}

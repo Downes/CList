@@ -112,6 +112,9 @@ function restorePostContent(content, mimeType, filename) {
             if (mimeType === "application/json") {
                 try {
                     const json = JSON.parse(content);
+                    if (json?.format === 'clist-slides-yjs-v1' && typeof json.update === 'string') {
+                        return { type: 'application/vnd.clist.slides+json', value: content, page };
+                    }
                     return { type: mimeType, value: json, page };
                 } catch (err) {
                     console.error("Invalid JSON content:", err);
@@ -292,12 +295,16 @@ async function saveContent() {
     // unwrapped content under its exact original filename — same rule as the
     // Dropbox saver (js/dropbox.js). Anything else still gets packagePost()'s
     // HTML wrapper.
-    const isRawFileRoundTrip = currentLoadedPage?.kind === 'file' && getReferences().length === 0;
+    const handler = editorHandlers[currentEditor];
+    const isNativeFile = !!handler?.fileExtension;
+    const isRawFileRoundTrip = isNativeFile || (currentLoadedPage?.kind === 'file' && getReferences().length === 0);
     const content = isRawFileRoundTrip
         ? await editorHandlers[currentEditor]?.getContent?.()
         : await packagePost();
     const fileContent = String(content); // Ensure content is treated as a string
-    const suggestedName = isRawFileRoundTrip ? currentLoadedPage.title : undefined;
+    const suggestedName = isNativeFile
+        ? (currentLoadedPage?.kind === 'file' ? currentLoadedPage.title : 'presentation.' + handler.fileExtension)
+        : (isRawFileRoundTrip ? currentLoadedPage.title : undefined);
 
     const loggedIn = !!(window.CList.state && window.CList.state.username);
     let targetId = null;
@@ -333,7 +340,7 @@ async function saveContent() {
             // same loaded file, just now also tracked in My Pages. Anything else
             // (fresh content with no prior identity) is indexed as the HTML
             // 'page' it's actually being saved as.
-            const indexTitle    = isRawFileRoundTrip ? currentLoadedPage.title : titleValue;
+            const indexTitle    = isRawFileRoundTrip ? suggestedName : titleValue;
             const indexMimeType = isRawFileRoundTrip
                 ? ((editorHandlers[currentEditor]?.contentTypes || [])[0] || 'text/plain')
                 : 'text/html';
