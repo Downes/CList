@@ -34,6 +34,55 @@ See [README.md](README.md) for full architecture, kvstore/CORS details, and file
   belong in `utilities.js` as plain top-level functions, following the existing convention — not
   namespaced under `window.CList` unless they're UI-specific (then `ui.js`).
 
+## Separate application logic from presentation
+
+Treat application logic as an internal API. This is a direction for incremental work,
+not authorization for a broad rewrite. See [the migration plan](docs/ui-logic-separation-plan.md)
+before introducing shared state, action definitions, or new layer contracts.
+
+- **Services and domain helpers accept data and return data.** Network/storage adapters may
+  perform I/O, but must not accept DOM nodes, query controls, generate interface HTML, change
+  CSS, or display messages. Keep transformations pure where practical; a function that fetches
+  data is not itself pure. Preserve service-specific fields and capabilities when normalizing.
+- **Controllers coordinate actions.** A controller reads application state, invokes the existing
+  registered service operation, applies results, and asks a view to render progress, success,
+  or failure. Services throw errors to that boundary; controllers log and visibly report them
+  using the standard CList helpers. Do not show the same error at multiple layers.
+- **Views own interface DOM and input.** Views turn input into explicit controller arguments or
+  state changes. Application decisions must not inspect `data-selected`, CSS classes, or DOM
+  structure. Such attributes may reflect state for rendering, accessibility, and event routing.
+  Editors remain UI components and may use DOM/editor APIs internally.
+- **Give each state value one owner.** Use `window.CList.state` for shared application state;
+  reuse PageStore and existing editor/document models for the data they already own. Do not
+  copy document contents, credentials, DOM nodes, or editor instances into a global state dump.
+  Keep transient component details local unless other components need them. UI controls must
+  render shared selections from state, including after the controls are rebuilt.
+- **Describe shared actions as data.** Reusable menus and action bars should consume plain
+  definitions with stable IDs, labels, icons, capability-derived availability, command IDs,
+  and data arguments. The central component owns markup, back/close navigation, focus,
+  keyboard handling, and standard styling. Resolve commands through a registered dispatcher;
+  never evaluate strings or accept arbitrary HTML as menu definitions.
+- **Keep calls direct by default.** Use returned promises for a single caller awaiting a result.
+  Add subscriptions/events only for genuine independent observers; use an application-owned
+  mechanism rather than `document` as the application bus. Define payloads, ownership, and
+  unsubscribe/cleanup behaviour. Avoid a universal event bus or a new framework.
+- **Reuse the current registries and helpers.** Add optional contracts and compatibility
+  adapters to `readers`, `publishers`, and other existing extension points. Keep legacy handlers
+  working during migration. Do not add a parallel service registry, a second source of truth,
+  or a single enormous file containing every view. Shared components belong in the UI layer;
+  feature views can remain separate.
+- **Separate interface HTML from content HTML.** HTML articles, feed bodies, and exported
+  documents are valid data formats. Content serializers and sanitizers may process markup
+  without knowing the application layout. Do not mistake these for interface rendering.
+- **Change one workflow at a time.** For new features, respect these boundaries. When touching
+  legacy code, extract a bounded operation where useful; avoid unrelated rewrites. Verify
+  service behaviour with no DOM, UI behaviour with fake services, state after re-rendering,
+  and visible error handling. Document any retained coupling and the compatibility contract.
+
+Existing examples below describe current interfaces, including legacy HTML-returning handlers;
+they are not a requirement to introduce more coupling. During migration, the error rules apply
+at the UI/controller boundary: lower layers may propagate errors without displaying them.
+
 ## File Structure
 
 ```
@@ -144,8 +193,11 @@ Full reference: `docs/error-handling.md`. These rules apply to all new and modif
 
 ### Rules
 
-1. Every `async` call must be in a `try/catch` **or** have a `.catch()` if called without `await`.
-2. Every `catch` block must produce visible feedback — never just `console.error` alone.
+1. UI entry points must catch awaited failures or attach `.catch()` to unawaited work. Lower
+   layers may propagate rejected promises to that boundary; do not leave detached rejections.
+2. Every user-facing operation failure must produce visible feedback at its UI/controller
+   boundary. Lower-layer catches may add context, perform cleanup, or recover; rethrow failures
+   instead of swallowing them or importing UI helpers. Never merely log and return success.
 3. `parseAccountValue()` in a loop: guard with `if (!parsedValue) return;` to skip corrupt entries.
 4. `parseAccountValue()` for a single account: guard with `if (!accountData) { showErrorModal(...); return; }`.
 5. Session/credential setup functions should `throw` on failure — let the feed-loading caller display the error via `showServiceError`.

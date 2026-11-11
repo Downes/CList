@@ -35,7 +35,10 @@
     <script>
         window.CList = {
             config:     { flaskSiteUrl: 'http://local.clist', adminUsername: 'downes' },
-            state:      { username: 'none' },
+            state: {
+                username: 'none',
+                publishing: { selectedAccountKeys: [] }
+            },
             accounts:   [],
             schemas:    {},
             readers:    {},
@@ -320,7 +323,7 @@
 <script src="js/storage.js" defer></script>          <!-- window.CList.storage.kv.* facade; defines KvStoreError, must load before the two adapters below -->
 <script src="js/kvstore-remote.js" defer></script>  <!-- storage.js facade: HTTP adapter -->
 <script src="js/kvstore-local.js" defer></script>   <!-- storage.js facade: IndexedDB adapter; must load after local-kvstore.js and storage.js -->
-<script src="js/kvstore.js?v=5" defer></script>     <!-- Loads usere and account data -->
+<script src="js/kvstore.js?v=6" defer></script>     <!-- Loads usere and account data -->
 <script src="js/editors.js?v=3" defer></script>   <!-- Major function handlers-->
 <script src="js/reader.js?v=5" defer></script>
 <script src="js/oauth-config.js" defer></script>
@@ -372,7 +375,7 @@
         integrity="sha384-nlUQ8ZqCbvStErob+biJNzSgltf6urV3VGqhfIfzhmg9RXmpeRm76ELw0pYnKlTR"
         crossorigin="anonymous" defer></script>
 <script src="js/dynamicp2p.js?v=4" defer></script>
-<script src="js/publish.js?v=4" defer></script>
+<script src="js/publish.js?v=5" defer></script>
 <script src="js/webmention.js" defer></script>
 <script src="js/interface.js"></script>
 

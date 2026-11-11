@@ -1,0 +1,160 @@
+<!doctype html>
+<meta charset="utf-8">
+
+<div id="post-options"></div>
+<div id="post-result"></div>
+<pre id="result">Checking publishing selection…</pre>
+
+<script>
+const accounts = [
+    { key: 'alpha', value: JSON.stringify({
+        type: 'Test', title: 'Alpha', permissions: 'w'
+    }) },
+    { key: 'beta', value: JSON.stringify({
+        type: 'Annotate', title: 'Beta', permissions: 'w'
+    }) },
+    { key: 'reader', value: JSON.stringify({
+        type: 'Test', title: 'Reader only', permissions: 'r'
+    }) }
+];
+
+const published = [];
+const errors = [];
+
+window.CList = {
+    state: {
+        username: 'tester',
+        publishing: { selectedAccountKeys: [] }
+    },
+    config: { flaskSiteUrl: 'https://store.invalid' },
+    publishers: {},
+    savers: [],
+    ui: {
+        view: {
+            writeTitle: { innerText: 'Selection test' },
+            postResult: document.getElementById('post-result')
+        }
+    }
+};
+
+window.parseAccountValue = account => JSON.parse(account.value);
+window.getAccounts = async () => accounts;
+window.packagePost = async () => '<p>Test article</p>';
+window.getReferences = () => [];
+window.currentLoadedPage = null;
+window.showErrorModal = message => errors.push(message);
+
+// Minimal fixture implementing the existing account-list contract.
+// Selection and rendering behaviour come from the real publish.js.
+window.makeAccountList = (tip, items, filter, onClick) => {
+    const list = document.createElement('div');
+
+    for (const account of items) {
+        const value = parseAccountValue(account);
+        if (!filter(value)) continue;
+
+        const button = document.createElement('button');
+        button.dataset.key = account.key;
+        button.dataset.accountType = value.type;
+        button.className = 'account-button';
+        button.onclick = () => onClick(account.key, value, button);
+        list.appendChild(button);
+    }
+
+    return list;
+};
+</script>
+
+<script src="../js/publish.js"></script>
+
+<script>
+(async () => {
+    const check = (condition, message) => {
+        if (!condition) throw new Error(message);
+    };
+    const panel = document.getElementById('post-options');
+    const button = key =>
+        panel.querySelector(`[data-key="${key}"]`);
+    const selected = () =>
+        window.CList.state.publishing.selectedAccountKeys;
+
+    try {
+        // Keep this fixture independent of the Web Page publishing option.
+        makeWebPageOption = () => document.createElement('div');
+
+        const fakePublisher = {
+            publish: async account => {
+                published.push(account.title);
+                return null;
+            }
+        };
+        window.CList.publishers.Test = fakePublisher;
+        window.CList.publishers.Annotate = fakePublisher;
+
+        populatePostOptions(accounts);
+        check(!button('reader'), 'Read-only account is excluded');
+
+        button('alpha').click();
+        button('beta').click();
+        check(
+            selected().join(',') === 'alpha,beta',
+            'Clicks update selection state'
+        );
+
+        populatePostOptions(accounts);
+        check(
+            button('alpha').classList.contains('selected') &&
+            button('beta').getAttribute('aria-pressed') === 'true' &&
+            button('beta').classList.contains('annotate-glow'),
+            'Rebuilding restores selection and accessibility state'
+        );
+
+        button('alpha').click();
+        check(
+            selected().join(',') === 'beta',
+            'Clicking a selected account deselects it'
+        );
+
+        // Deliberately forge the opposite selection in the DOM.
+        button('alpha').dataset.selected = 'true';
+        button('alpha').classList.add('selected');
+        button('beta').dataset.selected = 'false';
+        button('beta').classList.remove('selected');
+
+        await postAll();
+        check(
+            published.length === 1 && published[0] === 'Beta',
+            'Only the state-selected destination receives the post'
+        );
+        check(
+            selected().join(',') === 'beta',
+            'DOM changes cannot alter selection state'
+        );
+
+        reconcilePublishSelection([accounts[0], accounts[2]]);
+        check(selected().length === 0, 'Removed account is deselected');
+
+        window.CList.state.publishing.selectedAccountKeys = ['reader'];
+        reconcilePublishSelection(accounts);
+        check(
+            selected().length === 0,
+            'Accounts without write permission are deselected'
+        );
+
+        await postAll();
+        check(
+            errors.at(-1)?.includes('No valid publishing account'),
+            'Empty selection produces visible feedback'
+        );
+
+        document.body.dataset.result = 'PASS';
+        document.getElementById('result').textContent =
+            'PASS: selection, rebuilding, DOM independence, ' +
+            'account removal, permissions and empty selection';
+    } catch (error) {
+        document.body.dataset.result = 'FAIL';
+        document.getElementById('result').textContent = error.message;
+        console.error(error);
+    }
+})();
+</script>

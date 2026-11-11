@@ -180,6 +180,7 @@ function renderIdentityLabel() {
 // Login is required
 function loginRequired(msg) {
     window.CList.state.username = 'none';
+    window.CList.state.publishing.selectedAccountKeys = [];
     openLeftPane();
     loginButton.style.display="inline-block";
     const registerButton = document.getElementById("registerButton");
@@ -211,6 +212,7 @@ function loginNotRequired() {
 // an action that actually needs an account.
 function setLoggedOutUI() {
     window.CList.state.username = 'none';
+    window.CList.state.publishing.selectedAccountKeys = [];
     loginButton.style.display="inline-block";
     const registerButton = document.getElementById("registerButton");
     if (registerButton) registerButton.style.display="inline-block";
@@ -3253,6 +3255,9 @@ window.addEventListener('popstate', (e) => {
 
         function selectAccountServer() {
             const url = document.getElementById('serverSelect').value;
+            if (url !== window.CList.config.flaskSiteUrl) {
+                window.CList.state.publishing.selectedAccountKeys = [];
+            }
             window.CList.config.flaskSiteUrl = url;
             localStorage.setItem(window.CList.keys.KVSTORE_URL, url);
             document.getElementById('authServerUrl').textContent = serverDisplayName(url);

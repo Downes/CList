@@ -3,9 +3,13 @@
 <link rel="stylesheet" href="../css/interface.css">
 <link rel="stylesheet" href="../slides/clist-slides-poc/dist-embed/editor.css">
 <div id="host"></div><div id="write-title">Article test</div><div id="writeReferences"><p>Reference text</p></div>
-<div id="post-options"><button class="account-button" data-key="leftish" data-selected="true">Leftish</button></div><div id="post-result"></div><pre id="result">Checking article publishing...</pre>
+<div id="post-options"><button class="account-button" data-key="leftish" data-selected="false">Leftish</button></div><div id="post-result"></div><pre id="result">Checking article publishing...</pre>
 <script>
 window.CList={schemas:{},publishers:{},loaders:[],savers:[],config:{flaskSiteUrl:'https://store.invalid'},ui:{view:{writeTitle:document.getElementById('write-title'),postResult:document.getElementById('post-result')}}};
+window.CList.state = {
+    username: 'tester',
+    publishing: { selectedAccountKeys: ['leftish'] }
+};
 window.OAuthClient={onCallback(){}};
 window.editorHandlers={};window.currentEditor='slides';window.currentLoadedPage=null;
 window.errors=[];window.showErrorModal=text=>errors.push(text);

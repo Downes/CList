@@ -101,8 +101,50 @@ async function playSave() {
 }
 
 
+function reconcilePublishSelection(accounts) {
+    const eligibleKeys = new Set(
+        accounts.filter(account => {
+            const value = parseAccountValue(account);
+            return value && (value.permissions || '').includes('w');
+        }).map(account => account.key)
+    );
+
+    const publishing = window.CList.state.publishing;
+    publishing.selectedAccountKeys = publishing.selectedAccountKeys
+        .filter(key => eligibleKeys.has(key));
+
+    return [...publishing.selectedAccountKeys];
+}
+
+function togglePublishSelection(key) {
+    const publishing = window.CList.state.publishing;
+    const selected = publishing.selectedAccountKeys.includes(key);
+
+    publishing.selectedAccountKeys = selected
+        ? publishing.selectedAccountKeys.filter(value => value !== key)
+        : [...publishing.selectedAccountKeys, key];
+}
+
+function renderPublishSelection(container) {
+    const selectedKeys = new Set(
+        window.CList.state.publishing.selectedAccountKeys
+    );
+
+    container.querySelectorAll('.account-button[data-key]').forEach(btn => {
+        const selected = selectedKeys.has(btn.dataset.key);
+        btn.dataset.selected = String(selected);
+        btn.classList.toggle('selected', selected);
+        btn.classList.toggle(
+            'annotate-glow',
+            selected && btn.dataset.accountType === 'Annotate'
+        );
+        btn.setAttribute('aria-pressed', String(selected));
+    });
+}
+
 // Function to populate the post panel with account options
 function populatePostOptions(accounts) {
+    reconcilePublishSelection(accounts);
     const postOptionsDiv = document.getElementById('post-options');
     postOptionsDiv.innerHTML = '';
 
@@ -110,15 +152,12 @@ function populatePostOptions(accounts) {
         'Select accounts to publish to',
         accounts,
         v => v.permissions.includes('w'),
-        (key, parsedValue, btn) => {
-            const isSelected = btn.getAttribute('data-selected') === 'true';
-            btn.setAttribute('data-selected', isSelected ? 'false' : 'true');
-            btn.classList.toggle('selected', !isSelected);
-            if (parsedValue.type === 'Annotate') {
-                btn.classList.toggle('annotate-glow', !isSelected);
-            }
+        key => {
+            togglePublishSelection(key);
+            renderPublishSelection(postOptionsDiv);
         }
     ));
+    renderPublishSelection(postOptionsDiv);
 
     const finalPostOption = document.createElement('button');
     finalPostOption.textContent = 'Publish';
@@ -686,10 +725,8 @@ async function _postAllSelected() {
 
     // Collect selected accounts with char limits, sorted highest-first so the
     // fullest version is published first and its URL is available for short-form posts
-    const selectedButtons = document.querySelectorAll('#post-options .account-button[data-selected="true"]');
-    const selectedAccounts = Array.from(selectedButtons)
-        .map(btn => {
-            const key = btn.getAttribute('data-key');
+    const selectedAccounts = reconcilePublishSelection(allAccounts)
+        .map(key => {
             const account = allAccounts.find(acc => acc.key === key);
             if (!account) return null;
             const accountData = parseAccountValue(account);
