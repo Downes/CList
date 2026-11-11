@@ -683,6 +683,19 @@ function populateSaveOptions() {
 }
 
 
+function reportPublisherError(accountData, error) {
+    const destination = accountData.title || accountData.type;
+    const message = 'Publishing to ' + destination +
+        ' failed: ' + error.message;
+
+    console.error('Publishing to ' + destination + ' failed:', error);
+
+    const resultDiv = window.CList.ui.view.postResult;
+    if (resultDiv) showPostMessage(resultDiv, message);
+
+    showErrorModal(message, { title: 'Publishing Failed' });
+}
+
 async function postAll() {
     const button = document.getElementById('final-post-button');
     if (button?.disabled) return;
@@ -791,18 +804,25 @@ async function _postAllSelected() {
 
         const refs = getReferences();
         updatePostProgress('Publishing to ' + (accountData.title || accountData.type) + '…');
-        const url = await handler.publish(
-            accountData,
-            writeColumnTitle,
-            contentToPost,
-            refs,
-            {
-                onProgress: progress => renderPublisherProgress(
-                    accountData.title || accountData.type,
-                    progress
-                )
-            }
-        );
+        let url;
+
+        try {
+            url = await handler.publish(
+                accountData,
+                writeColumnTitle,
+                contentToPost,
+                refs,
+                {
+                    onProgress: progress => renderPublisherProgress(
+                        accountData.title || accountData.type,
+                        progress
+                    )
+                }
+            );
+        } catch (error) {
+            reportPublisherError(accountData, error);
+            continue;
+        }
         if (url) {
             if (!publishedURL) publishedURL = url;
             const p = document.createElement('p');
@@ -867,7 +887,12 @@ async function postContentByType(accountData, title, content) {
         showErrorModal('No publish handler registered for account type: ' + accountData.type, { title: 'No publish handler found' });
         return null;
     }
-    return await handler.publish(accountData, title, content);
+    try {
+        return await handler.publish(accountData, title, content);
+    } catch (error) {
+        reportPublisherError(accountData, error);
+        return null;
+    }
 }
 
 

@@ -122,38 +122,32 @@ async function publishPost(
     headers.set('Authorization', 'Basic ' + btoa(username + ':' + password));
     headers.set('Content-Type', 'application/json');
 
-    try {
-      const preparedContent = await _wordpressUploadEmbeddedImages(
-          instance,
-          headers.get('Authorization'),
-          content,
-          options.onProgress
-      );
-      const postData = { title, content:preparedContent, status:'publish' };
-      options.onProgress?.({ stage: 'creating-post' });
-      const response = await _wordpressRequest(url, {
-        method: 'POST',
-        headers: headers,
-        body: JSON.stringify(postData)
-      });
+    const preparedContent = await _wordpressUploadEmbeddedImages(
+        instance,
+        headers.get('Authorization'),
+        content,
+        options.onProgress
+    );
+    const postData = { title, content:preparedContent, status:'publish' };
+    options.onProgress?.({ stage: 'creating-post' });
+    const response = await _wordpressRequest(url, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify(postData)
+    });
 
-      if (response.ok) {
-        const post = await response.json();
-        const postURL = post.link; // Retrieve the URL of the published post
-        if (typeof postURL !== 'string' || !/^https?:\/\//i.test(postURL)) {
-          throw new Error('WordPress accepted the post request but returned no valid post link'+(post.id ? ' (post ID '+post.id+')' : '')+'. Check WordPress Posts before retrying.');
-        }
-        console.log('Post published successfully at URL:', postURL);
-        return postURL; // Return the URL
-      } else {
-        await _wordpressThrowApiError(response,'WordPress post request failed');
+    if (response.ok) {
+      const post = await response.json();
+      const postURL = post.link; // Retrieve the URL of the published post
+      if (typeof postURL !== 'string' || !/^https?:\/\//i.test(postURL)) {
+        throw new Error('WordPress accepted the post request but returned no valid post link'+(post.id ? ' (post ID '+post.id+')' : '')+'. Check WordPress Posts before retrying.');
       }
-    } catch (error) {
-      console.error('Failed to publish Wordpress post:', error);
-      showErrorModal(`WordPress publish failed: ${error.message}`, { title: 'WordPress Publish Failed' });
-      return null; // Return null on failure
+      console.log('Post published successfully at URL:', postURL);
+      return postURL; // Return the URL
+    } else {
+      await _wordpressThrowApiError(response,'WordPress post request failed');
     }
-  }
+}
 
 // ── WordPress Application Passwords OAuth ─────────────────────────────────────
 

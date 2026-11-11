@@ -37,6 +37,31 @@ The WordPress fixture also checks article conversion, image cropping,
 media deduplication, URL rewriting, publication links, missing-link
 feedback, upload errors, and preservation of editable slide data.
 
+## Publisher error boundaries
+
+All requests and publishers in these checks are mocked.
+
+| ID | Behaviour |
+|---|---|
+| WP-E1 | Controller preserves the ID of an accepted post with no valid link |
+| WP-E2 | WordPress rejects with useful error details |
+| WP-E3 | The WordPress operation does not display an error modal |
+| WP-E4 | Upload failure prevents post creation |
+| WP-E5 | The controller displays one error modal per failed operation |
+| WP-E6 | Failure feedback identifies the destination |
+| WP-E7 | Known failures do not produce generic missing-link feedback |
+| WP-E8 | Publish is enabled again after failure |
+| WP-E9 | A failed destination is reported once |
+| WP-E10 | Other selected destinations still run |
+| WP-E11 | Button and progress cleanup survive destination failure |
+| WP-E12 | The direct publishing controller reports rejection and returns null |
+
+WP-E1 through WP-E8 are covered by
+`slides-article-wordpress.browser.html`.
+
+WP-E9 through WP-E12 are covered by
+`publish-selection.browser.html`.
+
 ## Other existing tests
 
 Run the Node regression tests with:

@@ -4,6 +4,7 @@
 <link rel="stylesheet" href="../slides/clist-slides-poc/dist-embed/editor.css">
 <div id="host"></div><div id="write-title">Article test</div><div id="writeReferences"><p>Reference text</p></div>
 <div id="post-options"><button class="account-button" data-key="leftish" data-selected="false">Leftish</button></div><div id="post-result"></div><pre id="result">Checking article publishing...</pre>
+<button id="final-post-button" class="btn">Publish</button>
 <script>
 window.CList={schemas:{},publishers:{},loaders:[],savers:[],config:{flaskSiteUrl:'https://store.invalid'},ui:{view:{writeTitle:document.getElementById('write-title'),postResult:document.getElementById('post-result')}}};
 window.CList.state = {
@@ -129,12 +130,57 @@ try {
   window.fetch=async(url)=>new Response(JSON.stringify(url.endsWith('/media')?{source_url:'https://leftish.invalid/media/test.png'}:{id:123}),{status:201})
   await postAll()
   check(errors.at(-1).includes('post ID 123') && errors.at(-1).includes('before retrying'),'accepted response without a link reports post ID and avoids blind retries')
-  check(window.CList.ui.view.postResult.textContent.includes('returned no post link'),'missing publication link leaves a visible result')
+  check(
+    window.CList.ui.view.postResult.textContent.includes('post ID 123'),
+    'WP-E1: controller preserves the unconfirmed post ID'
+  );
   check(!window.CList.ui.view.postResult.querySelector('[data-publish-progress]'),'progress clears after completion')
   requests.length=0
   window.fetch=async(url,options)=>{requests.push({url,options});return new Response(JSON.stringify({code:'test_upload_error',message:'Test upload storage is unavailable.'}),{status:500,headers:{'Content-Type':'application/json'}})}
+  const errorsBeforeFailure = errors.length;
+  let operationError;
+  try {
+    await window.CList.publishers.WordPress.publish(
+      { instance: 'tester@leftish.invalid', id: 'dummy-password' },
+      'Article test',
+      article
+    );
+  } catch (error) {
+    operationError = error;
+  }
+  check(
+    operationError?.message.includes('Image upload failed') &&
+    operationError.message.includes('test_upload_error') &&
+    operationError.message.includes('HTTP 500'),
+    'WP-E2: WordPress rejects with useful error details'
+  );
+  check(
+    errors.length === errorsBeforeFailure,
+    'WP-E3: WordPress operation does not display an error modal'
+  );
+  check(
+    requests.every(request => !request.url.endsWith('/posts')),
+    'WP-E4: upload failure prevents post creation'
+  );
+  requests.length = 0;
   progressEvents.length = 0;
   await postAll()
+  check(
+    errors.length === errorsBeforeFailure + 1,
+    'WP-E5: controller displays exactly one error modal'
+  );
+  check(
+    window.CList.ui.view.postResult.textContent.includes('Publishing to Leftish failed:'),
+    'WP-E6: failure feedback identifies the destination'
+  );
+  check(
+    !window.CList.ui.view.postResult.textContent.includes('returned no post link'),
+    'WP-E7: a known failure does not produce misleading link feedback'
+  );
+  check(
+    !document.getElementById('final-post-button').disabled,
+    'WP-E8: Publish is enabled again after failure'
+  );
   check(
     progressEvents.length === 1 && progressEvents[0].stage === 'uploading-images',
     'WP-P7: failed upload never reports post creation'

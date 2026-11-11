@@ -151,6 +151,52 @@ window.makeAccountList = (tip, items, filter, onClick) => {
             'Empty selection produces visible feedback'
         );
 
+        const errorsBeforeDestinationFailure = errors.length;
+        published.length = 0;
+        window.CList.state.publishing.selectedAccountKeys = ['alpha', 'beta'];
+        window.CList.publishers.Test = {
+            publish: async () => {
+                check(
+                    document.getElementById('final-post-button').disabled,
+                    'Publish is disabled while the operation is running'
+                );
+                throw new Error('Simulated destination failure');
+            }
+        };
+        await postAll();
+        check(
+            errors.length === errorsBeforeDestinationFailure + 1 &&
+            errors.at(-1).includes('Alpha') &&
+            errors.at(-1).includes('Simulated destination failure'),
+            'WP-E9: failed destination is reported once'
+        );
+        check(
+            published.length === 1 && published[0] === 'Beta',
+            'WP-E10: another selected destination still runs'
+        );
+        check(
+            !document.getElementById('final-post-button').disabled &&
+            !window.CList.ui.view.postResult.querySelector('[data-publish-progress]'),
+            'WP-E11: button and progress cleanup survive a destination failure'
+        );
+        const errorsBeforeDirectController = errors.length;
+        window.CList.publishers.Test = {
+            publish: async () => {
+                throw new Error('Simulated direct-controller failure');
+            }
+        };
+        const directResult = await postContentByType(
+            { type: 'Test', title: 'Alpha' },
+            'Test title',
+            '<p>Test content</p>'
+        );
+        check(
+            directResult === null &&
+            errors.length === errorsBeforeDirectController + 1 &&
+            errors.at(-1).includes('Simulated direct-controller failure'),
+            'WP-E12: direct controller catches, reports, and returns null'
+        );
+
         document.body.dataset.result = 'PASS';
         document.getElementById('result').textContent =
             'PASS: selection, rebuilding, DOM independence, ' +
