@@ -7,7 +7,7 @@ function setup(loading = false) {
     const source = readFileSync('js/slides.js', 'utf8')
     const start = source.indexOf('initialize: async () => {') + 'initialize: '.length
     let initialize = source.slice(start, source.indexOf('\n        getDocId:', start)).trim().replace(/,$/, '')
-    initialize = initialize.replace("await import('../slides/clist-slides-poc/clist.js')", 'await editorModule()')
+    initialize = initialize.replace(/await import\('\.\.\/slides\/clist-slides-poc\/clist\.js(?:\?v=\d+)?'\)/, 'await editorModule()')
         .replace(/await import\('\.\/slides-recovery\.js\?v=\d+'\)/, 'await recoveryModule()')
     const timers = [], errors = [], container = { style: {} }
     const context = vm.createContext({

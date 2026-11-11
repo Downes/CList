@@ -25,14 +25,15 @@ window.CList.schemas['WordPress'] = {
     window.CList.publishers = window.CList.publishers || {};
     window.CList.publishers['WordPress'] = {
         acceptedFormats: ['html', 'md', 'text'],
-        publish: async (accountData, title, content) => {
+        publish: async (accountData, title, content, references, options = {}) => {
             const plainTitle = derivePlainTitle(title, content);
             return await publishPost(
                 extractBaseUrl(accountData.instance),
                 extractAccountName(accountData.instance),
                 accountData.id,
                 plainTitle,
-                content
+                content,
+                options
             );
         }
     };
@@ -54,7 +55,9 @@ async function _wordpressThrowApiError(response, context, suffix = '') {
     throw new Error(context+' (HTTP '+response.status+'): '+(detail || 'WordPress returned no error details.')+suffix);
 }
 
-async function _wordpressUploadEmbeddedImages(instance, authorization, content) {
+async function _wordpressUploadEmbeddedImages(
+    instance, authorization, content, onProgress
+) {
     const page = new DOMParser().parseFromString(content,'text/html');
     const images = [...page.querySelectorAll('img')].filter(image=>(image.getAttribute('src') || '').startsWith('data:'));
     if (!images.length) return content;
@@ -74,7 +77,11 @@ async function _wordpressUploadEmbeddedImages(instance, authorization, content) 
             const filename = 'clist-image-'+(uploads.size+1)+'.'+(match[2].toLowerCase()==='jpeg'?'jpg':match[2].toLowerCase());
             form.append('file',new Blob([bytes],{type:match[1].toLowerCase()}),filename);
             if (image.alt) form.append('alt_text',image.alt);
-            if (typeof updatePostProgress === 'function') updatePostProgress('WordPress: uploading image '+(uploads.size+1)+' of '+total+'…');
+            onProgress?.({
+                stage: 'uploading-images',
+                completed: uploads.size,
+                total
+            });
             const response = await _wordpressRequest(instance.replace(/\/$/,'')+'/wp-json/wp/v2/media',{method:'POST',headers:{Authorization:authorization},body:form});
             if (!response.ok) await _wordpressThrowApiError(response,'Image upload failed for '+filename,'. The post was not sent.');
             const media = await response.json();
@@ -102,7 +109,9 @@ async function _wordpressRequest(url, options) {
     }
 }
 
-async function publishPost(instance,username,password,title,content) {
+async function publishPost(
+    instance, username, password, title, content, options = {}
+) {
     //const contentWindow = document.getElementById('content-window').innerHTML; // Get the content of the editable div
    // const title = "New Post from Content Window"; // You can change this dynamically if needed
 
@@ -114,9 +123,14 @@ async function publishPost(instance,username,password,title,content) {
     headers.set('Content-Type', 'application/json');
 
     try {
-      const preparedContent = await _wordpressUploadEmbeddedImages(instance,headers.get('Authorization'),content);
+      const preparedContent = await _wordpressUploadEmbeddedImages(
+          instance,
+          headers.get('Authorization'),
+          content,
+          options.onProgress
+      );
       const postData = { title, content:preparedContent, status:'publish' };
-      if (typeof updatePostProgress === 'function') updatePostProgress('WordPress: images uploaded; creating the article…');
+      options.onProgress?.({ stage: 'creating-post' });
       const response = await _wordpressRequest(url, {
         method: 'POST',
         headers: headers,

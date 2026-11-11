@@ -55,7 +55,34 @@ try {
     if(url.endsWith('/posts'))return new Response(JSON.stringify({link:'https://leftish.invalid/test-post'}),{status:201,headers:{'Content-Type':'application/json'}})
     throw new Error('Unexpected network request '+url)
   }
+  const progressEvents = [];
+  const progressMessages = [];
+  const originalRenderProgress = renderPublisherProgress;
+  renderPublisherProgress = (accountTitle, progress) => {
+    progressEvents.push({ ...progress });
+    originalRenderProgress(accountTitle, progress);
+    progressMessages.push(
+      window.CList.ui.view.postResult
+        .querySelector('[data-publish-progress]')?.textContent
+    );
+  };
   await postAll()
+  check(
+    JSON.stringify(progressEvents) === JSON.stringify([
+      { stage: 'uploading-images', completed: 0, total: 1 },
+      { stage: 'creating-post' }
+    ]),
+    'WP-P1/P2/P3: one upload for duplicate images, then post creation'
+  );
+  check(
+    progressMessages[0] === 'Leftish: uploading image 1 of 1.' &&
+    progressMessages[1] === 'Leftish: creating the article.',
+    'WP-P5: controller translates progress into visible messages'
+  );
+  check(
+    !window.CList.ui.view.postResult.querySelector('[data-publish-progress]'),
+    'WP-P8: progress clears after success'
+  );
   const uploads=requests.filter(r=>r.url.endsWith('/media')),posts=requests.filter(r=>r.url.endsWith('/posts'))
   check(uploads.length===1,'duplicate images uploaded once per post')
   check(uploads.every(r=>r.options.body instanceof FormData && r.options.body.get('file') instanceof Blob),'media API receives real image files')
@@ -68,6 +95,37 @@ try {
   check(!post.content.includes('clist-slides-yjs-v1') && !postDoc.querySelector('script,style,svg,iframe'),'no raw snapshot or unsupported viewer markup posted')
   check(!errors.length,'no publish errors')
   check(document.querySelector('#post-result a') || window.CList.ui.view.postResult.querySelector('a'),'successful publication displays its link')
+  const uploadProgress = [];
+  const differentImage = document.createElement('canvas');
+  differentImage.width = differentImage.height = 2;
+  differentImage.getContext('2d').fillRect(0, 0, 2, 2);
+  const firstSource = parsed.images[0].getAttribute('src');
+  const secondSource = differentImage.toDataURL();
+  check(firstSource !== secondSource, 'Fixture images are distinct');
+  await _wordpressUploadEmbeddedImages(
+    'https://leftish.invalid',
+    'Basic fixture',
+    '<p><img src="' + firstSource + '">' +
+    '<img src="' + secondSource + '">' +
+    '<img src="' + firstSource + '"></p>',
+    progress => uploadProgress.push({ ...progress })
+  );
+  check(
+    JSON.stringify(uploadProgress) === JSON.stringify([
+      { stage: 'uploading-images', completed: 0, total: 2 },
+      { stage: 'uploading-images', completed: 1, total: 2 }
+    ]),
+    'WP-P1/P2: distinct uploads advance counts; duplicates do not'
+  );
+  const legacyURL = await window.CList.publishers.WordPress.publish(
+    { instance: 'tester@leftish.invalid', id: 'dummy-password' },
+    'Article test',
+    '<p>No embedded images</p>'
+  );
+  check(
+    legacyURL === 'https://leftish.invalid/test-post',
+    'WP-P4: existing callers work without progress options'
+  );
   window.fetch=async(url)=>new Response(JSON.stringify(url.endsWith('/media')?{source_url:'https://leftish.invalid/media/test.png'}:{id:123}),{status:201})
   await postAll()
   check(errors.at(-1).includes('post ID 123') && errors.at(-1).includes('before retrying'),'accepted response without a link reports post ID and avoids blind retries')
@@ -75,7 +133,16 @@ try {
   check(!window.CList.ui.view.postResult.querySelector('[data-publish-progress]'),'progress clears after completion')
   requests.length=0
   window.fetch=async(url,options)=>{requests.push({url,options});return new Response(JSON.stringify({code:'test_upload_error',message:'Test upload storage is unavailable.'}),{status:500,headers:{'Content-Type':'application/json'}})}
+  progressEvents.length = 0;
   await postAll()
+  check(
+    progressEvents.length === 1 && progressEvents[0].stage === 'uploading-images',
+    'WP-P7: failed upload never reports post creation'
+  );
+  check(
+    !window.CList.ui.view.postResult.querySelector('[data-publish-progress]'),
+    'WP-P8: progress clears after failure'
+  );
   check(requests.every(r=>!r.url.endsWith('/posts')) && errors.at(-1).includes('Image upload failed'),'upload failure stops the post and reports a visible error')
   check(errors.at(-1).includes('test_upload_error: Test upload storage is unavailable.') && errors.at(-1).includes('HTTP 500'),'WordPress detailed error is preserved')
   check(before===JSON.stringify(editor.snapshot()),'posting and failures never replace native data')

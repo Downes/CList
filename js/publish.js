@@ -712,6 +712,17 @@ function updatePostProgress(text) {
     progress.textContent = text;
 }
 
+function renderPublisherProgress(accountTitle, progress) {
+    if (progress.stage === 'uploading-images') {
+        updatePostProgress(
+            accountTitle + ': uploading image ' +
+            (progress.completed + 1) + ' of ' + progress.total + '.'
+        );
+    } else if (progress.stage === 'creating-post') {
+        updatePostProgress(accountTitle + ': creating the article.');
+    }
+}
+
 async function _postAllSelected() {
 
     const post = await packagePost({ forPublishing: true });
@@ -780,7 +791,18 @@ async function _postAllSelected() {
 
         const refs = getReferences();
         updatePostProgress('Publishing to ' + (accountData.title || accountData.type) + '…');
-        const url = await handler.publish(accountData, writeColumnTitle, contentToPost, refs);
+        const url = await handler.publish(
+            accountData,
+            writeColumnTitle,
+            contentToPost,
+            refs,
+            {
+                onProgress: progress => renderPublisherProgress(
+                    accountData.title || accountData.type,
+                    progress
+                )
+            }
+        );
         if (url) {
             if (!publishedURL) publishedURL = url;
             const p = document.createElement('p');

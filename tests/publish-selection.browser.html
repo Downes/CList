@@ -127,6 +127,10 @@ window.makeAccountList = (tip, items, filter, onClick) => {
             'Only the state-selected destination receives the post'
         );
         check(
+            errors.length === 0,
+            'WP-P6: existing publisher works with the optional fifth argument'
+        );
+        check(
             selected().join(',') === 'beta',
             'DOM changes cannot alter selection state'
         );
