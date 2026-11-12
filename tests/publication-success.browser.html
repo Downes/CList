@@ -62,9 +62,50 @@ try {
         'PUB-S5: wrapper uses the view-configured container'
     );
 
+    const progressContainer = document.createElement('div');
+    window.CList.ui.view.postResult = progressContainer;
+
+    updatePostProgress('Preparing publication.');
+    const progressNode =
+        progressContainer.querySelector('[data-publish-progress]');
+
+    check(
+        progressNode?.getAttribute('role') === 'status' &&
+        progressNode.className === 'feed-status-message',
+        'PUB-P1: progress uses the standard accessible feedback element'
+    );
+
+    renderPublisherProgress('Example', {
+        stage: 'uploading-images',
+        completed: 1,
+        total: 3
+    });
+
+    check(
+        progressContainer.querySelectorAll('[data-publish-progress]').length === 1 &&
+        progressContainer.firstElementChild === progressNode &&
+        progressNode.textContent === 'Example: uploading image 2 of 3.',
+        'PUB-P2: progress updates the existing element'
+    );
+
+    renderPublisherProgress('Example', { stage: 'creating-post' });
+
+    check(
+        progressNode.textContent === 'Example: creating the article.',
+        'PUB-P3: the view formats post-creation progress'
+    );
+
+    clearPostProgress();
+    clearPostProgress();
+
+    check(
+        !progressContainer.querySelector('[data-publish-progress]'),
+        'PUB-P4: progress cleanup is safe when repeated'
+    );
+
     document.body.dataset.result = 'PASS';
     document.getElementById('result').textContent =
-        'PASS: PUB-S1 through PUB-S5';
+        'PASS: PUB-S1 through PUB-S5 and PUB-P1 through PUB-P4';
 } catch (error) {
     console.error(error);
     document.body.dataset.result = 'FAIL';

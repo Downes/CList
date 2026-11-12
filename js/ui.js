@@ -817,6 +817,42 @@ window.CList.ui.showPublicationSuccess = function(destination, url) {
 window.showPublicationSuccess =
     window.CList.ui.showPublicationSuccess;
 
+window.CList.ui.updatePostProgress = function(text) {
+    const result = window.CList.ui.view.postResult;
+    let progress = result.querySelector('[data-publish-progress]');
+
+    if (!progress) {
+        progress = document.createElement('p');
+        progress.className = 'feed-status-message';
+        progress.dataset.publishProgress = 'true';
+        progress.setAttribute('role', 'status');
+        result.appendChild(progress);
+    }
+
+    progress.textContent = text;
+};
+window.updatePostProgress = window.CList.ui.updatePostProgress;
+
+window.CList.ui.renderPublisherProgress = function(accountTitle, progress) {
+    if (progress.stage === 'uploading-images') {
+        window.CList.ui.updatePostProgress(
+            accountTitle + ': uploading image ' +
+            (progress.completed + 1) + ' of ' + progress.total + '.'
+        );
+    } else if (progress.stage === 'creating-post') {
+        window.CList.ui.updatePostProgress(
+            accountTitle + ': creating the article.'
+        );
+    }
+};
+window.renderPublisherProgress = window.CList.ui.renderPublisherProgress;
+
+window.CList.ui.clearPostProgress = function() {
+    window.CList.ui.view.postResult
+        .querySelector('[data-publish-progress]')?.remove();
+};
+window.clearPostProgress = window.CList.ui.clearPostProgress;
+
 // ── showStatusMessage ─────────────────────────────────────────────────────────
 // Transient message in #identityDiv (the same bar that otherwise shows the
 // login identity); auto-restores after 3 s. Debounced so that overlapping

@@ -707,32 +707,8 @@ async function postAll() {
         showPostMessage(window.CList.ui.view.postResult, 'Publishing did not complete: ' + error.message);
         showErrorModal('Publishing did not complete: ' + error.message, { title: 'Publishing Failed' });
     } finally {
-        window.CList.ui.view.postResult.querySelector('[data-publish-progress]')?.remove();
+        clearPostProgress();
         if (button) button.disabled = false;
-    }
-}
-
-function updatePostProgress(text) {
-    const result = window.CList.ui.view.postResult;
-    let progress = result.querySelector('[data-publish-progress]');
-    if (!progress) {
-        progress = document.createElement('p');
-        progress.className = 'feed-status-message';
-        progress.dataset.publishProgress = 'true';
-        progress.setAttribute('role', 'status');
-        result.appendChild(progress);
-    }
-    progress.textContent = text;
-}
-
-function renderPublisherProgress(accountTitle, progress) {
-    if (progress.stage === 'uploading-images') {
-        updatePostProgress(
-            accountTitle + ': uploading image ' +
-            (progress.completed + 1) + ' of ' + progress.total + '.'
-        );
-    } else if (progress.stage === 'creating-post') {
-        updatePostProgress(accountTitle + ': creating the article.');
     }
 }
 

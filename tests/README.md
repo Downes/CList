@@ -74,6 +74,10 @@ CList server or desktop launcher. The page must report PASS.
 | PUB-S3 | Supplied text is not interpreted as HTML |
 | PUB-S4 | Additional results preserve earlier feedback |
 | PUB-S5 | Success wrapper uses the view-configured container |
+| PUB-P1 | Progress uses the standard accessible feedback element |
+| PUB-P2 | Progress updates reuse the existing element |
+| PUB-P3 | The view formats post-creation progress |
+| PUB-P4 | Progress cleanup is safe when repeated |
 
 The mocked WordPress browser test also checks the controller's use
 of the real success renderer. No live publication is required.
