@@ -25,7 +25,7 @@ const errors = [];
 window.CList = {
     state: {
         username: 'tester',
-        publishing: { selectedAccountKeys: [] }
+        publishing: { selectedAccountKeys: [], busy: false }
     },
     config: { flaskSiteUrl: 'https://store.invalid' },
     publishers: {},
@@ -177,6 +177,7 @@ window.makeAccountList = (tip, items, filter, onClick) => {
             'WP-E10: another selected destination still runs'
         );
         check(
+            !window.CList.state.publishing.busy &&
             !document.getElementById('final-post-button').disabled &&
             !window.CList.ui.view.postResult.querySelector('[data-publish-progress]'),
             'WP-E11: button and progress cleanup survive a destination failure'
@@ -197,6 +198,61 @@ window.makeAccountList = (tip, items, filter, onClick) => {
             errors.length === errorsBeforeDirectController + 1 &&
             errors.at(-1).includes('Simulated direct-controller failure'),
             'WP-E12: direct controller catches, reports, and returns null'
+        );
+
+        window.CList.state.publishing.selectedAccountKeys = ['alpha'];
+
+        let finishPublishing;
+        let announceStarted;
+        let operationCalls = 0;
+
+        const pendingPublication = new Promise(resolve => {
+            finishPublishing = resolve;
+        });
+        const operationStarted = new Promise(resolve => {
+            announceStarted = resolve;
+        });
+
+        window.CList.publishers.Test = {
+            publish: async () => {
+                operationCalls++;
+                announceStarted();
+                return await pendingPublication;
+            }
+        };
+
+        const firstSubmission = postAll();
+        await operationStarted;
+
+        check(
+            window.CList.state.publishing.busy &&
+            document.getElementById('final-post-button').disabled,
+            'PUB-B1: active publishing is represented in state and UI'
+        );
+
+        // Changing the DOM must not bypass the state guard.
+        document.getElementById('final-post-button').disabled = false;
+        await postAll();
+
+        check(
+            operationCalls === 1,
+            'PUB-B2: state blocks duplicate submissions despite DOM changes'
+        );
+
+        populatePostOptions(accounts);
+
+        check(
+            document.getElementById('final-post-button').disabled,
+            'PUB-B3: rebuilding the panel preserves its busy appearance'
+        );
+
+        finishPublishing(null);
+        await firstSubmission;
+
+        check(
+            !window.CList.state.publishing.busy &&
+            !document.getElementById('final-post-button').disabled,
+            'PUB-B4: completion restores state and the rebuilt button'
         );
 
         document.body.dataset.result = 'PASS';

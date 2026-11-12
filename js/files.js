@@ -172,10 +172,14 @@ function parseHtmlContent(content, mimeType, page) {
 
 // Collects data from Write pane and packages it to save as a file or post
 
-async function packagePost({ forPublishing = false } = {}) {
+async function packagePost({
+    forPublishing = false,
+    title,
+    referenceHtml
+} = {}) {
     // Get title
 
-    const titleValue = window.CList.ui.view.writeTitle.innerText;
+    const titleValue = title ?? window.CList.ui.view.writeTitle.innerText;
 
     // Get editor content
     const handler = editorHandlers[currentEditor];
@@ -193,8 +197,8 @@ async function packagePost({ forPublishing = false } = {}) {
 
 
     // Retrieve references HTML content
-    const referenceDivElement = document.getElementById('writeReferences'); // Replace with the actual ID
-    const referenceValue = referenceDivElement ? referenceDivElement.innerHTML : '';
+    const referenceValue = referenceHtml ??
+        (document.getElementById('writeReferences')?.innerHTML || '');
 
     // Create the parent post div
     const postDiv = document.createElement('div');

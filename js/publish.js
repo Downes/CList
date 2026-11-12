@@ -164,6 +164,7 @@ function populatePostOptions(accounts) {
     finalPostOption.id = 'final-post-button';
     finalPostOption.className = 'final-save-button btn';
     postOptionsDiv.appendChild(finalPostOption);
+    renderPublishingBusy(window.CList.state.publishing.busy);
 
     finalPostOption.onclick = async function() {
         await postAll();
@@ -685,52 +686,79 @@ function populateSaveOptions() {
 
 function reportPublisherError(accountData, error) {
     const destination = accountData.title || accountData.type;
-    const message = 'Publishing to ' + destination +
-        ' failed: ' + error.message;
 
     console.error('Publishing to ' + destination + ' failed:', error);
+    showPublicationError(destination, error.message);
+}
 
-    const resultDiv = window.CList.ui.view.postResult;
-    if (resultDiv) showPostMessage(resultDiv, message);
+async function capturePublicationRequest() {
+    const fields = readPublicationFields();
 
-    showErrorModal(message, { title: 'Publishing Failed' });
+    const request = {
+        title: fields.title.trim(),
+        references: structuredClone(getReferences()),
+        selectedAccountKeys: [
+            ...window.CList.state.publishing.selectedAccountKeys
+        ],
+        accountStoreUrl: window.CList.config.flaskSiteUrl
+    };
+
+    const content = await packagePost({
+        forPublishing: true,
+        title: fields.title,
+        referenceHtml: fields.referenceHtml
+    });
+
+    if (!content) return null;
+
+    return { ...request, content };
 }
 
 async function postAll() {
-    const button = document.getElementById('final-post-button');
-    if (button?.disabled) return;
-    if (button) button.disabled = true;
+    const publishing = window.CList.state.publishing;
+    if (publishing.busy) return;
+
+    publishing.busy = true;
+
     try {
-        await _postAllSelected();
+        renderPublishingBusy(true);
+        const request = await capturePublicationRequest();
+        if (request) await _postAllSelected(request);
     } catch (error) {
         console.error('Publishing did not complete:', error);
-        showPostMessage(window.CList.ui.view.postResult, 'Publishing did not complete: ' + error.message);
-        showErrorModal('Publishing did not complete: ' + error.message, { title: 'Publishing Failed' });
+        showPostMessage(
+            window.CList.ui.view.postResult,
+            'Publishing did not complete: ' + error.message
+        );
+        showErrorModal(
+            'Publishing did not complete: ' + error.message,
+            { title: 'Publishing Failed' }
+        );
     } finally {
+        publishing.busy = false;
+        renderPublishingBusy(false);
         clearPostProgress();
-        if (button) button.disabled = false;
     }
 }
 
-async function _postAllSelected() {
-
-    const post = await packagePost({ forPublishing: true });
-    if (!post) return; // packagePost() already displayed the error (e.g. missing title)
-    const writeColumnTitle = window.CList.ui.view.writeTitle.innerText.trim();
+async function _postAllSelected(request) {
+    const post = request.content;
+    const writeColumnTitle = request.title;
     const resultDiv = window.CList.ui.view.postResult;
     resultDiv.innerHTML = '';
     updatePostProgress('Preparing publication…');
 
-    const allAccounts = await getAccounts(window.CList.config.flaskSiteUrl);
+    const allAccounts = await getAccounts(request.accountStoreUrl);
 
     // Collect selected accounts with char limits, sorted highest-first so the
     // fullest version is published first and its URL is available for short-form posts
-    const selectedAccounts = reconcilePublishSelection(allAccounts)
+    const selectedAccounts = request.selectedAccountKeys
         .map(key => {
             const account = allAccounts.find(acc => acc.key === key);
             if (!account) return null;
             const accountData = parseAccountValue(account);
-            if (!accountData) return null;
+            if (!accountData ||
+                !(accountData.permissions || '').includes('w')) return null;
             const maxLen = parseInt(accountData.maxlength, 10);
             const charLimit = (!isNaN(maxLen) && maxLen > 0) ? maxLen : Number.POSITIVE_INFINITY;
             return { key, charLimit };
@@ -778,7 +806,7 @@ async function _postAllSelected() {
             contentToPost = candidateText.substring(0, charLimit);
         }
 
-        const refs = getReferences();
+        const refs = structuredClone(request.references);
         updatePostProgress('Publishing to ' + (accountData.title || accountData.type) + '…');
         let url;
 
@@ -830,7 +858,10 @@ async function _postAllSelected() {
 
     // Send WebMentions if the user has opted in
     if (publishedURL && typeof sendWebMentions === 'function') {
-        sendWebMentions(publishedURL, getReferences());
+        sendWebMentions(
+            publishedURL,
+            structuredClone(request.references)
+        );
     }
 
     if (typeof window._onPostAllComplete === 'function') {
@@ -838,13 +869,6 @@ async function _postAllSelected() {
         window._onPostAllComplete = null;
         cb();
     }
-}
-
-function showPostMessage(div, text) {
-    const p = document.createElement('p');
-    p.className = 'feed-status-message';
-    p.textContent = text;
-    div.appendChild(p);
 }
 
 // Dispatch publishing to the registered handler for the account type

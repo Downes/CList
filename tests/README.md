@@ -78,9 +78,47 @@ CList server or desktop launcher. The page must report PASS.
 | PUB-P2 | Progress updates reuse the existing element |
 | PUB-P3 | The view formats post-creation progress |
 | PUB-P4 | Progress cleanup is safe when repeated |
+| PUB-E1 | Error feedback uses the view-configured container |
+| PUB-E2 | Error text stays literal and one modal is requested |
+| PUB-E3 | A missing results container does not prevent modal feedback |
 
 The mocked WordPress browser test also checks the controller's use
 of the real success renderer. No live publication is required.
+
+## Publishing busy state
+
+Covered by `publish-selection.browser.html`, using mocked publishers.
+
+| ID | Behaviour |
+|---|---|
+| PUB-B1 | Active publishing is represented in application state and UI |
+| PUB-B2 | State blocks duplicate submissions despite DOM changes |
+| PUB-B3 | Rebuilding the Post panel preserves its busy appearance |
+| PUB-B4 | Completion resets busy state and enables the rebuilt button |
+
+WP-E11 also verifies busy-state cleanup after a destination failure.
+
+## Publication request capture
+
+Open `tests/publication-request.browser.html` through the local
+CList server or desktop launcher. The page must report PASS.
+Editor retrieval and publishers are mocked; no live posts are sent.
+
+| ID | Behaviour |
+|---|---|
+| PUB-R1 | Publishing awaits the active editor API |
+| PUB-R2 | Captured destinations retain full-first ordering |
+| PUB-R3 | Captured metadata and retrieved HTML reach the full-content destination |
+| PUB-R4 | Destination construction, character limits, and returned-link sharing remain intact |
+| PUB-R5 | Reference copies resist live edits and mutations by another publisher |
+| PUB-R6 | Account lookup and WebMentions receive captured inputs |
+| PUB-R7 | Publication-specific editor content is preferred over native content |
+| PUB-R8 | Editor retrieval failure stops publishing and clears busy state |
+
+These tests exercise the editor-handler contract, not the implementation
+of every editor's snapshot semantics. They also do not establish that
+a changed account-store session can safely complete an earlier request.
+Publication-record identity remains a separate follow-up.
 
 ## Other existing tests
 

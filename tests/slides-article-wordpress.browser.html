@@ -10,7 +10,7 @@
 window.CList={schemas:{},publishers:{},loaders:[],savers:[],config:{flaskSiteUrl:'https://store.invalid'},ui:{...window.CList.ui,view:{writeTitle:document.getElementById('write-title'),postResult:document.getElementById('post-result')}}};
 window.CList.state = {
     username: 'tester',
-    publishing: { selectedAccountKeys: ['leftish'] }
+    publishing: { selectedAccountKeys: ['leftish'], busy: false }
 };
 window.OAuthClient={onCallback(){}};
 window.editorHandlers={};window.currentEditor='slides';window.currentLoadedPage=null;

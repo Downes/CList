@@ -853,6 +853,42 @@ window.CList.ui.clearPostProgress = function() {
 };
 window.clearPostProgress = window.CList.ui.clearPostProgress;
 
+window.CList.ui.showPostMessage = function(container, text) {
+    const paragraph = document.createElement('p');
+    paragraph.className = 'feed-status-message';
+    paragraph.textContent = text;
+    container.appendChild(paragraph);
+};
+window.showPostMessage = window.CList.ui.showPostMessage;
+
+window.CList.ui.showPublicationError = function(destination, detail) {
+    const message = 'Publishing to ' + destination +
+        ' failed: ' + detail;
+
+    const container = window.CList.ui.view.postResult;
+    if (container) {
+        window.CList.ui.showPostMessage(container, message);
+    }
+
+    showErrorModal(message, { title: 'Publishing Failed' });
+};
+window.showPublicationError = window.CList.ui.showPublicationError;
+
+window.CList.ui.renderPublishingBusy = function(busy) {
+    const button = document.getElementById('final-post-button');
+    if (button) button.disabled = busy;
+};
+window.renderPublishingBusy = window.CList.ui.renderPublishingBusy;
+
+window.CList.ui.readPublicationFields = function() {
+    return {
+        title: window.CList.ui.view.writeTitle.innerText,
+        referenceHtml:
+            document.getElementById('writeReferences')?.innerHTML || ''
+    };
+};
+window.readPublicationFields = window.CList.ui.readPublicationFields;
+
 // ── showStatusMessage ─────────────────────────────────────────────────────────
 // Transient message in #identityDiv (the same bar that otherwise shows the
 // login identity); auto-restores after 3 s. Debounced so that overlapping

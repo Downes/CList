@@ -103,9 +103,54 @@ try {
         'PUB-P4: progress cleanup is safe when repeated'
     );
 
+    const errorContainer = document.createElement('div');
+    window.CList.ui.view.postResult = errorContainer;
+
+    const modalCalls = [];
+    const originalShowErrorModal = window.showErrorModal;
+
+    try {
+        window.showErrorModal = (message, options) => {
+            modalCalls.push({ message, options });
+        };
+
+        const destination = '<b>Example destination</b>';
+        const detail = '<img src=x> Upload failed';
+        const expected = 'Publishing to ' + destination +
+            ' failed: ' + detail;
+
+        showPublicationError(destination, detail);
+
+        check(
+            errorContainer.querySelectorAll('p').length === 1 &&
+            errorContainer.textContent === expected,
+            'PUB-E1: error feedback uses the view-configured container'
+        );
+
+        check(
+            !errorContainer.querySelector('b,img') &&
+            modalCalls.length === 1 &&
+            modalCalls[0].message === expected &&
+            modalCalls[0].options.title === 'Publishing Failed',
+            'PUB-E2: supplied text stays literal and one modal is requested'
+        );
+
+        window.CList.ui.view.postResult = null;
+        showPublicationError('Example destination', 'Another failure');
+
+        check(
+            modalCalls.length === 2 &&
+            errorContainer.querySelectorAll('p').length === 1,
+            'PUB-E3: missing results container does not prevent modal feedback'
+        );
+    } finally {
+        window.showErrorModal = originalShowErrorModal;
+    }
+
     document.body.dataset.result = 'PASS';
     document.getElementById('result').textContent =
-        'PASS: PUB-S1 through PUB-S5 and PUB-P1 through PUB-P4';
+        'PASS: PUB-S1 through PUB-S5, PUB-P1 through PUB-P4, ' +
+        'and PUB-E1 through PUB-E3';
 } catch (error) {
     console.error(error);
     document.body.dataset.result = 'FAIL';

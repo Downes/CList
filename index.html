@@ -37,7 +37,7 @@
             config:     { flaskSiteUrl: 'http://local.clist', adminUsername: 'downes' },
             state: {
                 username: 'none',
-                publishing: { selectedAccountKeys: [] }
+                publishing: { selectedAccountKeys: [], busy: false }
             },
             accounts:   [],
             schemas:    {},
@@ -316,7 +316,7 @@
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="js/local-kvstore.js" defer></script>
 <script src="js/utilities.js?v=1" defer></script>
-<script src="js/ui.js?v=9" defer></script>
+<script src="js/ui.js?v=12" defer></script>
 <script src="js/account-transfer.js" defer></script>  <!-- Export/import account data (Local or hosted); calls window.CList.storage.kv.* (storage.js + adapters below), crypto_utils.js, ui.js, kvstore.js's getEncKey -- all resolved by call time since nothing here runs until a button click, well after every deferred script has executed -->
 <script src="js/references.js" defer></script>
 <script src="js/crypto_utils.js" defer></script>
@@ -347,7 +347,7 @@
 
 <script src="js/page-store-idb.js" defer></script>  <!-- Save / Load --> <!-- Local IndexedDB layer for PageStore -->
 <script src="js/page-store.js" defer></script>      <!-- PageStore public API + its savers/loaders registry entries -->
-<script src="js/files.js?v=2" defer></script>
+<script src="js/files.js?v=3" defer></script>
 
 <script src="js/wordpress.js?v=5" defer></script>      <!-- Posts -->
 <script src="js/blogger.js" defer></script>
@@ -375,7 +375,7 @@
         integrity="sha384-nlUQ8ZqCbvStErob+biJNzSgltf6urV3VGqhfIfzhmg9RXmpeRm76ELw0pYnKlTR"
         crossorigin="anonymous" defer></script>
 <script src="js/dynamicp2p.js?v=4" defer></script>
-<script src="js/publish.js?v=10" defer></script>
+<script src="js/publish.js?v=13" defer></script>
 <script src="js/webmention.js" defer></script>
 <script src="js/interface.js"></script>
 
