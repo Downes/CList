@@ -5,8 +5,9 @@
 <div id="host"></div><div id="write-title">Article test</div><div id="writeReferences"><p>Reference text</p></div>
 <div id="post-options"><button class="account-button" data-key="leftish" data-selected="false">Leftish</button></div><div id="post-result"></div><pre id="result">Checking article publishing...</pre>
 <button id="final-post-button" class="btn">Publish</button>
+<script src="../js/ui.js"></script>
 <script>
-window.CList={schemas:{},publishers:{},loaders:[],savers:[],config:{flaskSiteUrl:'https://store.invalid'},ui:{view:{writeTitle:document.getElementById('write-title'),postResult:document.getElementById('post-result')}}};
+window.CList={schemas:{},publishers:{},loaders:[],savers:[],config:{flaskSiteUrl:'https://store.invalid'},ui:{...window.CList.ui,view:{writeTitle:document.getElementById('write-title'),postResult:document.getElementById('post-result')}}};
 window.CList.state = {
     username: 'tester',
     publishing: { selectedAccountKeys: ['leftish'] }

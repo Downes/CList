@@ -1,0 +1,73 @@
+<!doctype html>
+<meta charset="utf-8">
+
+<div id="results"></div>
+<pre id="result">Checking publication feedback…</pre>
+
+<script src="../js/ui.js"></script>
+<script>
+try {
+    const check = (condition, message) => {
+        if (!condition) throw new Error(message);
+    };
+    const container = document.getElementById('results');
+    const destination = '<img src=x onerror=alert(1)> Example';
+    const url = 'https://example.invalid/post/123?q=%3Cimg%3E';
+
+    renderPublicationSuccess(container, destination, url);
+
+    const paragraph = container.querySelector('p');
+    const link = paragraph?.querySelector('a');
+
+    check(
+        paragraph?.className === 'feed-status-message' &&
+        paragraph.textContent ===
+            'Published to ' + destination + ': ' + url,
+        'PUB-S1: standard feedback contains the destination and URL'
+    );
+
+    check(
+        link?.getAttribute('href') === url &&
+        link.target === '_blank' &&
+        link.rel === 'noopener',
+        'PUB-S2: publication link retains its navigation attributes'
+    );
+
+    check(
+        !container.querySelector('img,script') &&
+        link.textContent === url,
+        'PUB-S3: supplied text is not interpreted as markup'
+    );
+
+    renderPublicationSuccess(
+        container, 'Second destination', 'https://example.invalid/second'
+    );
+
+    check(
+        container.querySelectorAll('p').length === 2 &&
+        container.firstElementChild === paragraph,
+        'PUB-S4: another result is appended without replacing earlier feedback'
+    );
+
+    const viewContainer = document.createElement('div');
+    window.CList.ui.view.postResult = viewContainer;
+
+    showPublicationSuccess('View destination', url);
+
+    check(
+        viewContainer.querySelector('a')?.getAttribute('href') === url &&
+        viewContainer.textContent ===
+            'Published to View destination: ' + url &&
+        container.querySelectorAll('p').length === 2,
+        'PUB-S5: wrapper uses the view-configured container'
+    );
+
+    document.body.dataset.result = 'PASS';
+    document.getElementById('result').textContent =
+        'PASS: PUB-S1 through PUB-S5';
+} catch (error) {
+    console.error(error);
+    document.body.dataset.result = 'FAIL';
+    document.getElementById('result').textContent = error.message;
+}
+</script>

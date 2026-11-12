@@ -62,6 +62,22 @@ WP-E1 through WP-E8 are covered by
 WP-E9 through WP-E12 are covered by
 `publish-selection.browser.html`.
 
+## Publication success feedback
+
+Open `tests/publication-success.browser.html` through the local
+CList server or desktop launcher. The page must report PASS.
+
+| ID | Behaviour |
+|---|---|
+| PUB-S1 | Standard success feedback contains the destination and URL |
+| PUB-S2 | Publication links retain href, new-tab behaviour, and noopener |
+| PUB-S3 | Supplied text is not interpreted as HTML |
+| PUB-S4 | Additional results preserve earlier feedback |
+| PUB-S5 | Success wrapper uses the view-configured container |
+
+The mocked WordPress browser test also checks the controller's use
+of the real success renderer. No live publication is required.
+
 ## Other existing tests
 
 Run the Node regression tests with:

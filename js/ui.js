@@ -783,6 +783,40 @@ window.CList.ui.renderFeed = async function(rawItems, container, {
 // 6. User feedback: status messages, errors, dialogs
 // ============================================================================
 
+// Appends publication feedback to the supplied results container.
+window.CList.ui.renderPublicationSuccess = function(
+    container, destination, url
+) {
+    const paragraph = document.createElement('p');
+    paragraph.className = 'feed-status-message';
+
+    paragraph.appendChild(
+        document.createTextNode('Published to ' + destination + ': ')
+    );
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.textContent = url;
+
+    paragraph.appendChild(link);
+    container.appendChild(paragraph);
+};
+
+window.renderPublicationSuccess =
+    window.CList.ui.renderPublicationSuccess;
+
+window.CList.ui.showPublicationSuccess = function(destination, url) {
+    window.CList.ui.renderPublicationSuccess(
+        window.CList.ui.view.postResult,
+        destination,
+        url
+    );
+};
+window.showPublicationSuccess =
+    window.CList.ui.showPublicationSuccess;
+
 // ── showStatusMessage ─────────────────────────────────────────────────────────
 // Transient message in #identityDiv (the same bar that otherwise shows the
 // login identity); auto-restores after 3 s. Debounced so that overlapping

@@ -5,6 +5,7 @@
 <div id="post-result"></div>
 <pre id="result">Checking publishing selection…</pre>
 
+<script src="../js/ui.js"></script>
 <script>
 const accounts = [
     { key: 'alpha', value: JSON.stringify({
@@ -30,6 +31,7 @@ window.CList = {
     publishers: {},
     savers: [],
     ui: {
+        ...window.CList.ui,
         view: {
             writeTitle: { innerText: 'Selection test' },
             postResult: document.getElementById('post-result')

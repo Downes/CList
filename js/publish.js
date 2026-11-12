@@ -825,16 +825,7 @@ async function _postAllSelected() {
         }
         if (url) {
             if (!publishedURL) publishedURL = url;
-            const p = document.createElement('p');
-            p.className = 'feed-status-message';
-            p.append(document.createTextNode(`Published to ${accountData.title || accountData.type}: `));
-            const link = document.createElement('a');
-            link.href = url;
-            link.target = '_blank';
-            link.rel = 'noopener';
-            link.textContent = url;
-            p.appendChild(link);
-            resultDiv.appendChild(p);
+            showPublicationSuccess(accountData.title || accountData.type, url);
 
             // A local-page keeps its local identity when published to a social
             // account too — annotate the existing PageStore record instead of
