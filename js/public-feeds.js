@@ -53,15 +53,25 @@ function _publicFeedPlainText(html) {
 // list into container (a DOM element). Idempotent — safe to call more than once.
 async function renderPublicFeedsList(container) {
     if (!container) return;
+    container.innerHTML = '';
+    const wrap = document.createElement('div');
+    wrap.id = 'public-feeds-list';
+    container.appendChild(wrap);
+    const changelog = document.createElement('button');
+    changelog.className = 'account-button';
+    const icon = document.createElement('span');
+    icon.className = 'material-icons';
+    icon.textContent = 'public';
+    const label = document.createElement('span');
+    label.textContent = 'CList Changelog';
+    changelog.append(icon, label);
+    changelog.onclick = () => loadPublicFeed('clist-changelog', 'CList Changelog');
+    wrap.appendChild(changelog);
     try {
         const res = await fetch(`${PUBLIC_FEEDS_BASE_URL}/api/collections`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const collections = await res.json();
 
-        container.innerHTML = '';
-        const wrap = document.createElement('div');
-        wrap.id = 'public-feeds-list';
-        container.appendChild(wrap);
         if (!Array.isArray(collections) || collections.length === 0) return;
 
         collections.forEach(c => {
@@ -79,6 +89,7 @@ async function renderPublicFeedsList(container) {
         });
     } catch (err) {
         console.error('Could not load public feed collections:', err);
+        showServiceError(container, 'Could not load public feed collections', err.message);
     }
 }
 
@@ -91,9 +102,25 @@ async function loadPublicFeed(slug, title) {
     fc.appendChild(createFeedHeader(title || slug));
 
     try {
-        const res = await fetch(`${PUBLIC_FEEDS_BASE_URL}/api/collections/${encodeURIComponent(slug)}/items?limit=200`);
+        const isChangelog = slug === 'clist-changelog';
+        const res = await fetch(isChangelog
+            ? 'https://api.github.com/repos/Downes/CList/commits'
+            : `${PUBLIC_FEEDS_BASE_URL}/api/collections/${encodeURIComponent(slug)}/items?limit=200`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const items = await res.json();
+        const data = await res.json();
+        if (!Array.isArray(data)) throw new Error('Unexpected feed response');
+        const items = isChangelog ? data.map(entry => {
+            const message = entry.commit?.message || '';
+            return {
+                id: entry.sha,
+                link: entry.html_url,
+                title: message.split(/\r?\n/)[0],
+                content_html: escapeHtml(message).replace(/\r?\n/g, '<br>'),
+                feed_title: 'CList Changelog',
+                author: entry.commit?.author?.name || entry.author?.login || '',
+                published: Date.parse(entry.commit?.author?.date) / 1000,
+            };
+        }) : data;
 
         if (!Array.isArray(items) || items.length === 0) {
             const p = document.createElement('p');
