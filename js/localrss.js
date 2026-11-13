@@ -27,6 +27,8 @@ window.CList.schemas['LOCALRSS'] = {
         { key: 'permissions', label: 'Permissions',         editable: true, inputType: 'text', placeholder: 'r',                           default: 'r' },
         { key: 'serviceUrl',  label: 'LocalRSS Service URL', editable: true, inputType: 'text', placeholder: window.CList.defaults.LOCALRSS, default: window.CList.defaults.LOCALRSS },
         { key: 'database',    label: 'Database',            editable: true, inputType: 'text', placeholder: 'rss',                         default: 'rss' },
+        { key: 'collectionItems', inputType: 'hidden', default: '' },
+        { key: 'collectionId', inputType: 'hidden', default: '' },
         // Set automatically from the database-wide audio-majority test -- see
         // _localrssSyncHasAudio() -- never user-edited. Drives the podcast
         // icon in the sidebar account list (accountIcon() in reader.js/kvstore.js).
@@ -43,6 +45,13 @@ window.CList.schemas['LOCALRSS'] = {
         description: 'Read a personal LocalRSS database',
         type: 'feed',
         initialize: async (accountData) => { await initializeLocalrss(accountData); },
+        editCollection: async (key, account) => {
+            const resolved = { ...account };
+            await _localrssResolveServiceUrl(resolved);
+            await openPublicFeedCollection(key, account, resolved._effectiveServiceUrl);
+        },
+        saveCollection: (request, session) => savePublicFeedCollection(request.feedAccount,
+            request.name, request.items, request.identity.id, session.token, session.encKey),
         feedFunctions: {
             'Unread':     () => { localrssFilter = 'unread';     localrssLoad().catch(localrssReportLoadError); },
             'All':        () => { localrssFilter = 'all';        localrssLoad().catch(localrssReportLoadError); },

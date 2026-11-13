@@ -262,3 +262,27 @@ if (!/^https?:\/\//i.test(url)) {
 - Setting `feedContainer.innerHTML` to a plain string error — use `showServiceError` instead
 - Bare `await someAsyncFn()` at the call site without try/catch or `.catch()`
 - `innerHTML` with peer-supplied or server-supplied data — use DOM methods and validate CSS values
+
+## Extracted publication and collection operations
+
+At a separated service/storage boundary, failure is propagated to the invoking
+controller/view; the operation must not also show a modal or update a result
+container. A catch that adds context or updates operation status must rethrow.
+This is how failures become visible once, rather than being both swallowed by
+the adapter and reported again by the controller.
+
+Ordinary post handlers are called under `_postAllSelected`'s destination-level
+try/catch: `reportPublisherError` logs the error and uses publication feedback.
+New/extracted handlers should throw. Returning null is reserved for the existing
+URL-or-null compatibility contract, not a replacement for a meaningful exception;
+an absent link is explicitly unconfirmed and must not trigger an automatic retry.
+WordPress follows the extracted error/progress contract; legacy handlers still
+need migration. See [publish_structure.md](publish_structure.md).
+
+For collection Save to CList, `persistCollectionSave` and registered reader
+`saveCollection` operations throw; `runCollectionSave` records failed operation
+state and releases its active-target guard. The invoking save view logs and
+presents the error, then restores button availability. No remote write is
+automatically retried. Partial feed membership updates retain their error context
+so the user can explicitly retry. See
+[collection-publishing.md](collection-publishing.md).

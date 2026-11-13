@@ -1,253 +1,158 @@
-# Publishing Services in CList
+# Publishing services in CList
 
-This document describes how to add a service that receives content from the CList editor and publishes it to an external platform — Mastodon, WordPress, Bluesky, Blogger, or any similar target.
+Verified against the current client implementation, 2026-11-13. This describes
+implemented contracts, including the remaining legacy paths, rather than a future API.
 
-For services that also read feeds, save files, or load content, see `adding-a-service.md`.
+## Choose the integration contract
 
----
-
-## How publishing works
-
-When the user clicks **Publish**, `postAll()` in `publish.js`:
-
-1. Calls `packagePost()` to collect the write-pane title and editor content as an HTML string.
-2. Reads the list of accounts the user has selected (those with `'w'` in their `permissions` field).
-3. Sorts selected accounts by `maxlength` descending — unlimited accounts publish first, so their URL is available for length-limited accounts.
-4. For each account in order:
-   - Calls `handler.construct(title, content)` if defined; otherwise uses the raw HTML.
-   - If the result fits within `maxlength`, passes it to `handler.publish()` as-is.
-   - If it is too long but a URL was already returned by an earlier account, assembles `"opening… see <url>"` within the limit.
-   - If it is too long and no URL exists yet, truncates and warns.
-5. Passes the final content string and the reference list to `handler.publish(accountData, title, content, refs)`.
-
----
-
-## Registering a publish handler
-
-Wrap the registration in an IIFE so it does not pollute the global scope:
-
-```javascript
-(function () {
-    window.CList.publishers = window.CList.publishers || {};
-    window.CList.publishers['MyService'] = {
-        construct: (title, content) => { /* optional — see below */ },
-        publish:   async (accountData, title, content) => { /* required */ },
-    };
-})();
-```
-
-The key (`'MyService'`) must exactly match the `type` field in the account schema.
-
----
-
-## `publish(accountData, title, content, refs)`
-
-The only required method. Called once for each selected account.
-
-| Parameter | Type | Notes |
+| Purpose | Registry / entry point | Result |
 |---|---|---|
-| `accountData` | object | Parsed account from kvstore — see shape below |
-| `title` | string | Write-pane title; may contain HTML — strip if the service needs plain text |
-| `content` | string | Post body; may be HTML — already truncated to `maxlength` by `postAll()` |
-| `refs` | array | The write pane's reference list (`window.CList.state.references`), passed in by `postAll()`. Each entry has `url`, `author`, and `replyToken` (or `null`). Filter for your own type: `refs.filter(r => r.replyToken?.type === 'MyService')`. Ignore it if the service has no reply concept. Token shapes are in `references.js`. |
-| returns | `string \| null` | Permanent URL of the published post, or `null` |
+| Publish a post to a platform | `CList.publishers[type].publish` | Post URL string, or `null` |
+| Publish a serialized page or collection | `CList.binPublishers[type]` | `{ url, serviceId }` from `publish` |
+| Persist personal feed membership | `CList.readers[type].saveCollection` | Resolve on success; throw on failure |
+| Save an editor document | `CList.savers` | Existing save-handler contract |
 
-**Return the URL when the service provides one.** `postAll()` passes it to subsequent shorter-limit accounts so they can publish `"title see <url>"` rather than truncating.
+Platform accounts use permission `w`; bin/page publishers use `b`. Collection
+subscription persistence is not public publication. Its contract is in
+[collection-publishing.md](collection-publishing.md). Registration and account
+schemas are covered by [adding-a-service.md](adding-a-service.md).
 
-### `accountData` shape
+## Ordinary post workflow
 
-After `parseAccountValue(account)`:
+`postAll()` in `js/publish.js` guards the operation with
+`CList.state.publishing.busy`. It captures a request, invokes `_postAllSelected`,
+and always restores busy/progress presentation in `finally`.
 
-| Field | Value |
-|---|---|
-| `accountData.type` | `'MyService'` — matches the registry key |
-| `accountData.instance` | The kvstore key, e.g. `'you@myservice.example'` |
-| `accountData.id` | The credential (access token, app password, API key) |
-| `accountData.title` | Friendly display name |
-| `accountData.permissions` | `'r'`, `'w'`, or `'rw'` |
-| `accountData.maxlength` | String, e.g. `'500'`; absent or `''` means unlimited |
+`capturePublicationRequest()` returns:
 
-### Minimal example
-
-```javascript
-publish: async (accountData, title, content) => {
-    try {
-        const res = await fetch('https://api.myservice.example/v1/posts', {
-            method: 'POST',
-            headers: {
-                'Authorization': 'Bearer ' + accountData.id,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ text: content }),
-        });
-        if (!res.ok) throw new Error('Server returned ' + res.status);
-        const data = await res.json();
-        return data.url || null;
-    } catch (e) {
-        console.error('MyService publish failed:', e);
-        showStatusMessage('MyService: ' + e.message);
-        return null;
-    }
-},
-```
-
----
-
-## `construct(title, content)` — optional
-
-Called by `postAll()` *before* length checking. Use it to build the text that should be measured and (if needed) truncated — this is distinct from what `publish()` ultimately sends.
-
-Typical uses:
-- Strip HTML so the character count reflects what the service actually receives
-- Prepend the title to the body
-- Format the text for the platform's conventions
-
-```javascript
-construct: (title, content) => {
-    const t = removeHtml(title).trim();
-    const b = removeHtml(content).trim();
-    return t ? t + '\n\n' + b : b;
-},
-```
-
-If `construct` is absent, `postAll()` uses the raw HTML string for measurement.
-
----
-
-## Account schema fields for publishing services
-
-The `window.CList.schemas` entry drives the Accounts panel form. For a publish-only service:
-
-```javascript
-window.CList.schemas['MyService'] = {
-    type: 'MyService',
-    instanceFromKey: true,
-    kvKey: { label: 'Username', placeholder: 'you@myservice.example' },
-    fields: [
-        { key: 'title',       label: 'Account name',   editable: true,  inputType: 'text',     placeholder: 'My Account', default: '' },
-        { key: 'permissions', label: 'Permissions',    editable: true,  inputType: 'text',     placeholder: 'w',          default: 'w' },
-        { key: 'id',          label: 'API token',      editable: true,  inputType: 'password', placeholder: '',           default: '' },
-    ]
-};
-```
-
-### `permissions`
-
-Controls which panes show this account:
-- `'r'` — Read pane only
-- `'w'` — Post pane only
-- `'rw'` — both
-
-### `maxlength`
-
-Add this field for services that enforce a character limit (microblogging, etc.). Omit it for services with no practical limit (blogs, WordPress, etc.).
-
-```javascript
-{ key: 'maxlength', label: 'Maximum Length', editable: true, inputType: 'text', placeholder: '500', default: '500' }
-```
-
-`postAll()` reads `accountData.maxlength` to sort accounts and decide whether to truncate or reference-link. Accounts without `maxlength` (or with an empty value) are treated as unlimited and publish first.
-
----
-
-## Content helpers
-
-All defined in `utilities.js`:
-
-| Function | Returns | Use for |
-|---|---|---|
-| `removeHtml(html)` | plain text | Strip all tags; preserves `link-text url` pairs from `<a href>` |
-| `processHtml(html)` | plain text with `\n` | Convert `<p>`, `<br>`, `<div>` to newlines; strip remaining tags |
-| `extractBaseUrl(instance)` | `'https://instance.example'` | Parse base URL from `user@instance.example` |
-| `extractAccountName(instance)` | `'user'` | Parse username part before `@` |
-| `truncateToGraphemeLimit(text, n)` | string | Safe Unicode truncation (counts grapheme clusters, not code units) |
-
----
-
-## Error handling
-
-Follow `docs/error-handling.md`. For publish handlers specifically:
-
-- **Use `showStatusMessage`** for publish failures — these are transient action results, not hard load failures.
-- **Always `return null`** after catching an error, so `postAll()` can continue with the next account.
-- **Never use `alert()`** — anywhere.
-- Keep `console.error()` alongside the `showStatusMessage` call.
-
-```javascript
-} catch (e) {
-    console.error('MyService publish failed:', e);
-    showStatusMessage('MyService publish failed: ' + e.message);
-    return null;
+```js
+{
+    title,                  // captured title, trimmed
+    references,             // detached reference snapshots
+    selectedAccountKeys,    // copied from publishing state, not buttons
+    accountStoreUrl,         // selected account-store URL
+    content                 // packaged editor output
 }
 ```
 
----
+`readPublicationFields()` in `ui.js` is the control-reading boundary.
+`packagePost({ forPublishing: true, title, referenceHtml })` in `files.js` obtains
+content through the active editor's API: awaited `getPostContent()` when supplied,
+otherwise awaited `getContent()`. It packages title, body, and reference HTML.
+Do not extract TinyMCE or collaborative editor contents by reading their mounting
+container. See [editors_structure.md](editors_structure.md) for the different
+post, web-page, and native-document content getters.
 
-## Existing services as reference
+`_postAllSelected(request)` then:
 
-| Service | HTML or plain | Returns URL | Has `maxlength` | Notes |
-|---|---|---|---|---|
-| WordPress | HTML | yes | no | Uses Basic Auth; `publishPost()` helper |
-| Blogger | HTML | yes | no | OAuth via Google GIS token client |
-| Mastodon | plain text | no | yes (default 500) | `removeHtml()` in `publish()`; OAuth token in `id` |
-| Bluesky | plain text | no | no | App password in `id`; session created lazily |
+1. Reloads accounts through `getAccounts(request.accountStoreUrl)`, resolves the
+   captured keys, and checks current `w` permission. The DOM cannot change targets.
+2. Sorts valid accounts by positive `maxlength`, largest first. An absent, empty,
+   invalid, or nonpositive limit is treated as unlimited.
+3. Calls optional `construct(title, content)` before measuring the candidate.
+4. Publishes full content first. A later limited destination can use an earlier
+   returned URL in an opening/title plus `see <url>` message. Without a URL, the
+   controller warns and truncates. This controller uses JavaScript string length;
+   service handlers may additionally enforce platform-specific grapheme limits.
+5. Calls each handler with a separate clone of the captured references. A thrown
+   destination error is presented and the remaining destinations are attempted.
+6. Presents returned links. A missing link is explicitly unconfirmed: the user
+   should check the destination before retrying. A successful primary URL is also
+   passed to the existing WebMention path when available.
 
----
+Selection belongs to `CList.state.publishing.selectedAccountKeys`.
+`reconcilePublishSelection`, `togglePublishSelection`, and the selection renderer
+manage it; button attributes only reflect it. Logout/account-store changes clear
+incompatible selections. Publication records for local pages remain in PageStore.
 
-## Complete example — plain-text microblog service
+## Platform publisher contract
 
-```javascript
-// js/myservice.js
-
-window.CList.schemas = window.CList.schemas || {};
-window.CList.schemas['MyService'] = {
-    type: 'MyService',
-    instanceFromKey: true,
-    kvKey: { label: 'Username', placeholder: 'you@myservice.example' },
-    fields: [
-        { key: 'title',     label: 'Account name',   editable: true, inputType: 'text',     placeholder: 'My Account', default: '' },
-        { key: 'permissions', label: 'Permissions',  editable: true, inputType: 'text',     placeholder: 'w',          default: 'w' },
-        { key: 'id',        label: 'API token',      editable: true, inputType: 'password', placeholder: '',           default: '' },
-        { key: 'maxlength', label: 'Maximum Length', editable: true, inputType: 'text',     placeholder: '300',        default: '300' },
-    ]
+```js
+window.CList.publishers.MyService = {
+    // Optional collection serialization preference, not ordinary-post conversion.
+    acceptedFormats: ['html', 'text'],
+    construct: (title, content) => removeHtml(content), // optional
+    publish: async (accountData, title, content, refs, options = {}) => {
+        const response = await fetch('https://service.example/posts', {
+            method: 'POST',
+            headers: {
+                Authorization: 'Bearer ' + accountData.id,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ title, content }),
+        });
+        if (!response.ok) throw new Error('Post request failed (HTTP ' + response.status + ')');
+        const data = await response.json();
+        return data.url || null;
+    },
 };
-
-(function () {
-    window.CList.publishers = window.CList.publishers || {};
-    window.CList.publishers['MyService'] = {
-
-        // Build plain text for length measurement
-        construct: (title, content) => {
-            const t = removeHtml(title).trim();
-            const b = removeHtml(content).trim();
-            return t ? t + '\n\n' + b : b;
-        },
-
-        // Send to the API; content is already truncated by postAll()
-        publish: async (accountData, title, content) => {
-            try {
-                const res = await fetch(extractBaseUrl(accountData.instance) + '/api/v1/posts', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': 'Bearer ' + accountData.id,
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ text: content }),
-                });
-                if (!res.ok) throw new Error('Server returned ' + res.status);
-                const data = await res.json();
-                return data.url || null;
-            } catch (e) {
-                console.error('MyService publish failed:', e);
-                showStatusMessage('MyService: ' + e.message);
-                return null;
-            }
-        },
-    };
-})();
 ```
 
-Add to `index.html` before `interface.js`:
-```html
-<script src="js/myservice.js" defer></script>
+| Argument | Meaning |
+|---|---|
+| `accountData` | Full parsed account; `type`, `instance`, `title`, `permissions`, and service-specific credentials |
+| `title` | Captured title; remove HTML if the service requires plain text |
+| `content` | Constructed/limited post content; may contain HTML |
+| `refs` | Reference snapshots; reply context is in `replyToken`, scoped by its `type` |
+| `options` | Optional operation inputs; ordinary multi-posting currently supplies `onProgress` |
+| Return value | A published URL string, or `null`; not a bin-publisher result object |
+
+Keep `refs` and `options` optional: `postContentByType()` calls the three-argument
+form, and collection publishing calls `publish(accountData, title, content, [])`
+without progress options. Do not read editor controls or publishing buttons inside
+new service operations. Use `parseAccountValue()` to decode account wrappers.
+
+The account schema key must match the registry key. `maxlength` is an account
+field; it is not inferred from `acceptedFormats`. Credentials are service-specific:
+`id` is common but not universal. Use `CList.keys` constants for storage-key names.
+
+## Progress, errors, and compatibility
+
+New/extracted operations return data and throw useful errors. They must not also
+show a modal or write to a result element: `reportPublisherError` and the invoking
+view handle that once. A service may catch an error to add context and rethrow it.
+Never automatically retry an external write whose outcome is uncertain.
+
+WordPress is the extracted reference implementation. Its registered handler calls
+`publishPost(instance, username, password, title, content, options)`, uploads and
+deduplicates embedded images before creating the post, and reports data through:
+
+```js
+options.onProgress?.({ stage: 'uploading-images', completed, total });
+options.onProgress?.({ stage: 'creating-post' });
 ```
+
+The publishing controller translates progress through `renderPublisherProgress`.
+WordPress propagates API errors, timeout uncertainty, and an accepted post with no
+valid link. HTML parsing for content conversion is permitted; mounting UI or
+writing result markup in that operation is not.
+
+Migration is incomplete. Some existing platform handlers, including Mastodon and
+Bluesky, still display their own feedback and return `null`. They are compatibility
+paths, not the recommended error-handling pattern for new integrations. The main
+post controller and web-page workflow also retain some UI/state coupling. The
+current string-or-null result contract has not been replaced by a universal
+`{ id, url, status }` result API.
+
+## Collections and web pages
+
+`playPost()` dispatches the Collection editor to `playCollectionPublish()` rather
+than the ordinary request pipeline. Collection publishing resolves export formats,
+publishes full-content destinations before link destinations, and records published
+URLs. Its selection still lives in button attributes; it has not received the same
+state extraction as ordinary post selection.
+
+`postToWebPage()` is a separate path through `CList.binPublishers.CListBin`.
+`_getWebPageEditorContent()` prefers the editor's `getPublishContent()` result
+`{ type, value }`, falling back to `getContent()` and the editor's native type.
+For example, slides can publish viewable HTML while retaining their native format
+for saving. This is different from `getPostContent()`, which supplies social/blog
+post content. See [collection-publishing.md](collection-publishing.md) for bin
+adapters, page records, and Republish.
+
+## Verification
+
+The mocked browser fixtures in `tests/README.md` cover post selection, publication
+request capture, WordPress errors/progress, and success feedback. Collection save
+request/controller and feed-account checks run with Node as documented there.
+These checks do not publish live content or establish a remote deployment's health.

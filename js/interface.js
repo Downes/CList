@@ -195,6 +195,17 @@ function closeRightPane() {
     savePaneState();
 }
 
+// Reveal the writing surface without toggling or resizing an already-open pane.
+function revealEditorPane() {
+    if (window.innerWidth <= 768) {
+        closeLeftPane();
+        mobShowWrite();
+    } else {
+        if (writePane.getBoundingClientRect().width <= 1) snapPanes('left');
+        currentPane = 'write-pane';
+    }
+}
+
 function snapPanes(direction) {
     const mainContentRect = mainContent.getBoundingClientRect();
     const readPaneRect = readPane.getBoundingClientRect();

@@ -1,7 +1,20 @@
 # Separating CList application logic and UI
 
-Status: proposed architecture and migration plan, 2026-11-11. No runtime migration is
-implemented by this document. Each phase is a separately scoped future change.
+Architecture and migration plan dated 2026-11-11, with incremental implementation
+notes below. Each patch is reviewed separately; proposed contracts in the later
+sections are not all implemented APIs.
+
+Implementation update, 2026-11-13: the incremental Collections save work now
+captures a detached request through `readCollectionSaveFields()` and
+`captureCollectionSaveRequest()`. `persistCollectionSave(request, session)` is
+the DOM-free storage boundary, dispatching feed saves through the existing reader
+registry's optional `saveCollection` operation. `runCollectionSave()` owns save
+status, duplicate-write protection, and reconciliation with the active collection.
+`CList.state.collectionSaving` keeps an active-target Map and request-status WeakMap;
+credentials are passed transiently, not stored in that operation state. The editor
+retains ownership of the live draft. Completion preserves newer edits and leaves
+a different active collection untouched. The button keeps presentation feedback.
+File and Dropbox save workflows remain on their existing paths for later patches.
 
 ## Assessment
 

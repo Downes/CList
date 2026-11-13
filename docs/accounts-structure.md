@@ -1,6 +1,6 @@
 # CList Account Schema System
 
-Accounts are credentials stored in the kvstore (encrypted). Each account has a **type** (Mastodon, Bluesky, OPML, etc.) and a set of fields defined by that type's schema. The schema drives both the edit form in `flasker.html` and the shape of the JSON saved to the kvstore.
+Accounts are credentials stored in the kvstore (encrypted). Each account has a **type** (Mastodon, Bluesky, PublicFeed, LOCALRSS, etc.) and a set of fields defined by that type's schema. The schema drives the Manage Accounts form in `js/kvstore.js` and the JSON saved through the selected local or remote account store.
 
 ---
 
@@ -17,7 +17,7 @@ The decrypted JSON has this shape:
 
 ```js
 {
-    type:        string,   // service type — 'Mastodon', 'Bluesky', 'OPML', etc.
+    type:        string,   // service type — 'Mastodon', 'Bluesky', 'PublicFeed', 'LOCALRSS', etc.
     instance:    string,   // account identifier used by runtime code (see below)
     title:       string,   // human-readable display name
     permissions: string,   // permission flags — see table below
@@ -47,8 +47,8 @@ The `permissions` string is checked with `includes()`, so a single account can c
 | `t`  | `translate.js` | Used as the **Translation** service |
 | `g`  | `chatgpt.js` | Used as the **AI assistant** |
 | `z`  | `summarize.js` | Used as the **Summarize** service |
-| `s`  | `rss.js` | Marks an RSS relay / OPML subscription source |
-| `b`  | `collections.js`, future publish flows | Marks a bin/publish account; shown in the publish-to selector of the collection editor and any other "publish page" UI |
+| `s`  | Historical reader model | Legacy relay/subscription flag; not used to register the current feed collection readers |
+| `b`  | `collections.js`, `publish.js` | Marks a bin/publish account; shown in the publish-to selector of the collection editor and any other "publish page" UI |
 
 ---
 
@@ -69,7 +69,7 @@ window.CList.schemas['TypeName'] = {
         {
             key:         string,    // property name in stored instanceData JSON
             label:       string,    // form label
-            inputType:   string,    // 'text' | 'password' | 'oauth'
+            inputType:   string,    // 'text' | 'password' | 'oauth' | 'hidden'
             placeholder: string,
             editable:    boolean,   // false = display-only when editing; always editable on create
             default:     string,    // value used when field is absent from stored data
@@ -92,7 +92,7 @@ The kvstore `key` field follows the same rule: always editable on create, always
 
 Used for credentials obtained via OAuth redirect rather than direct entry (currently Mastodon only). In both modes the stored token is shown as `(token stored)` or `(no token)`. In edit mode a **Re-authorize** button calls `window.top.mastodonOAuthStart(title, username, permissions)`.
 
-New account creation for Mastodon is special-cased in `selectAccountType()` in `flasker.html` — it shows a username input and redirects to the instance's OAuth authorize endpoint rather than using the generic form.
+New account creation for Mastodon is special-cased in `selectAccountType()` in `js/kvstore.js` — it shows a username input and redirects to the instance's OAuth authorize endpoint rather than using the generic form.
 
 ---
 
@@ -102,9 +102,6 @@ New account creation for Mastodon is special-cased in `selectAccountType()` in `
 |------|------|-------|-----------------|---------------------|
 | `mastodon.js` | Mastodon | Username (`you@mastodon.social`) | title, permissions, maxlength | id (oauth) |
 | `bluesky.js` | Bluesky | Username (`you.bsky.social`) | title, permissions, id | — |
-| `opml.js` | OPML | OPML URL | title, permissions, id (API endpoint) | — |
-| `rss.js` | OPML2JSON | Service URL | title, permissions | — (no id; `s` flag) |
-| `rss.js` | RSS | Collection name | title, permissions | — (no id; `r` flag) |
 | `wordpress.js` | WordPress | Username (`you@site`) | title, permissions, id (API key) | — |
 | `blogger.js` | Blogger | Blog ID | title, permissions, id (client ID) | — |
 | `etherpad.js` | Etherpad | Etherpad API URL | title, permissions, id (proxy URL) | — |
@@ -116,7 +113,7 @@ New account creation for Mastodon is special-cased in `selectAccountType()` in `
 | `jsonbin.js` | JSONBin | Label | title, permissions, id (X-Master-Key) | — (`b` flag) |
 | `gist.js` | Gist | Label | title, permissions, id (GitHub PAT) | — (`b` flag) |
 | `0x0.js` | 0x0 | Label | title, permissions | — (no id; anonymous; `b` flag) |
-| `clistbin.js` | CListBin | Instance URL | title, permissions, id (Bearer token) | — (`b` flag) |
+| `clistbin.js` | CListBin | Instance URL | title, permissions (current kvstore session supplies the Bearer token) | — (`b` flag) |
 | `discord.js` | Discord | Account label (free text) | title, permissions, channel, bot_token | — |
 
 AI accounts have `instanceFromKey: false` — `instance` (the API URL) is an explicit editable field, separate from the project key.
@@ -184,8 +181,40 @@ This class (defined in `reader.css`) adds margin, padding, a light border, and r
    window.CList.schemas = window.CList.schemas || {};
    window.CList.schemas['MyType'] = { type, instanceFromKey, kvKey, fields };
    ```
-2. Add a button for the new type in `showTypePicker()` in `flasker.html`.
+2. Add a button for the new type in `showTypePicker()` in `js/kvstore.js`.
 3. Implement the service handler and register it in `window.CList.readers['MyType']` if it supports reading.
 4. Handle `accountData.type === 'MyType'` in `publish.js` if it supports writing.
 
-The form, save, and load are handled automatically by the schema — no changes to `flasker.html` form logic are needed.
+The form, save, and load are handled automatically by the schema — no changes to `js/kvstore.js` form logic are needed.
+
+## Feed collection accounts and save operations
+
+| Type | Account binding | Extra saved editor metadata |
+|---|---|---|
+| `PublicFeed` | `serviceUrl`, `collectionSlug`, optional personal `database` | `collectionItems`, `collectionId` |
+| `LOCALRSS` | Configured `serviceUrl` and `database` | `collectionItems`, `collectionId`, existing `hasAudio` |
+
+Both normally use `r` permission. The hidden `collectionItems` field is a JSON
+string of the editor's full entries; `collectionId` preserves the collection's
+identity. Hidden schema fields round-trip through account edits without becoming
+user-facing inputs. Feed member `url` and `feed` are respectively the website and
+subscription URLs. Reader `editCollection` and `saveCollection` capabilities
+integrate these accounts with the combined Collections view and save controller.
+
+New registration seeds PublicFeed accounts once. The first edit copies public
+membership into a user-owned LocalRSS database. Deleting the account removes the
+subscription; it does not delete the shared public collection. Session credentials
+are supplied to service operations at runtime and are not saved in collection
+metadata. See [collection-publishing.md](collection-publishing.md).
+
+The old OPML/RSS `rss.js` account model is not the current reader implementation
+in this checkout. Use PublicFeed or LOCALRSS rather than adding a dependency on
+that removed module. The historical `s` permission description above is not a
+new feed-reader integration contract.
+
+Account keys are identifiers, not universally service URLs. In particular,
+PublicFeed keys such as `public-feed:{serviceUrl}:{slug}` are opaque account keys;
+feed services must use their schema's `serviceUrl`, `collectionSlug`, and
+`database` fields. `getAccounts()` includes decrypted records only when their
+`type` has a registered account schema, so ordinary `collection:*` and `page:*`
+records do not become credentials or publishing destinations.

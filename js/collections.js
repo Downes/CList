@@ -260,7 +260,7 @@ function _buildCollectionPickerContents(picker, collections, onSelect, anchorEl)
 // Open a collection's items as editor references and open the write pane.
 async function _loadCollectionIntoEditor(col, token, encKey) {
     const items = col?.items || col; // accept col object or bare items array
-    if (!items?.length) { showErrorModal('This collection is empty.', { title: 'Collection is empty' }); return; }
+    if (!Array.isArray(items)) { showErrorModal('This collection has no valid entries.', { title: 'Invalid collection' }); return; }
 
     // ── Open the collection, as a collection, in the Collection editor ───────
     // (the only place its id/UUID is ever displayed — see _renderCollectionEditor).
@@ -270,7 +270,7 @@ async function _loadCollectionIntoEditor(col, token, encKey) {
         if (titleEl) titleEl.textContent = col.name || '';
         if (typeof currentEditor !== 'undefined' && currentEditor === 'collection') {
             const container = document.getElementById('collectionEditorDiv');
-            if (container) _renderCollectionEditor(container, col, token, encKey);
+            if (container) await window.showCollectionEditorPanel(container);
         } else if (typeof initializeEditor === 'function') {
             await initializeEditor('collection');
         }
@@ -828,7 +828,20 @@ async function _importCollectionFromFile(file, token, encKey) {
     }
 }
 
-// List all saved collections from kvstore.
+// Reading collections include both saved content collections and subscribed
+// public feed collections. Keep the normal collection lookup unchanged for
+// nesting/export callers that require actual collection records.
+async function _fetchReadCollections(token, encKey, accounts) {
+    const collections = await _fetchAllCollections(token, encKey);
+    for (const account of accounts || []) {
+        const data = parseAccountValue(account);
+        if (!data || typeof window.CList.readers[data.type]?.editCollection !== 'function') continue;
+        collections.push({ key: account.key, title: data.title || account.key, items: [], feedSubscription: data });
+    }
+    return collections;
+}
+
+// List the user's saved collections and feed subscriptions.
 window.showSavedCollections = async function() {
     // Clean up any detail-view popstate handler if navigating here directly
     if (_collectionsPopstateHandler) {
@@ -855,7 +868,7 @@ window.showSavedCollections = async function() {
         const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
         if (!encKey) throw new Error('Encryption key not available — please log in again.');
 
-        const collections = await _fetchAllCollections(token, encKey);
+        const collections = await _fetchReadCollections(token, encKey, window.CList.accounts);
 
         feedContainer.innerHTML = '';
         const header = document.createElement('div');
@@ -888,18 +901,38 @@ window.showSavedCollections = async function() {
             const nameSpan = document.createElement('span');
             nameSpan.className   = 'saved-collection-name';
             nameSpan.textContent = col.title;
-            nameSpan.title       = 'View / edit items';
-            nameSpan.onclick     = () => _showCollectionDetail(col, token, encKey);
+            nameSpan.title       = col.feedSubscription ? 'Read feed collection' : 'View / edit items';
+            nameSpan.onclick     = async () => {
+                try {
+                    if (col.feedSubscription) await switchReaderAccount(col.key);
+                    else _showCollectionDetail(col, token, encKey);
+                } catch (error) {
+                    console.error('Could not open collection:', error);
+                    showErrorModal('Could not open collection: ' + error.message, { title: 'Open collection failed' });
+                }
+            };
 
             const countSpan = document.createElement('span');
             countSpan.className   = 'saved-collection-count';
-            countSpan.textContent = `${col.items.length} item${col.items.length !== 1 ? 's' : ''}`;
+            countSpan.textContent = col.feedSubscription ? 'Feed collection' : `${col.items.length} item${col.items.length !== 1 ? 's' : ''}`;
 
             const editBtn = document.createElement('button');
             editBtn.className = 'clist-action-btn';
-            editBtn.title     = 'View / edit items';
+            editBtn.title     = 'Edit collection';
             editBtn.innerHTML = '<span class="material-icons md-18 md-light">edit</span>';
-            editBtn.onclick   = () => _showCollectionDetail(col, token, encKey);
+            editBtn.onclick   = async () => {
+                try {
+                    revealEditorPane();
+                    if (col.feedSubscription) {
+                        await window.CList.readers[col.feedSubscription.type].editCollection(col.key, col.feedSubscription);
+                    } else {
+                        await _loadCollectionIntoEditor(col, token, encKey);
+                    }
+                } catch (error) {
+                    console.error('Could not edit collection:', error);
+                    showErrorModal('Could not edit collection: ' + error.message, { title: 'Edit collection failed' });
+                }
+            };
 
             // Delete button — two-step confirmation
             const delBtn = document.createElement('button');
@@ -920,8 +953,13 @@ window.showSavedCollections = async function() {
             yesBtn.onclick     = async () => {
                 try {
                     await window.CList.storage.kv.remove(col.key);
+                    if (col.feedSubscription) {
+                        window.CList.accounts = (window.CList.accounts || []).filter(account => account.key !== col.key);
+                        if (typeof populateReadAccountList === 'function') populateReadAccountList(window.CList.accounts);
+                        updateUIVisibility();
+                    }
                     showStatusMessage(`Collection "${col.title}" deleted.`);
-                    window.showSavedCollections();
+                    await window.showSavedCollections();
                 } catch (err) {
                     console.error('[collection] delete failed', err);
                     showErrorModal('Could not delete: ' + (err.code === 'NotAuthenticated' ? 'Not logged in' : err.message), { title: 'Delete failed' });
@@ -1784,17 +1822,115 @@ function _buildCollectionConflictUI(container, collectionName, onOverwrite, onMe
 
 // ── Collection save ──────────────────────────────────────────────────────────
 
-window.playCollectionSave = async function playCollectionSave() {
-    const name  = (document.getElementById('write-title')?.textContent || '').trim();
-    const items = _draftItems || [];
-    const formatId = document.getElementById('write-format')?.value || 'rss';
+function captureCollectionSaveRequest(fields, items, collection = {}) {
+    const name = fields.name.trim();
+    if (!name) {
+        throw new Error('Please enter a collection title before saving.');
+    }
 
-    if (!name) { showErrorModal('Please enter a collection title before saving.'); return; }
+    return {
+        name,
+        formatId: fields.formatId,
+        identity: _resolveCollectionIdentity(collection.key, collection.id),
+        items: structuredClone(items),
+        publishedUrls: structuredClone(collection.publishedUrls || []),
+        feedAccount: collection.feedAccount
+            ? structuredClone(collection.feedAccount)
+            : null,
+    };
+}
+
+// Storage boundary: explicit data in, saved data out; no editor or UI access.
+async function persistCollectionSave(request, session) {
+    const { identity, name, items, publishedUrls, feedAccount } = request;
+    const { token, encKey } = session;
+    if (!token || !encKey) throw new Error('Please log in before saving this collection.');
+    if (feedAccount) {
+        const handler = window.CList.readers[feedAccount.type];
+        if (typeof handler?.saveCollection !== 'function') {
+            throw new Error('This account cannot save collections.');
+        }
+        await handler.saveCollection(request, session);
+    } else {
+        await _kvSaveItems(identity.key, identity.id, name, items, token, encKey, publishedUrls);
+    }
+    return {
+        ...identity, name,
+        items: structuredClone(items),
+        publishedUrls: structuredClone(publishedUrls),
+        feedAccount: structuredClone(feedAccount),
+    };
+}
+
+// Controller state is independent of buttons. Requests own their status while
+// an active-target index prevents concurrent writes from rebuilt save panels.
+function runCollectionSave(request, session) {
+    window.CList.state = window.CList.state || {};
+    const state = window.CList.state.collectionSaving ||= {
+        active: new Map(), requests: new WeakMap(),
+    };
+    const target = JSON.stringify([
+        window.CList.config.flaskSiteUrl, window.CList.state.username || '',
+        request.feedAccount?.key || request.identity.key,
+    ]);
+    const existing = state.active.get(target);
+    if (existing) {
+        if (existing.request === request) return existing.promise;
+        return Promise.reject(new Error('A save for this collection is already running. Please wait, then save your newer edits.'));
+    }
+    const operation = { request, status: 'saving', result: null, error: null, promise: null };
+    operation.promise = Promise.resolve().then(async () => {
+        try {
+            const saved = await persistCollectionSave(request, session);
+            const activeUpdated = _activeCollection?.col?.key === saved.key
+                && _activeCollection?.col?.id === saved.id;
+            if (activeUpdated) {
+                const draft = readActiveCollectionDraft() || _activeCollection.col;
+                _activeCollection = {
+                    ..._activeCollection,
+                    col: {
+                        ..._activeCollection.col, ...saved,
+                        name: draft.name ?? saved.name,
+                        items: structuredClone(draft.items ?? saved.items),
+                    },
+                    token: session.token, encKey: session.encKey,
+                };
+                _refreshIdDisplay();
+            }
+            operation.result = { ...saved, activeUpdated };
+            operation.status = 'saved';
+            return operation.result;
+        } catch (error) {
+            operation.status = 'failed';
+            operation.error = error;
+            throw error; // The invoking view presents the failure.
+        } finally {
+            state.active.delete(target);
+        }
+    });
+    state.active.set(target, operation);
+    state.requests.set(request, operation);
+    return operation.promise;
+}
+
+window.playCollectionSave = async function playCollectionSave() {
+    let request;
+    try {
+        request = captureCollectionSaveRequest(
+            readCollectionSaveFields(),
+            _draftItems || [],
+            _activeCollection?.col
+        );
+    } catch (error) {
+        console.error('[collection save] invalid request', error);
+        showErrorModal(error.message, { title: 'Save failed' });
+        return;
+    }
+    const { name, items, formatId, identity } = request;
 
     // Resolve identity once, up front, so the downloaded file and the kvstore
     // record embed/store the exact same UUID — even for a brand-new or legacy
     // collection that doesn't have one yet when Save is clicked.
-    const identity = _resolveCollectionIdentity(_activeCollection?.col?.key, _activeCollection?.col?.id);
     _activeCollection = {
         ..._activeCollection,
         col: { ..._activeCollection?.col, key: identity.key, id: identity.id },
@@ -1842,16 +1978,9 @@ window.playCollectionSave = async function playCollectionSave() {
         kvBtn.addEventListener('click', async () => {
             kvBtn.disabled = true;
             try {
-                // Always update the record this collection was loaded from, no
-                // matter what the title now reads. Identity was already resolved
-                // above, at the top of playCollectionSave.
-                const publishedUrls = _activeCollection?.col?.publishedUrls || [];
-                const { key, id } = identity;
-                await _kvSaveItems(key, id, name, items, token, encKey, publishedUrls);
-                _activeCollection = { col: { key, id, name, items, publishedUrls }, token, encKey };
-                _refreshIdDisplay();
-                showStatusMessage(`Collection "${name}" saved to CList.`);
-                if (typeof closeRightPane === 'function') closeRightPane();
+                const result = await runCollectionSave(request, { token, encKey });
+                showStatusMessage(`Collection "${result.name}" saved to CList.`);
+                if (result.activeUpdated && typeof closeRightPane === 'function') closeRightPane();
             } catch (e) {
                 console.error('[collection save] CList save failed', e);
                 showErrorModal('Save failed: ' + e.message, { title: 'Save failed' });

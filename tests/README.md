@@ -2,6 +2,33 @@
 
 Run commands from the repository root.
 
+## Collection save separation
+
+Run `node --test tests/collection-save-request.test.cjs tests/collection-save-controller.test.cjs tests/public-feed-accounts.test.cjs tests/public-feed-editor.test.cjs`.
+
+Request/persistence/controller tests run without a document. They check detached
+save inputs and results, registered feed savers, missing credentials, duplicate
+invocations, explicit retry, newer draft edits, and collection switches during
+a save. The editor fixture checks normal and feed saves through the existing
+Save to CList control, visible failures, and protection of a newly opened view.
+No live data is written.
+
+## Public feed accounts
+
+Run `node --test tests/public-feed-accounts.test.cjs tests/public-feed-editor.test.cjs`.
+These mock network requests and account storage. They cover registration-only
+subscriptions, personal collection copying, independent collections for two
+users, feed additions/removals, saved-copy reading, export failures, and retry
+after an account-save failure. They never change live feed collections.
+
+In CList, open Accounts, edit a subscribed public collection, and select
+**Edit Feed Collection**. The first edit copies its feeds into a user-owned LocalRSS
+collection and opens it in the existing Collection editor. Use **Save → Save to
+CList** to apply edits to the subscribed feeds. Entry order and descriptions
+are preserved when reopening; the public collection is unchanged. This uses
+LocalRSS's existing authenticated OPML and feed
+membership APIs; local-only CList identities cannot authenticate to that service.
+
 ## Publishing selection
 
 Open `tests/publish-selection.browser.html` through the local CList

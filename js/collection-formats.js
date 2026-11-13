@@ -57,7 +57,11 @@ const collectionFormats = {
             const outlines = safe.map(item => {
                 const t = escapeHtml(_collectionItemDisplayTitle(item) || item.url);
                 const u = escapeHtml(item.url);
-                return `    <outline text="${t}" type="rss" xmlUrl="${u}" htmlUrl="${u}"/>`;
+                const feedUrl = escapeHtml(/^https?:\/\//i.test(item.feed || '') ? item.feed : item.url);
+                const metadata = [
+                    ['author', item.author_name], ['feed', item.feed], ['description', item.summary],
+                ].filter(([, value]) => value).map(([key, value]) => ` ${key}="${escapeHtml(value)}"`).join('');
+                return `    <outline text="${t}" type="rss" xmlUrl="${feedUrl}" htmlUrl="${u}"${metadata}/>`;
             }).join('\n');
             // OPML 2.0 has no native document-identity field. <id> is a documented
             // CList-specific extension inside <head> — unknown elements are ignored by
@@ -154,7 +158,10 @@ function _parseCollectionOPML(text) {
     const items    = [...doc.querySelectorAll('body > outline')]
         .map(o => ({
             title: o.getAttribute('text') || o.getAttribute('title') || '',
-            url:   o.getAttribute('xmlUrl') || o.getAttribute('htmlUrl') || '',
+            url:   o.getAttribute('htmlUrl') || o.getAttribute('xmlUrl') || '',
+            ...(o.getAttribute('author') ? { author_name: o.getAttribute('author') } : {}),
+            ...(o.getAttribute('xmlUrl') || o.getAttribute('feed') ? { feed: o.getAttribute('xmlUrl') || o.getAttribute('feed') } : {}),
+            ...(o.getAttribute('description') ? { summary: o.getAttribute('description') } : {}),
         }))
         .filter(i => i.url);
     return { title, items, id };

@@ -47,6 +47,31 @@ The script tag for the new file goes in `index.html` alongside the other editor 
 | `visible()` | `function` | Returns `false` to hide this editor from the switcher/"Load blank" list entirely (e.g. not registered or logged in). |
 | `formats` | `{id, label}[]` | Populates the `#write-format` `<select>` in the write-pane toolbar (shown only when non-empty). Used by the collection editor (`collection-editor.js`) for its export-format picker. |
 
+### Publication content getters
+
+These optional methods have different callers; do not substitute one for another:
+
+| Getter | Result | Caller and purpose |
+|---|---|---|
+| `getContent()` | Native content string; may be asynchronous | Native save and the fallback content path |
+| `getPostContent()` | Post body string; may be asynchronous | `packagePost({forPublishing:true})` for social/blog posts |
+| `getPublishContent()` | `{type, value}`; may be asynchronous | `_getWebPageEditorContent()` for To Web Page |
+
+For example, the slides editor can retain its native saved document and supply
+HTML separately for a post or a viewable web page. Integrations must await the
+handler API rather than read the editor's mounting element. Request capture keeps
+references and the title alongside the extracted content; it does not replace
+service-specific editor APIs. See [publish_structure.md](publish_structure.md).
+
+For collections, `readCollectionSaveFields()` owns control lookup, while
+`captureCollectionSaveRequest()` snapshots `_draftItems` and collection metadata.
+`readActiveCollectionDraft()` is the controller's view interface for preserving
+newer edits. `persistCollectionSave()` does not read controls; `runCollectionSave()`
+owns save status and reconciliation. The Collection editor is also reached through
+Read > Collections and account Edit Feed Collection actions, including empty
+collections. External members keep editable metadata fields but receive no resource
+Edit action unless an owned resource and suitable editor are available.
+
 ### Required-field note — `contentTypes: []`
 
 An empty `contentTypes` array (the collection editor) means "doesn't support generic

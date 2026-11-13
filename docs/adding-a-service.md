@@ -94,7 +94,7 @@ The `permissions` string is checked with `includes()`, so a single account can c
 | `t` | `translate.js` | Used as the **Translation** service |
 | `g` | `chatgpt.js` | Used as the **AI assistant** (GPT-style chat) |
 | `z` | `summarize.js` | Used as the **Summarize** service |
-| `s` | `rss.js` | Marks an RSS relay / OPML subscription source |
+| `s` | Historical reader model | Legacy relay/subscription flag; current feed collections use reader capabilities |
 
 Most social services use `'rw'`. Write-only targets (WordPress, Blogger) use `'w'`. Utility accounts (translators, editors, summarizers) use the single letter for their role.
 
@@ -158,6 +158,24 @@ await handler.initialize(accountData);
 })();
 ```
 
+### Collection account operations
+
+A reader that represents a feed collection can additionally register:
+
+- `editCollection(accountKey, accountData)`: open that user's collection in the
+  shared Collections editor. The Read > Collections view discovers these accounts
+  through this capability.
+- `saveCollection(request, session)`: persist that editor's captured feed collection.
+  The request contains `identity: { key, id }`, `name`, `items`, `publishedUrls`,
+  `formatId`, and the `feedAccount` binding. The transient session supplies
+  `token` and `encKey`; do not store these credentials in collection metadata.
+
+`saveCollection` must not read controls, change editor state, or display feedback.
+Resolve on success and throw on failure. PublicFeed and LOCALRSS share the existing
+`savePublicFeedCollection` adapter. The collection-save controller owns operation
+status and state reconciliation; the invoking view presents errors and success.
+Readers without these optional operations retain their existing behaviour.
+
 ### statusActions
 
 Returns an HTML string of **service-specific** buttons only. `makeListing()` always appends the collect (library_add) and share (chat_bubble_outline) buttons after these — do not include them in `statusActions`.
@@ -175,7 +193,7 @@ statusActions: (item, _itemID, _itemUrl) => {
             <span class="material-icons md-18 md-light">favorite</span>
         </button>
         <button class="clist-action-btn" title="Open in browser"
-                onclick="window.open('${_heJs(_itemUrl)}','_blank','width=800,height=600,scrollbars=yes')">
+                onclick="openInBrowser('${_heJs(_itemUrl)}', '${_heJs(_itemID)}')">
             <span class="material-icons md-18 md-light">launch</span>
         </button>
     `;
@@ -290,15 +308,15 @@ Adds an entry to the **Save** right pane. Use for local or remote persistence th
         requiresLogin:   true,          // see "Capability flags" below
         requiresAccount: true,
         save: async () => {
-            const token   = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, 'access_token') || '';
-            const handler = editorHandlers[currentEditor];
-            const content = handler ? await handler.getContent() : '';
             try {
+                const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN) || '';
+                const handler = editorHandlers[currentEditor];
+                const content = handler ? await handler.getContent() : '';
                 await myServiceSave(token, content);
                 showStatusMessage('Saved to MyService.');
             } catch (e) {
                 console.error('MyService save failed:', e);
-                showStatusMessage('MyService save failed: ' + e.message);
+                showErrorModal('MyService save failed: ' + e.message, { title: 'Save failed' });
             }
         },
     });
@@ -395,13 +413,13 @@ evaluating `requiresLogin`/`requiresAccount`.
 session — resume without a saved account). Don't conflate the two: `isHandlerVisible()` applies only
 to `window.CList.loaders`/`window.CList.savers` entries.
 
-**Post/publish is not yet on this contract.** `populatePostOptions()` (`publish.js`) builds the
-**Post** pane directly from `window.CList.accounts` filtered by `permissions.includes('w')` — there's
-no `publishers` *registry entry* equivalent to `loaders`/`savers` for it to gate with flags, so by
-construction it already never shows a publish target with no matching account. If a future publishing
-service needs to be offered with *no* account at all (the mirror image of today's always-requires-an-
-account assumption), `publish.js` would need a real flag-aware registry first, the way `loaders` and
-`savers` have one today — that's a design gap, not something this contract covers yet.
+**Platform publishing does not use loader/saver capability flags.**
+`populatePostOptions()` builds its account list from `w` permissions; dispatch
+uses `CList.publishers[accountData.type]`. Collection publishing additionally
+supports `b` accounts through `CList.binPublishers`. A loader's `requiresLogin`
+or `requiresAccount` flags do not authorize publication, expose an anonymous
+platform publisher, or replace destination permission checks. See
+[publish_structure.md](publish_structure.md) for the actual publication contract.
 
 ---
 
@@ -479,3 +497,15 @@ Use the `input-field` class on `<input>` and `<textarea>` elements inside panels
 ### Colours
 
 Always use `--highlight-color` (green) for primary interactive elements and `--highlight-text-color` (white) for text on coloured backgrounds. Do not hard-code hex values for these colours.
+
+## Publication and collection contract references
+
+For platform publishers, use [publish_structure.md](publish_structure.md): the
+current contract includes optional references/progress inputs, a captured
+publication request, state-owned target selection, and controller-presented errors.
+For page/bin adapters, account-backed feed collections, collection save requests,
+and the current refactoring boundaries, use
+[collection-publishing.md](collection-publishing.md). These contracts are distinct:
+platform publication returns a URL string or null; bin publication returns an
+object; collection subscription saving resolves or throws without public posting.
+Do not copy UI-side error handling from an unmigrated publisher into a new adapter.

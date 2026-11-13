@@ -152,7 +152,7 @@ function updateUIVisibility() {
     };
     const local = window.CList.isLocalMode && window.CList.isLocalMode();
     document.body.classList.toggle('user-registered', reg);
-    _show('openLeftButton',   hasReadAccount() || !reg); // logged-out visitors still get the public feed list
+    _show('openLeftButton',   true); // Public feeds when logged out; Collections even without reader accounts when logged in.
     _show('openChatButton',   reg && !local); // P2P chat needs a reachable peer identity
     _show('meButton',         reg);
     _show('post-button',      hasPostAccount());
@@ -319,6 +319,13 @@ function kvstoreAccountsPanel() {
 
     // Render a single label+input row. editable:false fields show as text in edit mode.
     function makeFieldRow(field, mode, value) {
+        if (field.inputType === 'hidden') {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.id = field.key + 'Input';
+            input.value = value || '';
+            return input;
+        }
         const wrapper = document.createElement('div');
 
         const label = document.createElement('label');
@@ -513,6 +520,39 @@ function kvstoreAccountsPanel() {
         if (!schema) { showErrorModal('No schema for account type: ' + (valueData.type || 'unknown'), { title: 'Unknown account type' }); return; }
 
         buildFormFields(schema, 'edit', { _key: targetKey, ...valueData });
+
+        if (valueData.type === 'PublicFeed') {
+            const container = div.querySelector('#form-fields');
+            const editFeeds = document.createElement('button');
+            editFeeds.type = 'button';
+            editFeeds.className = 'btn btn-small';
+            editFeeds.textContent = 'Edit Feed Collection';
+            const feedEditor = document.createElement('div');
+            container.append(editFeeds, feedEditor);
+            editFeeds.onclick = async () => {
+                if (formDirty) {
+                    showStatusMessage('Save your account changes before editing feeds.');
+                    return;
+                }
+                revealEditorPane();
+                editFeeds.disabled = true;
+                feedEditor.textContent = 'Preparing your feed collection…';
+                try {
+                    const personalAccount = await ensurePersonalPublicFeedAccount(targetKey, valueData);
+                    Object.assign(valueData, personalAccount);
+                    matchingAccount.value = JSON.stringify(personalAccount);
+                    div.querySelector('#databaseInput').value = personalAccount.database;
+                    await openPublicFeedCollection(targetKey, personalAccount);
+                    closeForm();
+                } catch (error) {
+                    console.error('Could not open feed editor:', error);
+                    feedEditor.innerHTML = '';
+                    showServiceError(feedEditor, 'Could not edit feeds', error.message);
+                } finally {
+                    editFeeds.disabled = false;
+                }
+            };
+        }
 
         if (valueData.type === 'Discord') {
             const container = div.querySelector('#form-fields');
@@ -3302,6 +3342,15 @@ window.addEventListener('popstate', (e) => {
                 closeAuthModal();
                 updateIdentityDiv();
                 acceptLogin();
+                if (mode === 'register') {
+                    try {
+                        await seedPublicFeedAccounts();
+                    } catch (error) {
+                        console.error('Could not add public feed subscriptions:', error);
+                        showErrorModal('Your account was created, but some public feed subscriptions could not be added: ' + error.message,
+                            { title: 'Public feed subscriptions incomplete' });
+                    }
+                }
                 window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl);
                 // Collab, Annotations, and CListBin are all external services that verify
                 // the kvstore-issued token against a real, network-reachable kvstore — a Local account's
@@ -3332,7 +3381,7 @@ window.addEventListener('popstate', (e) => {
             container.innerHTML = `
                 <div style="padding:8% 10%">
                     <h3>You're in!</h3>
-                    <p style="margin:0.6em 0;">Your account is ready. Next, connect your first service so you can read feeds and post content.</p>
+                    <p style="margin:0.6em 0;">Your account is ready. Open Read to browse your subscribed feed collections, or open Accounts to manage subscriptions and connect more services.</p>
                     <p style="margin:1em 0;">
                         <button onclick="playAccounts()">Open Accounts &rarr;</button>
                     </p>

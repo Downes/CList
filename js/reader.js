@@ -255,7 +255,23 @@ function populateReadAccountList(accounts) {
         annotLabel.textContent = 'Annotations';
         annotBtn.appendChild(annotIcon);
         annotBtn.appendChild(annotLabel);
-        list.insertBefore(annotBtn, list.children[1]);
+        list.appendChild(annotBtn);
+    }
+
+    if (isRegistered()) {
+        const collectionsBtn = document.createElement('button');
+        collectionsBtn.className = 'account-button';
+        const icon = document.createElement('span');
+        icon.className = 'material-icons';
+        icon.textContent = 'collections_bookmark';
+        const label = document.createElement('span');
+        label.textContent = 'Collections';
+        collectionsBtn.append(icon, label);
+        collectionsBtn.onclick = () => window.showSavedCollections().catch(error => {
+            console.error('Could not load collections:', error);
+            showServiceError('feed-container', 'Could not load collections', error.message);
+        });
+        list.appendChild(collectionsBtn);
     }
 
     accountList.appendChild(list);

@@ -99,15 +99,42 @@ See `editors_structure.md` for the full contract, the `pendingContent` hand-off 
 
 ### Publishing
 
-The **Post** button opens an account list of write-enabled accounts (`window.CList.accounts`). Clicking **Publish** calls `postAll()` in `publish.js`, which:
+The **Post** button opens write-enabled platform accounts. Ordinary publication
+captures editor content through `getPostContent()` or `getContent()`, plus title,
+references, selected account keys, and the account-store URL. Selection and busy
+state live in `CList.state.publishing`, not button attributes. The controller
+reloads valid accounts, publishes unlimited/long-form destinations before limited
+ones, and uses an earlier returned URL when a later destination needs a short
+link post. It presents operation results and optional progress through UI helpers.
 
-1. Collects the title and editor content as HTML.
-2. Sorts selected accounts by `maxlength` (unlimited first).
-3. For each account, optionally calls `handler.construct()` to build the measured text, checks the character limit, then calls `handler.publish()` — passing a URL returned by an earlier account to short-form accounts.
+Services register `publish(accountData, title, content, refs, options)` in
+`CList.publishers`. Optional progress is data, not a result element. New/extracted
+operations throw errors to the controller; some older integrations still present
+their own feedback and return null. WordPress is the extracted example. The
+Collection editor has a distinct publish path and still uses legacy selection UI.
 
-Services register publish handlers via `window.CList.publishers`. Built-in targets: Mastodon, Bluesky, WordPress, Blogger.
+See [publish_structure.md](publish_structure.md) for the current contracts and
+[collection-publishing.md](collection-publishing.md) for page/bin publication.
 
-See `publish_structure.md` for the full contract, `construct()`, the `accountData` shape, and the URL-referencing behaviour. See `adding-a-service.md` for the broader registry pattern.
+### Collections and feed subscriptions
+
+**Read > Collections** combines saved `collection:*` records with account-backed
+collections discovered through reader `editCollection` capabilities. PublicFeed
+and LOCALRSS participate. Editing reveals the existing write-pane Collection
+editor; website actions use `openInBrowser`, and resource Edit actions require
+an owned resource with a suitable editor.
+
+Collection **Save to CList** captures a detached request. `persistCollectionSave`
+is the DOM-free storage boundary; feed persistence uses the registered reader's
+`saveCollection(request, session)`. `runCollectionSave` owns operation status,
+duplicate protection, and reconciliation without discarding newer drafts or
+replacing a different active collection. The editor remains the live draft owner.
+File/Dropbox saves and collection publication are not yet on this controller.
+
+New registrations receive public feed collection accounts. Their first edit
+creates a personal LocalRSS copy; editing never changes the shared public
+membership. A local-only identity cannot authenticate to LocalRSS's personal
+editing API. See [collection-publishing.md](collection-publishing.md).
 
 ### Saving and loading
 
@@ -215,18 +242,24 @@ source. See the app's own `CLAUDE.md` for the full API and the Tectonic cache/ve
 
 Converts OPML subscription lists to JSON and aggregates RSS feeds on request. Used by CList's feed reader to parse OPML files and retrieve feed content.
 
-### localrss_reader — curated feed collections, planned harvesting backend
+### localrss_reader - public and personal feed collections
 
-**Domain:** `localrss.downes.ca` | **Stack:** Python/Flask + SQLite | **Container:** `localrss_reader-localrss-1:8787`
+**Default service:** `CList.defaults.LOCALRSS` (`localrss.downes.ca`).
+**Stack:** Python/Flask + SQLite. The desktop launcher can start the bundled backend.
 
-Today, serves only the public, anonymous **Collections** feature (`js/public-feeds.js`):
-curated, no-login RSS lists shown to logged-out visitors, via open-CORS `GET /api/collections*`
-routes. It is a separate, far more capable RSS reader in its own right (personal subscriptions,
-read/bookmark state, OPML import/export, a scheduler) that was designed to run locally, but isn't
-yet wired into CList's personal feed reading — that still always uses opml2json + browser
-IndexedDB regardless of configuration. See
-[deployment-configurations.md](deployment-configurations.md) and the app's own `CLAUDE.md` for the
-full plan and what's blocking it.
+`public-feeds.js` reads anonymous `/api/collections` and collection items.
+`localrss.js` integrates personal databases, feeds, items, read/bookmark state,
+OPML, and update/options APIs. It probes the conventional local instance first,
+then falls back to the configured service, using the launcher relay when available.
+`public-feed-editor.js` bridges account-backed feed membership to the shared
+Collections editor through the existing authenticated LocalRSS APIs.
+
+The bundled backend implements CORS for loopback runs. Hosted CORS remains the
+reverse proxy's responsibility. Personal APIs verify a server-backed CList
+identity; a local-only browser identity is not a remotely verifiable login.
+See [deployment-configurations.md](deployment-configurations.md) for the client
+paths and deployment constraints. Remote installation versions are independent
+of the bundled snapshot.
 
 ---
 
