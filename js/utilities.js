@@ -727,5 +727,10 @@ function referenceDisplayName(ref) {
 // Last-resort handler for any promise rejection that escapes local error handling.
 window.addEventListener('unhandledrejection', function (event) {
     console.error('Unhandled promise rejection:', event.reason);
-    showErrorModal('An unexpected error occurred. See console for details.', { title: 'Unexpected error' });
+    const detail = event.reason && event.reason.message;
+    showErrorModal(
+        (detail ? detail + ' (unhandled).' : 'An unhandled error occurred with no error details.') +
+        ' See browser console for details.',
+        { title: 'Unexpected error' }
+    );
 });

@@ -777,7 +777,7 @@ function kvstoreDidPanel() {
             }
         } catch (err) {
             console.error('generateAndRegisterDid failed:', err);
-            statusEl.textContent = err.message || 'An unexpected error occurred. See browser console for details.';
+            statusEl.textContent = err.message || 'DID generation failed unexpectedly. See browser console for details.';
         }
     }
 
@@ -952,7 +952,7 @@ function kvstoreDidPanel() {
             }
         } catch (err) {
             console.error('publishExistingDid failed:', err);
-            statusEl.textContent = err.message || 'An unexpected error occurred. See browser console for details.';
+            statusEl.textContent = err.message || 'DID publishing failed unexpectedly. See browser console for details.';
         }
     }
 
