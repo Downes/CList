@@ -1,5 +1,9 @@
 # CList
 
+Developers and AI agents: shared JavaScript shapes are documented in
+[js/clist-types.js](js/clist-types.js). See
+[data contract maintenance](docs/data-contracts.md) before changing those shapes.
+
 A personal learning and communications application — a browser-based tool for reading feeds,
 annotating and composing responses, publishing to social platforms, and collaborating or chatting
 with peers. CList has **no server-side logic of its own**: every file is static HTML/CSS/JS,

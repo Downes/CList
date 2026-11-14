@@ -1,3 +1,4 @@
+/// <reference path="./clist-types.js" />
 console.log('[collections] collections.js loading');
 // collections.js — kvstore-backed collections for CList
 // Depends on: utilities.js (escapeHtml, getSiteSpecificCookie, showStatusMessage),
@@ -1822,6 +1823,12 @@ function _buildCollectionConflictUI(container, collectionName, onOverwrite, onMe
 
 // ── Collection save ──────────────────────────────────────────────────────────
 
+/**
+ * @param {CListCollectionSaveFields} fields
+ * @param {CListCollectionMember[]} items
+ * @param {Partial<CListEditorCollection>} [collection]
+ * @returns {CListCollectionSaveRequest}
+ */
 function captureCollectionSaveRequest(fields, items, collection = {}) {
     const name = fields.name.trim();
     if (!name) {
@@ -1841,6 +1848,11 @@ function captureCollectionSaveRequest(fields, items, collection = {}) {
 }
 
 // Storage boundary: explicit data in, saved data out; no editor or UI access.
+/**
+ * @param {CListCollectionSaveRequest} request
+ * @param {CListSaveSession} session
+ * @returns {Promise<CListCollectionSaveResult>}
+ */
 async function persistCollectionSave(request, session) {
     const { identity, name, items, publishedUrls, feedAccount } = request;
     const { token, encKey } = session;
@@ -1864,6 +1876,11 @@ async function persistCollectionSave(request, session) {
 
 // Controller state is independent of buttons. Requests own their status while
 // an active-target index prevents concurrent writes from rebuilt save panels.
+/**
+ * @param {CListCollectionSaveRequest} request
+ * @param {CListSaveSession} session
+ * @returns {Promise<CListCollectionSaveOutcome>}
+ */
 function runCollectionSave(request, session) {
     window.CList.state = window.CList.state || {};
     const state = window.CList.state.collectionSaving ||= {

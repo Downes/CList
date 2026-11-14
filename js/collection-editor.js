@@ -1,3 +1,4 @@
+/// <reference path="./clist-types.js" />
 // collection-editor.js — Collection editor for the write-pane
 // Part of CList, the next generation of learning and connecting with your community
 //
@@ -15,6 +16,7 @@ let _refreshEditor = null;    // callback to re-render the entry list; set by _r
 let _idDisplayEl   = null;    // the UUID-display element; set by _renderCollectionEditor
 
 // Read editor controls at the view boundary; save operations consume data.
+/** @returns {CListCollectionSaveFields} */
 function readCollectionSaveFields() {
     return {
         name: document.getElementById('write-title')?.textContent || '',

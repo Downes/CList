@@ -1,3 +1,4 @@
+/// <reference path="./clist-types.js" />
 //  references.js  —  Reference list management for the CList editor session
 //
 //  A reference is created whenever a feed item is loaded into the editor.
@@ -30,6 +31,10 @@ window.CList.state.references = window.CList.state.references || [];
 
 // Add a reference if it isn't already in the list (deduplicated by URL).
 // Returns true if added, false if duplicate.
+/**
+ * @param {CListReference} ref
+ * @returns {boolean} Whether the reference was added.
+ */
 function pushReference(ref) {
     if (!ref || !ref.url) return false;
     const isDuplicate = window.CList.state.references.some(r => r.url === ref.url);
@@ -42,6 +47,7 @@ function pushReference(ref) {
 }
 
 // Return the current reference list.
+/** @returns {CListReference[]} */
 function getReferences() {
     return window.CList.state.references;
 }

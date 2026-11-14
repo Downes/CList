@@ -1,3 +1,4 @@
+/// <reference path="./clist-types.js" />
 //  publish.js  -  Functions to publish content to various platforms
 //  Part of CList, the next generation of learning and connecting with your community
 //
@@ -691,6 +692,7 @@ function reportPublisherError(accountData, error) {
     showPublicationError(destination, error.message);
 }
 
+/** @returns {Promise<CListPublicationRequest|null>} */
 async function capturePublicationRequest() {
     const fields = readPublicationFields();
 
@@ -741,6 +743,10 @@ async function postAll() {
     }
 }
 
+/**
+ * @param {CListPublicationRequest} request
+ * @returns {Promise<void>}
+ */
 async function _postAllSelected(request) {
     const post = request.content;
     const writeColumnTitle = request.title;

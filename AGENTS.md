@@ -5,6 +5,18 @@ reading feeds, writing content, and publishing to social platforms.
 
 See [README.md](README.md) for full architecture, kvstore/CORS details, and file structure.
 
+## Shared data contracts
+
+- Before changing account, collection, reference, or publishing data shapes,
+  read `js/clist-types.js` and `docs/data-contracts.md`.
+- Reuse the shared JSDoc typedefs in function `@param`, `@returns`, and variable
+  `@type` annotations where applicable; do not invent conflicting local shapes.
+- Update typedefs and affected annotations in the same change as their producers
+  and consumers. Check optional fields, legacy input, nullability, and service
+  extensions against actual code; annotations are not runtime validation.
+- Preserve the plain JavaScript architecture and open-ended member/account
+  properties. Keep encrypted records, decrypted JSON, and parsed objects distinct.
+
 ## Architecture
 
 - **No server-side logic** — all files are static HTML/CSS/JS served by Caddy

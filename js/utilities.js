@@ -1,3 +1,4 @@
+/// <reference path="./clist-types.js" />
 //  utilities.js  -  Utility functions for CList
 //  Part of CList, the next generation of learning and connecting with your community
 //
@@ -392,6 +393,11 @@ function extractAccountName(input) {
 
 // Parse a stored account's JSON value safely.
 // Returns the parsed object, or null if the value is missing or corrupt.
+/**
+ * Parse decrypted account JSON. This does not validate its schema.
+ * @param {CListAccountRecord} account
+ * @returns {CListAccountData|null} Expected account object, or null on parse failure.
+ */
 function parseAccountValue(account) {
     try {
         return JSON.parse(account.value);
