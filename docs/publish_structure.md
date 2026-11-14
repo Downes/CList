@@ -105,6 +105,19 @@ local record. It does not replace its editable contents with the web version.
 **Republish** uses the loaded page's original destination and account. A metadata
 error after a successful update is reported separately from a rejected update.
 
+## Publishing annotations
+
+Use **Post** with an annotation account to annotate the captured reference URLs.
+**Send** in the annotation editor uses its primary target, chosen account, tags,
+and visibility. Send reads the Description through the editor API, including
+its HTML formatting. A draft changed during sending stays open.
+
+Results distinguish created, failed, and uncertain annotations for each target.
+An annotation can be created without a returned browser link. If a connection
+is lost, check the server before sending again. CList does not automatically
+retry that write. **Flow** preserves the original author and annotation reference;
+it tries another writable store only after an explicit failure.
+
 ## Collections
 
 Collections use a separate publishing path. That path selects export formats and
@@ -144,6 +157,7 @@ length handling. `acceptedFormats` does not establish a character limit.
 | Function/callback | What a service can use it for |
 |---|---|
 | `options.onProgress?.({ stage, completed, total })` | Report progress as data. Existing WordPress stages are `uploading-images` and `creating-post`; the view supplies the wording. |
+| `options.onTargetResult?.(receipt)` | Report an annotation target result as data: target URL, outcome, annotation ID/link, and optional error. |
 | `options.onWarning?.(message)` | Report a service notice, such as truncation or use of only one reply target. The invoking controller/view displays it. |
 | `derivePlainTitle(title, content)` | Derive a plain title using the shared helper. |
 | `removeHtml(content)` | Convert HTML to text using the existing converter, which preserves anchor URLs. This is content conversion, not reading editor controls. |
@@ -309,7 +323,7 @@ window.CList.publishers.MyService = {
 | `title` | Captured title; remove HTML if the service requires plain text |
 | `content` | Constructed/limited post content; may contain HTML |
 | `refs` | Reference snapshots; reply context is in `replyToken`, scoped by its `type` |
-| `options` | Optional `onProgress` and `onWarning` callbacks; data notifications only |
+| `options` | Optional `onProgress`, `onWarning`, `onTargetResult`, captured `tags`, and transient `annotationSession`; notifications contain no credentials |
 | Return value | A published URL string, or `null`; not a bin-publisher result object |
 
 Keep `refs` and `options` optional for older callers. The ordinary workflow,
@@ -353,7 +367,7 @@ Mastodon and Bluesky registered publishers now live in `mastodon_publish.js` and
 through `options.onWarning`; they do not display UI. Blogger and WordPress also
 propagate failures to controllers. This does not claim every other publisher has
 been migrated. Standalone web-page/republish now use the separated path below;
-collection publishing still retains its own UI-dependent workflow. Content capture and the legacy authentication wrapper
+collection Post and To Web Page share a separated controller/workflow/view. Direct collection Republish and local-entry Publish still retain UI coupling. Content capture and the legacy authentication wrapper
 are also outside the extracted workflow.
 
 ### Collections and web pages
@@ -483,5 +497,54 @@ details have since changed:
 
 These changes do not replace the per-service URL-string-or-null result with a
 universal `{ id, url, status }` API. Collection publishing remains a separate,
-partly legacy workflow, and its editor work is currently paused pending the
-user's incoming changes.
+partly legacy workflow. The incoming editor work is available and further collection refactoring is authorized.
+
+
+### Annotation publishing boundaries
+
+`annotation-workflow.js` captures/validates detached inputs, removes duplicate
+and empty/placeholder target URLs, and produces per-target receipts. It has no
+DOM or global-state dependency. `annotation-publishing.js` owns transient session
+checks and account/target in-flight locks shared by Post, Send, inline forms, and
+Flow. Credentials never enter `CList.state.annotationPublishing` summaries.
+`annotation-view.js` owns result rows, summaries, Flow button feedback, and the
+existing collection action. The read-only collection eligibility query is in the
+controller; it uses the successful target, rather than the first reference.
+
+`annotate_publish.js` contains the Annotation-server transport and registered
+publisher; `hypothesis_publish.js` registers the Hypothesis publisher and reuses
+`hypothesisCreate()` in `hypothesis.js`. Publishers use the supplied reference
+snapshot, return the first available annotation URL or null, and throw explicit
+all-target failure. `options.onTargetResult` delivers each receipt. The ordinary
+workflow retains these receipts and recognizes a confirmed creation without a
+URL; it does not incorrectly describe it as unconfirmed.
+
+Receipts contain `targetUrl`, `outcome` (`created`, `failed`, or `uncertain`),
+`annotationId`, `annotationUrl`, and optional `error`. Opaque IDs are not links.
+An accepted HTTP response confirms creation even if its body supplies no link.
+Network failures are uncertain and are never automatically retried.
+
+Post preserves existing service differences: Annotate supplies captured write
+tags and reference metadata; Hypothesis Post supplies empty tags. Send supplies
+its selected tags/visibility to either service and sends only the primary target.
+Flow supplies `motivation: 'flowing'` and `via`/`via_annotation_id` attribution.
+The annotation editor retains append-only Description/reference insertion.
+Reader rendering remains in the service/reader modules; this split concerns
+publishing. Collection publishing remains a separate path.
+
+
+### Collection Post and To Web Page boundaries
+
+Collection **Post** and **To Web Page** use `collection-publishing.js` for capture/session/state,
+`collection-publishing-workflow.js` for explicit data operations, and
+`collection-publishing-view.js` for selection, overwrite choices, and results.
+State owns destination selection and busy status. The workflow preserves format
+negotiation, full-content-first ordering, and link handoff to limited services.
+Captured raw members stay separate from flattened exports. A matching captured
+collection/account/format/resource is required for overwrite; later editor
+switches do not redirect the write. Metadata failures retain successful results,
+and completion preserves newer drafts. See [Collection publishing](collection-publishing.md)
+for the detailed contract. Direct Republish and local-entry Publish remain legacy
+paths. To Web Page uses one captured CListBin target through the shared workflow.
+Its loaded-page pointer is updated only when the original editor/collection/page
+context and draft title/members are unchanged after successful metadata storage.

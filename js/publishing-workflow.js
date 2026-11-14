@@ -7,8 +7,9 @@
  * @param {CListPublishingDependencies} dependencies
  * @returns {Promise<CListPublishingOutcome>}
  */
-async function runPublishingWorkflow(request, { accounts, publishers, parseAccount, toText, onUpdate = () => {} }) {
+async function runPublishingWorkflow(request, { accounts, publishers, parseAccount, toText, annotationSession, onUpdate = () => {} }) {
     const snapshot = structuredClone(request);
+    const capturedSession = annotationSession && structuredClone(annotationSession);
     const handlers = { ...publishers };
     const targets = snapshot.selectedAccountKeys.map(key => {
         const record = accounts.find(account => account.key === key);
@@ -65,6 +66,11 @@ async function runPublishingWorkflow(request, { accounts, publishers, parseAccou
         let url;
         try {
             url = await handler.publish(data, snapshot.title, content, structuredClone(snapshot.references), {
+                tags: structuredClone(snapshot.tags || []), annotationSession: capturedSession && structuredClone(capturedSession),
+                onTargetResult: receipt => {
+                    (result.targetResults ||= []).push(structuredClone(receipt));
+                    onUpdate({ type: 'target-result', key, destination: result.destination, receipt: structuredClone(receipt) });
+                },
                 onWarning: message => {
                     result.warnings.push(message);
                     onUpdate({ type: 'warning', key, destination: result.destination, message });
@@ -79,9 +85,10 @@ async function runPublishingWorkflow(request, { accounts, publishers, parseAccou
             onUpdate({ type: 'destination', result: structuredClone(result) });
             continue;
         }
-        if (url) {
-            result.status = 'published'; result.url = url;
-            if (!primaryUrl) primaryUrl = url;
+        if (url || result.targetResults?.some(receipt => receipt.outcome === 'created')) {
+            result.status = 'published';
+            if (url) result.url = url;
+            if (!primaryUrl && url) primaryUrl = url;
         } else {
             result.status = 'unconfirmed';
         }
@@ -101,6 +108,10 @@ function applyPublishingUpdate(operation, update) {
     if (update.type === 'destination') {
         return { ...operation, primaryUrl: operation.primaryUrl || update.result.url || null,
             destinations: operation.destinations.map(result => result.key === update.result.key ? structuredClone(update.result) : result) };
+    }
+    if (update.type === 'target-result') {
+        return { ...operation, destinations: operation.destinations.map(result => result.key === update.key
+            ? { ...result, targetResults: [...(result.targetResults || []), structuredClone(update.receipt)] } : result) };
     }
     if (update.type === 'progress') {
         return { ...operation, destinations: operation.destinations.map(result => result.key === update.key

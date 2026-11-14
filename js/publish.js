@@ -67,6 +67,7 @@ window.CList.publishers = window.CList.publishers || {};
 window.CList.savers = window.CList.savers || [];
 
 async function playPost() {
+    if (window.CList.state?.collectionPublishing?.busy) { showStatusMessage('Wait for collection publication to finish.'); return; }
 
     if (typeof currentEditor !== 'undefined' && currentEditor === 'collection') {
         if (typeof window.playCollectionPublish === 'function') {
@@ -91,6 +92,7 @@ async function playPost() {
 }
 
 async function playSave() {
+    if (window.CList.state?.collectionPublishing?.busy) { showStatusMessage('Wait for collection publication to finish.'); return; }
     if (typeof currentEditor !== 'undefined' && currentEditor === 'collection') {
         if (typeof window.playCollectionSave === 'function') {
             await window.playCollectionSave();
@@ -267,6 +269,7 @@ async function capturePublicationRequest() {
     const request = {
         title: fields.title.trim(),
         references: structuredClone(getReferences()),
+        tags: structuredClone(window.getWriteTags?.() || []),
         selectedAccountKeys: [
             ...window.CList.state.publishing.selectedAccountKeys
         ],
@@ -291,16 +294,17 @@ async function postAll() {
     const publishing = window.CList.state.publishing;
     if (publishing.busy) return;
     const view = window.CList.ui.publishing;
-    if (window.CList.state.webPagePublishing?.busy) {
-        view.fail(new Error('Finish or cancel the web-page publication before publishing to other destinations.'));
+    if (window.CList.state.webPagePublishing?.busy || window.CList.state.collectionPublishing?.busy) {
+        view.fail(new Error('Finish or cancel the current publication before publishing to other destinations.'));
         return;
     }
     publishing.busy = true;
     publishing.operation = { status: 'capturing', primaryUrl: null, destinations: [] };
     try {
         view.setBusy(true);
+        const annotationSession = typeof captureAnnotationSession === 'function' ? captureAnnotationSession() : undefined;
         const request = await capturePublicationRequest();
-        if (request) return await _postAllSelected(request);
+        if (request) return await _postAllSelected(request, annotationSession);
         publishing.operation = { ...publishing.operation, status: 'cancelled' };
         return null;
     } catch (error) {
@@ -320,7 +324,7 @@ async function postAll() {
  * @param {CListPublicationRequest} request
  * @returns {Promise<CListPublishingOutcome>}
  */
-async function _postAllSelected(request) {
+async function _postAllSelected(request, annotationSession) {
     const view = window.CList.ui.publishing;
     const publishing = window.CList.state.publishing;
     view.begin();
@@ -328,7 +332,7 @@ async function _postAllSelected(request) {
     if (!Array.isArray(loaded)) throw new Error('Could not load publishing accounts. Please log in again.');
     const accounts = structuredClone(loaded);
     const outcome = await runPublishingWorkflow(request, {
-        accounts, publishers: window.CList.publishers, parseAccount: parseAccountValue,
+        accounts, publishers: window.CList.publishers, parseAccount: parseAccountValue, annotationSession,
         toText: html => removeHtml(html),
         onUpdate: update => {
             publishing.operation = applyPublishingUpdate(publishing.operation || {
@@ -342,7 +346,7 @@ async function _postAllSelected(request) {
     // Record against the page captured before the editor API was awaited. A
     // different page opened during publication must not acquire its URL.
     if (request.localPageId) {
-        for (const result of outcome.destinations.filter(result => result.status === 'published')) {
+        for (const result of outcome.destinations.filter(result => result.status === 'published' && result.url)) {
             const account = parseAccountValue(accounts.find(record => record.key === result.key));
             try {
                 await window.CList.pageStore.recordPublication(request.localPageId, {
@@ -356,6 +360,13 @@ async function _postAllSelected(request) {
                 console.error('[postAll] failed to record publication', error);
                 view.notice("Published, but could not update the local page's publication status: " + error.message);
             }
+        }
+    }
+    if (annotationSession && typeof offerCollectionForAnnotation === 'function') {
+        for (const result of outcome.destinations.filter(r => r.service === 'Annotate')) {
+            const created = (result.targetResults || []).filter(r => r.outcome === 'created');
+            if (created.length === 1) await offerCollectionForAnnotation(
+                request.references.find(ref => ref.url === created[0].targetUrl), annotationSession);
         }
     }
     if (outcome.primaryUrl && typeof sendWebMentions === 'function') {
@@ -379,7 +390,10 @@ async function postContentByType(accountData, title, content) {
         return null;
     }
     try {
-        return await handler.publish(accountData, title, content, [], {
+        return await handler.publish(accountData, title, content, structuredClone(getReferences()), {
+            tags: structuredClone(window.getWriteTags?.() || []),
+            annotationSession: typeof captureAnnotationSession === 'function' ? captureAnnotationSession() : undefined,
+            onTargetResult: receipt => window.CList.ui.annotations.target(receipt),
             onWarning: message => window.CList.ui.publishing.notice(message),
         });
     } catch (error) {

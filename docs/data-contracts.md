@@ -76,3 +76,19 @@ Workflow outcomes separate remote publication status from metadata errors and
 contain only reconciliation properties, not credentials or editor controls.
 `CListPublishedPageRecord` describes current encrypted page metadata payloads;
 legacy input may lack newer fields. It is not a native PageStore document.
+
+Annotation publication uses `CListAnnotationRequest`, `CListAnnotationReceipt`,
+`CListAnnotationOutcome`, and `CListAnnotationSession`. Session credentials stay
+transient. Per-target receipts distinguish confirmed creation from link availability
+and uncertainty; ordinary publishing retains them via `options.onTargetResult`.
+
+Collection Post and To Web Page use `CListCollectionPublicationRequest`,
+`CListCollectionPublicationOutcome`, and `CListCollectionPublishingDependencies`.
+Requests contain transient selected account snapshots; operation summaries retain
+only destination outcomes/publication metadata. Export flattening is separate
+from the captured raw membership saved to the collection record.
+
+`CListCollectionPublicationSession` allows encryption-key loading after draft
+capture. Its credentials stay outside operation summaries. To Web Page reuses the
+collection request/outcome contracts with one automatic CListBin target; there
+is no second incompatible publication result shape.

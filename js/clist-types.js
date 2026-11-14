@@ -2,10 +2,10 @@
 // Read docs/data-contracts.md before extending these definitions.
 
 /**
- * Captured loaded-page properties used by standalone publication; extensible.
+ * Captured loaded-page properties used by page/collection publication; extensible.
  * @typedef {Object.<string, *> & {kind: string, id?: string, pageKey?: string,
  * service?: string, accountInstance?: string, serviceId?: string, url?: string,
- * title?: string, mimeType?: string}} CListWebPageSource
+ * title?: string, mimeType?: string, collectionKey?: string, format?: string}} CListWebPageSource
  */
 
 /**
@@ -294,6 +294,7 @@
  * @property {string} title
  * @property {string} content Packaged HTML, including references.
  * @property {CListReference[]} references
+ * @property {string[]} [tags] Captured before awaiting editor output.
  * @property {string[]} selectedAccountKeys
  * @property {string} accountStoreUrl
  * @property {string|null} [localPageId] Local page captured before awaiting editor content.
@@ -309,6 +310,7 @@
  * @property {string[]} warnings
  * @property {string} [url]
  * @property {string} [error]
+ * @property {CListAnnotationReceipt[]} [targetResults]
  * @property {CListPublisherProgress} [progress]
  */
 
@@ -319,6 +321,7 @@
 /**
  * @typedef {{type: 'started', destinations: CListPublishingDestination[]} |
  * {type: 'destination', result: CListPublishingDestination} |
+ * {type: 'target-result', key: string, destination: string, receipt: CListAnnotationReceipt} |
  * {type: 'warning', key: string, destination: string, message: string} |
  * {type: 'progress', key: string, destination: string, progress: CListPublisherProgress}} CListPublishingUpdate
  */
@@ -347,6 +350,9 @@
 /**
  * Optional data notifications; service operations never display them directly.
  * @typedef {Object} CListPublisherOptions
+ * @property {string[]} [tags]
+ * @property {CListAnnotationSession} [annotationSession] Transient; never stored in operation summaries.
+ * @property {function(CListAnnotationReceipt): void} [onTargetResult]
  * @property {function(CListPublisherProgress): void} [onProgress]
  * @property {function(string): void} [onWarning]
  */
@@ -363,6 +369,7 @@
  * @property {Object.<string, CListPostPublisher>} publishers
  * @property {function(CListAccountRecord): (CListAccountData|null)} parseAccount
  * @property {function(string): string} toText
+ * @property {CListAnnotationSession} [annotationSession]
  * @property {function(CListPublishingUpdate): void} [onUpdate]
  */
 
@@ -376,4 +383,78 @@
  * @typedef {Object} CListBinPublisherResult
  * @property {string} url
  * @property {string} [serviceId]
+ */
+
+/**
+ * @typedef {{storeUrl: string, token: string}} CListAnnotationSession
+ * Transient credentials; never include in operation summaries or receipts.
+ */
+/**
+ * @typedef {Object} CListAnnotationRequest
+ * @property {string} body Captured editor HTML/text, obtained through its API.
+ * @property {Array<{url: string, selector?: Object}>} targets Unique valid references.
+ * @property {string[]} tags
+ * @property {string} visibility
+ * @property {string} motivation
+ */
+/**
+ * @typedef {Object} CListAnnotationReceipt
+ * @property {string} targetUrl
+ * @property {'created'|'failed'|'uncertain'} outcome
+ * @property {string|null} annotationId May be opaque; never assume it is a link.
+ * @property {string|null} annotationUrl HTTP(S) browser link, if supplied.
+ * @property {string} [error]
+ */
+/**
+ * @typedef {Object} CListAnnotationOutcome
+ * @property {CListAnnotationReceipt[]} results
+ * @property {number} created Confirmed writes, including accepted responses without links.
+ * @property {number} failed Explicit failures.
+ * @property {number} uncertain Writes that may have reached the server.
+ * @property {string|null} url First available annotation link.
+ */
+
+/**
+ * @typedef {Object} CListAnnotationDependencies
+ * @property {function(Object): Promise<Object>} create Explicit service transport.
+ * @property {function(): void} [assertSession] Check before each write.
+ * @property {function(CListAnnotationReceipt): void} [onTargetResult] Detached data only.
+ */
+
+
+/**
+ * Shared by collection Post and To Web Page; account loading follows draft capture.
+ * @typedef {Object} CListCollectionPublicationRequest
+ * @property {string} name
+ * @property {string} formatId
+ * @property {CListCollectionIdentity} identity
+ * @property {CListCollectionMember[]} items Raw membership snapshot; flatten only for export.
+ * @property {CListPublishedCollectionUrl[]} publishedUrls
+ * @property {CListWebPageSource|null} page Captured loaded collection publication.
+ * @property {Array<{key: string, account: CListAccountData}>} targets Transient accounts; never put in operation summaries.
+ * @property {string|null} overwriteKey Only the matching captured destination, after a choice.
+ */
+/**
+ * @typedef {Object} CListCollectionPublicationOutcome
+ * @property {string|null} primaryUrl First full-content destination URL.
+ * @property {CListPublishingDestination[]} destinations
+ * @property {CListPublishedCollectionUrl[]} publishedUrls
+ * @property {boolean} metadataSaved
+ * @property {string|null} metadataError External publication is retained if recording fails.
+ */
+/**
+ * @typedef {Object} CListCollectionPublishingDependencies
+ * @property {Object.<string, CListPostPublisher>} publishers
+ * @property {Object} bins Existing bin adapters; preserve their separate signatures.
+ * @property {Object} formats Existing collection serializers.
+ * @property {function(CListCollectionMember[], string): Promise<CListCollectionMember[]>} flatten
+ * @property {function(): void} assertSession Before each external or metadata write.
+ * @property {function(CListCollectionPublicationRequest, CListPublishedCollectionUrl[]): Promise<void>} save
+ * @property {function(): string} now
+ * @property {function(Object): void} [onUpdate] Detached destination/warning/progress data.
+ */
+
+/**
+ * Collection publication capture can precede encryption-key loading.
+ * @typedef {{storeUrl: string, token: string, encKey?: CryptoKey|null}} CListCollectionPublicationSession
  */

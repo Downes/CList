@@ -18,6 +18,7 @@ async function postToWebPage() { return _runStandaloneWebPageAction(false); }
 async function _republishStandalonePage() { return _runStandaloneWebPageAction(true); }
 
 async function playRepublish() {
+    if (window.CList.state.collectionPublishing?.busy) { showStatusMessage('Wait for collection publication to finish.'); return; }
     if (!currentLoadedPage) return;
     if (currentLoadedPage.kind === 'collection') {
         if (typeof window.republishCollection === 'function') await window.republishCollection();
@@ -30,8 +31,9 @@ async function _runStandaloneWebPageAction(republish) {
     const state = _webPagePublishingState();
     if (state.busy) return;
     const view = window.CList.ui.webPagePublishing;
-    if (window.CList.state.publishing?.busy) {
-        view.fail(new Error('Wait for the current post publication to finish before publishing a web page.'), republish);
+    if (window.CList.state.publishing?.busy || window.CList.state.collectionPublishing?.busy) {
+        const kind = window.CList.state.publishing?.busy ? 'post' : 'collection';
+        view.fail(new Error('Wait for the current ' + kind + ' publication to finish before publishing a web page.'), republish);
         return;
     }
     const sourcePage = currentLoadedPage;

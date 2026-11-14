@@ -1883,6 +1883,7 @@ async function persistCollectionSave(request, session) {
  */
 function runCollectionSave(request, session) {
     window.CList.state = window.CList.state || {};
+    if (window.CList.state?.collectionPublishing?.busy) return Promise.reject(new Error('Wait for collection publication to finish before saving.'));
     const state = window.CList.state.collectionSaving ||= {
         active: new Map(), requests: new WeakMap(),
     };
@@ -1931,6 +1932,7 @@ function runCollectionSave(request, session) {
 }
 
 window.playCollectionSave = async function playCollectionSave() {
+    if (window.CList.state?.collectionPublishing?.busy) { showStatusMessage('Wait for collection publication to finish.'); return; }
     let request;
     try {
         request = captureCollectionSaveRequest(
@@ -2117,12 +2119,14 @@ async function _touchPublishedUrlEntry(collectionKey, serviceId) {
 
 // Regenerate the OPML and ActivityPub outbox catalog files on CListBin.
 // Silent on failure — catalog update must not interrupt the publish flow.
-async function _updatePagesCatalog(token, encKey, binAccount) {
+async function _updatePagesCatalog(token, encKey, binAccount, { assertSession = () => {}, throwOnError = false } = {}) {
     try {
+        assertSession();
         let kvs;
         try {
             kvs = await window.CList.storage.kv.list();
-        } catch {
+        } catch (error) {
+            if (throwOnError) throw error;
             return;
         }
 
@@ -2177,6 +2181,7 @@ async function _updatePagesCatalog(token, encKey, binAccount) {
         const opmlContent = _generateCatalogOPML(pages);
         const apContent   = _generateCatalogAP(pages);
 
+        assertSession();
         if (catalogMeta.opmlServiceId) {
             const r = await binPublisher.update(catalogMeta.opmlServiceId, opmlContent, 'application/xml', binAccount);
             catalogMeta.opmlUrl = r.url;
@@ -2186,6 +2191,7 @@ async function _updatePagesCatalog(token, encKey, binAccount) {
             catalogMeta.opmlUrl = r.url;
         }
 
+        assertSession();
         if (catalogMeta.apServiceId) {
             const r = await binPublisher.update(catalogMeta.apServiceId, apContent, 'application/json', binAccount);
             catalogMeta.apUrl = r.url;
@@ -2197,9 +2203,11 @@ async function _updatePagesCatalog(token, encKey, binAccount) {
 
         // Save catalog meta so the next publish can update in place and DID update can read the URLs
         const encrypted = await encryptWithKey(encKey, JSON.stringify(catalogMeta));
+        assertSession();
         await window.CList.storage.kv.put('clist:pages-catalog', encrypted);
     } catch (e) {
         console.error('[pages catalog] update failed:', e);
+        if (throwOnError) throw e;
     }
 }
 
@@ -2255,496 +2263,6 @@ function _generateCatalogAP(pages) {
 }
 
 // ── Collection publish ───────────────────────────────────────────────────────
-
-// Resolve which format to use for a given publisher handler and selected format.
-// Returns a format id: the selected format if the handler accepts it, otherwise
-// the first format the handler does accept, otherwise the selected format.
-function _resolvePublishFormat(acceptedFormats, selectedFormatId) {
-    if (!acceptedFormats || acceptedFormats.length === 0) return selectedFormatId;
-    if (acceptedFormats.includes(selectedFormatId)) return selectedFormatId;
-    return acceptedFormats[0];
-}
-
-// Renders the Overwrite / Save as new version / Cancel choice for the single
-// destination a collection was originally loaded from — mirrors the
-// .published-page-confirm pattern used by offerReplaceOrInsert() in editors.js.
-// Resolves to 'overwrite', 'new', or null (cancelled).
-function _promptCollectionOverwriteChoice(postResultDiv, accountData) {
-    return new Promise(resolve => {
-        if (!postResultDiv) { resolve('new'); return; }
-        postResultDiv.innerHTML = '';
-
-        const msg = document.createElement('p');
-        msg.className = 'list-tip';
-        msg.textContent = `This collection was loaded from ${accountData.title || accountData.type}. Overwrite it there, or publish a new version?`;
-        postResultDiv.appendChild(msg);
-
-        const row = document.createElement('div');
-        row.className = 'published-page-confirm';
-
-        const overwriteBtn = document.createElement('button');
-        overwriteBtn.className = 'btn';
-        overwriteBtn.textContent = 'Overwrite';
-        overwriteBtn.onclick = () => { postResultDiv.innerHTML = ''; resolve('overwrite'); };
-        row.appendChild(overwriteBtn);
-
-        const newVersionBtn = document.createElement('button');
-        newVersionBtn.className = 'btn';
-        newVersionBtn.textContent = 'Save as new version';
-        newVersionBtn.onclick = () => { postResultDiv.innerHTML = ''; resolve('new'); };
-        row.appendChild(newVersionBtn);
-
-        const cancelBtn = document.createElement('button');
-        cancelBtn.className = 'btn btn-secondary';
-        cancelBtn.textContent = 'Cancel';
-        cancelBtn.onclick = () => { postResultDiv.innerHTML = ''; resolve(null); };
-        row.appendChild(cancelBtn);
-
-        postResultDiv.appendChild(row);
-    });
-}
-
-window.playCollectionPublish = async function playCollectionPublish() {
-    const name  = (document.getElementById('write-title')?.textContent || '').trim();
-    const items = _draftItems || [];
-
-    if (!name) { showErrorModal('Please enter a collection title before publishing.'); return; }
-
-    // Ensure accounts are loaded
-    try { await ensureAccountsLoaded(); }
-    catch (e) { showErrorModal('Could not load accounts: ' + e.message, { title: 'Load accounts failed' }); return; }
-
-    const postOptionsDiv = document.getElementById('post-options');
-    const postResultDiv  = document.getElementById('post-result');
-    postOptionsDiv.innerHTML = '';
-    if (postResultDiv) postResultDiv.innerHTML = '';
-
-    function _addPublishResult(text, isError = false) {
-        if (!postResultDiv) {
-            if (isError) showErrorModal(text, { title: 'Publish failed' });
-            else showStatusMessage(text);
-            return;
-        }
-        const p = document.createElement('p');
-        p.className   = isError ? 'error-message' : 'feed-status-message';
-        p.style.margin = '4px 0';
-        p.textContent  = text;
-        postResultDiv.appendChild(p);
-    }
-
-    // Build the account list — 'w' publishers and 'b' bin-publishers
-    postOptionsDiv.appendChild(makeAccountList(
-        'Select destinations to publish to',
-        window.CList.accounts,
-        v => {
-            const perms = v.permissions || '';
-            if (perms.includes('w')) return !!window.CList.publishers?.[v.type];
-            if (perms.includes('b')) return !!window.CList.binPublishers?.[v.type];
-            return false;
-        },
-        (key, parsedValue, btn) => {
-            const isSelected = btn.getAttribute('data-selected') === 'true';
-            btn.setAttribute('data-selected', isSelected ? 'false' : 'true');
-            btn.classList.toggle('selected', !isSelected);
-        }
-    ));
-
-    const publishBtn = document.createElement('button');
-    publishBtn.textContent = 'Publish';
-    publishBtn.id          = 'final-post-button';
-    publishBtn.className   = 'final-save-button';
-    postOptionsDiv.appendChild(publishBtn);
-
-    publishBtn.addEventListener('click', async () => {
-        publishBtn.disabled    = true;
-        publishBtn.textContent = 'Publishing…';
-
-        const formatId = document.getElementById('write-format')?.value || 'rss';
-
-        const selected = Array.from(
-            document.querySelectorAll('#post-options .account-button[data-selected="true"]')
-        ).map(btn => {
-            const key     = btn.getAttribute('data-key');
-            const account = window.CList.accounts.find(a => a.key === key);
-            return account ? parseAccountValue(account) : null;
-        }).filter(Boolean);
-
-        if (!selected.length) {
-            _addPublishResult('No destinations selected.', false);
-            publishBtn.disabled = false; publishBtn.textContent = 'Publish';
-            return;
-        }
-
-        // Resolve this collection's identity once, up front, so every destination's
-        // serialized content embeds the same UUID, and a never-saved collection's
-        // first Publish also gets a real identity (same rule as Save).
-        const identity = _resolveCollectionIdentity(_activeCollection?.col?.key, _activeCollection?.col?.id);
-        _activeCollection = {
-            ..._activeCollection,
-            col: { ..._activeCollection?.col, key: identity.key, id: identity.id },
-        };
-        _refreshIdDisplay();
-
-        // If one of the selected destinations is the single destination this
-        // collection was loaded from, ask whether to overwrite it in place or
-        // publish an independent new version there. Every other destination
-        // always gets a fresh publish, regardless of the answer.
-        let overwriteMatch = null; // the matched accountData, or null
-        if (currentLoadedPage?.kind === 'collection') {
-            overwriteMatch = selected.find(accountData => {
-                const adapter = window.CList.binPublishers?.[accountData.type];
-                if (!adapter || !(accountData.permissions || '').includes('b')) return false;
-                if (accountData.type !== currentLoadedPage.service) return false;
-                if (accountData.instance !== currentLoadedPage.accountInstance) return false;
-                return _resolvePublishFormat(adapter.acceptedFormats, formatId) === currentLoadedPage.format;
-            }) || null;
-        }
-
-        let doOverwrite = false;
-        if (overwriteMatch) {
-            const choice = await _promptCollectionOverwriteChoice(postResultDiv, overwriteMatch);
-            if (choice === null) {
-                publishBtn.disabled = false; publishBtn.textContent = 'Publish';
-                return;
-            }
-            doOverwrite = (choice === 'overwrite');
-        }
-
-        // Separate into full-content ('b' bin publishers + unlimited 'w') and link-only (has maxlength)
-        const fullContent = [];
-        const linkOnly    = [];
-        selected.forEach(accountData => {
-            const perms    = accountData.permissions || '';
-            const maxLen   = parseInt(accountData.maxlength, 10);
-            const hasLimit = !isNaN(maxLen) && maxLen > 0;
-            if (perms.includes('b') || !hasLimit) fullContent.push(accountData);
-            else linkOnly.push(accountData);
-        });
-
-        let primaryUrl = null;
-        const newPublishedUrls = [];
-        let primaryBinAccount  = null;
-        const token  = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
-        // Always fetched (not just when fullContent.length) — the link-only
-        // fallback-content path below also serializes, and needs encKey to
-        // resolve any nested role:'contains' members during flattening.
-        const encKey    = await getEncKey(window.CList.config.flaskSiteUrl).catch(() => null);
-        const flatItems = encKey ? await _flattenForExport(items, identity.id, token, encKey) : items;
-
-        // ── Full-content destinations first ──
-        for (const accountData of fullContent) {
-            const perms = accountData.permissions || '';
-            try {
-                if (perms.includes('b')) {
-                    // bin publisher — serialize in resolved format
-                    const adapter = window.CList.binPublishers?.[accountData.type];
-                    if (!adapter) continue;
-                    const fmtId  = _resolvePublishFormat(adapter.acceptedFormats, formatId);
-                    const fmt    = collectionFormats[fmtId];
-                    if (!fmt) continue;
-                    const filename = `${name}.${fmt.ext}`;
-
-                    if (doOverwrite && accountData === overwriteMatch) {
-                        // Overwrite the single destination this collection was loaded from —
-                        // in place, no new publishedUrls entry.
-                        const result = await adapter.update(currentLoadedPage.serviceId, fmt.serialize(name, flatItems, identity.id), fmt.mimeType, accountData);
-                        const url = (result && result.url) || currentLoadedPage.url;
-                        if (!primaryUrl) primaryUrl = url;
-                        if (!primaryBinAccount && accountData.type === 'CListBin') primaryBinAccount = accountData;
-                        _addPublishResult(`Republished to ${accountData.title || accountData.type}: ${url}`);
-                        continue;
-                    }
-
-                    const result = await adapter.publish(fmt.serialize(name, flatItems, identity.id), fmt.mimeType, filename, accountData);
-                    if (!primaryUrl) primaryUrl = result.url;
-                    if (!primaryBinAccount && accountData.type === 'CListBin') primaryBinAccount = accountData;
-                    newPublishedUrls.push({ url: result.url, serviceId: result.serviceId, format: fmtId, service: accountData.type, accountInstance: accountData.instance, publishedAt: new Date().toISOString() });
-                    _addPublishResult(`Published to ${accountData.title || accountData.type}: ${result.url}`);
-                } else {
-                    // 'w' publisher with no char limit
-                    const handler = window.CList.publishers?.[accountData.type];
-                    if (!handler) continue;
-                    const fmtId   = _resolvePublishFormat(handler.acceptedFormats, formatId);
-                    const fmt     = collectionFormats[fmtId];
-                    if (!fmt) continue;
-                    const content = fmt.serialize(name, flatItems, identity.id);
-                    const url     = await handler.publish(accountData, name, content, [], {
-                        onWarning: message => _addPublishResult(message),
-                    });
-                    if (!primaryUrl && url) primaryUrl = url;
-                    if (url) newPublishedUrls.push({ url, format: fmtId, service: accountData.type, accountInstance: accountData.instance, publishedAt: new Date().toISOString() });
-                    _addPublishResult(url ? `Published to ${accountData.title || accountData.type}: ${url}`
-                        : `${accountData.title || accountData.type} returned no post link. Check its posts before retrying.`);
-                }
-            } catch (e) {
-                console.error('[collection publish] full-content publish failed', e);
-                _addPublishResult(`Failed: ${accountData.title || accountData.type} — ${e.message}`, true);
-            }
-        }
-
-        // ── Link-only destinations ──
-        for (const accountData of linkOnly) {
-            try {
-                const handler = window.CList.publishers?.[accountData.type];
-                if (!handler) continue;
-                const maxLen  = parseInt(accountData.maxlength, 10);
-                let content;
-                if (primaryUrl) {
-                    content = `${name}: ${primaryUrl}`;
-                } else {
-                    // No primary yet — post text summary truncated to limit
-                    const fmtId = _resolvePublishFormat(handler.acceptedFormats, formatId);
-                    const fmt   = collectionFormats[fmtId] || collectionFormats.text;
-                    content     = fmt.serialize(name, flatItems, identity.id).slice(0, maxLen);
-                }
-                const url = await handler.publish(accountData, name, content, [], {
-                    onWarning: message => _addPublishResult(message),
-                });
-                _addPublishResult(url ? `Published to ${accountData.title || accountData.type}: ${url}`
-                    : `${accountData.title || accountData.type} returned no post link. Check its posts before retrying.`);
-            } catch (e) {
-                console.error('[collection publish] link-only publish failed', e);
-                _addPublishResult(`Failed: ${accountData.title || accountData.type} — ${e.message}`, true);
-            }
-        }
-
-        publishBtn.disabled    = false;
-        publishBtn.textContent = 'Publish';
-
-        // Save the just-published draft into the collection's own kvstore record
-        // (same record regardless of title edits) and append the new publishedUrls.
-        if (newPublishedUrls.length && token && encKey) {
-            const existingKey = _activeCollection?.col?.key || currentLoadedPage?.collectionKey;
-            const existingId  = _activeCollection?.col?.id || currentLoadedPage?.id;
-            const existingPublishedUrls = _activeCollection?.col?.publishedUrls || [];
-            const identity = _resolveCollectionIdentity(existingKey, existingId);
-            const allPublishedUrls = [...existingPublishedUrls, ...newPublishedUrls];
-            _kvSaveItems(identity.key, identity.id, name, items, token, encKey, allPublishedUrls).then(() => {
-                _activeCollection = { col: { key: identity.key, id: identity.id, name, items, publishedUrls: allPublishedUrls }, token, encKey };
-                _refreshIdDisplay();
-                const catalogBinAccount = primaryBinAccount
-                    || findAccountByType('CListBin', { permission: 'b' })?.parsedValue;
-                if (catalogBinAccount) _updatePagesCatalog(token, encKey, catalogBinAccount);
-            }).catch(e => console.error('[pages catalog] post-publish update failed:', e));
-        }
-
-        // Bump publishedAt on the overwritten destination's existing publishedUrls entry.
-        if (doOverwrite && overwriteMatch) {
-            _touchPublishedUrlEntry(currentLoadedPage.collectionKey, currentLoadedPage.serviceId)
-                .catch(e => console.error('[pages catalog] touch failed:', e));
-        }
-    });
-
-    postOptionsDiv.appendChild(makeCollectionWebPageOption());
-
-    if (typeof openRightInterface === 'function') openRightInterface('post-instructions');
-};
-
-// Builds the "To Web Page" option for the Collection Editor's Post panel — mirrors
-// makeWebPageOption()/postToWebPage() in publish.js, but serializes the collection's
-// draft items in the currently selected format instead of reading an editor handler.
-function makeCollectionWebPageOption() {
-    const list = document.createElement('div');
-    list.className = 'account-list';
-
-    const tip = document.createElement('div');
-    tip.className = 'list-tip';
-    tip.textContent = 'Or publish the editor content directly';
-    list.appendChild(tip);
-
-    const btn = document.createElement('button');
-    btn.className = 'account-button';
-
-    const iconEl = document.createElement('span');
-    iconEl.className = 'material-icons';
-    iconEl.textContent = 'public';
-
-    const nameEl = document.createElement('span');
-    nameEl.textContent = 'To Web Page';
-
-    btn.appendChild(iconEl);
-    btn.appendChild(nameEl);
-    btn.addEventListener('click', postCollectionToWebPage);
-    list.appendChild(btn);
-
-    return list;
-}
-
-// Publishes the collection's draft items, serialized in the currently selected
-// format, directly to the CListBin destination — same "raw content, no account
-// checklist" semantics as postToWebPage() in publish.js, adapted for collections.
-async function postCollectionToWebPage() {
-    const resultDiv = document.getElementById('post-result');
-    if (resultDiv) resultDiv.innerHTML = '';
-
-    const name = (document.getElementById('write-title')?.textContent || '').trim();
-    if (!name) { showErrorModal('Please enter a collection title before publishing.'); return; }
-    const items = _draftItems || [];
-
-    const adapter = window.CList.binPublishers?.['CListBin'];
-    if (!adapter) { showErrorModal('Web-page publishing is not available.', { title: 'Publishing unavailable' }); return; }
-
-    let accounts;
-    try { accounts = await ensureAccountsLoaded(); }
-    catch (e) { showErrorModal('Error getting accounts: ' + e.message, { title: 'Load accounts failed' }); return; }
-    const binAccount = findAccountByType('CListBin', { permission: 'b', accounts })?.parsedValue;
-    if (!binAccount) { showErrorModal('No web-page destination set up yet — log out and back in to add one.', { title: 'No destination configured' }); return; }
-
-    const formatId = document.getElementById('write-format')?.value || 'rss';
-    const fmtId = _resolvePublishFormat(adapter.acceptedFormats, formatId);
-    const fmt = collectionFormats[fmtId];
-    if (!fmt) { showErrorModal('Unknown format.', { title: 'Unknown format' }); return; }
-
-    // Resolve this collection's identity once, up front, so the published
-    // content embeds the same UUID as the kvstore record (same rule as Save
-    // and Publish), even for a never-saved collection.
-    const identity = _resolveCollectionIdentity(_activeCollection?.col?.key, _activeCollection?.col?.id);
-    _activeCollection = {
-        ..._activeCollection,
-        col: { ..._activeCollection?.col, key: identity.key, id: identity.id },
-    };
-    _refreshIdDisplay();
-
-    const token     = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
-    const encKey    = token ? await getEncKey(window.CList.config.flaskSiteUrl).catch(() => null) : null;
-    const flatItems = encKey ? await _flattenForExport(items, identity.id, token, encKey) : items;
-    const content   = fmt.serialize(name, flatItems, identity.id);
-
-    // If this collection's content is the one previously loaded from this same
-    // CListBin destination in this format, ask whether to overwrite it in place
-    // or publish an independent new version. Otherwise publish as a new page.
-    const isLoadedMatch = currentLoadedPage && currentLoadedPage.kind === 'collection'
-        && currentLoadedPage.service === 'CListBin' && currentLoadedPage.format === fmtId;
-    if (isLoadedMatch) {
-        _offerCollectionOverwriteOrNewVersion(resultDiv, adapter, content, fmtId, fmt, name, binAccount);
-        return;
-    }
-
-    await _performCollectionWebPagePublish(adapter, content, fmtId, fmt, name, binAccount, false, resultDiv);
-}
-
-// Renders the Overwrite / Save as new version / Cancel choice — same text and
-// pattern as _offerOverwriteOrNewVersion() in publish.js, adapted for collections.
-function _offerCollectionOverwriteOrNewVersion(resultDiv, adapter, content, fmtId, fmt, name, binAccount) {
-    if (!resultDiv) { _performCollectionWebPagePublish(adapter, content, fmtId, fmt, name, binAccount, false, resultDiv); return; }
-    resultDiv.innerHTML = '';
-
-    const msg = document.createElement('p');
-    msg.className = 'list-tip';
-    msg.textContent = 'This page was loaded from My Pages. Overwrite it, or publish a new version?';
-    resultDiv.appendChild(msg);
-
-    const row = document.createElement('div');
-    row.className = 'published-page-confirm';
-
-    const overwriteBtn = document.createElement('button');
-    overwriteBtn.className = 'btn';
-    overwriteBtn.textContent = 'Overwrite';
-    overwriteBtn.onclick = () => _performCollectionWebPagePublish(adapter, content, fmtId, fmt, name, binAccount, true, resultDiv);
-    row.appendChild(overwriteBtn);
-
-    const newVersionBtn = document.createElement('button');
-    newVersionBtn.className = 'btn';
-    newVersionBtn.textContent = 'Save as new version';
-    newVersionBtn.onclick = () => _performCollectionWebPagePublish(adapter, content, fmtId, fmt, name, binAccount, false, resultDiv);
-    row.appendChild(newVersionBtn);
-
-    const cancelBtn = document.createElement('button');
-    cancelBtn.className = 'btn btn-secondary';
-    cancelBtn.textContent = 'Cancel';
-    cancelBtn.onclick = () => { resultDiv.innerHTML = ''; };
-    row.appendChild(cancelBtn);
-
-    resultDiv.appendChild(row);
-}
-
-// Publishes to the web-page destination, either overwriting the currently loaded
-// collection page (isOverwrite) or creating an independent new page — mirrors
-// _performWebPagePublish() in publish.js.
-async function _performCollectionWebPagePublish(adapter, content, fmtId, fmt, name, binAccount, isOverwrite, resultDiv) {
-    if (resultDiv) resultDiv.innerHTML = '';
-
-    if (isOverwrite) {
-        try {
-            const result = await adapter.update(currentLoadedPage.serviceId, content, fmt.mimeType, binAccount);
-            const url = (result && result.url) || currentLoadedPage.url;
-            if (resultDiv) {
-                const p = document.createElement('p');
-                p.className = 'feed-status-message';
-                p.innerHTML = `Republished: <a href="${url}" target="_blank">${url}</a>`;
-                resultDiv.appendChild(p);
-            }
-        } catch (e) {
-            console.error('[postCollectionToWebPage] overwrite failed', e);
-            if (resultDiv) showPostMessage(resultDiv, `Failed to publish to web page: ${e.message}`);
-            else showErrorModal('Failed to publish to web page: ' + e.message, { title: 'Publish failed' });
-            return;
-        }
-
-        try {
-            await _touchPublishedUrlEntry(currentLoadedPage.collectionKey, currentLoadedPage.serviceId);
-        } catch (e) {
-            console.error('[postCollectionToWebPage] failed to update pages catalog', e);
-            showErrorModal('Published, but could not update My Pages: ' + e.message, { title: 'Update My Pages failed' });
-        }
-        return;
-    }
-
-    let result;
-    try {
-        result = await adapter.publish(content, fmt.mimeType, `${name}.${fmt.ext}`, binAccount);
-        if (resultDiv) {
-            const p = document.createElement('p');
-            p.className = 'feed-status-message';
-            p.innerHTML = `Published: <a href="${result.url}" target="_blank">${result.url}</a>`;
-            resultDiv.appendChild(p);
-        }
-    } catch (e) {
-        console.error('[postCollectionToWebPage] publish failed', e);
-        if (resultDiv) showPostMessage(resultDiv, `Failed to publish to web page: ${e.message}`);
-        else showErrorModal('Failed to publish to web page: ' + e.message, { title: 'Publish failed' });
-        return;
-    }
-
-    // Record the new published URL in the collection's own kvstore entry so it
-    // shows up in My Pages — same shape as playCollectionPublish()'s newPublishedUrls.
-    const publishedAt = new Date().toISOString();
-    const newUrl = {
-        url: result.url, serviceId: result.serviceId, format: fmtId,
-        service: 'CListBin', accountInstance: binAccount.instance, publishedAt,
-    };
-    try {
-        const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
-        const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
-        // Always update the record this collection was loaded from, no matter
-        // what the title now reads. A never-saved or legacy (key but no id)
-        // collection gets a fresh UUID identity right here.
-        const existingPublishedUrls = _activeCollection?.col?.publishedUrls || [];
-        const identity = _resolveCollectionIdentity(_activeCollection?.col?.key, _activeCollection?.col?.id);
-        const allPublishedUrls = [...existingPublishedUrls, newUrl];
-        const items = _draftItems || [];
-        await _kvSaveItems(identity.key, identity.id, name, items, token, encKey, allPublishedUrls);
-        _activeCollection = { col: { key: identity.key, id: identity.id, name, items, publishedUrls: allPublishedUrls }, token, encKey };
-        _refreshIdDisplay();
-        // The editor now represents the newly created page, not whatever was
-        // loaded before (if anything) — the old record, if any, is untouched.
-        setLoadedPage({
-            kind: 'collection',
-            collectionKey: identity.key,
-            id: identity.id,
-            title: name,
-            url: result.url,
-            serviceId: result.serviceId,
-            service: 'CListBin',
-            format: fmtId,
-            accountInstance: binAccount.instance,
-            publishedAt,
-        });
-    } catch (e) {
-        console.error('[postCollectionToWebPage] failed to save to My Pages', e);
-        showErrorModal('Published, but could not save to My Pages: ' + e.message, { title: 'Save to My Pages failed' });
-    }
-}
 
 // Public bridge: open an already-parsed {title, items, id} collection shape
 // (see collection-formats.js's parsers) in the collection editor. Called by

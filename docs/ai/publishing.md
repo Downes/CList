@@ -12,15 +12,11 @@ behaviour, see [How CList publishes your work](../publish_structure.md). Consult
 
 ## Current work boundary
 
-The user is changing the collections editor in work that is not yet ready to pull.
-Do not edit/refactor the collection editor or its publishing path while that work
-is pending. After the pull becomes available, inspect and reconcile the incoming
-changes before proposing a collection publishing refactor. Do not apply the
-standalone publishing design to an assumed older collection implementation.
-
-This pause does not prevent documenting the currently inspected code. It does
-not authorize edits to the user's incoming work. New user instructions determine
-when this boundary changes. Preserve unrelated working-tree changes.
+The user has authorized collection editor work after the incoming pull. Preserve
+current editor behaviour and unrelated working-tree changes. Collection **Post**
+and **To Web Page** now share a separated controller/workflow/view. Direct
+**Republish** and **Publish local entry** remain separate legacy paths. Do not
+present those paths as migrated; review each before extracting it.
 
 ## Maintain these responsibilities
 
@@ -34,7 +30,9 @@ when this boundary changes. Preserve unrelated working-tree changes.
 | Page choices/results view | [web-page-view.js](../../js/web-page-view.js) | Standard buttons, choice promises, and feedback; no adapter or metadata writes. |
 | Published-page identity/indexing | [web-page-records.js](../../js/web-page-records.js) | Preserve identity/authorship and compatibility with file saving; no UI. |
 | Service API operations | Service files, including `mastodon_publish.js`, `bluesky_publish.js`, `wordpress.js`, `blogger.js` | Use explicit account/session values. Return data or reject; never display publication feedback. |
-| Collection publishing | [collections.js](../../js/collections.js), [collection-publishing.md](../collection-publishing.md) | Separate legacy path; currently paused for edits as stated above. |
+| Annotation publishing | `annotation-workflow.js`, `annotation-publishing.js`, `annotation-view.js`, `annotate_publish.js`, `hypothesis_publish.js` | Explicit captured targets/session; per-target receipts; transport has no feedback. |
+| Collection Post / To Web Page | `collection-publishing.js`, `collection-publishing-workflow.js`, `collection-publishing-view.js`, [collection-publishing.md](../collection-publishing.md) | Capture collection/account/session before awaits; state owns selection/busy; workflow emits data; view owns choices/results. |
+| Other collection publication | [collections.js](../../js/collections.js), `collection-editor.js` | Direct Republish and local-entry Publish remain legacy paths. |
 
 Plain browser JavaScript remains the deployment architecture. Do not add a
 framework, TypeScript conversion, bundler, or end-user Node requirement. Keep
@@ -203,3 +201,75 @@ consistent with the implementation. Mark remaining legacy paths explicitly;
 do not present a proposed interface as already implemented. Show refactoring
 scope/edits for the user's review before applying them, and do not commit or push
 without the user's instruction.
+
+
+## Annotation publishing requirements
+
+Use the shared `CListAnnotationRequest`, `CListAnnotationReceipt`,
+`CListAnnotationOutcome`, and transient `CListAnnotationSession` contracts.
+Post supplies captured references/tags/session through publisher arguments;
+never replace them with live editor/global reads. Preserve the service-specific
+tag policies and the Send/Flow differences documented in the human reference.
+
+Use `options.onTargetResult` for detached receipts, not UI. Confirmed creation
+and link availability are separate: a successful HTTP write without a link is
+created, an opaque ID is not a browser URL, and network loss is uncertain.
+All explicit target failures reject once after receipts; partial success retains
+both successful and failed targets. Never label failed targets Annotated.
+
+Keep shared in-flight guards in the annotation controller. Capture session,
+account, target, tags, visibility, and return-editor context before awaited
+editor exports. Reject stale controls/session changes before writing. Only
+return from Send when the original editor, target, body, and return context
+are still active. Keep incoming HTML/reference append behaviour unchanged.
+Flow may try another store after explicit rejection, never after uncertainty.
+Collection prompts use the successful captured reference; reuse `collectItem`
+and do not move collection editing into annotation publishing.
+
+Run `node --test tests/annotation-publishing.test.cjs` and the full automated
+suite. Tests mock network/editor APIs; they do not establish live authorization
+or real-browser TinyMCE integration. Keep these verification limits explicit.
+
+
+## Collection Post and To Web Page requirements
+
+Use `CListCollectionPublicationRequest`, `CListCollectionPublicationOutcome`,
+and `CListCollectionPublishingDependencies`. Requests contain transient account
+snapshots; never persist those requests or put credentials into operation state.
+Capture the title, raw membership, format, identity, existing publication entries,
+loaded-page pointer, destination accounts, and session before asynchronous work.
+Flatten only the detached export copy. Preserve raw membership in saved records.
+
+Selection and in-flight status belong to `CList.state.collectionPublishing`.
+Button attributes/styles reflect controller decisions. Preserve full-content
+(bin/unlimited platform) destinations before limited link destinations, format
+negotiation, and the first full-content URL handoff. Only the captured matching
+collection/service/account/format/resource can be overwritten after a choice.
+Cancel must settle without service writes. Guard the shared choice/result panel
+against competing Save/Post/To Web Page operations while publication is pending.
+
+Check the captured session before each external write and metadata write. Keep
+publication receipts if metadata or catalog updates fail; never repeat an upload
+to recover metadata. Reconcile only the original active collection, retaining
+newer draft title/items. `_updatePagesCatalog` accepts optional session checks and
+error propagation for the new controller; older callers retain their defaults.
+
+Run `node --test tests/collection-publishing.test.cjs` and the full suite. These
+mocked tests do not establish real-browser integration or live authorization.
+
+
+For collection To Web Page, call `postCollectionToWebPage()`; it invokes
+`runCollectionPublication` with `{webPage: true}`. Do not recreate a parallel
+collection web-page workflow. Capture draft/format/identity/loaded-page context
+before awaiting account/key loading. Resolve one writable CListBin account,
+snapshot it, and reuse format negotiation and the standard overwrite choice.
+Overwrite must match the collection, service, instance, format, and resource.
+
+Keep the transient `CListCollectionPublicationSession` outside operation state.
+The shared busy guard covers To Web Page through account loading, choices,
+publication, and metadata updates. Successful metadata may reconcile the original
+collection, preserving newer title/items. Set a loaded-page pointer only when the
+original editor, collection, loaded-page context, title, and membership are still
+unchanged. An upload without a URL is unconfirmed, with no fabricated page record.
+UI option construction belongs in `collection-publishing-view.js`, using the
+existing public icon/account-button pattern and shared disabled-state rendering.

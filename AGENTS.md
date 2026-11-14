@@ -10,8 +10,8 @@ See [README.md](README.md) for full architecture, kvstore/CORS details, and file
 Before writing or changing code that supports or impacts publishing, read
 [Publishing instructions for AI coding tools](docs/ai/publishing.md).
 This includes service adapters, editor exports, account/session handling,
-publication tracking, and publishing UI. Follow its current collections-editor
-pause until the user's pending pull is available and reconciled.
+publication tracking, and publishing UI. Collection editor work is now authorized;
+inspect the current implementation and preserve incoming/editor changes.
 
 Publishing data operations must return results or propagate errors; their
 controllers/views own visible feedback. Do not add UI to an adapter merely to
@@ -51,6 +51,13 @@ satisfy a general error-feedback rule.
   Shared page identity/indexing helpers are in `web-page-records.js`. Preserve
   captured targets/session, matching-destination overwrite rules, and separate
   remote-write success from metadata failures. Collection publishing is separate.
+
+- Collection Post and To Web Page use `collection-publishing.js` (capture/state/controller),
+  `collection-publishing-workflow.js` (explicit data/dependencies), and
+  `collection-publishing-view.js` (selection/choice/results). Selection lives in
+  `CList.state.collectionPublishing`, not button attributes. To Web Page uses a
+  single captured CListBin target through the same workflow. Direct Republish
+  and local-entry Publish still have legacy paths.
 
 - **No server-side logic** — all files are static HTML/CSS/JS served by Caddy
 - **External services**: kvstore (credential storage), opml2json (feed parsing), social platform APIs

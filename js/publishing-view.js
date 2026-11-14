@@ -11,13 +11,20 @@ window.CList.ui.publishing = {
     finish() { clearPostProgress(); },
     /** @param {CListPublishingUpdate} update */
     update(update) {
-        if (update.type === 'progress') {
+        if (update.type === 'target-result') {
+            window.CList.ui.annotations.target(update.receipt);
+        } else if (update.type === 'progress') {
             renderPublisherProgress(update.destination, update.progress);
         } else if (update.type === 'warning') {
             this.notice(update.message);
         } else if (update.type === 'destination') {
             const result = update.result;
             if (result.status === 'publishing') updatePostProgress('Publishing to ' + result.destination + '.');
+            else if (result.targetResults?.length && result.status !== 'failed') {
+                const count = type => result.targetResults.filter(r => r.outcome === type).length;
+                this.notice(result.destination + ': ' + window.CList.ui.annotations.summary({
+                    created: count('created'), failed: count('failed'), uncertain: count('uncertain') }));
+            }
             else if (result.status === 'published') showPublicationSuccess(result.destination, result.url);
             else if (result.status === 'failed') showPublicationError(result.destination, result.error);
             else if (result.status === 'skipped') this.notice(result.error);

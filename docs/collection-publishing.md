@@ -1,6 +1,6 @@
 # CList collections, subscription saving, and publication
 
-Verified against the current client and bundled LocalRSS code, 2026-11-13.
+Verified against the current client and bundled LocalRSS code, 2026-11-14.
 This is the implemented integration contract; it does not assert that every
 remote service instance has the same deployed version or CORS settings.
 
@@ -134,9 +134,9 @@ Completion reconciles only the matching active collection, preserves newer draft
 edits, and leaves a different open collection and its panel untouched. The view
 keeps button availability and existing success/error feedback.
 
-Save to file and Save to Dropbox retain their existing paths. Collection
-publishing also retains its existing UI/selection logic. Do not assume this save
-controller has already migrated those workflows.
+Collection Post and To Web Page use the shared publishing controller described
+below. Save to file, Save to Dropbox, direct Republish, and local-entry Publish
+retain their separate paths.
 
 ## Implemented storage and identity
 
@@ -234,14 +234,66 @@ publication record; feed subscription saving remains a separate operation.
 Standalone To Web Page / Republish are now separated into `web-page-workflow.js`,
 `web-page-publishing.js`, and `web-page-view.js`. Shared published-page identity
 and metadata helpers live in `web-page-records.js`. Those helpers remain available
-to file saving and My Pages. The collection-specific publish/republish controllers
-are still their own legacy UI-dependent paths; see `publish_structure.md` for the
+to file saving and My Pages. Collection Post and To Web Page share a separate controller/workflow/view;
+direct Republish and local-entry Publish remain legacy UI-dependent paths; see `publish_structure.md` for the
 standalone boundary and metadata-failure semantics.
 
 ## Verification and remaining boundaries
 
 See [tests/README.md](../tests/README.md) for the 36 targeted collection request,
 controller, account, and editor checks and the separate publication browser
-fixtures. They mock network/storage and do not write live service data. Collection
-publish selection and some legacy service handlers remain UI-coupled; updating
-these contracts does not claim that all publishing has been refactored.
+fixtures. They mock network/storage and do not write live service data. Collection Post selection is state-driven. Other collection publication paths
+remain UI-coupled; these contracts do not claim all publishing has been refactored.
+
+
+## Collection Post and To Web Page: separated responsibilities
+
+`playCollectionPublish()` now belongs to `collection-publishing.js`. Its view in
+`collection-publishing-view.js` reuses `makeAccountList`, the existing overwrite
+choice buttons, and standard publication feedback. Selected account keys and
+busy/result state live in `CList.state.collectionPublishing`; DOM attributes
+reflect state and are never read to decide which destinations receive content.
+
+When Publish is clicked, the controller captures title, raw members, format,
+collection identity, existing published URLs, loaded page, destination accounts,
+and session. Later edits do not change this operation. The explicit-dependency
+`runCollectionPublishingWorkflow()` in `collection-publishing-workflow.js` runs
+without a document/global-state dependency and emits destination/warning/progress
+updates. It negotiates each adapter's format and flattens nested members only for
+export. Bin and unrestricted platform destinations precede limited destinations;
+the latter receive the first full-content URL or the existing truncated fallback.
+Limited platform posts retain the existing policy of not being catalog entries.
+
+Overwrite requires a captured matching collection identity, service, instance,
+format, and remote resource, followed by the user's choice. Other selected
+destinations create new publications. Cancel releases busy state without writes.
+Session changes block later writes; no upload is automatically retried.
+
+Confirmed URLs remain successful outcomes even if My Pages metadata fails.
+Metadata writes use captured identity/content and merge publication entries.
+Completion updates only the original active collection and preserves newer draft
+title/items. Switching collections leaves the newly opened collection untouched.
+The pages-catalog helper is reused with explicit session checks and error
+propagation; older callers keep their existing defaults. Shared busy guards keep
+Save/Post/To Web Page from replacing a pending Post choice/result panel.
+
+Direct Republish and Publish local entry still retain legacy UI/state coupling
+and need their own subsequent review/extraction.
+
+
+### To Web Page
+
+`postCollectionToWebPage()` uses the same controller/workflow with one automatic
+writable CListBin target. It captures the collection title, members, format,
+identity, loaded-page context, and session before waiting for accounts or keys.
+The To Web Page option remains in the existing Post panel, with the same public
+icon; its construction and busy rendering are now view responsibilities.
+
+The controller reuses format negotiation, export flattening, the overwrite/new
+version/cancel choice, publication receipts, and metadata handling. Overwrite
+requires the original collection and the selected CListBin instance/format to
+match. Newer editor changes cannot alter the operation or its remote target.
+After metadata succeeds, the loaded-page pointer is updated only if the original
+editor, collection, loaded-page context, title, and membership are unchanged.
+A newer draft or different open page keeps its existing context. Missing URLs do
+not create page records; metadata/catalog errors retain confirmed upload success.

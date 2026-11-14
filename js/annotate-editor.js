@@ -226,7 +226,8 @@ function _refreshAnnotateRefFields() {
 
 async function _renderSendControls(sendSection) {
     sendSection.innerHTML = '';
-    const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
+    const renderSession = captureAnnotationSession();
+    const token = renderSession.token;
     if (!token) {
         const msg = document.createElement('p');
         msg.className = 'feed-status-message';
@@ -275,33 +276,36 @@ async function _renderSendControls(sendSection) {
     sendSection.appendChild(row);
 
     sendBtn.addEventListener('click', async () => {
-        const target = _annotateTarget();
+        const draft = _annotateTarget();
+        const target = structuredClone(draft);
+        const returnTo = _annotateReturnEditor;
+        const session = renderSession;
         if (!target.url) {
             showErrorModal('No target URL for this annotation — fill in the URL field above.', { title: 'No target' });
             return;
         }
-        const bodyText = editorHandlers['annotate-edit'].getContent();
-        if (!bodyText) {
-            showErrorModal('Annotation text is required.', { title: 'Annotation required' });
-            return;
-        }
-
-        const tags = window.getWriteTags?.() || [];
-        const acct = writeAccts[parseInt(storeSelect.value, 10)];
+        const tags = structuredClone(window.getWriteTags?.() || []);
+        const acct = structuredClone(writeAccts[parseInt(storeSelect.value, 10)]);
         const visibility = visSelect.value;
 
         sendBtn.disabled = true;
         sendBtn.textContent = 'Sending…';
         try {
-            const ok = await _submitAnnotation(sendSection, target.id, target.url, bodyText, tags, visibility, acct, token);
+            const bodyText = await editorHandlers['annotate-edit'].getContent();
+            const ok = await _submitAnnotation(sendSection, target.id, target.url, bodyText, tags, visibility, acct, session.token, session);
             if (ok) {
                 showStatusMessage(`Sent to ${acct.title || acct.instance}.`);
-                const returnTo = _annotateReturnEditor;
-                _annotateReturnEditor = null;
-                if (returnTo && returnTo !== 'annotate-edit') {
-                    await switchToEditor(returnTo);
+                if (currentEditor === 'annotate-edit' && _annotateTarget() === draft
+                    && JSON.stringify(_annotateTarget()) === JSON.stringify(target)
+                    && await editorHandlers['annotate-edit'].getContent() === bodyText
+                    && _annotateReturnEditor === returnTo) {
+                    _annotateReturnEditor = null;
+                    if (returnTo && returnTo !== 'annotate-edit') await switchToEditor(returnTo);
                 }
             }
+        } catch (error) {
+            console.error('[annotations] editor send failed', error);
+            showErrorModal(error.message, { title: 'Annotation failed' });
         } finally {
             sendBtn.disabled = false;
             sendBtn.textContent = 'Send';

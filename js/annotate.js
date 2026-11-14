@@ -57,61 +57,8 @@ function _serviceLabel(creatorId) {
 
 // ── Add-annotation form ────────────────────────────────────────────────────────
 
-async function _submitAnnotation(panel, itemID, url, bodyText, tags, visibility, acct, token) {
-    if (acct.type === 'Hypothesis') {
-        if (typeof window.hypothesisCreate !== 'function') {
-            showErrorModal('Hypothesis write support not loaded.', { title: 'Hypothesis unavailable' });
-            return false;
-        }
-        try {
-            await window.hypothesisCreate(acct, { target_url: url, body: bodyText, tags, visibility });
-            return true;
-        } catch (e) {
-            showErrorModal('Failed to save to Hypothesis: ' + e.message, { title: 'Save failed' });
-            console.error('[hypothesis] create error', e);
-            return false;
-        }
-    }
-
-    const payload = {
-        target_url: url,
-        body: bodyText,
-        tags: tags.length ? tags : [],
-        visibility,
-        motivation: 'commenting',
-    };
-
-    try {
-        const resp = await fetch(`${acct.instance}/annotations`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'Authorization': 'Bearer ' + token,
-            },
-            body: JSON.stringify(payload),
-        });
-
-        if (resp.ok) {
-            return true;
-        } else {
-            const err = await resp.json().catch(() => ({}));
-            if (resp.status === 403 && (err.detail || '').includes('Not registered')) {
-                showErrorModal('Not registered on this annotation server — please re-add the account in Account Settings.', { title: 'Not registered' });
-            } else {
-                showErrorModal('Failed to save annotation: ' + (err.detail || resp.status), { title: 'Save failed' });
-            }
-            console.error('Annotation POST failed', resp.status, err);
-            return false;
-        }
-    } catch (e) {
-        showErrorModal('Error saving annotation — check your connection and try again.', { title: 'Save failed' });
-        console.error('Annotation POST error', e);
-        return false;
-    }
-}
-
 function _appendAddForm(panel, itemID, url, writeAccts, token) {
+    const session = captureAnnotationSession();
     const wrapper = document.createElement('div');
     wrapper.style.cssText = 'margin-top:8px;border-top:1px solid #e8e8e8;padding-top:6px;';
 
@@ -198,7 +145,7 @@ function _appendAddForm(panel, itemID, url, writeAccts, token) {
 
         submitBtn.disabled = true;
         submitBtn.textContent = 'Saving…';
-        await _submitAnnotation(panel, itemID, url, bodyText, tags, visibility, acct, token);
+        await _submitAnnotation(panel, itemID, url, bodyText, tags, visibility, acct, token, session);
         submitBtn.disabled = false;
         submitBtn.textContent = 'Save';
     });
@@ -240,14 +187,14 @@ window.clistAnnotate = function(itemId) {
         showErrorModal('No reference found for this item.', { title: 'No reference' });
         return;
     }
-    const handler = editorHandlers[currentEditor];
-    if (!handler || typeof handler.insertLink !== 'function') {
-        showErrorModal('The current editor does not support inserting links.', { title: 'Not supported' });
-        return;
-    }
-
-    const { content, feedTitle } = _buildQuoteContent(el.reference, handler);
-    handler.insertLink({ content, entryUrl: el.reference.url, feedTitle, reference: { ...el.reference } });
+    const reference = el.reference;
+    const returnTo = (currentEditor === 'annotate-edit') ? null : currentEditor;
+    switchToEditor('annotate-edit').then(() => {
+        if (returnTo) _annotateReturnEditor = returnTo;
+        const handler = editorHandlers['annotate-edit'];
+        const { content, feedTitle } = _buildQuoteContent(reference, handler);
+        handler.insertLink({ content, entryUrl: reference.url, feedTitle, reference: { ...reference } });
+    });
 
     if (window.innerWidth <= 768) {
         if (typeof mobShowWrite === 'function') mobShowWrite();
@@ -297,149 +244,6 @@ window.openAnnotationEditor = function(itemId) {
 };
 
 // ── Publish handler ────────────────────────────────────────────────────────────
-
-(function() {
-    window.CList.publishers = window.CList.publishers || {};
-    window.CList.publishers['Annotate'] = {
-        construct: function(title, post) {
-            // Extract just the editor body from the packagePost() wrapper
-            const parsed = new DOMParser().parseFromString(post, 'text/html');
-            const postContent = parsed.getElementById('post-content');
-            return postContent ? postContent.innerHTML.trim() : post;
-        },
-        publish: async function(accountData, title, content) {
-            const refs = getReferences();
-            if (!refs.length) {
-                showErrorModal('No target URL for this annotation — fill in the URL field above, or use "Write about this", before publishing.', { title: 'No target' });
-                return null;
-            }
-
-            const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN) || '';
-            if (!token) {
-                showErrorModal('Not logged in — cannot post annotation.', { title: 'Not logged in' });
-                return null;
-            }
-
-            let successCount = 0;
-            let failCount = 0;
-            let firstId = null;
-
-            for (const ref of refs) {
-                if (!ref.url || ref.url === '(no URL provided)') continue;
-                const payload = {
-                    target_url:      ref.url,
-                    target_selector: {
-                        title:       ref.title       || '',
-                        author_name: ref.author_name || '',
-                        feed:        ref.feed        || '',
-                        created_at:  ref.created_at  || '',
-                        guid:        ref.guid        || '',
-                    },
-                    body:       content,
-                    tags:       window.getWriteTags?.() || [],
-                    visibility: 'public',
-                    motivation: 'commenting',
-                };
-                try {
-                    const resp = await fetch(`${accountData.instance}/annotations`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json',
-                            'Authorization': 'Bearer ' + token,
-                        },
-                        body: JSON.stringify(payload),
-                    });
-                    if (resp.ok) {
-                        const anno = await resp.json();
-                        if (!firstId) firstId = anno.id || null;
-                        successCount++;
-                    } else {
-                        const err = await resp.json().catch(() => ({}));
-                        if (resp.status === 403 && (err.detail || '').includes('Not registered')) {
-                            showErrorModal('Not registered on this annotation server — please re-add the account in Account Settings.', { title: 'Not registered' });
-                        } else {
-                            showErrorModal('Annotation failed: ' + (err.detail || resp.status), { title: 'Annotation failed' });
-                        }
-                        console.error('Annotation POST failed', resp.status, err, 'for', ref.url);
-                        failCount++;
-                    }
-                } catch (e) {
-                    showErrorModal('Error posting annotation — check your connection and try again.', { title: 'Annotation failed' });
-                    console.error('Annotation POST error for', ref.url, e);
-                    failCount++;
-                }
-            }
-
-            if (successCount === 0) return null;
-
-            if (successCount === 1) {
-                _offerCollectAfterAnnotation(refs[0]).catch(e => console.error('[annotations] offer collect', e));
-                // Single item: let the caller display the link in #post-result normally
-                return firstId;
-            }
-
-            // Convergent: append a link row per item directly into #post-result
-            const resultDiv = window.CList.ui.view.postResult;
-            if (resultDiv) {
-                refs.forEach(ref => {
-                    if (!ref.url || ref.url === '(no URL provided)') return;
-                    const p = document.createElement('p');
-                    p.className = 'feed-status-message';
-                    p.innerHTML = `Annotated: <a href="${ref.url}" target="_blank">${ref.url}</a>`;
-                    resultDiv.appendChild(p);
-                });
-            }
-            if (failCount) {
-                showErrorModal(`Annotation posted to ${successCount} items (convergent annotation), ${failCount} failed.`, { title: 'Some annotations failed' });
-            } else {
-                showStatusMessage(`Annotation posted to ${successCount} items (convergent annotation).`);
-            }
-            return null;
-        }
-    };
-})();
-
-async function _offerCollectAfterAnnotation(ref) {
-    if (!ref?.url || ref.url === '(no URL provided)') return;
-    const itemId = ref.statusID || ref.id;
-    if (!itemId) return;
-
-    try {
-        const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
-        if (!encKey) return;
-        const records = await fetchDecryptedKvRecordsByPrefix('collection:', encKey);
-        if (records.some(({ value }) => _parseCollectionData(value).items.some(i => i.url === ref.url))) return;
-    } catch (e) {
-        if (e.code !== 'NotAuthenticated') console.error('[annotations] collection check error', e);
-        return;
-    }
-
-    // setTimeout(0) lets publish.js complete its synchronous DOM writes to #post-result
-    // before we append the collect prompt below them
-    setTimeout(() => {
-        const resultDiv = window.CList.ui.view.postResult;
-        if (!resultDiv || !document.body.contains(resultDiv)) return;
-
-        const prompt = document.createElement('div');
-        prompt.style.cssText = 'margin-top:8px;display:flex;align-items:center;gap:8px;';
-        const msg = document.createElement('span');
-        msg.style.fontSize = '0.85rem';
-        msg.textContent = 'Add this item to a collection?';
-        const addBtn = document.createElement('button');
-        addBtn.className = 'btn';
-        addBtn.textContent = 'Add';
-        addBtn.addEventListener('click', () => {
-            prompt.remove();
-            if (typeof window.collectItem === 'function') window.collectItem(itemId, { glow: true });
-        });
-        prompt.appendChild(msg);
-        prompt.appendChild(addBtn);
-        resultDiv.appendChild(prompt);
-    }, 0);
-}
-
-// ── Annotation fetch dispatch ──────────────────────────────────────────────────
 
 // Fetch annotations for one account, dispatching on account type.
 async function _fetchAnnotationsForAccount(acct, url) {
@@ -780,44 +584,18 @@ let _popstateHandler  = null;
 let _savedFeedContent = null;
 let _savedScrollTop   = 0;
 
-async function _flowAnnotation(anno, targetUrl, writeAccts, token, btn) {
-    const body = anno.body?.value || anno.body || '';
-    const creatorId = anno.creator?.id || anno.creator || '';
-    const payload = {
-        target_url: targetUrl,
-        body,
-        target_selector: { via: creatorId, via_annotation_id: anno.id || '' },
-        tags: Array.isArray(anno.tag) ? anno.tag : [],
-        visibility: 'public',
-        motivation: 'flowing',
-    };
-    btn.disabled = true;
-    let lastErr = null;
-    for (const acct of writeAccts.filter(a => a.type === 'Annotate')) {
-        try {
-            const resp = await fetch(`${acct.instance}/annotations`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json',
-                           'Authorization': 'Bearer ' + token },
-                body: JSON.stringify(payload),
-            });
-            if (resp.ok) {
-                btn.innerHTML = '<span class="material-icons md-18 md-light">check</span>';
-                showStatusMessage('Annotation flowed to ' + (acct.title || acct.instance));
-                return;
-            }
-            const err = await resp.json().catch(() => ({}));
-            console.error('Flow failed on', acct.instance, resp.status, err);
-            lastErr = err;
-        } catch (e) {
-            console.error('Flow error on', acct.instance, e);
-            lastErr = { detail: e.message };
-        }
-    }
-    // All accounts tried and failed
-    showErrorModal('Flow failed: ' + (lastErr?.detail || 'no writable annotation store succeeded'), { title: 'Flow failed' });
-    console.error('Flow failed on all accounts', lastErr);
-    btn.disabled = false;
+async function _flowAnnotation(anno, targetUrl, writeAccts, token, btn, session) {
+    const view = window.CList.ui.annotations;
+    view.flowButton(btn, true);
+    let created = false;
+    try {
+        const outcome = await flowAnnotation(structuredClone(anno), targetUrl, writeAccts, token, session);
+        created = outcome.created > 0;
+        view.show(outcome);
+    } catch (error) {
+        console.error('[annotations] flow failed', error);
+        showErrorModal(error.message, { title: 'Flow failed' });
+    } finally { view.flowButton(btn, false, created); }
 }
 
 // Look up a DID by social handle (e.g. "user@mastodon.social") across known kvstore instances.
@@ -1160,7 +938,8 @@ function _buildAnnotationItem(anno, options = {}) {
         flowBtn.className = 'clist-action-btn';
         flowBtn.title = 'Flow — add to your annotations';
         flowBtn.innerHTML = '<span class="material-icons md-18 md-light">forward</span>';
-        flowBtn.addEventListener('click', () => _flowAnnotation(anno, flowUrl, writeAccts, token, flowBtn).catch(e => {
+        const flowSession = captureAnnotationSession();
+        flowBtn.addEventListener('click', () => _flowAnnotation(anno, flowUrl, writeAccts, token, flowBtn, flowSession).catch(e => {
             showErrorModal('Flow error: ' + e.message, { title: 'Flow failed' });
             console.error('Flow error', e);
         }));

@@ -304,7 +304,9 @@ window.hypothesisCreate = async function(acct, payload) {
         references: [],
     };
 
-    const resp = await fetch(`${apiBase}/annotations`, {
+    if (!acct.apiKey) throw new Error("No Hypothesis API key - check Account Settings.");
+    let resp;
+    try { resp = await fetch(`${apiBase}/annotations`, {
         method:  'POST',
         headers: {
             'Content-Type':  'application/json',
@@ -312,84 +314,15 @@ window.hypothesisCreate = async function(acct, payload) {
             'Authorization': `Bearer ${acct.apiKey}`,
         },
         body: JSON.stringify(body),
-    });
+    }); } catch (error) {
+        throw Object.assign(new Error('Connection lost; check Hypothesis before retrying.'), { outcome: 'uncertain' });
+    }
 
     if (!resp.ok) {
         const err = await resp.text().catch(() => resp.status);
         throw new Error(`Hypothesis POST failed: ${err}`);
     }
 
-    const data = await resp.json();
-    return _hypothesisToW3c(data);
+    const data = await resp.json().catch(() => null);
+    return data && (data.id || data.links?.html) ? _hypothesisToW3c(data) : {};
 };
-
-// ── Publish handler ────────────────────────────────────────────────────────────
-
-(function () {
-    window.CList.publishers = window.CList.publishers || {};
-    window.CList.publishers['Hypothesis'] = {
-        construct: function(title, post) {
-            const parsed = new DOMParser().parseFromString(post, 'text/html');
-            const postContent = parsed.getElementById('post-content');
-            const raw = postContent ? postContent.innerHTML.trim() : post;
-            return typeof sanitizeHtml === 'function' ? sanitizeHtml(raw).toString() : raw;
-        },
-        publish: async function(accountData, title, content) {
-            if (!accountData.apiKey) {
-                showErrorModal('No API key — add your Hypothes.is API token in Account Settings.', { title: 'API Key Missing' });
-                return null;
-            }
-
-            const refs = getReferences();
-            if (!refs.length) {
-                showErrorModal('No target — load items into the editor before annotating.', { title: 'No Target Selected' });
-                return null;
-            }
-
-            let successCount = 0, failCount = 0, firstId = null;
-
-            for (const ref of refs) {
-                if (!ref.url || ref.url === '(no URL provided)') continue;
-                try {
-                    const anno = await window.hypothesisCreate(accountData, {
-                        target_url: ref.url,
-                        body:       content,
-                        tags:       [],
-                        visibility: 'public',
-                    });
-                    if (!firstId) firstId = anno?.id || null;
-                    successCount++;
-                } catch (e) {
-                    showErrorModal('Hypothesis post failed: ' + e.message, { title: 'Annotation Post Failed' });
-                    console.error('[hypothesis] publish error for', ref.url, e);
-                    failCount++;
-                }
-            }
-
-            if (successCount === 0) return null;
-
-            if (successCount === 1) return firstId;
-
-            const resultDiv = window.CList.ui.view.postResult;
-            if (resultDiv) {
-                refs.forEach(ref => {
-                    if (!ref.url || ref.url === '(no URL provided)') return;
-                    const p = document.createElement('p');
-                    p.className = 'feed-status-message';
-                    const a = document.createElement('a');
-                    a.target = '_blank';
-                    a.textContent = ref.url;
-                    if (/^https?:\/\//i.test(ref.url)) a.href = ref.url;
-                    p.append('Annotated: ', a);
-                    resultDiv.appendChild(p);
-                });
-            }
-            if (failCount) {
-                showErrorModal(`Annotation posted to ${successCount} items, ${failCount} failed.`, { title: 'Some annotations failed' });
-            } else {
-                showStatusMessage(`Annotation posted to ${successCount} items.`);
-            }
-            return null;
-        }
-    };
-})();

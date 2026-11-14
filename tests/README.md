@@ -248,3 +248,34 @@ duplicate guards, session changes, metadata failures after a successful external
 write, and standard view controls. Workflow tests run without `window`/`document`.
 Collection Republish delegation and file-save helper compatibility are preserved.
 No live service writes occur; visual layout and real authorization are not checked.
+
+## Annotation publishing separation
+
+Run `node --test tests/annotation-publishing.test.cjs`, then the full suite.
+Mocked tests cover captured targets/tags/session, service payloads, no-DOM
+workflow/transport, opaque IDs, partial/uncertain results, accepted responses
+without links, in-flight locks, Flow fallback/attribution, collection eligibility,
+TinyMCE API HTML capture, append-only insertion, and newer draft preservation.
+No live annotations are created. Real browser/editor authorization checks remain
+manual: verify Post results across several references, Send with a newer draft,
+and Flow on a test account only when a live write is intended.
+
+## Collection Post separation
+
+Run `node --test tests/collection-publishing.test.cjs`, then the full suite.
+Mocked tests cover DOM-free workflows, format negotiation/flattening, captured
+requests/accounts, full-first/link handoff, partial failures, missing URLs,
+metadata-only failures, captured overwrite/cancellation, session guards,
+selection/busy state, save/publication overlap, and newer drafts/collection switches.
+No live publications are created. Real browser/account authorization checks remain
+unrun: verify destination selection, overwrite/cancel, and results manually with
+an intentional test publication. Direct Republish/local-entry Publish remain legacy paths. To Web Page now shares
+the separated collection workflow, with the additional coverage below.
+
+
+Collection To Web Page coverage in the same suite also checks automatic CListBin
+selection, capture before asynchronous account/key loading, exact overwrite
+matching, cancellation, overlapping clicks, raw-versus-flattened content, missing
+destinations/URLs, changed sessions, metadata-only failure, and loaded-page/draft
+reconciliation. The view test checks the existing public icon and disabled state.
+These are mocked tests; real-browser and live account checks remain unrun.
