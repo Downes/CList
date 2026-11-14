@@ -1343,10 +1343,13 @@ textarea.collection-editor-input { min-height: 60px; resize: vertical; }
 
 /* Annotate editor's Description field — its TinyMCE instance is scoped smaller than the main
    write-column editor's, so its toolbar buttons shrink to match (class added by
-   annotate-editor.js's _initAnnotateTinyMCE on init). */
-.annotate-mini-toolbar .tox-tbtn { width: 24px; height: 24px; margin: 1px; }
-.annotate-mini-toolbar .tox-tbtn svg { width: 14px; height: 14px; }
-.annotate-mini-toolbar .tox-toolbar__group { padding: 0 2px; }
+   annotate-editor.js's _initAnnotateTinyMCE on init). TinyMCE's icon SVGs have no viewBox, so
+   sizing them via width/height just crops the 24x24 artwork instead of scaling it — use
+   transform:scale() on the natural-size SVG instead, which scales the rendered pixels. */
+.annotate-mini-toolbar .tox-tbtn { width: 20px !important; height: 20px !important; margin: 0 2px 0 0 !important; }
+.annotate-mini-toolbar .tox-tbtn svg { transform: scale(0.833); transform-origin: center; }
+.annotate-mini-toolbar .tox-toolbar__group { padding: 0 1px !important; }
+.annotate-mini-toolbar.tox-tinymce .tox-editor-header { padding: 1px 0 !important; }
 
 #collab-editor-container { background: var(--bg-body); border-color: var(--border-main); }
 #tiptap-editor .ProseMirror { background: var(--bg-body); color: var(--text-main); }

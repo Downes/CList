@@ -238,7 +238,7 @@ async function _renderSendControls(sendSection) {
 
     const accounts = await ensureAccountsLoaded().catch(() => []);
     const writeAccts = accounts.map(parseAccountValue).filter(d =>
-        d && (d.type === 'Annotate' || d.type === 'Hypothesis') && (d.permissions || 'rw').includes('w')
+        d && (d.type === 'Annotate' || d.type === 'Hypothesis' || d.type === 'gRSShopper') && (d.permissions || 'rw').includes('w')
     );
 
     if (!writeAccts.length) {

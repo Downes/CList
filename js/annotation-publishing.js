@@ -27,8 +27,11 @@ async function runAnnotationOperation(account, request, session, onTargetResult 
     try {
         const outcome = await runAnnotationWorkflow(request, {
             assertSession: () => assertAnnotationSession(session), onTargetResult,
-            create: payload => account.type === 'Hypothesis'
-                ? window.hypothesisCreate(account, payload) : createStoreAnnotation(account, payload, session),
+            create: payload => {
+                if (account.type === 'Hypothesis') return window.hypothesisCreate(account, payload);
+                if (account.type === 'gRSShopper') return window.grsshopperCreate(account, payload);
+                return createStoreAnnotation(account, payload, session);
+            },
         });
         state.last = structuredClone(outcome);
         return outcome;
