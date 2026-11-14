@@ -2,6 +2,85 @@
 // Read docs/data-contracts.md before extending these definitions.
 
 /**
+ * Credentials captured by the panel before data operations. Never persisted.
+ * @typedef {Object} CListAccountSession
+ * @property {string} storeUrl
+ * @property {string} token
+ * @property {CryptoKey} encKey
+ */
+
+/**
+ * @typedef {Object} CListAccountSaveRequest
+ * @property {string} key Storage key, separate from the service's credential id.
+ * @property {CListAccountData} data Parsed properties, retaining service extensions.
+ */
+
+/**
+ * @typedef {Object} CListAccountSchema
+ * @property {string} type
+ * @property {boolean} [instanceFromKey]
+ * @property {{label: string, placeholder?: string, default?: string}} kvKey
+ * @property {Array<{key: string, label: string, editable?: boolean,
+ * inputType?: string, placeholder?: string, default?: string}>} fields
+ */
+
+/**
+ * @typedef {Object} CListAccountFormCallbacks
+ * @property {function(): void} close
+ * @property {function(string): (CListAccountFlow|null)} getAccountFlow
+ * @property {function(string, CListAccountData): void} updateAccount
+ */
+
+/**
+ * @typedef {Object} CListAccountForm
+ * @property {function(CListAccountSchema, string, Object): void} build
+ * @property {function(boolean=): CListAccountSaveRequest} read Capture form values; validates by default.
+ * @property {function(): boolean} isDirty
+ * @property {function(boolean): void} setDirty
+ */
+
+/**
+ * Scoped interface for service-owned form controls. Includes no credentials.
+ * @typedef {Object} CListAccountFormContext
+ * @property {HTMLElement} root This panel, never the document.
+ * @property {HTMLElement} container Schema fields container.
+ * @property {'create'|'edit'} mode
+ * @property {string} key
+ * @property {CListAccountData} data Detached initial account properties.
+ * @property {function(): boolean} isDirty
+ * @property {function(): void} close
+ * @property {function(string): (CListAccountFlow|null)} getAccountFlow
+ * @property {function(CListAccountData): void} updateAccount Synchronize service-side changes into the form and panel data.
+ */
+
+/**
+ * Optional extensions registered at CList.accountHooks[serviceType].
+ * prepareSave has no DOM access; view hooks belong to the service's UI module.
+ * @typedef {Object} CListAccountHooks
+ * @property {function(CListAccountData): (CListAccountData|Promise<CListAccountData>)} [prepareSave]
+ * @property {function(CListAccountFormContext): void} [decorateForm]
+ * @property {function(CListAccountSaveRequest): (void|Promise<void>)} [reauthorize]
+ */
+
+/**
+ * One mounted account panel's interface to service-specific account UI.
+ * @typedef {Object} CListAccountFlowContext
+ * @property {HTMLElement} container Service form container, scoped to this panel.
+ * @property {function(): void} back Return to the account type picker.
+ * @property {function(): void} finish Close the add-account flow.
+ * @property {function(): CListAccountRecord[]} getAccounts Current panel accounts.
+ * @property {function(): Promise<CListAccountRecord[]>} reloadAccounts Refresh panel accounts.
+ * @property {function(string): Promise<void>} refreshList Refresh the account list for a store URL.
+ */
+
+/**
+ * Factory result cached separately for each panel. Factories perform no I/O.
+ * @typedef {Object} CListAccountFlow
+ * @property {function(): void} open Render and wire the service's add form.
+ * @property {function(Object): Promise<void>} [manageChannels] Discord's shared add/edit channel UI.
+ */
+
+/**
  * Ciphertext returned by the KV storage facade; decrypt before parsing.
  * @typedef {Object} CListEncryptedKVRecord
  * @property {string} key

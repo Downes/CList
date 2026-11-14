@@ -1,6 +1,6 @@
 # CList Account Schema System
 
-Accounts are credentials stored in the kvstore (encrypted). Each account has a **type** (Mastodon, Bluesky, PublicFeed, LOCALRSS, etc.) and a set of fields defined by that type's schema. The schema drives the Manage Accounts form in `js/kvstore.js` and the JSON saved through the selected local or remote account store.
+Accounts are credentials stored in the kvstore (encrypted). Each account has a **type** (Mastodon, Bluesky, PublicFeed, LOCALRSS, etc.) and a set of fields defined by that type's schema. The schema drives the Manage Accounts form in `js/account-form.js` and the JSON saved through the selected local or remote account store.
 
 ---
 
@@ -134,7 +134,7 @@ accountData.title       // display name shown in #selectedAccount
 accountData.permissions // checked by publish.js, editors.js, summarize.js, etc.
 ```
 
-The accounts array is populated by `getAccounts(flaskSiteUrl)` in `kvstore.js`, which fetches, decrypts, and parses all kvstore entries. Individual service files (e.g. `bluesky.js`, `chatgpt.js`) also iterate `accounts` directly to find their own credentials by type or permission flag.
+The accounts array is populated by `getAccounts(flaskSiteUrl)` in `kvstore.js`, which delegates decoding to `loadAccountRecords(session)` in `account-state.js`. Individual service files (e.g. `bluesky.js`, `chatgpt.js`) also iterate `accounts` directly to find their own credentials by type or permission flag.
 
 ---
 
@@ -181,11 +181,11 @@ This class (defined in `reader.css`) adds margin, padding, a light border, and r
    window.CList.schemas = window.CList.schemas || {};
    window.CList.schemas['MyType'] = { type, instanceFromKey, kvKey, fields };
    ```
-2. Add a button for the new type in `showTypePicker()` in `js/kvstore.js`.
+2. Add a button for the new type to the type list in `showTypePicker()` in `js/account-panel.js`.
 3. Implement the service handler and register it in `window.CList.readers['MyType']` if it supports reading.
-4. Handle `accountData.type === 'MyType'` in `publish.js` if it supports writing.
+4. Register `window.CList.publishers['MyType']` if it supports writing.
 
-The form, save, and load are handled automatically by the schema — no changes to `js/kvstore.js` form logic are needed.
+The form, save, and load are handled automatically by the schema — no service branches in `account-form.js` or `account-state.js` are needed. Use the optional account hooks for custom behaviour.
 
 ## Feed collection accounts and save operations
 
@@ -218,3 +218,37 @@ feed services must use their schema's `serviceUrl`, `collectionSlug`, and
 `database` fields. `getAccounts()` includes decrypted records only when their
 `type` has a registered account schema, so ordinary `collection:*` and `page:*`
 records do not become credentials or publishing destinations.
+
+
+## Service account setup modules
+
+`account-panel.js` owns the generic panel, navigation, and account list;
+`account-form.js` renders schema fields and captures detached form values.
+`account-state.js` loads, saves, and deletes account data without DOM access.
+Custom Add Account UI is dispatched through `window.CList.accountFlows` factories,
+instantiated once per panel. Mastodon, Dropbox, Collab, Annotate, and Discord
+setup lives in their respective `service_account.js` files. Blogger and
+WordPress setup remains in `blogger.js` and `wordpress.js`.
+
+Service-owned edit behaviour uses optional `CList.accountHooks[type]` hooks:
+`prepareSave(data)` validates/normalizes plain properties, `decorateForm(context)`
+adds controls, and `reauthorize(request)` launches the existing OAuth helpers.
+Hypothesis verification, PublicFeed collection editing, Discord administration,
+LocalRSS OPML controls, and Mastodon/Dropbox reauthorization stay in their
+respective service modules.
+
+`getAccounts()` remains a compatibility wrapper in `kvstore.js`. Its login
+feedback and retry behaviour remain there; its account decoding delegates to
+`loadAccountRecords(session)` so the schema allowlist has one implementation.
+The new panel calls the DOM-free loader directly. The current server and token
+must still match the captured session before a save reaches storage.
+
+A successful write is recorded before the panel refreshes. If refresh fails,
+the saved/deleted result remains reflected locally, the form closes, and a
+persistent message offers **Retry refresh**, which only reloads data. A failed
+write retains the draft. Navigation keeps dirty drafts until the user saves or
+discards them. Unknown account properties and hidden credentials survive edits.
+
+Authentication, identity/DID controls, app settings, and custom service add-flow
+controllers still retain legacy UI coupling. See `adding-a-service.md` for the
+extension contract; this patch does not claim a complete UI/state migration.

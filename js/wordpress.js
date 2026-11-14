@@ -1,3 +1,4 @@
+/// <reference path="./clist-types.js" />
 //  wordpress.js  -  Publishes a post to a WordPress site using the REST API
 //  Part of CList, the next generation of learning and connecting with your community
 //
@@ -193,3 +194,45 @@ OAuthClient.onCallback('WordPress', async data => {
         afterRefresh: () => populatePostOptions(window.CList.accounts),
     });
 });
+
+// Service-specific account setup extracted from kvstore.js.
+// Copyright Stephen Downes 2026. CC BY 4.0; provided AS IS, without warranty.
+window.CList.accountFlows = window.CList.accountFlows || {};
+
+/**
+ * @param {CListAccountFlowContext} context
+ * @returns {CListAccountFlow}
+ */
+window.CList.accountFlows['WordPress'] = function (context) {
+    const div = context.container;
+    const showTypePicker = context.back;
+
+    function open() {
+        const flow = div;
+        const inputStyle = 'display:block;width:100%;box-sizing:border-box;padding:0.2rem;font-size:0.8rem;margin:2px 0 8px;';
+        const labelStyle = 'font-variant:small-caps;font-size:0.8rem;color:#555;display:block;margin-top:6px;';
+        flow.innerHTML = `
+            <h3 style="margin:0 0 8px;">Add WordPress Account</h3>
+            <label style="${labelStyle}">Site URL</label>
+            <input type="url" id="wp-site-url"
+                   placeholder="https://your-site.com"
+                   style="${inputStyle}">
+            <div class="kv-action-buttons">
+                <button class="kv-action-btn kv-save-btn" id="wp-auth-btn">Authorize with WordPress</button>
+                <button class="kv-action-btn kv-cancel-btn" id="wp-back-btn">Back</button>
+            </div>`;
+        flow.querySelector('#wp-auth-btn').onclick = () => authorizeWordPress();
+        flow.querySelector('#wp-back-btn').onclick = () => showTypePicker();
+    }
+
+    function authorizeWordPress() {
+        let siteUrl = div.querySelector('#wp-site-url').value.trim();
+        if (!siteUrl) {
+            showErrorModal('Please enter your WordPress site URL.', { title: 'WordPress account failed' });
+            return;
+        }
+        if (!/^https?:\/\//i.test(siteUrl)) siteUrl = 'https://' + siteUrl;
+        wpAuthStart(siteUrl);
+    }
+    return { open };
+};

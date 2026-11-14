@@ -19,6 +19,16 @@ See [README.md](README.md) for full architecture, kvstore/CORS details, and file
 
 ## Architecture
 
+- Keep service-specific functions in that service's JavaScript module. When a
+  service needs subdivision, use `service_feature.js` (for example,
+  `mastodon_account.js`). Aim for files below 500 lines; split by responsibility.
+- Custom account setup uses `window.CList.accountFlows[type]` factories. Consult
+  `docs/adding-a-service.md` and the shared context typedef before extending them.
+- Generic accounts use `account-panel.js` (controller/navigation),
+  `account-form.js` (schema view), and `account-state.js` (DOM-free data operations).
+  Extend `CList.accountHooks[type]` for service-specific validation, decorations,
+  or reauthorization. Keep write errors distinct from post-write refresh failures.
+
 - **No server-side logic** — all files are static HTML/CSS/JS served by Caddy
 - **External services**: kvstore (credential storage), opml2json (feed parsing), social platform APIs
 - **Credential storage**: encrypted client-side via PBKDF2 + AES-GCM; server stores only ciphertext

@@ -323,19 +323,24 @@
 <script src="js/storage.js" defer></script>          <!-- window.CList.storage.kv.* facade; defines KvStoreError, must load before the two adapters below -->
 <script src="js/kvstore-remote.js" defer></script>  <!-- storage.js facade: HTTP adapter -->
 <script src="js/kvstore-local.js" defer></script>   <!-- storage.js facade: IndexedDB adapter; must load after local-kvstore.js and storage.js -->
-<script src="js/kvstore.js?v=7" defer></script>     <!-- Loads usere and account data -->
+<script src="js/account-state.js" defer></script>
+<script src="js/account-form.js" defer></script>
+<script src="js/account-panel.js" defer></script>
+<script src="js/kvstore.js?v=8" defer></script>     <!-- Loads usere and account data -->
 <script src="js/editors.js?v=3" defer></script>   <!-- Major function handlers-->
 <script src="js/reader.js?v=6" defer></script>
 <script src="js/oauth-config.js" defer></script>
 <script src="js/oauth-strategies.js" defer></script>
 <script src="js/oauth-client.js" defer></script>
 <script src="js/mastodon.js?v=5" defer></script>
+<script src="js/mastodon_account.js?v=2" defer></script>
 <script src="js/bluesky.js?v=5" defer></script>
 <script src="js/discord.js?v=1" defer></script>
+<script src="js/discord_account.js?v=2" defer></script>
 <script src="js/opml.js" defer></script>
-<script src="js/localrss.js?v=7" defer></script>
+<script src="js/localrss.js?v=8" defer></script>
 <script src="js/public-feeds.js?v=4" defer></script>
-<script src="js/public-feed-editor.js?v=1" defer></script>
+<script src="js/public-feed-editor.js?v=2" defer></script>
 <script src="js/youtube.js" defer></script>
 <script src="js/peertube.js" defer></script>
 <script src="js/googlesearch.js" defer></script>
@@ -355,10 +360,12 @@
 <script src="js/tinymce.js?v=1" defer></script>
 <script src="js/etherpad.js" defer></script>
 <script src="js/collab.js?v=2" defer></script>
+<script src="js/collab_account.js" defer></script>
 <script src="js/latex.js?v=3" defer></script>
 <script src="js/slides.js?v=14" defer></script>
 <script src="js/tags.js" defer></script>         <!-- Write-pane tag field -->
 <script src="js/annotate.js?v=6" defer></script>   <!-- Annotation store -->
+<script src="js/annotate_account.js" defer></script>
 <script src="js/annotate-editor.js?v=2" defer></script>   <!-- Dedicated annotation editor -->
 <script src="js/collection-formats.js?v=2" defer></script> <!-- Collection format interpreters -->
 <script src="js/collections.js?v=2" defer></script> <!-- Collections -->
@@ -368,7 +375,8 @@
 <script src="js/0x0.js" defer></script>
 <script src="js/clistbin.js" defer></script>
 <script src="js/dropbox.js" defer></script>
-<script src="js/hypothesis.js" defer></script>
+<script src="js/dropbox_account.js?v=2" defer></script>
+<script src="js/hypothesis.js?v=1" defer></script>
 <script src="js/chatgpt.js" defer></script>
 <script src="js/summarize.js" defer></script>
 <script src="js/translate.js" defer></script>

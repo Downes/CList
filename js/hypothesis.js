@@ -1,3 +1,4 @@
+/// <reference path="./clist-types.js" />
 //  hypothesis.js  -  Hypothes.is annotation account type for CList
 //  Part of CList, the next generation of learning and connecting with your community
 //
@@ -8,6 +9,32 @@
 //  This software is provided "AS IS," and you, its user, assume all risks when using it.
 
 window.CList.schemas = window.CList.schemas || {};
+window.CList.accountHooks = window.CList.accountHooks || {};
+window.CList.accountHooks.Hypothesis = {
+    /**
+     * Verify the claimed username against the API key without form access.
+     * @param {CListAccountData} data
+     * @returns {Promise<CListAccountData>}
+     */
+    async prepareSave(data) {
+        if (!data.apiKey) throw new Error('Hypothes.is account requires an API key.');
+        if (!data.username) throw new Error('Hypothes.is account requires a username.');
+        const apiBase = data.instance?.includes('hypothes.is')
+            ? 'https://api.hypothes.is/api'
+            : (data.instance || 'https://hypothes.is').replace(/\/$/, '') + '/api';
+        const response = await fetch(`${apiBase}/profile`, {
+            headers: { Accept: 'application/json', Authorization: `Bearer ${data.apiKey}` },
+        });
+        if (!response.ok) throw new Error(`Hypothes.is rejected the API key (HTTP ${response.status}). Check your token and try again.`);
+        const profile = await response.json();
+        const returnedUser = (profile.userid || '').match(/^acct:([^@]+)@/)?.[1] || '';
+        const enteredUser = data.username.split('@')[0];
+        if (returnedUser.toLowerCase() !== enteredUser.toLowerCase()) {
+            throw new Error(`Username mismatch: API key belongs to "${returnedUser}", not "${enteredUser}". Correct the username and try again.`);
+        }
+        return { ...data, username: returnedUser };
+    },
+};
 window.CList.schemas['Hypothesis'] = {
     type: 'Hypothesis',
     instanceFromKey: true,

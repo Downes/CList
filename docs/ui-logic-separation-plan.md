@@ -16,6 +16,15 @@ retains ownership of the live draft. Completion preserves newer edits and leaves
 a different active collection untouched. The button keeps presentation feedback.
 File and Dropbox save workflows remain on their existing paths for later patches.
 
+Account management implementation update: generic navigation/account-list code
+now lives in `account-panel.js`, schema rendering/capture in `account-form.js`,
+and load/save/delete operations in the DOM-free `account-state.js`. Service
+extensions use `accountHooks` rather than generic form branches. `getAccounts()`
+is a compatibility wrapper over the shared decoder. Successful writes and
+subsequent refresh failures are presented separately; retrying refresh never
+repeats a write. Identity, authentication, settings, and custom service-flow
+controllers remain separate future work.
+
 ## Assessment
 
 The feedback identifies a real maintenance problem. CList separates services well, but many

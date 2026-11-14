@@ -1,3 +1,4 @@
+/// <reference path="./clist-types.js" />
 // Personal feed membership for subscribed public collections. Public collections
 // stay read-only; the first edit imports their OPML into a caller-owned database.
 // Uses existing LocalRSS endpoints, without changing shared feed metadata.
@@ -166,3 +167,29 @@ async function savePublicFeedCollection(binding, name, items, id, token, encKey)
         if (saved.key === binding.key) saved.value = JSON.stringify(updated);
     }
 }
+window.CList.accountHooks = window.CList.accountHooks || {};
+window.CList.accountHooks.PublicFeed = {
+    /** @param {CListAccountFormContext} context */
+    decorateForm(context) {
+        if (context.mode !== 'edit') return;
+        const button = document.createElement('button');
+        button.type = 'button'; button.className = 'btn btn-small';
+        button.textContent = 'Edit Feed Collection';
+        const status = document.createElement('div'); context.container.append(button, status);
+        button.onclick = async () => {
+            if (context.isDirty()) {
+                showErrorModal('Save your account changes before editing feeds.', { title: 'Unsaved account changes' }); return;
+            }
+            revealEditorPane(); button.disabled = true; status.textContent = 'Preparing your feed collection.';
+            try {
+                const account = await ensurePersonalPublicFeedAccount(context.key, context.data);
+                Object.assign(context.data, account); context.updateAccount(account);
+                context.root.querySelector('#databaseInput').value = account.database;
+                await openPublicFeedCollection(context.key, account); context.close();
+            } catch (error) {
+                console.error('Could not open feed editor:', error); status.innerHTML = '';
+                showServiceError(status, 'Could not edit feeds', error.message);
+            } finally { button.disabled = false; }
+        };
+    },
+};

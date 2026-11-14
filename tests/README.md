@@ -168,3 +168,23 @@ After changing authentication or publishing selection:
 
 Manual checks are not covered by the automated results above.
 Record their outcome separately when performed.
+
+
+## Service account flows
+
+Run `node --test tests/account-flows.test.cjs` for custom account dispatch,
+per-panel instances, OAuth delegation, manual account persistence, registration
+adapters, and error handling. These use mocked service responses and DOM controls;
+they do not authorize against live services or verify visual rendering.
+
+
+Generic account data and panel checks:
+
+```powershell
+node --test tests/account-state.test.cjs tests/account-panel.test.cjs
+```
+
+These cover registered-type filtering, compatibility loading, request snapshots,
+service validation hooks, session switches, extension/credential preservation,
+panel isolation, dirty navigation, save/delete failures, and refresh-only retries.
+The DOM fixture verifies behaviour; it does not verify browser layout or live OAuth.

@@ -1,3 +1,4 @@
+/// <reference path="./clist-types.js" />
 //  localrss.js  -  LocalRSS personal-database reader for CList
 //  Part of CList, the next generation of learning and connecting with your community
 //
@@ -17,6 +18,13 @@
 // ---- Account schema ----
 
 window.CList.schemas = window.CList.schemas || {};
+window.CList.accountHooks = window.CList.accountHooks || {};
+window.CList.accountHooks.LOCALRSS = {
+    /** @param {CListAccountFormContext} context */
+    decorateForm(context) {
+        if (context.mode === 'create') context.container.appendChild(_localrssBuildAccountOpmlSection(context.root));
+    },
+};
 
 window.CList.schemas['LOCALRSS'] = {
     type: 'LOCALRSS',
@@ -1224,7 +1232,7 @@ async function _localrssCreateAccountForDb(dbSlug, displayName) {
 // endpoint as _localrssImportOpml above, but writes the resulting db slug
 // back into the still-open create form rather than creating the account
 // itself, since the form's own Save button is what actually persists it.
-function _localrssBuildAccountOpmlSection() {
+function _localrssBuildAccountOpmlSection(accountForm = document) {
     const wrapper = document.createElement('div');
     wrapper.id = 'localrss-create-opml-section';
 
@@ -1253,8 +1261,8 @@ function _localrssBuildAccountOpmlSection() {
         const file = fileInput.files?.[0];
         if (!file) { status.textContent = 'Choose an OPML file first.'; return; }
 
-        const serviceUrlEl = document.getElementById('serviceUrlInput');
-        const dbEl = document.getElementById('databaseInput');
+        const serviceUrlEl = accountForm.querySelector('#serviceUrlInput');
+        const dbEl = accountForm.querySelector('#databaseInput');
         const serviceUrl = (serviceUrlEl?.value || '').trim();
         if (!serviceUrl) { status.textContent = 'Enter the LocalRSS Service URL above first.'; return; }
 

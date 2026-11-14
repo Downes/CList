@@ -13,6 +13,8 @@ CList uses a set of global registries under `window.CList` that services populat
 | Registry | Purpose | Key type |
 |---|---|---|
 | `window.CList.schemas` | Defines the account form fields in the Accounts panel | `'TypeName'` |
+| `window.CList.accountFlows` | Custom Add Account UI factories, cached per panel | `'TypeName'` |
+| `window.CList.accountHooks` | Optional schema form validation, controls, and reauthorization | `'TypeName'` |
 | `window.CList.publishers` | Called by **Post** to send content to the service | `'TypeName'` |
 | `window.CList.readers` | Called by **Read** to initialize a session and offer feed views | `'TypeName'` |
 | `window.CList.savers` | Called by **Save** to persist content (local or remote) | push to array |
@@ -509,3 +511,58 @@ and the current refactoring boundaries, use
 platform publication returns a URL string or null; bin publication returns an
 object; collection subscription saving resolves or throws without public posting.
 Do not copy UI-side error handling from an unmigrated publisher into a new adapter.
+
+
+## Custom account setup
+
+Use the generic schema-based account form unless the service needs a custom
+connection flow. Keep service functions in `service.js`; subdivide larger
+services as `service_feature.js`, for example `mastodon_account.js`. Aim for
+files below 500 lines, split by responsibility.
+
+Custom forms register a factory at `window.CList.accountFlows[serviceType]`.
+The Accounts panel creates and caches one instance per panel; the factory
+returns `{ open() }`. `open()` renders into the provided `context.container`.
+Factories themselves perform no I/O. See `CListAccountFlowContext` and
+`CListAccountFlow` in `js/clist-types.js` for the callback contract.
+
+Use `context.back()` for the type picker, `context.finish()` to close the add
+flow, `context.getAccounts()` for current panel accounts, and await
+`context.reloadAccounts()` after a mutation. `context.refreshList(storeUrl)`
+refreshes the managed account list. These callbacks preserve panel-local state;
+do not search the whole document for another panel's form controls.
+
+Reuse existing service OAuth helpers. Collab and Annotate expose registration
+adapters taking plain account values and a transient credential session; their
+UI handlers own progress and error presentation. Discord exposes
+`manageChannels(ctx)` on its flow so Add and Edit use the same channel UI.
+Schema forms use optional hooks registered in `window.CList.accountHooks[type]`:
+
+- `prepareSave(data)` returns validated/normalized account data or throws. It can
+  be async and must not read controls, display messages, or write the account.
+  `saveAccount(request, session)` calls it on a detached snapshot before encryption.
+- `decorateForm(context)` adds service-owned controls to this panel's fields.
+  It runs for create/edit forms; check `context.mode` for applicability. Use
+  `context.root` for lookups rather than the whole document.
+- `reauthorize(request)` receives captured `{key, data}` and calls the existing
+  OAuth helper. It may return a promise; the generic form presents failures.
+
+The hook types and scoped callbacks are documented in `js/clist-types.js`.
+PublicFeed uses `context.updateAccount(data)` after creating a personal copy;
+Discord delegates to `context.getAccountFlow('Discord').manageChannels(...)`.
+LocalRSS passes `context.root` to its existing OPML control. Generic code should
+not add service-name branches for these operations.
+
+Load the service account script with `defer` after its main service script in
+`index.html`. Registration must complete before account panels are opened.
+Blogger and WordPress keep their factories in their existing small modules.
+The new account modules do not replace service schemas, publishers, or readers.
+
+Run `node --test tests/account-flows.test.cjs tests/account-state.test.cjs tests/account-panel.test.cjs` after changing these interfaces.
+
+
+The deferred core loading order is `account-state.js`, `account-form.js`,
+`account-panel.js`, then `kvstore.js`. The panel's existing global entry point
+`kvstoreAccountsPanel()` is retained. The single Back navigation listener in
+`kvstore.js` uses the current panel context; panel creation does not install
+additional global listeners.
