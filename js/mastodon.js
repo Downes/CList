@@ -1,3 +1,4 @@
+/// <reference path="./clist-types.js" />
 //  mastodon.js  -  helper and utility functions for Mastodon API
 //  Part of CList, the next generation of learning and connecting with your community
 //
@@ -95,28 +96,7 @@ let accessToken = null;
 
            })();
 
-(function () {
-    window.CList.publishers = window.CList.publishers || {};
-    window.CList.publishers['Mastodon'] = {
-        acceptedFormats: ['text'],
-        publish: async (accountData, title, content, refs) => {
-            const responseDiv = window.CList.ui.view.postResult;
-            const cleanContent = removeHtml(content);
-            const mastodonRefs = (refs || []).filter(r => r.replyToken?.type === 'Mastodon');
-            const replyToId = mastodonRefs[0]?.replyToken?.statusId || null;
-            if (mastodonRefs.length > 1) {
-                showErrorModal(
-                    `Replying to "${mastodonRefs[0].author_name}" on Mastodon. ` +
-                    `Cannot simultaneously reply to ${mastodonRefs.length - 1} other Mastodon ` +
-                    `post${mastodonRefs.length > 2 ? 's' : ''} — Mastodon only supports one reply target.`,
-                    { title: 'Multiple reply targets' }
-                );
-            }
-            await postMastodonStatus(accountData.id, extractBaseUrl(accountData.instance), responseDiv, cleanContent, replyToId);
-            return null;
-        }
-    };
-})();
+
 
 
 // Mastodon Feed Functions
@@ -767,87 +747,26 @@ async function displayMastodonPost(status, statusBox, headerHtml) {
         // Retrieve the status ID from the hidden input field (used for replies)
         const replyToId = document.getElementById('statusIDInput').value;
 
-        postMastodonStatus(accessToken,baseURL,responseDiv,statusText,replyToId);
+        const submitted = await postMastodonStatus(accessToken, baseURL, responseDiv, statusText, replyToId);
+        const input = document.getElementById('status');
+        if (submitted && input?.value === statusText) input.value = '';
     }
         
-    async function postMastodonStatus(accessToken,baseURL,responseDiv,statusText,replyToId) {
-
-        if (statusText === '') {
-            responseDiv.innerHTML = `<p class="error-message">Please enter a status before posting.</p>`;
-            return;
-        }
-
-
-        const charLimit = await getCharacterLimit(baseURL);
-       
-        let truncatedStatus;
-
-        if (charLimit !== null) {
-            // Truncate statusText to the character limit if necessary
-            truncatedStatus = statusText.length > charLimit
-                ? statusText.slice(0, charLimit)
-                : statusText;
-        } 
-
-        const statusPayload = {
-            status: truncatedStatus,
-            visibility: 'public' // Adjust visibility as needed: public, unlisted, private, direct
-        };
-
-        // If replying to a specific post, add the reply ID to the payload
-        if (replyToId) {
-            statusPayload.in_reply_to_id = replyToId;
-        }
-
+    // Standalone form view/controller; the registered publisher never calls it.
+    async function postMastodonStatus(accessToken, baseURL, responseDiv, statusText, replyToId) {
+        responseDiv.innerHTML = '';
         try {
-            const response = await fetch(`${baseURL}/api/v1/statuses`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(statusPayload),
+            const url = await publishMastodonStatus(accessToken, baseURL, statusText, replyToId, {
+                onWarning: message => showPostMessage(responseDiv, message),
             });
-
-            if (!response.ok) {
-                throw new Error(`Error 11 posting status (Response): ${response.statusText}`);
-            }
-
-            await response.json();
-
-            // Clear the status input field, if it was used
-            const statusElement = document.getElementById('status');
-            if (statusElement) statusElement.value = '';
-
-            responseDiv.innerHTML = `<p>Status posted successfully!</p>`;
-            setTimeout(() => { responseDiv.innerHTML = ''; }, 4000);
+            if (url) renderPublicationSuccess(responseDiv, 'Mastodon', url);
+            else showPostMessage(responseDiv, 'Mastodon returned no post link. Check your posts before retrying.');
+            return true;
         } catch (error) {
-            responseDiv.innerHTML = `<p>Error posting status: ${error.message}</p>`;
-            setTimeout(() => { responseDiv.innerHTML = ''; }, 4000);
-        }
-    };
-
-
-   
-    // Get the character limit for a Mastodon instance
-
-    async function getCharacterLimit(instanceUrl) {
-        const apiUrl = `${instanceUrl}/api/v1/instance`;
-        try {
-            const response = await fetch(apiUrl);
-            if (response.ok) {
-                const data = await response.json();
-                return data.configuration.statuses.max_characters; // Return the character limit
-            } else {
-                console.error('Error fetching instance data:', response.statusText);
-                return null; // Return null if there is an error
-            }
-        } catch (error) {
-            console.error('Request failed:', error);
-            return null; // Return null in case of a failure
+            showServiceError(responseDiv, 'Mastodon post failed', error.message);
+            return false;
         }
     }
-
 
 // -----------------------------------------------------
 //

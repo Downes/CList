@@ -2468,9 +2468,13 @@ window.playCollectionPublish = async function playCollectionPublish() {
                     const fmt     = collectionFormats[fmtId];
                     if (!fmt) continue;
                     const content = fmt.serialize(name, flatItems, identity.id);
-                    const url     = await handler.publish(accountData, name, content, []);
+                    const url     = await handler.publish(accountData, name, content, [], {
+                        onWarning: message => _addPublishResult(message),
+                    });
                     if (!primaryUrl && url) primaryUrl = url;
                     if (url) newPublishedUrls.push({ url, format: fmtId, service: accountData.type, accountInstance: accountData.instance, publishedAt: new Date().toISOString() });
+                    _addPublishResult(url ? `Published to ${accountData.title || accountData.type}: ${url}`
+                        : `${accountData.title || accountData.type} returned no post link. Check its posts before retrying.`);
                 }
             } catch (e) {
                 console.error('[collection publish] full-content publish failed', e);
@@ -2493,7 +2497,11 @@ window.playCollectionPublish = async function playCollectionPublish() {
                     const fmt   = collectionFormats[fmtId] || collectionFormats.text;
                     content     = fmt.serialize(name, flatItems, identity.id).slice(0, maxLen);
                 }
-                await handler.publish(accountData, name, content, []);
+                const url = await handler.publish(accountData, name, content, [], {
+                    onWarning: message => _addPublishResult(message),
+                });
+                _addPublishResult(url ? `Published to ${accountData.title || accountData.type}: ${url}`
+                    : `${accountData.title || accountData.type} returned no post link. Check its posts before retrying.`);
             } catch (e) {
                 console.error('[collection publish] link-only publish failed', e);
                 _addPublishResult(`Failed: ${accountData.title || accountData.type} — ${e.message}`, true);

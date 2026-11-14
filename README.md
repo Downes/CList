@@ -4,6 +4,10 @@ Developers and AI agents: shared JavaScript shapes are documented in
 [js/clist-types.js](js/clist-types.js). See
 [data contract maintenance](docs/data-contracts.md) before changing those shapes.
 
+Publishing documentation:
+[How CList publishes your work](docs/publish_structure.md), including the service
+API reference, and [instructions for AI coding tools](docs/ai/publishing.md).
+
 A personal learning and communications application — a browser-based tool for reading feeds,
 annotating and composing responses, publishing to social platforms, and collaborating or chatting
 with peers. CList has **no server-side logic of its own**: every file is static HTML/CSS/JS,
@@ -56,7 +60,7 @@ or a remote/local service) are independent choices — combining them gives six 
 See [docs/deployment-configurations.md](docs/deployment-configurations.md) for the full matrix,
 the current LocalRSS integration, authentication limits, and deployment constraints.
 
-**Full documentation lives in [`docs/`](docs/)** — start with
+**Full documentation lives in [`docs/`](docs)** — start with
 [`docs/architecture.md`](docs/architecture.md) for the complete feature-by-feature breakdown, the
 `window.CList` namespace, the registry pattern used to add new services, and module load order.
 Notable entries:

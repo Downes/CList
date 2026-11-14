@@ -28,8 +28,8 @@ not validate network responses or stored data at runtime.
 
 These contracts describe the current implementation. They do not replace the
 conceptual collection model or introduce a storage migration. Native local page
-records and published page metadata are separate structures and are outside
-this first set of definitions.
+records remain separate from `CListPublishedPageRecord`, the subsequently added
+contract for published page metadata.
 
 
 Account setup also uses `CListAccountFlowContext` and `CListAccountFlow`.
@@ -43,3 +43,36 @@ functions accept explicit credentials and plain data. They return results or
 throw; form rendering and feedback are in `account-form.js` / `account-panel.js`.
 `prepareSave` returns properties, not a wrapper or ciphertext. Saving preserves
 unrecognized properties and separates the storage key from a service's `id`.
+
+
+Ordinary publishing uses `CListPublishingDependencies`, `CListPublishingUpdate`,
+`CListPublishingDestination`, `CListPublishingOutcome`, and
+`CListPublishingOperation`. The workflow receives explicit inputs and reports
+plain updates; the controller reduces those into state and invokes the view.
+Destination summaries contain keys, display names, service types, statuses,
+warnings, and URLs/error text, never account credentials. Legacy adapters still
+return a URL or null; the workflow's aggregate result does not replace that
+service contract. `localPageId` is captured with the request before editor awaits.
+
+
+`CListBlueskySession` describes a transient `{accessToken, did, pds}` value.
+Selected-account publishing creates one from explicit account properties without
+reusing or mutating reader session globals. It must not be stored in publishing
+operation summaries or persisted in collection/page metadata.
+
+
+`CListPublisherOptions` includes optional `onProgress` and `onWarning` callbacks.
+Warnings are strings consumed by the invoking view/controller; adapters do not
+show them directly. Ordinary workflow warnings are retained in destination state
+and outcomes. `CListBlueskyReply` describes the parent/root strong references used
+by `publishBlueskyRecord()`. Mastodon and Bluesky post operations keep the existing
+URL-or-null result contract and reject failures without UI access.
+
+
+Standalone web publishing uses `CListWebPageRequest`, `CListWebPageSource`,
+`CListWebPageDependencies`, and `CListWebPageOutcome`. `CListWebPageSession`
+extends account credentials with captured authorship and is passed transiently.
+Workflow outcomes separate remote publication status from metadata errors and
+contain only reconciliation properties, not credentials or editor controls.
+`CListPublishedPageRecord` describes current encrypted page metadata payloads;
+legacy input may lack newer fields. It is not a native PageStore document.

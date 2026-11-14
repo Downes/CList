@@ -38,74 +38,74 @@ window.CList.schemas['Blogger'] = {
     };
 })();
 
-// Publish a post to a Blogger account
-// publishBloggerPost(accountData.instance, accountData.id, writeColumnTitle, writeColumnContent);
-// Resolves with the published post's URL, or null on failure (caller in
-// publish.js treats a falsy return as "nothing to report" — see wordpress.js's
-// publishPost for the same contract).
-
+/**
+ * Publish using the existing Google token flow. Data/errors only; the caller
+ * presents failures. A successful response without a URL remains unconfirmed.
+ * @param {string} blogid
+ * @param {string} clientid
+ * @param {string} bloggerTitle
+ * @param {string} bloggerContent
+ * @returns {Promise<CListPublisherResult>}
+ */
 async function publishBloggerPost(blogid, clientid, bloggerTitle, bloggerContent) {
-
-  // Get content and title
-  if (!bloggerContent) { throw new Error('bloggerContent does not exist'); }
-
-    const Blogger_SCOPES = 'https://www.googleapis.com/auth/blogger';
-    let Blogger_tokenClient;
-    let Blogger_accessToken;
-
-    // Initialize the GIS token client
-    return new Promise((resolve) => {
-      Blogger_tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: clientid,
-        scope: Blogger_SCOPES,
-        callback: (response) => {
-          if (response.access_token) {
-            Blogger_accessToken = response.access_token;
-            Blogger_postBlog();
-          } else {
-            showErrorModal('Failed to authorize with Blogger.', { title: 'Blogger Publish Failed' });
-            resolve(null);
-          }
-        },
-      });
-
-      // Request an access token
-      Blogger_tokenClient.requestAccessToken();
-
-      // Function to submit the blog post
-      async function Blogger_postBlog() {
-        const Blogger_postData = {
-          kind: 'blogger#post',
-          title: bloggerTitle,
-          content: bloggerContent,
-        };
-
-        try {
-          const Blogger_response = await fetch(`https://www.googleapis.com/blogger/v3/blogs/${blogid}/posts/`, {
+    if (!bloggerContent) throw new Error('There is no content to publish to Blogger.');
+    if (!blogid || !clientid) throw new Error('The Blogger account needs a Blog ID and Client ID. Check it under Accounts.');
+    const accessToken = await requestBloggerAccessToken(clientid);
+    let response;
+    try {
+        response = await fetch(`https://www.googleapis.com/blogger/v3/blogs/${blogid}/posts/`, {
             method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${Blogger_accessToken}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(Blogger_postData),
-          });
+            headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ kind: 'blogger#post', title: bloggerTitle, content: bloggerContent }),
+        });
+    } catch (error) {
+        throw new Error('Could not confirm Blogger publication: ' + error.message + '. Check your blog before retrying.');
+    }
+    let data;
+    try { data = await response.json(); }
+    catch {
+        if (response.ok) throw new Error('Blogger returned success, but its response could not be read. Check your blog before retrying.');
+        throw new Error(`Failed to publish to Blogger (HTTP ${response.status}). The error response could not be read.`);
+    }
+    if (!response.ok) {
+        throw new Error(`Failed to publish to Blogger (HTTP ${response.status}): ${data?.error?.message || response.statusText || 'Unknown error'}`);
+    }
+    return typeof data?.url === 'string' && data.url ? data.url : null;
+}
 
-          const Blogger_data = await Blogger_response.json();
-
-          if (Blogger_response.ok) {
-            resolve(Blogger_data.url); // Return the URL
-          } else {
-            const Blogger_error = `Failed to publish post: ${Blogger_data.error?.message || 'Unknown error'}`;
-            showErrorModal(Blogger_error, { title: 'Blogger Publish Failed' });
-            resolve(null);
-          }
-        } catch (Blogger_err) {
-          showErrorModal(`Error: ${Blogger_err.message}`, { title: 'Blogger Publish Failed' });
-          resolve(null);
+/**
+ * Google Identity Services reports OAuth errors in callback and popup errors in
+ * error_callback: https://developers.google.com/identity/oauth2/web/reference/js-reference
+ * @param {string} clientid
+ * @returns {Promise<string>} Transient access token; never persisted.
+ */
+function requestBloggerAccessToken(clientid) {
+    return new Promise((resolve, reject) => {
+        if (typeof google === 'undefined' || !google.accounts?.oauth2?.initTokenClient) {
+            reject(new Error('Google authorization is unavailable. Reload CList and try again.'));
+            return;
         }
-      }
+        const client = google.accounts.oauth2.initTokenClient({
+            client_id: clientid,
+            scope: 'https://www.googleapis.com/auth/blogger',
+            callback: response => {
+                if (response?.error || !response?.access_token) {
+                    const detail = response?.error_description || response?.error || 'No access token returned';
+                    reject(new Error('Failed to authorize with Blogger: ' + detail));
+                } else {
+                    resolve(response.access_token);
+                }
+            },
+            error_callback: error => {
+                const detail = error?.type === 'popup_closed' ? 'The authorization window was closed.'
+                    : error?.type === 'popup_failed_to_open' ? 'The authorization window could not open. Allow pop-ups and try again.'
+                    : 'The authorization window failed.';
+                reject(new Error('Failed to authorize with Blogger: ' + detail));
+            },
+        });
+        client.requestAccessToken();
     });
-  }
+}
 
 // Service-specific account setup extracted from kvstore.js.
 // Copyright Stephen Downes 2026. CC BY 4.0; provided AS IS, without warranty.

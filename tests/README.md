@@ -188,3 +188,63 @@ These cover registered-type filtering, compatibility loading, request snapshots,
 service validation hooks, session switches, extension/credential preservation,
 panel isolation, dirty navigation, save/delete failures, and refresh-only retries.
 The DOM fixture verifies behaviour; it does not verify browser layout or live OAuth.
+
+
+## Ordinary publishing workflow separation
+
+```powershell
+node --test tests/publishing-workflow.test.cjs tests/publishing-controller.test.cjs tests/publishing-view.test.cjs
+```
+
+The workflow runs without `window` or `document`. Mocked publishers cover
+full-first ordering and returned-link handoff, construction/limit handling,
+reference/account snapshots, errors, missing handlers, null links, and progress.
+Controller tests cover actual `packagePost()` editor API capture, busy guards,
+cleanup, captured page identity, and post-publication metadata/WebMention errors.
+View tests verify reuse of existing feedback helpers. No live posts are created.
+The existing selection/request/WordPress browser fixtures load both extracted
+scripts before `publish.js`; their browser layout/API checks remain separate.
+
+
+## Bluesky selected publishing account
+
+Run `node --test tests/bluesky-publishing-account.test.cjs`. Mocked HTTP requests
+verify that selected and concurrent publishing accounts use their own credentials,
+PDS, and repository, without changing a pre-existing reader session. Failed or
+missing credentials cannot fall back to the reader. Reply construction and the
+standalone reader-post path are also checked. No live authentication or posts occur.
+
+
+## Blogger publisher errors
+
+Run `node --test tests/blogger-publishing.test.cjs`. Mocked Google token callbacks
+and HTTP responses cover authorization denial, popup closure/blocking, SDK errors,
+API/network/response parsing failures, missing publication URLs, and successful
+HTML posting. Controller integration checks one visible failure without secondary
+missing-link feedback; duplicate token callbacks produce only one post request.
+No real Google authorization or publication occurs.
+
+
+## Mastodon and Bluesky adapter separation
+
+Run `node --test tests/social-publishing.test.cjs tests/bluesky-publishing-account.test.cjs tests/publishing-controller.test.cjs`.
+Mocked HTTP requests verify URL returns, API/network errors, missing links,
+reply IDs/roots, selected-account isolation, instance limits, clean-text Unicode
+truncation, warning callbacks/state, and standalone form draft preservation.
+Data-operation tests run without a document. These do not authenticate with or
+write to live services. Browser layout and real authorization remain separate.
+
+
+## Standalone web-page publishing and Republish
+
+```powershell
+node --test tests/web-page-content.test.cjs tests/web-page-workflow.test.cjs tests/web-page-publishing.test.cjs tests/web-page-view.test.cjs
+```
+
+Mocked tests cover awaited editor APIs, viewable versus native formats, new and
+independent-version identities, destination-matched overwrite, cancellation,
+PageStore annotations, same-author/alias versus derived metadata, page switches,
+duplicate guards, session changes, metadata failures after a successful external
+write, and standard view controls. Workflow tests run without `window`/`document`.
+Collection Republish delegation and file-save helper compatibility are preserved.
+No live service writes occur; visual layout and real authorization are not checked.

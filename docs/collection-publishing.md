@@ -231,6 +231,13 @@ and format; other selected destinations are new publications. To Web Page uses
 the CListBin adapter directly. A saved personal feed binding is not a public page
 publication record; feed subscription saving remains a separate operation.
 
+Standalone To Web Page / Republish are now separated into `web-page-workflow.js`,
+`web-page-publishing.js`, and `web-page-view.js`. Shared published-page identity
+and metadata helpers live in `web-page-records.js`. Those helpers remain available
+to file saving and My Pages. The collection-specific publish/republish controllers
+are still their own legacy UI-dependent paths; see `publish_structure.md` for the
+standalone boundary and metadata-failure semantics.
+
 ## Verification and remaining boundaries
 
 See [tests/README.md](../tests/README.md) for the 36 targeted collection request,

@@ -1,3 +1,4 @@
+/// <reference path="./clist-types.js" />
 //  bluesky.js  -  helper and utility functions for Bluesky API
 //  Part of CList, the next generation of learning and connecting with your community
 //
@@ -65,46 +66,7 @@ let _bskyPds   = null;
     window.CList.readers['Bluesky'] = blueskyHandler;
 })();
 
-(function () {
-    window.CList.publishers = window.CList.publishers || {};
-    window.CList.publishers['Bluesky'] = {
-        acceptedFormats: ['text'],
-        publish: async (_accountData, _title, content, refs) => {
-            const blueskyRefs = (refs || []).filter(r => r.replyToken?.type === 'Bluesky');
-            const replyToken = blueskyRefs[0]?.replyToken || null;
-            if (blueskyRefs.length > 1) {
-                showErrorModal(
-                    `Replying to "${blueskyRefs[0].author_name}" on Bluesky. ` +
-                    `Cannot simultaneously reply to ${blueskyRefs.length - 1} other Bluesky ` +
-                    `post${blueskyRefs.length > 2 ? 's' : ''} — Bluesky only supports one reply target.`,
-                    { title: 'Reply target dropped' }
-                );
-            }
-            // Bluesky enforces a 300-grapheme hard limit regardless of account settings
-            const BSKY_LIMIT = 300;
-            const segmenter = typeof Intl?.Segmenter === 'function' ? new Intl.Segmenter() : null;
-            const graphemeCount = segmenter
-                ? [...segmenter.segment(removeHtml(content))].length
-                : removeHtml(content).length;
-            let postContent = removeHtml(content);
-            if (graphemeCount > BSKY_LIMIT) {
-                showStatusMessage(`Bluesky post truncated to ${BSKY_LIMIT} graphemes (was ${graphemeCount}).`);
-                if (segmenter) {
-                    const segs = [...segmenter.segment(content)];
-                    postContent = segs.slice(0, BSKY_LIMIT).map(s => s.segment).join('');
-                } else {
-                    postContent = content.slice(0, BSKY_LIMIT);
-                }
-            }
-            const parentUri = replyToken?.uri  || null;
-            const parentCid = replyToken?.cid  || null;
-            const rootUri   = parentUri;
-            const rootCid   = parentCid;
-            await submitBlueskyPost(postContent, 'post-result', null, parentUri, parentCid, rootUri, rootCid);
-            return null;
-        }
-    };
-})();
+
 
 // -----------------------------------------------------
 
@@ -620,64 +582,44 @@ function parseThreadToPosts(thread) {
 }
 
 async function submitBlueskyPostFromForm(replyContentId = null, responseDiv = 'blueskyPostResponse', parentUri = null, parentCid = null, rootUri = null, rootCid = null) {
-    postContent = replyContentId ? document.getElementById(replyContentId).value : 'No content';
-    await submitBlueskyPost(postContent, responseDiv, replyContentId, parentUri, parentCid, rootUri, rootCid);
-    document.getElementById(replyContentId).value = '';
+    const input = replyContentId ? document.getElementById(replyContentId) : null;
+    const text = input?.value || '';
+    const submitted = await submitBlueskyPost(text, responseDiv, replyContentId, parentUri, parentCid, rootUri, rootCid);
+    if (submitted && input?.value === text) input.value = '';
 }
 
-async function submitBlueskyPost(content, responseDiv, replyContentId = null, parentUri = null, parentCid = null, rootUri = null, rootCid = null) {
-    const { accessToken, did, pds } = await createBlueskySession();
-    const uri = `${pds}/xrpc/com.atproto.repo.createRecord`;
-
-    const record = {
-        "$type": "app.bsky.feed.post",
-        text: content,
-        createdAt: new Date().toISOString(),
-    };
-
-    if (parentUri && parentCid && rootUri && rootCid) {
-        if (replyContentId) responseDiv = `replyResponse-${replyContentId.split('-')[1]}`;
-        record.reply = {
-            root: { uri: rootUri, cid: rootCid },
-            parent: { uri: parentUri, cid: parentCid },
-        };
-    }
-
-    const requestBody = {
-        collection: "app.bsky.feed.post",
-        repo: did,
-        record: record,
-    };
-
+/**
+ * Standalone form view/controller. Registered publishing uses bluesky_publish.js directly.
+ * @param {string} content
+ * @param {string} responseDiv
+ * @param {string|null} [replyContentId]
+ * @param {string|null} [parentUri]
+ * @param {string|null} [parentCid]
+ * @param {string|null} [rootUri]
+ * @param {string|null} [rootCid]
+ * @param {CListBlueskySession|null} [publishingSession]
+ * @returns {Promise<boolean>} Whether the request completed, for input clearing.
+ */
+async function submitBlueskyPost(content, responseDiv, replyContentId = null, parentUri = null, parentCid = null, rootUri = null, rootCid = null, publishingSession = null) {
+    const reply = parentUri && parentCid && rootUri && rootCid
+        ? { parent: { uri: parentUri, cid: parentCid }, root: { uri: rootUri, cid: rootCid } } : null;
+    if (reply && replyContentId?.includes('-')) responseDiv = `replyResponse-${replyContentId.split('-')[1]}`;
+    const result = document.getElementById(responseDiv);
+    if (result) result.innerHTML = '';
     try {
-        const response = await fetch(uri, {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${accessToken}`,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify(requestBody),
+        const session = publishingSession || await createBlueskySession();
+        const url = await publishBlueskyRecord(session, content, reply, {
+            onWarning: message => { if (result) showPostMessage(result, message); },
         });
-
-        if (!response.ok) {
-            const error = await response.json();
-            console.error("Error response:", error);
-            throw new Error(`Error: ${error.message || response.statusText}`);
+        if (result) {
+            if (url) renderPublicationSuccess(result, 'Bluesky', url);
+            else showPostMessage(result, 'Bluesky returned no post link. Check your posts before retrying.');
         }
-
-        const responseData = await response.json();
-        console.log("Bluesky Post Submitted Successfully:", responseData);
-        document.getElementById(responseDiv).innerHTML += 'Bluesky Post Submitted Successfully';
-
+        return true;
     } catch (error) {
-        console.error("Failed to submit post:", error.message);
-        const resultEl = document.getElementById(responseDiv);
-        if (resultEl) {
-            const errP = document.createElement('p');
-            errP.className = 'error-message';
-            errP.textContent = `Failed to post: ${error.message}`;
-            resultEl.appendChild(errP);
-        }
+        if (result) showServiceError(result, 'Bluesky post failed', error.message);
+        else showErrorModal(error.message, { title: 'Bluesky post failed' });
+        return false;
     }
 }
 

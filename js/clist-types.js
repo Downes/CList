@@ -2,6 +2,73 @@
 // Read docs/data-contracts.md before extending these definitions.
 
 /**
+ * Captured loaded-page properties used by standalone publication; extensible.
+ * @typedef {Object.<string, *> & {kind: string, id?: string, pageKey?: string,
+ * service?: string, accountInstance?: string, serviceId?: string, url?: string,
+ * title?: string, mimeType?: string}} CListWebPageSource
+ */
+
+/**
+ * @typedef {Object} CListWebPageRequest
+ * @property {string} title
+ * @property {string} content Captured viewable editor output.
+ * @property {string} mimeType
+ * @property {CListWebPageSource|null} page Captured before awaiting the editor.
+ * @property {string|null} authorDid
+ * @property {string} service
+ */
+
+/** @typedef {CListAccountSession & {authorDid: (string|null)}} CListWebPageSession */
+
+/**
+ * Encrypted page:* payload, separate from native PageStore documents.
+ * @typedef {Object} CListPublishedPageRecord
+ * @property {string} id
+ * @property {string} title
+ * @property {string} url
+ * @property {string} service
+ * @property {string} mimeType
+ * @property {string} accountInstance
+ * @property {string} publishedAt
+ * @property {string|null} authorDid
+ * @property {string} [serviceId]
+ * @property {string} [derivedFrom]
+ */
+
+/**
+ * Successful publication is separate from the subsequent metadata write.
+ * @typedef {Object} CListWebPageOutcome
+ * @property {'published'|'unconfirmed'} status
+ * @property {string|null} url
+ * @property {string} id
+ * @property {CListWebPageSource|null} loadedPage
+ * @property {{publicationUrl: string, format: string}|null} localPublication
+ * @property {string|null} metadataError
+ * @property {boolean} forked
+ */
+
+/**
+ * @typedef {Object} CListWebPageDependencies
+ * @property {{publish?: Function, update?: Function}} adapter Existing bin adapter.
+ * @property {CListAccountData} account Transient account properties, outside operation state.
+ * @property {function(): string} createId
+ * @property {function(): string} now
+ * @property {function(string, string, string, string): string} embedIdentity
+ * @property {function(CListPublishedPageRecord): Promise<string>} saveRecord
+ * @property {function(string, string, Object): Promise<{id: string, pageKey: string, forked: boolean}>} touchRecord
+ * @property {function(string, Object): Promise<void>} recordLocalPublication
+ * @property {function(): void} assertSession
+ */
+
+/**
+ * Transient AT Protocol session; selected-account publishing does not reuse reader credentials.
+ * @typedef {Object} CListBlueskySession
+ * @property {string} accessToken
+ * @property {string} did
+ * @property {string} pds
+ */
+
+/**
  * Credentials captured by the panel before data operations. Never persisted.
  * @typedef {Object} CListAccountSession
  * @property {string} storeUrl
@@ -229,6 +296,74 @@
  * @property {CListReference[]} references
  * @property {string[]} selectedAccountKeys
  * @property {string} accountStoreUrl
+ * @property {string|null} [localPageId] Local page captured before awaiting editor content.
+ */
+
+/**
+ * One ordinary-post destination, with no credentials or UI controls.
+ * @typedef {Object} CListPublishingDestination
+ * @property {string} key
+ * @property {string} destination Display title or service name.
+ * @property {string} service
+ * @property {'pending'|'publishing'|'published'|'failed'|'skipped'|'unconfirmed'} status
+ * @property {string[]} warnings
+ * @property {string} [url]
+ * @property {string} [error]
+ * @property {CListPublisherProgress} [progress]
+ */
+
+/**
+ * @typedef {{stage: string, completed?: number, total?: number}} CListPublisherProgress
+ */
+
+/**
+ * @typedef {{type: 'started', destinations: CListPublishingDestination[]} |
+ * {type: 'destination', result: CListPublishingDestination} |
+ * {type: 'warning', key: string, destination: string, message: string} |
+ * {type: 'progress', key: string, destination: string, progress: CListPublisherProgress}} CListPublishingUpdate
+ */
+
+/**
+ * Complete means every destination was attempted; inspect individual statuses.
+ * @typedef {Object} CListPublishingOutcome
+ * @property {string|null} primaryUrl First confirmed publication URL.
+ * @property {CListPublishingDestination[]} destinations Ordered results.
+ */
+
+/**
+ * Safe operation summary stored at CList.state.publishing.operation.
+ * @typedef {CListPublishingOutcome & {
+ * status: 'capturing'|'publishing'|'complete'|'failed'|'cancelled', error?: string
+ * }} CListPublishingOperation
+ */
+
+/**
+ * Existing publisher registry entry, passed into the ordinary-post workflow.
+ * @typedef {Object} CListPostPublisher
+ * @property {function(string, string): string} [construct]
+ * @property {function(CListAccountData, string, string, CListReference[], CListPublisherOptions): Promise<CListPublisherResult>} publish
+ */
+
+/**
+ * Optional data notifications; service operations never display them directly.
+ * @typedef {Object} CListPublisherOptions
+ * @property {function(CListPublisherProgress): void} [onProgress]
+ * @property {function(string): void} [onWarning]
+ */
+
+/**
+ * @typedef {{parent: {uri: string, cid: string}, root: {uri: string, cid: string}}} CListBlueskyReply
+ */
+
+/**
+ * Dependencies of the workflow. The HTML text converter is an output conversion,
+ * not a control reader. onUpdate receives detached summaries without credentials.
+ * @typedef {Object} CListPublishingDependencies
+ * @property {CListAccountRecord[]} accounts
+ * @property {Object.<string, CListPostPublisher>} publishers
+ * @property {function(CListAccountRecord): (CListAccountData|null)} parseAccount
+ * @property {function(string): string} toText
+ * @property {function(CListPublishingUpdate): void} [onUpdate]
  */
 
 /**

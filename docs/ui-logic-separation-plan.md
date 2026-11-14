@@ -25,6 +25,27 @@ subsequent refresh failures are presented separately; retrying refresh never
 repeats a write. Identity, authentication, settings, and custom service-flow
 controllers remain separate future work.
 
+Ordinary publishing implementation update: `publishing-workflow.js` now owns
+multi-destination ordering, content limits/link handoff, and structured outcomes.
+It receives account/publisher snapshots and explicit conversion/update callbacks;
+it has no controls, renderers, or global-state reads. `publishing-view.js` maps
+updates to existing UI helpers. `publish.js` retains editor request capture,
+account loading, busy lifetime, PageStore metadata, WebMentions, and completion
+actions. `publishing.operation` stores safe per-destination status/progress.
+The subsequent Mastodon/Bluesky extraction moved their publishers into
+`service_publish.js` adapters; Blogger also now throws errors without UI.
+Other legacy adapters and collection publishing/republishing remain future
+work; this extraction does not claim all publishing is UI-free.
+
+Standalone web-page implementation update: new, overwrite, and Republish now use
+`web-page-workflow.js` with explicit dependencies. `web-page-publishing.js`
+captures editor/source/session data, owns operation lifetime and reconciliation,
+and invokes `web-page-view.js` for choices and feedback. `web-page-records.js`
+retains shared identity/metadata helpers with compatibility for file saves.
+Destination matching, stale-page protection, busy guards, and metadata-only
+failure outcomes are verified independently of a browser. Collection publication
+and republishing are not included in this extraction.
+
 ## Assessment
 
 The feedback identifies a real maintenance problem. CList separates services well, but many
@@ -32,7 +53,7 @@ service operations also construct interfaces and display results. A navigation c
 therefore require edits across several integrations. The existing registries, account schemas,
 shared UI helpers, and PageStore provide useful foundations; they should be extended.
 
-Verified examples in the current checkout:
+Original assessment examples (the implementation updates above supersede migrated items):
 
 | Location | Current responsibility crossing | Proposed boundary |
 |---|---|---|
@@ -67,8 +88,8 @@ explicitly before use. The slide editor's existing separate build remains separa
 
 ## State and result contracts
 
-Proposed shared publishing state is `window.CList.state.publishing`, initially containing
-`selectedAccountKeys`, `busy`, and per-target `results`. Use stable account keys, not labels
+Implemented shared publishing state is `window.CList.state.publishing`, containing
+`selectedAccountKeys`, `busy`, and an `operation` summary with per-destination results. Use stable account keys, not labels
 or credentials. Define explicit actions to toggle a target, reconcile account removal, and
 begin/finish a publication. Decide and document whether opening Post preserves selections;
 logout and account-store changes must clear incompatible selections. Do not persist these

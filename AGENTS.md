@@ -5,6 +5,18 @@ reading feeds, writing content, and publishing to social platforms.
 
 See [README.md](README.md) for full architecture, kvstore/CORS details, and file structure.
 
+## Publishing changes
+
+Before writing or changing code that supports or impacts publishing, read
+[Publishing instructions for AI coding tools](docs/ai/publishing.md).
+This includes service adapters, editor exports, account/session handling,
+publication tracking, and publishing UI. Follow its current collections-editor
+pause until the user's pending pull is available and reconciled.
+
+Publishing data operations must return results or propagate errors; their
+controllers/views own visible feedback. Do not add UI to an adapter merely to
+satisfy a general error-feedback rule.
+
 ## Shared data contracts
 
 - Before changing account, collection, reference, or publishing data shapes,
@@ -28,6 +40,17 @@ See [README.md](README.md) for full architecture, kvstore/CORS details, and file
   `account-form.js` (schema view), and `account-state.js` (DOM-free data operations).
   Extend `CList.accountHooks[type]` for service-specific validation, decorations,
   or reauthorization. Keep write errors distinct from post-write refresh failures.
+
+- Ordinary post ordering/content limiting belongs in `publishing-workflow.js`.
+  It takes explicit dependencies and emits data updates. Keep UI rendering in
+  `publishing-view.js`; `publish.js` owns capture and post-publication effects.
+  Consult `docs/publish_structure.md` and shared typedefs before changing this path.
+
+- Standalone page publication uses `web-page-workflow.js` (explicit data operations),
+  `web-page-publishing.js` (controller), and `web-page-view.js` (choices/feedback).
+  Shared page identity/indexing helpers are in `web-page-records.js`. Preserve
+  captured targets/session, matching-destination overwrite rules, and separate
+  remote-write success from metadata failures. Collection publishing is separate.
 
 - **No server-side logic** — all files are static HTML/CSS/JS served by Caddy
 - **External services**: kvstore (credential storage), opml2json (feed parsing), social platform APIs

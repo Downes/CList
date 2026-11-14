@@ -4,7 +4,7 @@ const { readFileSync } = require('node:fs')
 const vm = require('node:vm')
 
 function helper() {
-    const source=readFileSync('js/publish.js','utf8'),start=source.indexOf('async function _getWebPageEditorContent(')
+    const source=readFileSync('js/web-page-publishing.js','utf8'),start=source.indexOf('async function _getWebPageEditorContent(')
     const context=vm.createContext({})
     vm.runInContext(source.slice(start,source.indexOf('async function postToWebPage()',start)),context)
     return context._getWebPageEditorContent

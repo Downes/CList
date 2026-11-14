@@ -2,7 +2,9 @@
 
 This guide explains how to integrate a new service with CList's registry system. It covers account schemas, reader, save, and load handlers, and how to wire a script into the page.
 
-For services that publish editor content to an external platform (Mastodon, WordPress, etc.), see `publish_structure.md` for the publish handler contract.
+For publishing services, start with the [human guide and service API reference](publish_structure.md).
+AI coding tools must read [publishing instructions](ai/publishing.md) before changing that code.
+See [publish_structure.md](publish_structure.md) for the detailed publish handler contract.
 
 ---
 
@@ -20,7 +22,7 @@ CList uses a set of global registries under `window.CList` that services populat
 | `window.CList.savers` | Called by **Save** to persist content (local or remote) | push to array |
 | `window.CList.loaders` | Called by **Load** to pull content into the editor | push to array |
 
-The `window.CList` namespace is declared in an inline `<script>` in `index.html` before any deferred script loads. All registries are guaranteed to exist — no defensive initialization is needed.
+The `window.CList` namespace is declared in an inline `<script>` in `index.html` before deferred scripts load. Check initialization for the registry you extend; optional registries such as `accountFlows` and `accountHooks` are initialized by their service modules before registration.
 
 Scripts are loaded via `index.html` with `defer`. `interface.js` must remain last; add your service script before it.
 
@@ -28,7 +30,7 @@ Scripts are loaded via `index.html` with `defer`. `interface.js` must remain las
 
 ## File layout
 
-Create one file per service: `js/myservice.js`. Wrap each registry registration in an IIFE so it does not pollute the global scope. Helper functions go outside the IIFEs so they can be called from within them.
+Start with `js/myservice.js`; subdivide larger services using `service_feature.js`, such as `mastodon_publish.js`. Keep registration scoped to the relevant service. Existing modules use both IIFE registrations and direct registry assignments; reuse the surrounding module's pattern.
 
 ```javascript
 // 1. Account schema
@@ -566,3 +568,28 @@ The deferred core loading order is `account-state.js`, `account-form.js`,
 `kvstoreAccountsPanel()` is retained. The single Back navigation listener in
 `kvstore.js` uses the current panel context; panel creation does not install
 additional global listeners.
+
+
+## Ordinary publishing workflow boundary
+
+`publishing-workflow.js` consumes the existing publisher registry and returns
+structured destination outcomes. Keep new publisher operations free of UI writes:
+return the post URL (or null) and throw errors; report optional progress through
+`options.onProgress`, and report service notices through `options.onWarning`.
+`publishing-view.js` uses the standard success/error/progress
+renderers. Do not change the ordinary publisher return contract to the workflow's
+aggregate `{primaryUrl, destinations}` shape. See `publish_structure.md`.
+
+
+Mastodon and Bluesky use `mastodon_publish.js` and `bluesky_publish.js` for data
+operations. Load these after their main service script. Standalone post forms
+retain UI wrappers in the main service files. Follow this boundary when splitting
+other service files: adapters return links/throw errors, controllers render notices.
+
+
+Standalone page publishing keeps the existing bin adapter `publish` / `update`
+contract. `web-page-workflow.js` calls it with captured output and account data;
+`web-page-publishing.js` handles editor access, authentication, and reconciliation,
+and `web-page-view.js` handles version choices and feedback. Identity and indexing
+helpers are in `web-page-records.js`; do not add UI to those data operations.
+Collection publishing remains separate. See `publish_structure.md`.
