@@ -310,7 +310,7 @@ window.openAnnotationEditor = function(itemId) {
         publish: async function(accountData, title, content) {
             const refs = getReferences();
             if (!refs.length) {
-                showErrorModal('No target — load items into the editor before annotating.', { title: 'No target' });
+                showErrorModal('No target URL for this annotation — fill in the URL field above, or use "Write about this", before publishing.', { title: 'No target' });
                 return null;
             }
 

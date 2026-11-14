@@ -4,9 +4,11 @@
 // Depends on: utilities.js (escapeHtml, showStatusMessage, showErrorModal, parseAccountValue,
 //             getSiteSpecificCookie, getAccounts, cleanHTMLContent), kvstore.js, editors.js
 //             (currentEditor, editorHandlers, switchToEditor), tags.js (getWriteTags),
-//             tinymce.js (createReference, pushAndDisplayReference, displayCurrentReference,
-//             displayReferences), references.js (getReferences), annotate.js
-//             (_submitAnnotation — loads before this file).
+//             tinymce.js (pushAndDisplayReference), references.js (getReferences, pushReference),
+//             annotate.js (_submitAnnotation — loads before this file), the global `tinymce`
+//             library object (same script tag tinymce.js uses) for the Description field's own
+//             small, separate TinyMCE instance (selector '#annotate-edit-body' — independent of
+//             tinymce.js's 'write-column' instance, own init-once flag).
 //
 // A normal editor like any other: it takes citations via the shared insertLink/insertLinkVia
 // contract (the "Write about this" arrow button, or the Alt+A shortcut in interface.js) and
@@ -18,10 +20,120 @@
 // (currently only the Alt+A shortcut in interface.js) when it wasn't already active.
 let _annotateReturnEditor = null;
 
+// Standalone draft reference used when the editor is opened with nothing cited yet (selected
+// directly from the editor list, rather than via "Write about this" or Alt+A). Lets the ref
+// fields and Send controls render immediately instead of gating on getReferences().length.
+// Kept out of window.CList.state.references (and its url-dedup/panel/park-restore machinery)
+// since it's not a real citation until the user fills in a URL and sends it; once a real
+// reference is attached via insertLink/loadContent, that takes over as _annotateTarget()'s result.
+let _annotateDraftRef = null;
+
+// Resolves to whatever the ref-fields/Send controls should currently operate on: the real
+// cited reference if one has been attached, else the standalone draft (created on first need).
+// Stays correct as long as the target is always the first thing pushed into getReferences()
+// for this editor — guaranteed by _annotateReceiveReference() and the URL field's own change
+// handler below, both of which push the target before any later, additional reference.
+function _annotateTarget() {
+    const ref = getReferences()[0];
+    if (ref) return ref;
+    if (!_annotateDraftRef) {
+        _annotateDraftRef = {
+            service: null, author_name: '', author_id: '', feed: '', url: '', title: '',
+            created_at: '', cited_at: new Date().toISOString(), id: null, summary: '',
+            image: '', replyToken: null,
+        };
+    }
+    return _annotateDraftRef;
+}
+
+// Handles a reference arriving via "Write about this" (insertLink), the Alt+A shortcut,
+// drag-via (insertLinkVia), or loadContent's itemId path. If the annotation has no target yet
+// (URL field still empty — whether nothing's been cited, or Title/Author/etc. were typed by
+// hand but no URL), this reference BECOMES the target: fields are copied in wherever the
+// reference has data, and the (now-filled) target is pushed so it claims getReferences()[0].
+// Otherwise the target is already set, so the incoming reference is an ADDITIONAL target for
+// convergent annotation (the generic Publish flow posts the same body to every reference's
+// URL) — pushed alongside, without touching the already-displayed fields.
+function _annotateReceiveReference(reference, editorDiv) {
+    if (!reference) return;
+    const target = _annotateTarget();
+    if (!target.url) {
+        ['title', 'url', 'author_name', 'author_id', 'feed', 'image', 'service',
+         'created_at', 'cited_at', 'replyToken', 'id', 'summary'].forEach(key => {
+            if (reference[key]) target[key] = reference[key];
+        });
+        pushAndDisplayReference(target, editorDiv);
+    } else {
+        if (!getReferences().includes(target)) pushAndDisplayReference(target, editorDiv);
+        pushAndDisplayReference(reference, editorDiv);
+    }
+    _refreshAnnotateRefFields();
+}
+
+// Scoped-down TinyMCE instance for the Description field — same library/pattern as the main
+// 'write-column' editor in tinymce.js, just a smaller toolbar for a short annotation body
+// rather than a full document, and its own init-once flag so it doesn't collide with that
+// instance. Idempotent like every other editor's initialize() — called once, on first render.
+let _annotateTinyMCEInitialized = false;
+
+function _initAnnotateTinyMCE() {
+    if (_annotateTinyMCEInitialized) return;
+    if (typeof tinymce === 'undefined') {
+        console.error('TinyMCE is not loaded.');
+        showErrorModal('TinyMCE failed to load — check your network connection.', { title: 'Editor failed to load' });
+        return;
+    }
+    const dm = document.documentElement.classList.contains('dark-mode');
+    tinymce.init({
+        selector: '#annotate-edit-body',
+        height: 200,
+        menubar: false,
+        plugins: 'link image code',
+        toolbar: 'bold italic link image code',
+        skin: dm ? 'oxide-dark' : 'oxide',
+        content_style: dm
+            ? 'body { background:#1e1e1e; color:#e0e0e0; font-size:14px; }'
+            : 'body { font-size:14px; }',
+        setup: (editor) => {
+            // Smaller toolbar than the main write-column editor's — see .annotate-mini-toolbar
+            // in interface.css. Added on init rather than via a fixed selector since TinyMCE
+            // generates the toolbar container itself.
+            editor.on('init', () => {
+                editor.getContainer().classList.add('annotate-mini-toolbar');
+            });
+            // Mirrors tinymceConfig's own setup — keeps the backing textarea's raw value in
+            // sync with user edits, since getContent()/setContent() elsewhere in this file
+            // read/write that textarea directly as a pre-ready fallback.
+            editor.on('change', () => {
+                const ta = document.getElementById('annotate-edit-body');
+                if (ta) ta.value = editor.getContent();
+            });
+        },
+    });
+    _annotateTinyMCEInitialized = true;
+}
+
+// Appends HTML to the end of the Description field — never at the cursor — per the "content is
+// always appended" rule. Writes through the live TinyMCE instance when it's ready; falls back
+// to the backing textarea's raw value otherwise (mirrors tinymce.js's own tolerance for the
+// narrow window between render and the async tinymce.init() finishing).
+function _annotateAppendHTML(html) {
+    const editor = tinymce.get('annotate-edit-body');
+    if (editor) {
+        const existing = editor.getContent();
+        editor.setContent(existing ? existing + '<p>' + html + '</p>' : `<p>${html}</p>`);
+        const ta = document.getElementById('annotate-edit-body');
+        if (ta) ta.value = editor.getContent();
+    } else {
+        const ta = document.getElementById('annotate-edit-body');
+        if (ta) ta.value = ta.value ? ta.value + '<br><br>' + html : html;
+    }
+}
+
 // Render the editor panel: editable Title/URL/Author/Feed/Image fields for the reference being
-// annotated, a Description body textarea (content arrives via loadContent/insertLink, same as
-// every other editor), and a bottom Send control. Fields modeled on gRSShopper's ghub post-edit
-// screen.
+// annotated, a Description body (HTML, via its own small TinyMCE instance — content arrives via
+// loadContent/insertLink, same as every other editor), and a bottom Send control. Fields modeled
+// on gRSShopper's ghub post-edit screen.
 async function _renderAnnotateEditor(container) {
     container.innerHTML = '';
 
@@ -47,22 +159,23 @@ async function _renderAnnotateEditor(container) {
     body.style.cssText = 'width:100%;box-sizing:border-box;';
     bodyWrapper.appendChild(body);
     container.appendChild(bodyWrapper);
+    _initAnnotateTinyMCE();
 
     const sendSection = document.createElement('div');
     sendSection.id = 'annotate-send-section';
     sendSection.style.cssText = 'margin-top:10px;';
     container.appendChild(sendSection);
-    await _renderSendControls(sendSection, body);
+    await _renderSendControls(sendSection);
 }
 
 // Editable Title/URL/Author/Feed/Image fields for the reference this annotation targets —
-// the same reference (getReferences()[0]) that _renderSendControls's Send handler reads as
-// `target`. Edits write straight back into that reference object; no re-render needed.
-// Renders nothing until a reference exists (nothing to edit yet).
+// the same reference (_annotateTarget()) that _renderSendControls's Send handler reads as
+// `target`. Edits write straight back into that reference object; no re-render needed. Always
+// renders — against the draft reference when nothing's been cited yet — so the editor is usable
+// for a manually-typed annotation, not just one seeded from a feed item.
 function _renderAnnotateRefFields(container) {
     container.innerHTML = '';
-    const ref = getReferences()[0];
-    if (!ref) return;
+    const ref = _annotateTarget();
 
     const makeField = (label, key) => {
         const wrapper = document.createElement('div');
@@ -74,7 +187,14 @@ function _renderAnnotateRefFields(container) {
         input.type = 'text';
         input.className = 'collection-editor-input';
         input.value = ref[key] || '';
-        input.addEventListener('change', () => { ref[key] = input.value; });
+        input.addEventListener('change', () => {
+            ref[key] = input.value;
+            // Registers a manually-typed URL as this editor's target the moment it's filled in,
+            // so the generic Publish flow (getReferences()-driven) sees it even if the user never
+            // triggered "Write about this" — needed for rule 3's "publish throws if no URL" to be
+            // correct for a hand-typed annotation, not just a cited one.
+            if (key === 'url' && ref.url) pushReference(ref);
+        });
         wrapper.appendChild(input);
         container.appendChild(wrapper);
     };
@@ -86,24 +206,25 @@ function _renderAnnotateRefFields(container) {
     makeField('Image', 'image');
 }
 
-// Re-renders just the Send row (account/visibility pickers + gating message) without
-// touching the body textarea — called after a reference is added to an already-open
-// annotate-edit editor (insertLink/insertLinkVia/loadContent), since the gating on
-// getReferences().length needs to flip from "nothing to annotate yet" to the real controls.
+// Re-renders just the Send row (account/visibility pickers) without touching the body
+// textarea. The Send controls don't depend on reference data, so insertLink/insertLinkVia/
+// loadContent no longer call this — only references.js's "Annotate this reference" button
+// (switching into this editor fresh) still does, right after _renderAnnotateEditor's own
+// initial call.
 function _refreshAnnotateSendControls() {
     const sendSection = document.getElementById('annotate-send-section');
-    const body = document.getElementById('annotate-edit-body');
-    if (sendSection && body) _renderSendControls(sendSection, body);
+    if (sendSection) _renderSendControls(sendSection);
 }
 
-// Re-renders the ref-fields block — called alongside _refreshAnnotateSendControls() for the
-// same reason: the fields are empty (not rendered) until a reference exists.
+// Re-renders the ref-fields block — called after _annotateTarget()'s underlying reference
+// gains or changes field data (a new reference filled the target, or an additional convergent
+// reference arrived), so the Title/URL/Author/Feed/Image inputs reflect the current target.
 function _refreshAnnotateRefFields() {
     const fieldsSection = document.getElementById('annotate-ref-fields');
     if (fieldsSection) _renderAnnotateRefFields(fieldsSection);
 }
 
-async function _renderSendControls(sendSection, body) {
+async function _renderSendControls(sendSection) {
     sendSection.innerHTML = '';
     const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
     if (!token) {
@@ -123,14 +244,6 @@ async function _renderSendControls(sendSection, body) {
         const msg = document.createElement('p');
         msg.className = 'feed-status-message';
         msg.textContent = 'No annotation account with write permission — add one in Account Settings.';
-        sendSection.appendChild(msg);
-        return;
-    }
-
-    if (!getReferences().length) {
-        const msg = document.createElement('p');
-        msg.className = 'feed-status-message';
-        msg.textContent = 'Nothing to annotate yet — use "Write about this" on a feed item, or Alt+A.';
         sendSection.appendChild(msg);
         return;
     }
@@ -162,12 +275,12 @@ async function _renderSendControls(sendSection, body) {
     sendSection.appendChild(row);
 
     sendBtn.addEventListener('click', async () => {
-        const target = getReferences()[0];
-        if (!target || !target.url) {
-            showErrorModal('No target URL for this annotation.', { title: 'No target' });
+        const target = _annotateTarget();
+        if (!target.url) {
+            showErrorModal('No target URL for this annotation — fill in the URL field above.', { title: 'No target' });
             return;
         }
-        const bodyText = body.value.trim();
+        const bodyText = editorHandlers['annotate-edit'].getContent();
         if (!bodyText) {
             showErrorModal('Annotation text is required.', { title: 'Annotation required' });
             return;
@@ -225,77 +338,55 @@ async function _renderSendControls(sendSection, body) {
         },
 
         getContent: () => {
+            const editor = tinymce.get('annotate-edit-body');
+            if (editor) return editor.getContent().trim();
             const ta = document.getElementById('annotate-edit-body');
             return ta ? ta.value.trim() : '';
         },
 
         setContent: (value) => {
+            const editor = tinymce.get('annotate-edit-body');
+            if (editor) editor.setContent(value);
+            // Programmatic setContent() doesn't fire the 'change' handler that normally mirrors
+            // TinyMCE's content into the backing textarea — keep it in sync here too, same as
+            // the main 'write-column' editor's setContent() in tinymce.js.
             const ta = document.getElementById('annotate-edit-body');
             if (ta) ta.value = value;
         },
 
         // Insertion target for the "Write about this" arrow button (clistAnnotate) and the
-        // Alt+A shortcut — mirrors texteditor's cursor-splice insertion plus the generic
-        // multi-reference citation-list bookkeeping shared by every editor.
+        // Alt+A shortcut. Content is always appended to the end of the Description field
+        // (never cursor-spliced — an annotation is a running note, not a document being edited
+        // at a cursor position). Any accompanying reference goes through
+        // _annotateReceiveReference(), which decides whether it fills the (empty) target or
+        // joins it as an additional convergent target.
         loadContent: ({ type, value }, itemId) => {
-            const itemContent = (type === 'text/html') ? cleanHTMLContent(value) : value;
-            const textarea = document.getElementById('annotate-edit-body');
-            if (!textarea) return;
-
-            const cursorPosition = textarea.selectionStart;
-            const textBefore = textarea.value.substring(0, cursorPosition);
-            const textAfter = textarea.value.substring(cursorPosition);
-            textarea.value = textBefore + itemContent + textAfter;
-
-            const newCursorPosition = cursorPosition + itemContent.length;
-            textarea.setSelectionRange(newCursorPosition, newCursorPosition);
+            const itemContent = (type === 'text/html') ? cleanHTMLContent(value) : escapeHtml(value);
+            if (itemContent) _annotateAppendHTML(itemContent);
 
             if (itemId) {
-                const editorDiv = document.getElementById('annotateEditDiv');
-                const reference = createReference(itemId, editorDiv);
-                displayCurrentReference(reference, editorDiv);
-                displayReferences(editorDiv);
-                _refreshAnnotateSendControls();
-                _refreshAnnotateRefFields();
+                const el = document.getElementById(itemId);
+                const reference = el && el.reference ? { ...el.reference } : null;
+                _annotateReceiveReference(reference, document.getElementById('annotateEditDiv'));
             }
         },
 
         insertLink: ({ content, entryUrl, feedTitle, reference }) => {
-            const itemContent = (content.type === 'text/html') ? cleanHTMLContent(content.value) : content.value;
-            const textarea = document.getElementById('annotate-edit-body');
-            if (itemContent && textarea) {
-                const cursorPosition = textarea.selectionStart;
-                const textBefore = textarea.value.substring(0, cursorPosition);
-                const textAfter = textarea.value.substring(cursorPosition);
-                const insert = `${itemContent} [${feedTitle}]`;
-                textarea.value = textBefore + insert + textAfter;
-                const newCursorPosition = cursorPosition + insert.length;
-                textarea.setSelectionRange(newCursorPosition, newCursorPosition);
+            const itemContent = (content.type === 'text/html') ? cleanHTMLContent(content.value) : escapeHtml(content.value);
+            if (itemContent) {
+                _annotateAppendHTML(`${itemContent} [<a href="${escapeHtml(entryUrl)}">${escapeHtml(feedTitle)}</a>]`);
             }
-            if (reference) {
-                pushAndDisplayReference(reference, document.getElementById('annotateEditDiv'));
-                _refreshAnnotateSendControls();
-                _refreshAnnotateRefFields();
-            }
+            _annotateReceiveReference(reference, document.getElementById('annotateEditDiv'));
         },
 
         insertLinkVia: ({ content, linkedUrl, linkedTitle, entryUrl, authorOrFeedTitle, reference }) => {
-            const itemContent = (content.type === 'text/html') ? cleanHTMLContent(content.value) : content.value;
-            const textarea = document.getElementById('annotate-edit-body');
-            if (itemContent && textarea) {
-                const cursorPosition = textarea.selectionStart;
-                const textBefore = textarea.value.substring(0, cursorPosition);
-                const textAfter = textarea.value.substring(cursorPosition);
-                const insert = `${itemContent} [${linkedTitle}, via ${authorOrFeedTitle}]`;
-                textarea.value = textBefore + insert + textAfter;
-                const newCursorPosition = cursorPosition + insert.length;
-                textarea.setSelectionRange(newCursorPosition, newCursorPosition);
+            const itemContent = (content.type === 'text/html') ? cleanHTMLContent(content.value) : escapeHtml(content.value);
+            if (itemContent) {
+                _annotateAppendHTML(
+                    `${itemContent} [<a href="${escapeHtml(linkedUrl)}">${escapeHtml(linkedTitle)}</a>, via <a href="${escapeHtml(entryUrl)}">${escapeHtml(authorOrFeedTitle)}</a>]`
+                );
             }
-            if (reference) {
-                pushAndDisplayReference(reference, document.getElementById('annotateEditDiv'));
-                _refreshAnnotateSendControls();
-                _refreshAnnotateRefFields();
-            }
+            _annotateReceiveReference(reference, document.getElementById('annotateEditDiv'));
         },
     };
 })();

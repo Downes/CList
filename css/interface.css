@@ -1341,6 +1341,13 @@ textarea.collection-editor-input { min-height: 60px; resize: vertical; }
 .tox-tbtn:hover { background: var(--bg-hover) !important; }
 .tox-statusbar { background: var(--bg-pane) !important; border-color: var(--border-main) !important; color: var(--text-muted) !important; }
 
+/* Annotate editor's Description field — its TinyMCE instance is scoped smaller than the main
+   write-column editor's, so its toolbar buttons shrink to match (class added by
+   annotate-editor.js's _initAnnotateTinyMCE on init). */
+.annotate-mini-toolbar .tox-tbtn { width: 24px; height: 24px; margin: 1px; }
+.annotate-mini-toolbar .tox-tbtn svg { width: 14px; height: 14px; }
+.annotate-mini-toolbar .tox-toolbar__group { padding: 0 2px; }
+
 #collab-editor-container { background: var(--bg-body); border-color: var(--border-main); }
 #tiptap-editor .ProseMirror { background: var(--bg-body); color: var(--text-main); }
 #tiptap-editor .ProseMirror blockquote { border-left-color: var(--text-muted); color: var(--text-muted); }
