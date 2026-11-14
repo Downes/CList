@@ -269,7 +269,7 @@ metadata-only failures, captured overwrite/cancellation, session guards,
 selection/busy state, save/publication overlap, and newer drafts/collection switches.
 No live publications are created. Real browser/account authorization checks remain
 unrun: verify destination selection, overwrite/cancel, and results manually with
-an intentional test publication. Direct Republish/local-entry Publish remain legacy paths. To Web Page now shares
+an intentional test publication. Local-entry Publish has its own separated-controller coverage below. To Web Page now shares
 the separated collection workflow, with the additional coverage below.
 
 
@@ -279,3 +279,36 @@ matching, cancellation, overlapping clicks, raw-versus-flattened content, missin
 destinations/URLs, changed sessions, metadata-only failure, and loaded-page/draft
 reconciliation. The view test checks the existing public icon and disabled state.
 These are mocked tests; real-browser and live account checks remain unrun.
+
+## Direct collection Republish separation
+
+Run `node --test tests/collection-republishing.test.cjs`, then the full suite.
+Mocked tests check exact service/account/resource/format targeting, update-only
+adapters, captured draft/page context, missing accounts and unsupported updates,
+shared duplicate guards, metadata-only failures, session changes, timestamp-only
+persistence, and status-indicator isolation. Shared collection fixtures are in
+`tests/helpers/collection-publishing-fixture.cjs`. No live service writes occur;
+real-browser/account checks remain unrun. Local-entry Publish also uses a separated controller.
+
+
+## Local-entry Publish separation
+
+Run `node --test tests/collection-entry-publishing.test.cjs`, then the full suite.
+Mocked checks cover shared workflow/identity/page metadata, captured blob/member/
+authorship/account/session inputs, duplicate guards and receipt replay, newer or
+removed members, collection switches, missing links, metadata-only failures,
+revocation/refresh, and read/upload errors. No live publications occur. Browser
+blob lifecycle and live authorization checks remain unrun.
+
+## Discord publishing errors
+
+Run `node --test tests/discord-publishing.test.cjs`. Mocked tests cover the selected
+account/channel and existing bridge authentication/payload, missing channels,
+bridge/API/network failures, missing links, and one controller-owned failure
+result without adapter modals. No Discord messages are sent.
+
+Ordinary Post panel regression checks in `publishing-view.test.cjs` exercise
+controller-owned selection through rebuilds, altered button attributes, read-only
+account filtering, annotation highlighting/aria state, and publishing/page action
+callbacks. The existing `publish-selection.browser.html` fixture still loads the
+real view/controller; its real-browser checks remain separate from automated tests.

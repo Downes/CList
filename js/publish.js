@@ -128,84 +128,14 @@ function togglePublishSelection(key) {
         : [...publishing.selectedAccountKeys, key];
 }
 
-function renderPublishSelection(container) {
-    const selectedKeys = new Set(
-        window.CList.state.publishing.selectedAccountKeys
-    );
-
-    container.querySelectorAll('.account-button[data-key]').forEach(btn => {
-        const selected = selectedKeys.has(btn.dataset.key);
-        btn.dataset.selected = String(selected);
-        btn.classList.toggle('selected', selected);
-        btn.classList.toggle(
-            'annotate-glow',
-            selected && btn.dataset.accountType === 'Annotate'
-        );
-        btn.setAttribute('aria-pressed', String(selected));
-    });
-}
-
-// Function to populate the post panel with account options
+// Compatibility entry point used by account refresh and the Post action.
 function populatePostOptions(accounts) {
-    reconcilePublishSelection(accounts);
-    const postOptionsDiv = document.getElementById('post-options');
-    postOptionsDiv.innerHTML = '';
-
-    postOptionsDiv.appendChild(makeAccountList(
-        'Select accounts to publish to',
-        accounts,
-        v => v.permissions.includes('w'),
-        key => {
-            togglePublishSelection(key);
-            renderPublishSelection(postOptionsDiv);
-        }
-    ));
-    renderPublishSelection(postOptionsDiv);
-
-    const finalPostOption = document.createElement('button');
-    finalPostOption.textContent = 'Publish';
-    finalPostOption.id = 'final-post-button';
-    finalPostOption.className = 'final-save-button btn';
-    postOptionsDiv.appendChild(finalPostOption);
-    renderPublishingBusy(window.CList.state.publishing.busy);
-
-    finalPostOption.onclick = async function() {
-        await postAll();
-    };
-
-    postOptionsDiv.appendChild(makeWebPageOption());
-}
-
-// Builds the "To Web Page" option — publishes the editor's raw content, unwrapped and
-// untruncated, to the account's CListBin destination (pastebin.mooc.ca by default).
-// Deliberately separate from the account checklist above: that flow runs content through
-// packagePost() (wraps title/content/references in divs) and truncates to each target's
-// character limit, neither of which is right for "publish this page as-is".
-function makeWebPageOption() {
-    const list = document.createElement('div');
-    list.className = 'account-list';
-
-    const tip = document.createElement('div');
-    tip.className = 'list-tip';
-    tip.textContent = 'Or publish the editor content directly';
-    list.appendChild(tip);
-
-    const btn = document.createElement('button');
-    btn.className = 'account-button';
-
-    const iconEl = document.createElement('span');
-    iconEl.className = 'material-icons';
-    iconEl.textContent = 'public';
-
-    const nameEl = document.createElement('span');
-    nameEl.textContent = 'To Web Page';
-
-    btn.appendChild(iconEl);
-    btn.appendChild(nameEl);
-    btn.addEventListener('click', postToWebPage);
-    list.appendChild(btn);
-
-    return list;
+    const selectedKeys = reconcilePublishSelection(accounts);
+    window.CList.ui.publishing.mount(accounts, {
+        selectedKeys, busy: window.CList.state.publishing.busy,
+        onToggle: key => { togglePublishSelection(key); return [...window.CList.state.publishing.selectedAccountKeys]; },
+        onPublish: postAll, onWebPage: postToWebPage,
+    });
 }
 
 // Standalone web-page publishing is implemented by web-page-*.js.

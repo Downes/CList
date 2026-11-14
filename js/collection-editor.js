@@ -5,8 +5,8 @@
 // Depends on: utilities.js (escapeHtml, showStatusMessage, showErrorModal, parseAccountValue,
 //             getSiteSpecificCookie, getAccounts), kvstore.js (getEncKey), editors.js
 //             (currentEditor, initializeEditor), collection-formats.js (_collectionItemDisplayTitle,
-//             _detectFormat, _collectionFormatParsers), publish.js (_saveWebPageRecord,
-//             _embedWebPageIdentity, _currentAuthorDid), and collections.js (_activeCollection,
+//             _detectFormat, _collectionFormatParsers), collection-entry-publishing.js
+//             (_publishLocalEntry, resolved when clicked), and collections.js (_activeCollection,
 //             _resolveCollectionIdentity, _kvSaveItems, _fetchAllCollections,
 //             _fetchAllPublishedPages, _wouldCreateCycle, _resolveCollectionById,
 //             _loadCollectionIntoEditor — loads before this file)
@@ -527,48 +527,6 @@ window.backToCollectionEditor = async function backToCollectionEditor() {
     if (!_activeCollection) { showErrorModal('No collection to return to.', { title: 'Nothing to return to' }); return; }
     await initializeEditor('collection');
 };
-
-// "Publish" button handler for a local-only (blob:) leaf entry — reuses the
-// same CListBin single-page publish pipeline as the regular "Publish" action
-// elsewhere, then rewrites the entry's url to the real published URL and
-// clears localOnly so it's eligible for export/share/Collab going forward.
-async function _publishLocalEntry(item, refresh) {
-    if (!item.url || !item.url.startsWith('blob:')) return;
-    try {
-        const adapter = window.CList.binPublishers?.['CListBin'];
-        if (!adapter) { showErrorModal('Web-page publishing is not available.', { title: 'Publishing unavailable' }); return; }
-
-        const accounts = await ensureAccountsLoaded();
-        const binAccount = accounts.map(parseAccountValue).filter(Boolean)
-            .find(v => v.type === 'CListBin' && (v.permissions || '').includes('b'));
-        if (!binAccount) { showErrorModal('No web-page destination set up yet — log out and back in to add one.', { title: 'No destination set up' }); return; }
-
-        const resp = await fetch(item.url);
-        if (!resp.ok) throw new Error(`blob fetch error ${resp.status}`);
-        const rawContent = await resp.text();
-        const mimeType    = item.mimeType || 'text/plain';
-        const id          = `urn:uuid:${crypto.randomUUID()}`;
-        const content     = _embedWebPageIdentity(rawContent, mimeType, item.title, id);
-
-        const result = await adapter.publish(content, mimeType, item.title || 'Untitled', binAccount);
-
-        const publishedAt = new Date().toISOString();
-        await _saveWebPageRecord({
-            id, title: item.title || 'Untitled', url: result.url, serviceId: result.serviceId,
-            service: 'CListBin', mimeType, accountInstance: binAccount.instance, publishedAt,
-            authorDid: _currentAuthorDid(),
-        });
-
-        URL.revokeObjectURL(item.url);
-        item.url       = result.url;
-        item.localOnly = false;
-        showStatusMessage(`Published "${item.title}".`);
-        refresh();
-    } catch (e) {
-        console.error('[collection entry] publish failed', e);
-        showErrorModal('Could not publish: ' + e.message, { title: 'Publish failed' });
-    }
-}
 
 (function () {
     if (typeof editorHandlers === 'undefined') {

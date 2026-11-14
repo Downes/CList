@@ -13,10 +13,10 @@ behaviour, see [How CList publishes your work](../publish_structure.md). Consult
 ## Current work boundary
 
 The user has authorized collection editor work after the incoming pull. Preserve
-current editor behaviour and unrelated working-tree changes. Collection **Post**
-and **To Web Page** now share a separated controller/workflow/view. Direct
-**Republish** and **Publish local entry** remain separate legacy paths. Do not
-present those paths as migrated; review each before extracting it.
+current editor behaviour and unrelated working-tree changes. Collection **Post**,
+**To Web Page**, and direct **Republish** now share a separated controller/workflow/view.
+**Publish local entry** uses its own small controller with the existing shared
+web-page workflow. Preserve the reviewed behaviour of each publishing path.
 
 ## Maintain these responsibilities
 
@@ -31,8 +31,8 @@ present those paths as migrated; review each before extracting it.
 | Published-page identity/indexing | [web-page-records.js](../../js/web-page-records.js) | Preserve identity/authorship and compatibility with file saving; no UI. |
 | Service API operations | Service files, including `mastodon_publish.js`, `bluesky_publish.js`, `wordpress.js`, `blogger.js` | Use explicit account/session values. Return data or reject; never display publication feedback. |
 | Annotation publishing | `annotation-workflow.js`, `annotation-publishing.js`, `annotation-view.js`, `annotate_publish.js`, `hypothesis_publish.js` | Explicit captured targets/session; per-target receipts; transport has no feedback. |
-| Collection Post / To Web Page | `collection-publishing.js`, `collection-publishing-workflow.js`, `collection-publishing-view.js`, [collection-publishing.md](../collection-publishing.md) | Capture collection/account/session before awaits; state owns selection/busy; workflow emits data; view owns choices/results. |
-| Other collection publication | [collections.js](../../js/collections.js), `collection-editor.js` | Direct Republish and local-entry Publish remain legacy paths. |
+| Collection Post / To Web Page / Republish | `collection-publishing.js`, `collection-publishing-workflow.js`, `collection-publishing-view.js`, [collection-publishing.md](../collection-publishing.md) | Capture collection/account/session before awaits; state owns selection/busy; workflow emits data; view owns choices/results. |
+| Local-entry Publish | `collection-entry-publishing.js`, `web-page-workflow.js`, `web-page-records.js` | Capture member/session/account/authorship, retain receipts, and reconcile only the unchanged original member; feedback remains in the collection view. |
 
 Plain browser JavaScript remains the deployment architecture. Do not add a
 framework, TypeScript conversion, bundler, or end-user Node requirement. Keep
@@ -172,8 +172,8 @@ plain-text contents, My Pages indexing, and verified DID alias/derived-copy
 behaviour. Overwrite requires a captured matching service/account/resource.
 Reconcile the loaded-page pointer only if the original editor/page is still active.
 Keep `_saveWebPageRecord` / `_touchOrForkWebPageRecord` compatibility for file saving
-and `_findAccountForPage` / `showRepublishStatus` compatibility for collection
-republishing until their callers are deliberately migrated.
+and the existing `showRepublishStatus` UI for collection republishing. The old
+`_findAccountForPage` compatibility controller has been removed after migration.
 
 ## Verification and maintenance
 
@@ -273,3 +273,69 @@ original editor, collection, loaded-page context, title, and membership are stil
 unchanged. An upload without a URL is unconfirmed, with no fabricated page record.
 UI option construction belongs in `collection-publishing-view.js`, using the
 existing public icon/account-button pattern and shared disabled-state rendering.
+
+
+## Direct collection Republish
+
+`window.republishCollection()` invokes the shared controller with
+`{republish: true}`. Capture the draft, loaded publication and session before
+account/key loading. Resolve exactly its original service/instance with bin
+permission, require update support, preserve the loaded format (not the current
+format selector or a newly negotiated format), and update its captured service ID.
+Do not display a version-choice prompt or fall back to new publication.
+
+The request's optional `republish` flag tells the data workflow to call the
+explicit `touch` dependency after a successful update rather than saving draft
+members over the collection record. `_touchPublishedUrlEntry` receives captured
+credentials/session checks, original identity/service/account, and strict missing
+record/entry handling. Preserve stored title/members while updating the timestamp.
+A touch failure is metadata-only: retain published status and do not repeat the
+remote update. Do not regenerate the catalog in this direct path; preserve its
+existing timestamp-only metadata policy.
+
+Republish feedback lives in the view. Use the original status indicator only
+while the captured editor, collection, loaded page, and draft are still active;
+otherwise show a general result without altering the newer page's indicator.
+Reuse `CList.state.collectionPublishing` for all duplicate/overlap guards.
+
+
+## Local-entry Publish
+
+`_publishLocalEntry(item, refresh)` is now in `collection-entry-publishing.js`.
+Reuse `runWebPagePublication` with `mode: 'new'`, `page: null`, the captured blob
+contents/MIME/title, and the captured CListBin account/session/authorship. Use
+`_embedWebPageIdentity` and `_saveWebPageRecord(record, session)`; do not recreate
+the upload or page-index workflow in the collection editor. The collection's
+loaded-page pointer must not become this leaf page's pointer.
+
+Use the shared collection busy guard. Keep per-entry receipts in
+`CList.state.collectionPublishing.entryAttempts`, a WeakMap of
+`CListLocalEntryReceipt` keyed by the original member. Receipts contain no
+credentials and are scoped by public store/user identity and blob source URL.
+A fulfilled result, including a missing-link result, is replayed for the same
+source instead of repeating its upload. Changed blob sources can publish anew.
+Thrown read/upload failures release the guard for an explicit retry; never
+retry writes automatically or retry an upload merely because metadata failed.
+
+Only replace the member URL/clear localOnly/revoke the captured blob when the
+original editor/collection/member array still owns the unchanged member and the
+captured session is valid. Keep changed/removed members and newer collections
+untouched. A confirmed upload can reconcile its unchanged member even if My Pages
+metadata failed; the view reports that metadata error separately. Retain the
+receipt/link if reconciliation is skipped. Refresh failures must not discard
+an already successful upload. Run `tests/collection-entry-publishing.test.cjs`
+and the full suite; mocked checks do not prove real-browser/live authorization.
+
+Discord publishing in `discord.js` propagates missing-channel, bridge/API and
+network failures to the invoking controller. It preserves the selected account's
+channel, existing KV-authenticated `/send` request, and HTML-to-text conversion.
+A successful bridge response without a link returns null; failures never return
+null or display modals inside the publisher. Reader/account UI remains separate.
+
+The ordinary Post panel is rendered by `CList.ui.publishing.mount()` and
+`selection()` in `publishing-view.js`. `populatePostOptions()` remains a thin
+controller compatibility entry point for account refresh: reconcile selected keys,
+then pass detached selection/busy values and action callbacks to the view. The
+view never reads selection from buttons or changes `CList.state.publishing`.
+`makeWebPageOption()` remains available from the view and accepts its action as
+a callback. Save-menu rendering in `publish.js` is a separate Save concern.

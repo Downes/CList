@@ -92,3 +92,17 @@ from the captured raw membership saved to the collection record.
 capture. Its credentials stay outside operation summaries. To Web Page reuses the
 collection request/outcome contracts with one automatic CListBin target; there
 is no second incompatible publication result shape.
+
+Direct collection Republish reuses `CListCollectionPublicationRequest` with
+`republish: true` and the original loaded format/resource. Its workflow dependency
+`touch` preserves stored membership/title; it does not run the normal draft-save
+callback. Timestamp persistence failure remains a separate metadata error.
+
+Local-entry Publish reuses `CListWebPageRequest` / `CListWebPageOutcome` and
+transient captured session/account properties. `CListLocalEntryReceipt` retains
+only the public store/user identity, blob source URL, and workflow result, keyed
+by the original member in a WeakMap. Credentials are excluded from receipts.
+
+`CListPublishingPanelOptions` supplies explicit ordinary Post selection/busy inputs
+and controller callbacks to the view. The view reflects those values without
+reading or modifying publishing state or using button attributes as selection.

@@ -38,32 +38,66 @@ async function postCollectionToWebPage() {
     return runCollectionPublication(null, session, { webPage: true });
 }
 
+// Direct Republish updates only the captured original destination, without a choice.
+window.republishCollection = async function republishCollection() {
+    const storeUrl = window.CList.config.flaskSiteUrl;
+    return runCollectionPublication(null, {
+        storeUrl, token: getSiteSpecificCookie(storeUrl, window.CList.keys.ACCESS_TOKEN) || '',
+    }, { republish: true });
+};
+
 /** @param {CListAccountRecord[]|null} accounts
  * @param {CListCollectionPublicationSession} session
- * @param {{webPage?: boolean}} [options]
+ * @param {{webPage?: boolean, republish?: boolean}} [options]
  * @returns {Promise<CListCollectionPublicationOutcome|null|undefined>} */
-async function runCollectionPublication(accounts, session, { webPage = false } = {}) {
+async function runCollectionPublication(accounts, session, { webPage = false, republish = false } = {}) {
     const state = collectionPublishingState(), view = window.CList.ui.collectionPublishing;
     if (state.busy) return;
+    const sourceEditor = typeof currentEditor === 'undefined' ? null : currentEditor;
+    const sourcePage = typeof currentLoadedPage === 'undefined' ? null : currentLoadedPage;
+    let request, active;
+    const sourceStillActive = () => _activeCollection?.col === active
+        && (typeof currentEditor === 'undefined' ? null : currentEditor) === sourceEditor
+        && (typeof currentLoadedPage === 'undefined' ? null : currentLoadedPage) === sourcePage
+        && JSON.stringify(sourcePage) === JSON.stringify(request?.page)
+        && readActiveCollectionDraft()?.name.trim() === request?.name
+        && JSON.stringify(readActiveCollectionDraft()?.items) === JSON.stringify(request?.items);
     state.busy = true; state.operation = { status: 'preparing', destinations: [] };
     try {
         if (window.CList.state.publishing?.busy || window.CList.state.webPagePublishing?.busy
             || window.CList.state.collectionSaving?.active?.size) throw new Error('Wait for the current save or publication to finish.');
-        view.setBusy(true); view.begin();
+        view.setBusy(true); if (!republish) view.begin();
         assertCollectionPublicationSession(session);
         const draft = readActiveCollectionDraft();
         if (!draft?.name.trim()) throw new Error('Open a collection with a title before publishing.');
         const fields = view.fields(), source = _activeCollection?.col;
         const identity = _resolveCollectionIdentity(source?.key, source?.id);
         // Capture draft, identity, source, and session before loading accounts or keys.
-        const sourceEditor = typeof currentEditor === 'undefined' ? null : currentEditor;
-        const sourcePage = typeof currentLoadedPage === 'undefined' ? null : currentLoadedPage;
-        const request = structuredClone({ name: draft.name.trim(), formatId: fields.formatId,
+        request = structuredClone({ name: draft.name.trim(), formatId: fields.formatId,
             identity, items: draft.items, publishedUrls: source?.publishedUrls || [],
-            page: sourcePage, targets: [], overwriteKey: null });
+            page: sourcePage, targets: [], overwriteKey: null, republish });
         _activeCollection = { ..._activeCollection, col: { ...source, ...identity } }; _refreshIdDisplay();
-        const active = _activeCollection.col;
-        if (webPage) {
+        active = _activeCollection.col;
+        if (republish) {
+            const page = request.page;
+            if (page?.kind !== 'collection' || !page.serviceId || !page.collectionKey
+                || (page.collectionKey !== identity.key && page.id !== identity.id))
+                throw new Error('The loaded publication does not match this collection.');
+            if (!collectionFormats[page.format]) throw new Error('Unknown collection publication format.');
+            if (typeof window.CList.binPublishers?.[page.service]?.update !== 'function')
+                throw new Error('Republish is not available for this service.');
+            accounts = structuredClone(await ensureAccountsLoaded());
+            assertCollectionPublicationSession(session);
+            const record = accounts.find(record => {
+                const account = parseAccountValue(record);
+                return account?.type === page.service && account.instance === page.accountInstance
+                    && (account.permissions || '').includes('b');
+            });
+            if (!record) throw new Error('Could not find a writable account this collection was published with.');
+            request.targets = [{ key: record.key, account: structuredClone(parseAccountValue(record)) }];
+            request.formatId = page.format;
+            request.overwriteKey = record.key;
+        } else if (webPage) {
             if (!window.CList.binPublishers?.CListBin) throw new Error('Web-page publishing is not available.');
             accounts = structuredClone(await ensureAccountsLoaded());
             assertCollectionPublicationSession(session);
@@ -87,7 +121,7 @@ async function runCollectionPublication(accounts, session, { webPage = false } =
         session = { ...session, encKey: session.token ? await getEncKey(session.storeUrl) : null };
         assertCollectionPublicationSession(session);
         const match = collectionOverwriteTarget(request.page, targets, request.formatId, window.CList.binPublishers, identity);
-        if (match) {
+        if (match && !republish) {
             state.operation.status = 'choosing';
             const choice = await view.choose(match.account);
             if (choice === null) { state.operation.status = 'cancelled'; return null; }
@@ -106,33 +140,32 @@ async function runCollectionPublication(accounts, session, { webPage = false } =
                 await _kvSaveItems(snapshot.identity.key, snapshot.identity.id, snapshot.name,
                     snapshot.items, session.token, session.encKey, urls);
             },
+            touch: snapshot => _touchPublishedUrlEntry(snapshot.page.collectionKey, snapshot.page.serviceId, {
+                session, publication: snapshot.page, strict: true, assertSession: () => assertCollectionPublicationSession(session),
+            }),
             onUpdate: event => {
                 if (event.type === 'destination') {
                     const rows = state.operation.destinations;
                     const i = rows.findIndex(r => r.key === event.result.key);
                     if (i < 0) rows.push(structuredClone(event.result)); else rows[i] = structuredClone(event.result);
                 }
-                view.update(event);
+                if (!republish) view.update(event);
             },
         });
         state.operation = { ...structuredClone(outcome), status: 'complete' };
-        if (outcome.metadataError) view.message('Published, but could not update My Pages: ' + outcome.metadataError, true);
+        if (republish) view.republished(outcome, sourceStillActive());
+        if (outcome.metadataError && !republish) view.message('Published, but could not update My Pages: ' + outcome.metadataError, true);
         if (outcome.metadataSaved) {
           try {
             assertCollectionPublicationSession(session);
             if (_activeCollection?.col === active) {
                 const newer = readActiveCollectionDraft();
-                const sourceStillActive = webPage && newer
-                    && (typeof currentEditor === 'undefined' ? null : currentEditor) === sourceEditor
-                    && (typeof currentLoadedPage === 'undefined' ? null : currentLoadedPage) === sourcePage
-                    && JSON.stringify(sourcePage) === JSON.stringify(request.page)
-                    && newer.name.trim() === request.name
-                    && JSON.stringify(newer.items) === JSON.stringify(request.items);
+                const updateLoadedPage = webPage && sourceStillActive();
                 _activeCollection = { ..._activeCollection, col: { ...active,
                     name: newer?.name ?? active.name, items: newer?.items ?? active.items,
                     publishedUrls: structuredClone(outcome.publishedUrls) } };
                 if (newer) _refreshIdDisplay();
-                if (sourceStillActive) {
+                if (updateLoadedPage) {
                     const account = request.targets[0].account;
                     const publication = outcome.publishedUrls.filter(p => p.url === outcome.primaryUrl
                         && p.service === account.type && p.accountInstance === account.instance).at(-1);
@@ -142,7 +175,7 @@ async function runCollectionPublication(accounts, session, { webPage = false } =
             }
             const catalog = request.targets.find(t => t.account.type === 'CListBin' && t.account.permissions?.includes('b')
                 && outcome.destinations.some(r => r.key === t.key && r.status === 'published'))?.account || catalogFallback;
-            if (catalog) await _updatePagesCatalog(session.token, session.encKey, catalog, {
+            if (catalog && !republish) await _updatePagesCatalog(session.token, session.encKey, catalog, {
                 assertSession: () => assertCollectionPublicationSession(session), throwOnError: true,
             });
           } catch (error) {
@@ -152,6 +185,8 @@ async function runCollectionPublication(accounts, session, { webPage = false } =
         }
         return outcome;
     } catch (error) {
-        state.operation = { ...state.operation, status: 'failed', error: error.message }; view.fail(error); return null;
+        state.operation = { ...state.operation, status: 'failed', error: error.message };
+        if (republish) view.republishFailed(error, sourceStillActive()); else view.fail(error);
+        return null;
     } finally { state.busy = false; view.setBusy(false); }
 }

@@ -44,7 +44,9 @@ satisfy a general error-feedback rule.
 - Ordinary post ordering/content limiting belongs in `publishing-workflow.js`.
   It takes explicit dependencies and emits data updates. Keep UI rendering in
   `publishing-view.js`; `publish.js` owns capture and post-publication effects.
-  Consult `docs/publish_structure.md` and shared typedefs before changing this path.
+  Post-panel construction/selection rendering also belongs in `publishing-view.js`;
+  `populatePostOptions` supplies explicit values and callbacks. Consult
+  `docs/publish_structure.md` and shared typedefs before changing this path.
 
 - Standalone page publication uses `web-page-workflow.js` (explicit data operations),
   `web-page-publishing.js` (controller), and `web-page-view.js` (choices/feedback).
@@ -52,12 +54,15 @@ satisfy a general error-feedback rule.
   captured targets/session, matching-destination overwrite rules, and separate
   remote-write success from metadata failures. Collection publishing is separate.
 
-- Collection Post and To Web Page use `collection-publishing.js` (capture/state/controller),
+- Collection Post, To Web Page, and direct Republish use `collection-publishing.js` (capture/state/controller),
   `collection-publishing-workflow.js` (explicit data/dependencies), and
   `collection-publishing-view.js` (selection/choice/results). Selection lives in
   `CList.state.collectionPublishing`, not button attributes. To Web Page uses a
   single captured CListBin target through the same workflow. Direct Republish
-  and local-entry Publish still have legacy paths.
+  updates its captured original resource/format and touches metadata only.
+  Local-entry Publish uses `collection-entry-publishing.js` with the shared
+  `runWebPagePublication` workflow and page-record helpers. Retain receipts and
+  reconcile only the original unchanged member; views own all feedback.
 
 - **No server-side logic** — all files are static HTML/CSS/JS served by Caddy
 - **External services**: kvstore (credential storage), opml2json (feed parsing), social platform APIs

@@ -91,12 +91,3 @@ async function _runStandaloneWebPageAction(republish) {
         return null;
     } finally { state.busy = false; view.setBusy(false); }
 }
-
-// Compatibility controller for collection Republish until its separate extraction.
-async function _findAccountForPage(page) {
-    try {
-        let accounts = window.CList.accounts;
-        if (!Array.isArray(accounts) || !accounts.length) accounts = window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl);
-        return findWebPageAccount(page, accounts, parseAccountValue);
-    } catch (error) { showRepublishStatus(error.message, true); return null; }
-}

@@ -432,6 +432,7 @@
  * @property {CListPublishedCollectionUrl[]} publishedUrls
  * @property {CListWebPageSource|null} page Captured loaded collection publication.
  * @property {Array<{key: string, account: CListAccountData}>} targets Transient accounts; never put in operation summaries.
+ * @property {boolean} [republish] Direct update uses the original format and touches metadata only.
  * @property {string|null} overwriteKey Only the matching captured destination, after a choice.
  */
 /**
@@ -450,6 +451,7 @@
  * @property {function(CListCollectionMember[], string): Promise<CListCollectionMember[]>} flatten
  * @property {function(): void} assertSession Before each external or metadata write.
  * @property {function(CListCollectionPublicationRequest, CListPublishedCollectionUrl[]): Promise<void>} save
+ * @property {function(CListCollectionPublicationRequest): Promise<void>} [touch] Required for direct Republish; preserves saved membership.
  * @property {function(): string} now
  * @property {function(Object): void} [onUpdate] Detached destination/warning/progress data.
  */
@@ -457,4 +459,19 @@
 /**
  * Collection publication capture can precede encryption-key loading.
  * @typedef {{storeUrl: string, token: string, encKey?: CryptoKey|null}} CListCollectionPublicationSession
+ */
+
+/**
+ * Retained per-entry result, scoped to the captured public account-store identity.
+ * No credentials; a WeakMap keys these receipts by the original member object.
+ * @typedef {{owner: string, sourceUrl: string, result: CListWebPageOutcome}} CListLocalEntryReceipt
+ */
+
+/**
+ * @typedef {Object} CListPublishingPanelOptions
+ * @property {string[]} selectedKeys Detached controller selection.
+ * @property {boolean} busy
+ * @property {function(string): string[]} onToggle Return the updated controller selection.
+ * @property {function(): *} onPublish
+ * @property {function(): *} onWebPage
  */

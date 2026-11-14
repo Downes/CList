@@ -79,6 +79,33 @@ window.CList.ui.collectionPublishing = {
             else if (r.status === 'unconfirmed') this.message(`${r.destination} returned no post link. Check its posts before retrying.`);
         }
     },
+    localEntryResult(result, title, updated) {
+        if (result.status !== 'published') {
+            showErrorModal('No publication link returned. Check the destination before publishing this entry again.', { title: 'Publication unconfirmed' });
+        } else if (result.metadataError || !updated) {
+            const detail = result.metadataError ? 'Could not save My Pages metadata: ' + result.metadataError
+                : 'The entry changed or is no longer active, so its local URL was kept.';
+            showErrorModal(`Published "${title}" at ${result.url}. ${detail}`, { title: 'Publication result' });
+        } else showStatusMessage(`Published "${title}".`);
+    },
+    localEntryFailed(error) {
+        console.error('[collection entry] publish failed', error);
+        showErrorModal('Could not publish: ' + error.message, { title: 'Publish failed' });
+    },
+    republished(outcome, active) {
+        const result = outcome.destinations[0];
+        const failed = result?.status === 'failed';
+        const message = failed ? 'Republish failed: ' + result.error
+            : result?.status === 'unconfirmed' ? 'No publication link returned. Check the destination before retrying.'
+            : outcome.metadataError ? 'Republished, but could not update My Pages: ' + outcome.metadataError : 'Republished.';
+        if (active) showRepublishStatus(message, failed || !!outcome.metadataError);
+        else this.message(message, failed || !!outcome.metadataError);
+    },
+    republishFailed(error, active) {
+        console.error('[collection republish]', error);
+        if (active) showRepublishStatus('Republish failed: ' + error.message, true);
+        else this.message('Republish failed: ' + error.message, true);
+    },
     fail(error) { console.error('[collection publish]', error); this.message(error.message, true); },
 };
 

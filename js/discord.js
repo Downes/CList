@@ -1,3 +1,4 @@
+/// <reference path="./clist-types.js" />
 //  discord.js  -  Discord account type for CList (read + publish via discord_bridge)
 //  Part of CList, the next generation of learning and connecting with your community
 //
@@ -89,28 +90,20 @@ async function normalizeDiscordMessage(raw) {
 
 (function () {
     window.CList.publishers['Discord'] = {
+        /** @param {CListAccountData} accountData
+         * @param {string} title
+         * @param {string} content
+         * @returns {Promise<CListPublisherResult>} */
         publish: async (accountData, title, content) => {
-            if (!accountData.channel) {
-                console.error('Discord publish failed: no channel configured on this account.');
-                showErrorModal('This Discord account has no channel configured.', { title: 'Discord publish failed' });
-                return null;
-            }
-            try {
-                const resp = await fetch(`${DISCORD_BRIDGE_URL}/send`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', ...kvstoreAuthHeader() },
-                    body: JSON.stringify({ channel: accountData.channel, content: removeHtml(content) }),
-                });
-                const result = await resp.json().catch(() => ({}));
-                if (!resp.ok || !result.ok) {
-                    throw new Error(result.error || `HTTP ${resp.status}`);
-                }
-                return result.url || null;
-            } catch (err) {
-                console.error('Discord publish failed:', err);
-                showErrorModal('Discord publish failed: ' + err.message, { title: 'Discord publish failed' });
-                return null;
-            }
+            if (!accountData.channel) throw new Error('This Discord account has no channel configured.');
+            const resp = await fetch(`${DISCORD_BRIDGE_URL}/send`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...kvstoreAuthHeader() },
+                body: JSON.stringify({ channel: accountData.channel, content: removeHtml(content) }),
+            });
+            const result = await resp.json().catch(() => ({}));
+            if (!resp.ok || !result.ok) throw new Error(result.error || `Discord bridge request failed: HTTP ${resp.status}`);
+            return result.url || null;
         },
     };
 })();

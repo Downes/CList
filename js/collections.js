@@ -2066,54 +2066,27 @@ window.playCollectionSave = async function playCollectionSave() {
 
 // ── Pages catalog ────────────────────────────────────────────────────────────
 
-// Republish: push the Collection Editor's current draft to the single destination
-// it was originally loaded from (currentLoadedPage), without going through the
-// full Publish panel. Other destinations are untouched — same "single destination"
-// scope as the Post-time overwrite prompt.
-window.republishCollection = async function republishCollection() {
-    const page = currentLoadedPage;
-    const adapter = window.CList.binPublishers?.[page.service];
-    if (!adapter) {
-        showRepublishStatus('Republish is not available for this service.', true);
-        return;
-    }
-    const account = await _findAccountForPage(page);
-    if (!account) return;
-
-    const fmt = collectionFormats[page.format];
-    if (!fmt) {
-        showRepublishStatus('Unknown format.', true);
-        return;
-    }
-    const name = (document.getElementById('write-title')?.textContent || '').trim();
-    const token   = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
-    const encKey  = token ? await getEncKey(window.CList.config.flaskSiteUrl).catch(() => null) : null;
-    const items   = encKey ? await _flattenForExport(_draftItems || [], page.id, token, encKey) : (_draftItems || []).filter(i => i.url && !i.url.startsWith('blob:'));
-    const content = fmt.serialize(name, items, page.id);
-
-    try {
-        await adapter.update(page.serviceId, content, fmt.mimeType, account);
-        await _touchPublishedUrlEntry(page.collectionKey, page.serviceId);
-        showRepublishStatus('Republished.', false);
-    } catch (e) {
-        console.error('[republishCollection] failed', e);
-        showRepublishStatus('Republish failed: ' + e.message, true);
-    }
-};
-
 // Bump publishedAt on one entry inside a collection's publishedUrls array — same
 // list/decrypt/patch/re-encrypt/storage.kv.update() shape as _recordPublishedUrls above,
 // but patching an existing entry in place rather than appending a new one.
-async function _touchPublishedUrlEntry(collectionKey, serviceId) {
-    const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
+async function _touchPublishedUrlEntry(collectionKey, serviceId, { session, publication, assertSession = () => {}, strict = false } = {}) {
+    assertSession();
+    const encKey = session ? session.encKey : await getEncKey(window.CList.config.flaskSiteUrl);
+    if (!encKey) throw new Error('Log in to record the republished collection.');
+    assertSession();
     const kvs = await window.CList.storage.kv.list();
     const kv = (kvs || []).find(k => k.key === collectionKey);
-    if (!kv) return;
+    if (!kv) { if (strict) throw new Error('The saved collection is no longer available.'); return; }
     const raw = await decryptKVJson(encKey, kv.value);
     const col = _parseCollectionData(raw);
-    const entry = (col.publishedUrls || []).find(p => p.serviceId === serviceId);
+    if (publication?.id && col.id && col.id !== publication.id) throw new Error('The saved collection identity changed.');
+    const entry = (col.publishedUrls || []).find(p => p.serviceId === serviceId
+        && (!publication || ((!p.service || p.service === publication.service)
+            && (!p.accountInstance || p.accountInstance === publication.accountInstance))));
+    if (!entry && strict) throw new Error('The publication entry is no longer available.');
     if (entry) entry.publishedAt = new Date().toISOString();
     const encrypted = await encryptWithKey(encKey, JSON.stringify({ id: col.id, title: col.title, items: col.items, publishedUrls: col.publishedUrls }));
+    assertSession();
     await window.CList.storage.kv.update(collectionKey, encrypted);
 }
 

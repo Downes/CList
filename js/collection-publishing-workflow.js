@@ -20,7 +20,7 @@ function collectionOverwriteTarget(page, targets, formatId, bins, identity) {
  * @param {CListCollectionPublishingDependencies} dependencies
  * @returns {Promise<CListCollectionPublicationOutcome>} */
 async function runCollectionPublishingWorkflow(request, dependencies) {
-    const { publishers, bins, formats, flatten, assertSession, save, now, onUpdate = () => {} } = dependencies;
+    const { publishers, bins, formats, flatten, assertSession, save, touch, now, onUpdate = () => {} } = dependencies;
     const snapshot = structuredClone(request);
     const full = [], limited = [];
     snapshot.targets.forEach(target => {
@@ -39,8 +39,8 @@ async function runCollectionPublishingWorkflow(request, dependencies) {
             status: 'publishing', warnings: [] };
         onUpdate({ type: 'destination', result: structuredClone(result) });
         try {
-            if (!adapter?.publish) throw new Error('No publisher registered for this account.');
-            const formatId = _resolvePublishFormat(adapter.acceptedFormats, snapshot.formatId);
+            if (!adapter || (!snapshot.republish && !adapter.publish)) throw new Error('No publisher registered for this account.');
+            const formatId = snapshot.republish ? snapshot.page.format : _resolvePublishFormat(adapter.acceptedFormats, snapshot.formatId);
             const format = formats[formatId];
             if (!format) throw new Error('Unknown collection format: ' + formatId);
             const linkOnly = limited.includes(target);
@@ -83,7 +83,12 @@ async function runCollectionPublishingWorkflow(request, dependencies) {
         onUpdate({ type: 'destination', result: structuredClone(result) });
     }
     if (metadataChanged) {
-        try { assertSession(); await save(snapshot, structuredClone(outcome.publishedUrls)); outcome.metadataSaved = true; }
+        try {
+            assertSession();
+            if (snapshot.republish) await touch(snapshot);
+            else await save(snapshot, structuredClone(outcome.publishedUrls));
+            outcome.metadataSaved = true;
+        }
         catch (error) { outcome.metadataError = error.message; }
     }
     return outcome;

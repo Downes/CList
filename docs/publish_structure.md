@@ -367,7 +367,7 @@ Mastodon and Bluesky registered publishers now live in `mastodon_publish.js` and
 through `options.onWarning`; they do not display UI. Blogger and WordPress also
 propagate failures to controllers. This does not claim every other publisher has
 been migrated. Standalone web-page/republish now use the separated path below;
-collection Post and To Web Page share a separated controller/workflow/view. Direct collection Republish and local-entry Publish still retain UI coupling. Content capture and the legacy authentication wrapper
+collection Post, To Web Page, and direct Republish share a separated controller/workflow/view. Local-entry Publish reuses the shared page workflow through `collection-entry-publishing.js`. Content capture and the legacy authentication wrapper
 are also outside the extracted workflow.
 
 ### Collections and web pages
@@ -405,8 +405,8 @@ Remote publication and metadata persistence have separate outcomes. A successful
 remote write with metadata failure remains published and is reported as such;
 there is no automatic repeated write. Missing new-publication URLs are unconfirmed
 and skip metadata indexing. Reconciliation affects only the captured editor/page.
-The collection Republish controller remains on its previous path via compatibility
-account/status wrappers; its workflow is not extracted in this step.
+The collection Republish controller now shares the collection publishing workflow
+and view; it no longer uses the old account/status compatibility controller.
 `_getWebPageEditorContent()` in `web-page-publishing.js` prefers the editor's `getPublishContent()` result
 `{ type, value }`, falling back to `getContent()` and the editor's native type.
 For example, slides can publish viewable HTML while retaining their native format
@@ -544,7 +544,38 @@ Captured raw members stay separate from flattened exports. A matching captured
 collection/account/format/resource is required for overwrite; later editor
 switches do not redirect the write. Metadata failures retain successful results,
 and completion preserves newer drafts. See [Collection publishing](collection-publishing.md)
-for the detailed contract. Direct Republish and local-entry Publish remain legacy
-paths. To Web Page uses one captured CListBin target through the shared workflow.
+for the detailed contract. Local-entry Publish uses `collection-entry-publishing.js`
+and the existing shared page workflow. To Web Page uses one captured CListBin target through the shared workflow.
 Its loaded-page pointer is updated only when the original editor/collection/page
 context and draft title/members are unchanged after successful metadata storage.
+
+
+Direct collection Republish also uses this shared controller/workflow. It resolves
+only the original writable bin account and updates the captured resource in its
+original format, with no version-choice prompt. It then touches the matching saved
+publication timestamp without replacing stored title/members. Metadata failure
+retains remote success. The view uses the original Republish indicator only while
+the captured editor/collection/page/draft are still active. The obsolete
+`_findAccountForPage` compatibility controller has been removed.
+
+
+Local-entry Publish captures its member/blob/session/authorship, uses
+`runWebPagePublication()` to create and index the page, and keeps its receipt
+separate from editor reconciliation. Only the original unchanged active member
+receives the published URL and has its old blob revoked. Metadata-only failures
+retain upload success; stale members keep their draft and retain the returned link.
+The per-entry receipt prevents reuploading a fulfilled operation for the same
+source. This leaf operation never changes the collection's loaded-page pointer.
+
+Discord's registered publisher in `discord.js` sends the selected account channel
+and converted text to the existing authenticated bridge `/send` endpoint. Missing
+channels and bridge/network failures reject for controller-owned feedback. Only
+a successful bridge response without a URL returns null. Publishing performs no
+modal/result rendering; Discord reader and account controls retain their own UI.
+
+The ordinary Post account panel and To Web Page option are now rendered in
+`publishing-view.js`. `populatePostOptions()` delegates to the view after
+reconciling selected account keys. Selection/busy state belongs to the controller;
+the view receives explicit values and callbacks, including accessible selected
+state and annotation highlighting. Button attributes reflect selection and do
+not determine publication targets. Save-menu rendering remains separate.

@@ -47,7 +47,7 @@ window.currentLoadedPage = null;
 window.showErrorModal = message => errors.push(message);
 
 // Minimal fixture implementing the existing account-list contract.
-// Selection and rendering behaviour come from the real publish.js.
+// Selection comes from publish.js; panel rendering comes from publishing-view.js.
 window.makeAccountList = (tip, items, filter, onClick) => {
     const list = document.createElement('div');
 
