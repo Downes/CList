@@ -401,6 +401,9 @@ test('registered Read menu opens saved Collections and its edit action reveals t
     const collectionSource = fs.readFileSync(path.join(__dirname, '../js/collections.js'), 'utf8');
     const start = collectionSource.indexOf('async function _fetchReadCollections(');
     vm.runInContext(collectionSource.slice(start, collectionSource.indexOf('\n(function () {', start)), c);
+    vm.runInContext(fs.readFileSync(path.join(__dirname, '../js/reader-view.js'), 'utf8'), c);
+    c.invalidateReader = () => {};
+    c.switchReaderAccount = () => {};
     const readerSource = fs.readFileSync(path.join(__dirname, '../js/reader.js'), 'utf8');
     vm.runInContext(readerSource.slice(readerSource.indexOf('function populateReadAccountList('), readerSource.indexOf('// Function to switch accounts')), c);
     c.populateReadAccountList([]);

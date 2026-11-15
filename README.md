@@ -73,6 +73,7 @@ Notable entries:
 | [storage-model.md](docs/storage-model.md) | KVStore facade, PageStore, and the save/load capability-flag contract |
 | [accounts-structure.md](docs/accounts-structure.md) | Account credential storage format |
 | [identity-did.md](docs/identity-did.md) | The `did:web` identity layer |
+| [testing.md](docs/testing.md) | Human guide to automated, browser, manual and live-service checks |
 | [publish_structure.md](docs/publish_structure.md) | Platform publisher requests, results, progress, and compatibility |
 | [collection-publishing.md](docs/collection-publishing.md) | Collection editing, feed save capabilities, bin publication, and state boundaries |
 | [p2p-chat.md](docs/p2p-chat.md) | WebRTC chat topology and DID-signed messages |

@@ -177,6 +177,7 @@ function renderIdentityLabel() {
 function loginRequired(msg) {
     window.CList.state.username = 'none';
     window.CList.state.publishing.selectedAccountKeys = [];
+    if (typeof invalidateReader === 'function') invalidateReader();
     openLeftPane();
     loginButton.style.display="inline-block";
     const registerButton = document.getElementById("registerButton");
@@ -209,6 +210,7 @@ function loginNotRequired() {
 function setLoggedOutUI() {
     window.CList.state.username = 'none';
     window.CList.state.publishing.selectedAccountKeys = [];
+    if (typeof invalidateReader === 'function') invalidateReader();
     loginButton.style.display="inline-block";
     const registerButton = document.getElementById("registerButton");
     if (registerButton) registerButton.style.display="inline-block";
@@ -1981,6 +1983,7 @@ window.addEventListener('popstate', (e) => {
             const url = document.getElementById('serverSelect').value;
             if (url !== window.CList.config.flaskSiteUrl) {
                 window.CList.state.publishing.selectedAccountKeys = [];
+                if (typeof invalidateReader === 'function') invalidateReader();
             }
             window.CList.config.flaskSiteUrl = url;
             localStorage.setItem(window.CList.keys.KVSTORE_URL, url);

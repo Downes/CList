@@ -5,6 +5,15 @@ reading feeds, writing content, and publishing to social platforms.
 
 See [README.md](README.md) for full architecture, kvstore/CORS details, and file structure.
 
+## Testing
+
+Before planning or changing tests, validating an implementation change, or reporting
+results, read [Testing instructions for AI coding tools](docs/ai/testing.md).
+Maintain the [human testing guide](docs/testing.md), AI instructions, and detailed
+[feature test catalogue](tests/README.md) when their commands/coverage change.
+Distinguish Node, browser, manual and live-service evidence; never equate a build
+or a subset of tests with full validation.
+
 ## Publishing changes
 
 Before writing or changing code that supports or impacts publishing, read
@@ -162,11 +171,33 @@ Full reference: `docs/error-handling.md`. These rules apply to all new and modif
 
 ## Reader dispatch
 
+The central boundary uses `reader.js` (controller), `reader-state.js` (pure
+transitions), and `reader-view.js` (Read/account/feed-menu UI). Read
+`docs/reader-workflow.md` and `js/reader-types.js` before changing it. Keep account
+credentials/service sessions outside `CList.state.reader`.
+
+LocalRSS list reads use `localrss_requests.js` (explicit data/transport),
+`localrss_reader.js` (captured inputs/state/context), and `localrss_view.js`
+(rendering/audio/loader). Preserve local-first endpoint resolution and guarded
+Load more continuations. `context.next()` starts a new owned request; old callbacks
+must not reload another account. Handler `uiActions` such as Options preserve
+the displayed feed and pagination while opening controls. `context.updateAccount()` reconciles owned
+metadata updates only. LocalRSS options/database/read/bookmark operations still
+have legacy paths; do not present those as migrated.
+
+`initialize(accountData, context)` receives a detached selected account and optional
+guarded request context. Existing feed actions receive no arguments. Only handlers
+with `supportsRequestContext: true` receive context in feed actions, and they must
+return their load promise. Prefer context.render()/commit() and captured accounts;
+never claim stale-response protection for legacy direct-DOM service writes that
+have not migrated. Keep `setupFeedButtons` compatibility for search providers.
+
+
 `switchReaderAccount()` in `reader.js` is fully registry-driven — it has no knowledge of individual service types. All reader dispatch goes through:
 
 ```js
 const handler = window.CList.readers[accountData.type];
-await handler.initialize(accountData);
+await handler.initialize(accountData, context);
 ```
 
 `initialize(accountData)` receives the full parsed account object. Each handler extracts what it needs (`accountData.instance`, `accountData.id`, etc.). Do **not** add `case` branches to `switchReaderAccount` — register a handler instead.

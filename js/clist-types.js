@@ -1,3 +1,4 @@
+/// <reference path="./reader-types.js" />
 // Shared JSDoc contracts for CList's plain JavaScript. No runtime code.
 // Read docs/data-contracts.md before extending these definitions.
 

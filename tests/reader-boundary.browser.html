@@ -1,0 +1,74 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CList reader boundary regression</title>
+<h1>Reader account/loading boundary</h1>
+<pre id="result">Checking reader boundary...</pre>
+<div id="left-content"></div><div id="selectedAccount"></div>
+<div id="feed-menu"></div><div id="feed-container"></div>
+<script>
+window.CList = { config: { flaskSiteUrl: 'https://fixture.invalid' }, keys: { ACCESS_TOKEN: 'access_token' },
+ state: { username: 'fixture' }, accounts: [], readers: {} };
+let fixtureToken = 'fixture-token';
+window.getSiteSpecificCookie = () => fixtureToken;
+window.escapeHtml = value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;');
+window.parseAccountValue = record => JSON.parse(record.value);
+window.isRegistered = () => true;
+window.ensureAccountsLoaded = async () => window.CList.accounts;
+window.openLeftInterface = panel => document.getElementById('left-content').replaceChildren(panel);
+window.translationEnabled = false;
+window.toggleTranslation = () => {};
+window.fetch = () => { throw Error('Unexpected network request'); };
+</script>
+<script src="../js/ui.js"></script>
+<script src="../js/reader-state.js"></script>
+<script src="../js/reader-view.js"></script>
+<script src="../js/reader.js"></script>
+<script>
+(async () => {
+ const check = (value, text) => { if (!value) throw Error(text); };
+ try {
+  const records = ['A', 'B'].map(key => ({ key, value: JSON.stringify({ type: 'Fixture', title: key, permissions: 'r', id: 'fixture-secret' }) }));
+  CList.accounts = records;
+  const gates = [], errors = [];
+  window.showErrorModal = message => errors.push(message);
+  window.showServiceError = (container, title, message) => errors.push(message);
+  window.makeListing = item => { const el = document.createElement('article'); el.textContent = item.title; return el; };
+  window.createFeedHeader = title => { const el = document.createElement('h2'); el.textContent = title; return el; };
+  let slowContext, finishSlow;
+  CList.readers.Fixture = {
+   supportsRequestContext: true,
+   initialize: (account, context) => new Promise((resolve, reject) => gates.push({ account, context, resolve, reject })),
+   feedFunctions: {
+    Slow: context => new Promise(resolve => { slowContext = context; finishSlow = resolve; }),
+    Fast: context => context.render([{ title: 'Newest feed' }], { normalize: async item => item }),
+    Refresh: () => {},
+   },
+  };
+  await playRead();
+  const labels = [...document.querySelectorAll('#read-account-list .account-button')].map(b => b.textContent);
+  check(labels.at(-2).endsWith('Annotations') && labels.at(-1).endsWith('Collections'), 'Special entries stay at the end');
+  const a = switchReaderAccount('A'), b = switchReaderAccount('B');
+  check([...document.querySelectorAll('.feed-filter-btn')].every(button => button.disabled), 'Initialization disables feed actions');
+  gates[1].resolve(); await b;
+  gates[0].context.commit(() => { throw Error('Obsolete commit ran'); });
+  gates[0].reject(Error('Obsolete error')); await a;
+  check(document.getElementById('selectedAccount').textContent.endsWith('B'), 'Late A completion cannot replace B label');
+  check(errors.length === 0 && CList.state.reader.accountKey === 'B', 'Obsolete errors are suppressed');
+  const slow = runReaderFeedAction(_readerSelection, 'Slow');
+  await runReaderFeedAction(_readerSelection, 'Fast');
+  await slowContext.render([{ title: 'Obsolete feed' }], { normalize: async item => item });
+  finishSlow(); await slow;
+  check(document.getElementById('feed-container').textContent.includes('Newest feed') && !document.getElementById('feed-container').textContent.includes('Obsolete'), 'Late feed result cannot replace current content through guarded rendering');
+  check(CList.state.reader.feedName === 'Fast', 'Selected feed is controller state');
+  await runReaderFeedAction(_readerSelection, 'Refresh');
+  check(CList.state.reader.feedName === 'Fast', 'Refresh preserves selection');
+  check(!JSON.stringify(CList.state.reader).includes('fixture-secret'), 'Reader state excludes credentials');
+  CList.accounts = []; populateReadAccountList([]);
+  check(CList.state.reader.mode === 'idle', 'Removed account invalidates selection');
+  document.body.dataset.result = 'PASS';
+  document.getElementById('result').textContent = 'PASS: real Read/menu rendering, account switching, stale completion/errors, guarded feed results, Refresh, removed accounts and safe state. Service requests are mocked.';
+ } catch (error) {
+  console.error(error); document.body.dataset.result = 'FAIL'; document.getElementById('result').textContent = 'FAIL: ' + error.message;
+ }
+})();
+</script>

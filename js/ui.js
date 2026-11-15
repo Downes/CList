@@ -761,7 +761,9 @@ window.CList.ui.renderFeed = async function(rawItems, container, {
     append        = false,
     onLoadMore    = null,
     loadMoreBtnId = 'loadMoreButton',
+    isCurrent     = () => true,
 } = {}) {
+    if (!isCurrent()) return;
     if (!append) {
         container.innerHTML = '';
         if (title != null) container.appendChild(createFeedHeader(title, typevalue));
@@ -771,9 +773,13 @@ window.CList.ui.renderFeed = async function(rawItems, container, {
     }
 
     for (const rawItem of rawItems) {
-        container.appendChild(makeListing(await normalize(rawItem)));
+        if (!isCurrent()) return;
+        const item = await normalize(rawItem);
+        if (!isCurrent()) return;
+        container.appendChild(makeListing(item));
     }
 
+    if (!isCurrent()) return;
     window.CList.ui.renderLoadMoreButton(container, onLoadMore, { btnId: loadMoreBtnId });
 
     window.checkAnnotationsBatch?.();
