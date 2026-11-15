@@ -9,6 +9,8 @@
 # leader election is moot anyway in this single-process desktop context. Do
 # not apply this change to the live app.py; production always runs on Linux
 # under gunicorn.
+# Local patch: separate harvest scheduling from per-feed write transactions.
+# Locking fix matches localrss_reader commit 499b8d79cfd4732abff49d8289b3bed86ee711ee.
 import asyncio
 import calendar
 import hashlib
@@ -107,6 +109,8 @@ def cutoff_ts(days: int = RETENTION_DAYS) -> int:
 
 # Serialize *all* write operations to avoid "database is locked"
 DB_WRITE_LOCK = threading.Lock()
+# Serialize harvests separately; network waits must not block user writes.
+HARVEST_LOCK = threading.Lock()
 
 def connect_global() -> sqlite3.Connection:
     """Connect to the single global harvest-store DB."""
@@ -118,11 +122,7 @@ def connect_global() -> sqlite3.Connection:
             print(f"[WARN] Could not create DB directory '{parent}': {e}", file=sys.stderr)
     con = sqlite3.connect(GLOBAL_DB_PATH, timeout=SQLITE_TIMEOUT)
     con.row_factory = sqlite3.Row
-    # WAL: readers never block behind the harvester's long-running write
-    # transaction (update_feeds_async holds one open for an entire fetch
-    # cycle). Without this, the default rollback-journal mode made every
-    # read -- Find, the feed list, mark-read/bookmark -- stall for up to
-    # SQLITE_TIMEOUT seconds whenever it landed during a harvest run.
+    # WAL allows reads alongside short per-feed write transactions.
     con.execute("PRAGMA journal_mode=WAL")
     con.execute("PRAGMA synchronous=NORMAL")
     return con
@@ -688,7 +688,7 @@ async def fetch_one(session: aiohttp.ClientSession, sem: asyncio.Semaphore, feed
             return (feed_id, "exception", str(e), None, None)
 
 async def update_feeds_async(feed_ids=None, only_due=True, progress_cb=None, cancel_event: threading.Event | None = None):
-    # IMPORTANT: callers should hold DB_WRITE_LOCK before calling this.
+    # Callers serialize harvests with HARVEST_LOCK; writes lock per completed feed.
     db = connect_global()
     cutoff = cutoff_ts()
 
@@ -717,7 +717,6 @@ async def update_feeds_async(feed_ids=None, only_due=True, progress_cb=None, can
     sem = asyncio.Semaphore(MAX_CONCURRENCY)
     connector = aiohttp.TCPConnector(limit=MAX_CONCURRENCY, limit_per_host=LIMIT_PER_HOST, ttl_dns_cache=300)
 
-    db.execute("BEGIN")
     try:
         async with aiohttp.ClientSession(connector=connector) as session:
             tasks = []
@@ -733,100 +732,103 @@ async def update_feeds_async(feed_ids=None, only_due=True, progress_cb=None, can
                 (feed_id, kind, payload, etag, last_mod) = await coro
                 checked += 1
 
-                urow = db.execute("SELECT url FROM feeds WHERE id=?", (feed_id,)).fetchone()
-                cur_url = urow["url"] if urow else None
+                with DB_WRITE_LOCK, db:
+                    urow = db.execute("SELECT url FROM feeds WHERE id=?", (feed_id,)).fetchone()
+                    cur_url = urow["url"] if urow else None
 
-                try:
-                    if kind == "not_modified":
-                        mcrow = db.execute("SELECT month_count FROM feeds WHERE id=?", (feed_id,)).fetchone()
-                        mc = int(mcrow["month_count"] or 0) if mcrow else 0
-                        db.execute(
-                            "UPDATE feeds SET last_fetch=?, fail_count=0, next_fetch=?, error_msg=NULL WHERE id=?",
-                            (now_ts(), now_ts() + choose_interval(mc), feed_id)
-                        )
-                    elif kind != "ok":
-                        errors += 1
-                        row = db.execute("SELECT fail_count FROM feeds WHERE id=?", (feed_id,)).fetchone()
-                        fail = int(row["fail_count"] or 0) + 1
-                        backoff = min(6 * 3600, (2 ** min(fail, 8)) * 60)
-                        if kind == "http_error":
-                            error_msg = f"HTTP {payload}"
+                    try:
+                        if kind == "not_modified":
+                            mcrow = db.execute("SELECT month_count FROM feeds WHERE id=?", (feed_id,)).fetchone()
+                            mc = int(mcrow["month_count"] or 0) if mcrow else 0
+                            db.execute(
+                                "UPDATE feeds SET last_fetch=?, fail_count=0, next_fetch=?, error_msg=NULL WHERE id=?",
+                                (now_ts(), now_ts() + choose_interval(mc), feed_id)
+                            )
+                        elif kind != "ok":
+                            errors += 1
+                            row = db.execute("SELECT fail_count FROM feeds WHERE id=?", (feed_id,)).fetchone()
+                            fail = int(row["fail_count"] or 0) + 1
+                            backoff = min(6 * 3600, (2 ** min(fail, 8)) * 60)
+                            if kind == "http_error":
+                                error_msg = f"HTTP {payload}"
+                            else:
+                                error_msg = (str(payload) or "Connection error")[:500]
+                            db.execute(
+                                "UPDATE feeds SET last_fetch=?, fail_count=?, next_fetch=?, error_msg=? WHERE id=?",
+                                (now_ts(), fail, now_ts() + backoff, error_msg, feed_id)
+                            )
                         else:
-                            error_msg = (str(payload) or "Connection error")[:500]
-                        db.execute(
-                            "UPDATE feeds SET last_fetch=?, fail_count=?, next_fetch=?, error_msg=? WHERE id=?",
-                            (now_ts(), fail, now_ts() + backoff, error_msg, feed_id)
-                        )
-                    else:
-                        # Parse & insert. Any weird entry dates should not crash the whole job.
-                        parsed = feedparser.parse(payload)
-                        feed_title = (parsed.feed.get("title") or "").strip() or None
-                        f_author = feed_level_author(parsed.feed)
-                        f_author_did = feed_level_author_did(parsed)
-                        f_image = feed_level_image(parsed.feed)
-                        f_description = feed_level_description(parsed.feed)
-                        db.execute(
-                            """UPDATE feeds SET title=COALESCE(?, title),
-                                 feed_author=COALESCE(feed_author, ?),
-                                 feed_author_did=COALESCE(feed_author_did, ?),
-                                 feed_image=COALESCE(feed_image, ?),
-                                 description=COALESCE(description, ?),
-                                 etag=?, last_modified=?, last_fetch=?, last_ok=?, fail_count=0, error_msg=NULL
-                               WHERE id=?""",
-                            (feed_title, f_author, f_author_did, f_image, f_description, etag, last_mod, now_ts(), now_ts(), feed_id)
-                        )
+                            # Parse & insert. Any weird entry dates should not crash the whole job.
+                            parsed = feedparser.parse(payload)
+                            feed_title = (parsed.feed.get("title") or "").strip() or None
+                            f_author = feed_level_author(parsed.feed)
+                            f_author_did = feed_level_author_did(parsed)
+                            f_image = feed_level_image(parsed.feed)
+                            f_description = feed_level_description(parsed.feed)
+                            db.execute(
+                                """UPDATE feeds SET title=COALESCE(?, title),
+                                     feed_author=COALESCE(feed_author, ?),
+                                     feed_author_did=COALESCE(feed_author_did, ?),
+                                     feed_image=COALESCE(feed_image, ?),
+                                     description=COALESCE(description, ?),
+                                     etag=?, last_modified=?, last_fetch=?, last_ok=?, fail_count=0, error_msg=NULL
+                                   WHERE id=?""",
+                                (feed_title, f_author, f_author_did, f_image, f_description, etag, last_mod, now_ts(), now_ts(), feed_id)
+                            )
 
-                        added_any = False
-                        for e in parsed.entries:
-                            if cancel_event and cancel_event.is_set():
-                                break
-                            try:
-                                guid = stable_guid(e)
-                                title = (e.get("title") or "").strip()
-                                link = e.get("link")
-                                author = (e.get("author") or "").strip() or None
-                                pub_ts = entry_published_ts(e)
-                                if pub_ts < cutoff:
+                            added_any = False
+                            for e in parsed.entries:
+                                if cancel_event and cancel_event.is_set():
+                                    break
+                                try:
+                                    guid = stable_guid(e)
+                                    title = (e.get("title") or "").strip()
+                                    link = e.get("link")
+                                    author = (e.get("author") or "").strip() or None
+                                    pub_ts = entry_published_ts(e)
+                                    if pub_ts < cutoff:
+                                        continue
+                                    html = entry_content_html(e)
+                                    thumb = entry_thumbnail(e)
+                                    audio = entry_audio(e)
+                                    cur_ins = db.execute("""
+                                      INSERT OR IGNORE INTO entries(feed_id,guid,title,link,author,published,content_html,thumbnail,audio_url,created_at)
+                                      VALUES(?,?,?,?,?,?,?,?,?,?)
+                                    """, (feed_id, guid, title, link, author, pub_ts, html, thumb, audio, now_ts()))
+                                    if cur_ins.rowcount:
+                                        added_any = True
+                                except Exception:
+                                    errors += 1
                                     continue
-                                html = entry_content_html(e)
-                                thumb = entry_thumbnail(e)
-                                audio = entry_audio(e)
-                                cur_ins = db.execute("""
-                                  INSERT OR IGNORE INTO entries(feed_id,guid,title,link,author,published,content_html,thumbnail,audio_url,created_at)
-                                  VALUES(?,?,?,?,?,?,?,?,?,?)
-                                """, (feed_id, guid, title, link, author, pub_ts, html, thumb, audio, now_ts()))
-                                if cur_ins.rowcount:
-                                    added_any = True
-                            except Exception:
-                                errors += 1
-                                continue
 
-                        if added_any:
-                            updated += 1
+                            if added_any:
+                                updated += 1
 
-                        recompute_month_count(db, feed_id, cutoff)
-                        mcrow = db.execute("SELECT month_count FROM feeds WHERE id=?", (feed_id,)).fetchone()
-                        mc = int(mcrow["month_count"] or 0) if mcrow else 0
-                        db.execute("UPDATE feeds SET next_fetch=? WHERE id=?", (now_ts() + choose_interval(mc), feed_id))
-                except Exception:
-                    # Treat any per-feed crash as an error, keep going.
-                    errors += 1
+                            recompute_month_count(db, feed_id, cutoff)
+                            mcrow = db.execute("SELECT month_count FROM feeds WHERE id=?", (feed_id,)).fetchone()
+                            mc = int(mcrow["month_count"] or 0) if mcrow else 0
+                            db.execute("UPDATE feeds SET next_fetch=? WHERE id=?", (now_ts() + choose_interval(mc), feed_id))
+                    except Exception:
+                        # Roll back this feed only; keep earlier completed feeds.
+                        db.rollback()
+                        errors += 1
 
                 if progress_cb:
                     progress_cb(total=total, checked=checked, updated=updated, errors=errors, state="running", current_url=cur_url)
 
-        # Retention: an entry is purged once past cutoff, unless some database
-        # has it bookmarked. Drop its entry_status rows too so none orphan.
-        to_delete = [r["id"] for r in db.execute(
-            "SELECT id FROM entries WHERE published < ? AND id NOT IN "
-            "(SELECT entry_id FROM entry_status WHERE bookmarked = 1)",
-            (cutoff,),
-        ).fetchall()]
-        if to_delete:
-            placeholders = ",".join("?" * len(to_delete))
-            db.execute(f"DELETE FROM entry_status WHERE entry_id IN ({placeholders})", to_delete)
-            db.execute(f"DELETE FROM entries WHERE id IN ({placeholders})", to_delete)
-        db.commit()
+        with DB_WRITE_LOCK, db:
+            # Retention: an entry is purged once past cutoff, unless some database
+            # has it bookmarked. Drop its entry_status rows too so none orphan.
+            to_delete = [r["id"] for r in db.execute(
+                "SELECT id FROM entries WHERE published < ? AND id NOT IN "
+                "(SELECT entry_id FROM entry_status WHERE bookmarked = 1)",
+                (cutoff,),
+            ).fetchall()]
+            if to_delete:
+                placeholders = ",".join("?" * len(to_delete))
+                db.execute(f"DELETE FROM entry_status WHERE entry_id IN ({placeholders})", to_delete)
+                db.execute(f"DELETE FROM entries WHERE id IN ({placeholders})", to_delete)
+            db.commit()
     except Exception:
         db.rollback()
         raise
@@ -879,7 +881,7 @@ def start_update_job(full_sweep: bool = True) -> str:
             def cb(**k):
                 _progress_updater(job_id, **k)
 
-            with DB_WRITE_LOCK:
+            with HARVEST_LOCK:
                 stats = asyncio.run(update_feeds_async(only_due=not full_sweep, progress_cb=cb, cancel_event=cancel_event))
 
             with _jobs_lock:
@@ -945,7 +947,7 @@ async def harvest_loop():
         await asyncio.sleep(SCHEDULER_TICK_SECONDS)
         if not _scheduler_enabled:
             continue
-        acquired = DB_WRITE_LOCK.acquire(blocking=False)
+        acquired = HARVEST_LOCK.acquire(blocking=False)
         if not acquired:
             continue
         try:
@@ -955,7 +957,7 @@ async def harvest_loop():
         except Exception:
             pass
         finally:
-            DB_WRITE_LOCK.release()
+            HARVEST_LOCK.release()
 
 # With more than one gunicorn worker process, module-level code (including this
 # function) runs once per worker. An flock on a sentinel file in the bind-mounted
@@ -1723,9 +1725,10 @@ def api_feed_get(feed_id: int):
 
 
 def _update_one_feed_now(feed_id: int):
-    # Caller should already hold DB_WRITE_LOCK.
+    # Call outside DB_WRITE_LOCK: fetching may wait on slow remote feeds.
     try:
-        asyncio.run(update_feeds_async(feed_ids=[feed_id], only_due=False))
+        with HARVEST_LOCK:
+            asyncio.run(update_feeds_async(feed_ids=[feed_id], only_due=False))
     except RuntimeError:
         # If an event loop is already running in this thread (unlikely in Flask), skip.
         pass
@@ -1799,9 +1802,9 @@ def api_feed_create():
         )
         db.commit()
 
-        if not already_in_db:
-            # Fetch immediately so the right pane can refresh with new entries.
-            _update_one_feed_now(feed_id)
+    if not already_in_db:
+        # Fetch after releasing the database lock.
+        _update_one_feed_now(feed_id)
 
     out = {"id": feed_id, "url": feed_url, "title": out_title}
     return jsonify({"ok": True, "kind": kind, "feed": out, "existing": already_in_db})
@@ -1861,10 +1864,10 @@ def api_feed_update():
         except sqlite3.IntegrityError:
             return jsonify({"ok": False, "error": "A feed with that URL already exists."}), 409
 
-        # Refresh entries after update.
-        _update_one_feed_now(feed_id)
-        out = {"id": feed_id, "url": url, "title": title, "author": author, "image": image}
-        return jsonify({"ok": True, "feed": out})
+    # Refresh entries after releasing the database lock.
+    _update_one_feed_now(feed_id)
+    out = {"id": feed_id, "url": url, "title": title, "author": author, "image": image}
+    return jsonify({"ok": True, "feed": out})
 
 
 @app.route("/api/feed_delete", methods=["POST"])
@@ -1960,8 +1963,9 @@ def api_feed_retry():
             (feed_id,)
         )
         db.commit()
-        _update_one_feed_now(feed_id)
+    _update_one_feed_now(feed_id)
 
+    with DB_WRITE_LOCK:
         r = db.execute(
             "SELECT id, url, title, fail_count, error_msg, last_ok FROM feeds WHERE id=?",
             (feed_id,)

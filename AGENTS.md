@@ -236,3 +236,13 @@ These constants are declared in the inline `<script>` block in `index.html` and 
   `accounts`, `readers`, `publishers`, `savers`, `loaders`, `schemas`
 - TinyMCE is loaded from `https://www.downes.ca/assets/tinymce/tinymce.min.js`
 - Do **not** use `flask-cors` for kvstore — handle CORS entirely in Caddy (see README.md)
+
+## Desktop LocalRSS bundles
+
+The optional bundle scripts install `requirements-localrss.txt`, collect backend
+packages/resources and check the finished executable with `--check-localrss`.
+Keep `localrss_bundle.py` checks aligned with backend imports. Never remove the
+checks to work around missing imports. Run Python tests with
+`python -m unittest discover -s tests -p 'localrss_*test.py' -v` for bundle/backend
+changes; report these separately from Node. Source-launch dependency requirements
+are distinct from frozen builds, which must work without end-user pip installs.

@@ -1,6 +1,8 @@
 # Extra build-time dependencies for the "CList + LocalRSS" build variant
 # (build-*.sh/ps1 --with-localrss), needed only to PyInstaller-bundle
-# localrss_bundled/app.py. Not needed for a plain CList build.
+# localrss_bundled/app.py. Bundle scripts install these automatically.
+# Source launcher users also need these in their Python environment.
+# Not needed for a plain CList build.
 #
 # Pinned to match the commit the app.py snapshot in localrss_bundled/ was
 # copied from (see the header comment there) -- bump both together if

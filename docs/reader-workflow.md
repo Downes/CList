@@ -127,3 +127,12 @@ operations inside the overlay remain outside this migration.
 
 The completed LocalRSS step passed 245 Node tests; the updated browser fixture
 also passed with mocked requests. This is separate from testing a live service.
+
+## Bundled backend responsiveness
+
+`localrss_bundled/app.py` uses `HARVEST_LOCK` to serialize harvest jobs and
+`DB_WRITE_LOCK` for short per-feed commits and retention. Automatic, manual and
+single-feed harvesting must not hold the database lock while fetching feeds.
+Read/bookmark changes can therefore finish between feed results. Completed feeds
+remain committed if a later feed fails. This backend fix needs a service restart;
+it does not update a separately deployed remote LocalRSS instance.

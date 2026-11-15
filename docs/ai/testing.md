@@ -135,3 +135,16 @@ Keep feature-specific details in that catalogue rather than silently replacing
 it with a shorter generic guide. Link new browser fixtures and test modules so
 both humans and future agents can find them. Do not commit or push without the
 user's instruction.
+
+For bundled LocalRSS backend changes also run
+`python -m unittest discover -s tests -p 'localrss_backend_test.py' -v`.
+This isolated Python/SQLite suite extracts actual backend functions and mocks
+network calls; report it separately from Node and deployed HTTP/auth checks.
+Preserve the separation between harvest serialization and short database writes.
+Never hold the database write lock or a write transaction across network awaits.
+
+For bundle/build changes run all `localrss_*test.py` tests and the dependency
+preflight through the source launcher and a finished executable where available.
+Do not call a mocked import check proof of a working packaged backend. The
+preflight does not start LocalRSS or exercise authentication. Source Python runs
+need requirements installed; packaged users must not need pip.

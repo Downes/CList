@@ -140,3 +140,17 @@ See [privacy.html](privacy.html) / [https://clist.mooc.ca/privacy.html](https://
 Copyright Stephen Downes 2025
 Licensed under Creative Commons Attribution 4.0 International
 https://creativecommons.org/licenses/by/4.0/
+
+### LocalRSS desktop bundle checks
+
+The optional `-WithLocalRSS` / `--with-localrss` build scripts install
+`requirements-localrss.txt`, verify all backend dependencies (including aiohttp),
+collect their package resources, and run the resulting executable with
+`--check-localrss`. A missing dependency fails the build. Released bundled
+executables do not require users to install Python packages.
+
+Running `python launcher.py` directly uses your own Python environment. For that
+source-launch workflow, install the complete backend requirements once with
+`python -m pip install -r requirements-localrss.txt`; installing only aiohttp may
+leave other dependencies missing. Source startup reports that command if backend
+loading fails. Build dependencies are installed automatically by bundle scripts.

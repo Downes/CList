@@ -52,8 +52,8 @@ jobs:
           name: CList-windows
           path: dist/CList.exe
 
-      - name: Install LocalRSS build deps
-        run: pip install -r requirements-localrss.txt
+      - name: Test bundled LocalRSS backend
+        run: python -m unittest discover -s tests -p 'localrss_*test.py' -v
 
       - name: Build (with LocalRSS)
         shell: pwsh
@@ -84,8 +84,8 @@ jobs:
           name: CList-macos
           path: dist/CList
 
-      - name: Install LocalRSS build deps
-        run: pip install -r requirements-localrss.txt
+      - name: Test bundled LocalRSS backend
+        run: python -m unittest discover -s tests -p 'localrss_*test.py' -v
 
       - name: Build (with LocalRSS)
         run: bash build-macos.sh --with-localrss
@@ -115,8 +115,8 @@ jobs:
           name: CList-linux
           path: dist/clist
 
-      - name: Install LocalRSS build deps
-        run: pip install -r requirements-localrss.txt
+      - name: Test bundled LocalRSS backend
+        run: python -m unittest discover -s tests -p 'localrss_*test.py' -v
 
       - name: Build (with LocalRSS)
         run: bash build-linux.sh --with-localrss

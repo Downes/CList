@@ -51,6 +51,7 @@ import time
 def parse_args():
     parser = argparse.ArgumentParser(description='CList desktop launcher')
     parser.add_argument('--kvstore', default=None, help='kvstore base URL')
+    parser.add_argument('--check-localrss', action='store_true', help='check bundled dependencies without starting services')
     parser.add_argument('--port', type=int, default=None, help='override the fixed port')
     return parser.parse_args()
 
@@ -204,6 +205,9 @@ def maybe_start_bundled_localrss():
         spec.loader.exec_module(localrss_module)
     except Exception as e:
         print(f'LocalRSS: failed to load bundled backend, skipping ({e})', file=sys.stderr)
+        if not getattr(sys, 'frozen', False):
+            command_prefix = '& ' if platform.system() == 'Windows' else ''
+            print(f'Install source-launch dependencies with: {command_prefix}"{sys.executable}" -m pip install -r "{os.path.join(BASE_DIR, "requirements-localrss.txt")}"', file=sys.stderr)
         return
 
     try:
@@ -672,6 +676,11 @@ def wait_for_server(url, timeout=5.0):
 
 def main():
     global BASE_URL
+
+    if args.check_localrss:
+        from localrss_bundle import check_localrss_bundle
+        check_localrss_bundle(BASE_DIR)
+        return
 
     # Determine TLS availability and set BASE_URL accordingly.
     certs = get_or_create_certs()

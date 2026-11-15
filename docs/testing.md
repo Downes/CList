@@ -159,3 +159,33 @@ The current GitHub workflow builds/releases the application on pushes to `main`;
 it does not run `node --test`. A successful push or release therefore is not a
 regression-test result. Related services such as LocalRSS and KVStore have their
 own repositories and deployments; this checkout's tests do not certify them.
+
+## Bundled LocalRSS backend concurrency
+
+Run `python -m unittest discover -s tests -p 'localrss_backend_test.py' -v`.
+These three tests use the real harvest/toggle functions extracted without Flask
+startup, a temporary SQLite database, and mocked network fetching. They check
+read/unread/bookmark writes during a stalled harvest, committed-feed isolation
+when another feed fails, retention of bookmarks, and lock release. They require
+only Python's standard library and are separate from the Node suite. They do not
+test deployed HTTP/authentication or restart a running service.
+
+The bundled backend now serializes harvests separately from database writes and
+commits each completed feed before awaiting another network result. Restart the
+bundled LocalRSS backend to load this change. A remote LocalRSS service needs the
+same backend fix deployed separately; CList's launcher timeout is unchanged.
+
+LocalRSS packaging checks: run
+`python -m unittest discover -s tests -p 'localrss_*test.py' -v` for backend and
+bundle preflight tests (six checks, separate from Node). With backend dependencies
+installed, `python launcher.py --check-localrss` verifies dependency imports,
+required bundle files and Python syntax without starting servers or touching a DB.
+All platform bundle scripts perform this preflight and repeat the check through
+the finished executable before reporting success. This executable check verifies
+packaged dependencies/assets, not successful authenticated backend HTTP requests.
+
+Verification on 2026-11-15: six isolated Python tests passed in CList and three
+concurrency tests passed against the localrss_reader source checkout. A Windows
+one-file test executable built with the bundle's collection options passed
+`--check-localrss` (exit 0). This checked packaged dependencies/assets without
+starting services; full release builds and macOS/Linux executables were not run.
