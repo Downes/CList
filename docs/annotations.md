@@ -114,11 +114,15 @@ policy.
 
 ## Writing annotations
 
-Annotations are written through the editor. `clistAnnotate()` or `openAnnotationEditor()`
-captures the current feed item reference (including any selected text) into `_annotationTarget`
-and opens the write pane. When the user clicks Publish, the `Annotate` publish handler:
+The feed arrow (**Write about this**, `clistAnnotate`) inserts the selected text or
+source summary into the **active editor** and collects its reference. It does not
+switch to Annotations. Use **Alt+A** to explicitly open the annotation editor for
+the selected feed item, or choose Annotate in the editor list. An inactive
+annotation draft does not receive text sent to another editor.
 
-1. Collects all loaded references (`editorDiv.references`), or falls back to `_annotationTarget`
+When the user clicks Post with an Annotate destination selected, the handler:
+
+1. Uses the captured document reference list (`getReferences()`), independently of editor display blocks
 2. Posts an annotation for each reference URL — "convergent annotation" if more than one
 3. Sets `motivation: 'commenting'` and stores item metadata in `target_selector`
 

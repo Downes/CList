@@ -1,3 +1,4 @@
+/// <reference path="./clist-types.js" />
 //  tinymce.js  -  TinyMCE Editor Handlers
 //  Part of CList, the next generation of learning and connecting with your community
 //
@@ -47,8 +48,7 @@ let pendingTinymceDraftOffer = false;
                 console.log("Creating TinyMCE editor div");
                 tinymceEditorDiv = document.createElement('div');
                 tinymceEditorDiv.id = 'tinymceEditorDiv';
-                tinymceEditorDiv.innerHTML = `<textarea id="write-column"></textarea> 
-                        <div class="currentReferences"></div>`;
+                tinymceEditorDiv.innerHTML = `<textarea id="write-column"></textarea>`;
                 writePaneContent.appendChild(tinymceEditorDiv);
             }
 
@@ -103,8 +103,7 @@ let pendingTinymceDraftOffer = false;
             // Add to references
             if (itemId) {
                 const editorDiv = document.getElementById('tinymceEditorDiv');
-                const reference = createReference(itemId, editorDiv);
-                displayCurrentReference(reference, editorDiv);
+                createReference(itemId, editorDiv);
                 displayReferences(editorDiv);
             }
         },
@@ -156,6 +155,8 @@ function _insertIntoTinymce(html) {
     }
 }
 
+/** Collect source attribution into the document reference list.
+ * @returns {CListReference|undefined} */
 function createReference(statusID, editorDiv) {
     const statusSpecific = document.getElementById(statusID);
     const reference = statusSpecific?.reference;
@@ -170,36 +171,14 @@ function createReference(statusID, editorDiv) {
 // Pushes and displays an already-resolved reference (no DOM lookup) — for
 // insertLink/insertLinkVia, where the reference may come from a dragged-from window or a
 // feed entry no longer on screen, rather than a live .statusSpecific element.
+/** Add attribution to the document list and refresh its References panel only.
+ * @param {CListReference} reference
+ * @returns {CListReference|null} */
 function pushAndDisplayReference(reference, editorDiv) {
     if (!reference) return null;
     pushReference(reference);
-    displayCurrentReference(reference, editorDiv);
     displayReferences(editorDiv);
     return reference;
-}
-
-function displayCurrentReference(reference, editorDiv) {
-
-    // Define where we're writing the reference
-    let referenceDiv = editorDiv.querySelector('.currentReference');
-
-    if (!referenceDiv) {
-        referenceDiv = document.createElement('div');
-        referenceDiv.classList.add('currentReference');
-        editorDiv.appendChild(referenceDiv);
-    }
-
-    // Write the current reference
-    referenceDiv.innerHTML = `
-        <p><strong>Author Name:</strong> ${reference.author_name}</p>
-        <p><strong>Author ID:</strong> ${reference.author_id}</p>
-        <p><strong>Feed:</strong> ${reference.feed}</p>
-        <p><strong>URL:</strong> <a href="${reference.url}" target="_blank">${reference.url}</a></p>
-        <p><strong>Title:</strong> ${reference.title}</p>
-        <p><strong>Created At:</strong> ${reference.created_at}</p>
-        <p><strong>ID:</strong> ${reference.id}</p>
-    `;
-
 }
 
 function displayReferences(_editorDiv) {

@@ -339,3 +339,17 @@ then pass detached selection/busy values and action callbacks to the view. The
 view never reads selection from buttons or changes `CList.state.publishing`.
 `makeWebPageOption()` remains available from the view and accepts its action as
 a callback. Save-menu rendering in `publish.js` is a separate Save concern.
+
+Editor source attribution is collected in the document References list, not a
+separate last-loaded-source block. Preserve `pushReference`/`getReferences`, URL
+deduplication, collaborative maps and per-editor/document reference park/restore
+when changing editor loading or link insertion. Publication snapshots must still
+include the full list and its reply tokens. `tests/editor-references.test.cjs`
+checks real handlers with editor APIs mocked; its browser fixture uses real DOM
+with a mocked TinyMCE API. Neither establishes live collaborative connectivity.
+
+The generic feed arrow (`clistAnnotate`) must dispatch to the active editor's
+`insertLink` capability and collect attribution there. Do not switch it to
+`annotate-edit` or let an inactive annotation draft redirect insertion. Explicit
+annotation navigation (Alt+A or the References panel's annotation action) remains
+separate. Capture the target handler at invocation and await its insertion errors.

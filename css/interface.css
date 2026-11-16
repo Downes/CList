@@ -433,17 +433,6 @@ body a:hover, html a:hover { text-decoration: underline; }
   border-radius: var(--radius-lg);
 }
 
-.currentReference {
-  display: block;
-  margin-top: 10px;
-  justify-content: space-between;
-  border: 1px solid var(--border-dark);
-  padding: 10px;
-  margin-bottom: 10px;
-  border-radius: var(--radius-lg);
-  background-color: var(--bg-pane);
-}
-
 .allReferences {
   position: absolute;
   inset: 0;

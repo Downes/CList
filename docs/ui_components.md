@@ -349,6 +349,8 @@ Several UI elements are hidden or shown depending on the user's registration and
 - `updateUIVisibility()` calls `isRegistered()`, `hasReadAccount()`, `hasPostAccount()`, and `hasAIAccount()` (all in `kvstore.js`) to set `element.style.display` directly.
 - `.clist-action-btn` elements are created dynamically inside feed listings (in `reader.js`), so they are toggled via a CSS rule keyed on the `user-registered` body class rather than by direct element lookup.
 - The Refs button is shown the first time `pushReference()` in `references.js` successfully adds a non-duplicate reference (called indirectly via `createReference()` in `tinymce.js`).
+- The feed arrow (**Write about this**) inserts into `editorHandlers[currentEditor]`; it does not select an editor or restore an inactive annotation draft. **Alt+A** is the explicit annotation-editor shortcut.
+- Source attribution is collected in the document reference list and displayed through **Refs**. Editors do not keep or display a separate last-loaded source block. Loading source content, inserting links and collaborative reference syncing still update the document list.
 - `populateLoadOptions()` in `editors.js` checks `handler.visible()` before rendering each load-panel entry, so Collab and Generate template appear only when their conditions are met.
 
 ---

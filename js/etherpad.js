@@ -198,8 +198,7 @@ function etherpadPadUrl(padName) {
 
                 if (itemId) {
                     const editorDiv = document.getElementById('etherpadDiv');
-                    const reference = createReference(itemId, editorDiv);
-                    displayCurrentReference(reference, editorDiv);
+                    createReference(itemId, editorDiv);
                     displayReferences(editorDiv);
                 }
                 return;
@@ -233,8 +232,7 @@ function etherpadPadUrl(padName) {
             // Add to references
             if (itemId) {
                 const editorDiv = document.getElementById('etherpadDiv');
-                const reference = createReference(itemId, editorDiv);
-                displayCurrentReference(reference, editorDiv);
+                createReference(itemId, editorDiv);
                 displayReferences(editorDiv);
             }
         }

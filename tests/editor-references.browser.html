@@ -1,0 +1,65 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CList document references regression</title>
+<h1>Document references without per-editor attribution blocks</h1>
+<pre id="result">Checking...</pre>
+<button id="refs-button" style="display:none">Refs</button>
+<div id="editor-area">
+ <div id="textEditorDiv"><textarea id="text-column"></textarea></div>
+ <div id="tinymceEditorDiv"><textarea id="write-column"></textarea></div>
+</div>
+<div id="source-a"></div><div id="source-b"></div>
+<script>
+window.CList = {state:{},ui:{view:{writeEditorArea:document.getElementById('editor-area'),
+ textColumn:document.getElementById('text-column'),referencesButton:document.getElementById('refs-button')}}};
+window.escapeHtml = text => String(text);
+window.referenceDisplayName = ref => ref.author_name || ref.feed || 'Unknown author';
+window.cleanHTMLContent = text => String(text).replace(/<[^>]*>/g,'');
+window.showErrorModal = text => { throw Error(text); };
+let fixtureHTML = '';
+window.tinymce = {get: () => ({focus(){},getContent:()=>fixtureHTML,selection:{getContent:()=>'',
+ setContent:html=>fixtureHTML+=html,getRng:()=>({collapse(){}}),setRng(){}}})};
+</script>
+<script src="../js/references.js"></script>
+<script src="../js/editors.js"></script>
+<script src="../js/tinymce.js"></script>
+<script src="../js/annotate.js"></script>
+<script>
+(async () => {
+try {
+ const check = (value,message) => {if(!value)throw Error(message);};
+ const a = {url:'https://source.invalid/a',title:'First source',author_name:'Author A',feed:'Example',
+  service:'Mastodon',replyToken:{type:'Mastodon',statusId:'123'}};
+ const b = {url:'https://source.invalid/b',title:'Second source',author_name:'Author B',feed:'Example',
+  service:'Bluesky',replyToken:{type:'Bluesky',uri:'at://post',cid:'cid'}};
+ document.getElementById('source-a').reference=a;
+ document.getElementById('source-b').reference=b;
+ editorHandlers.texteditor.loadContent({type:'text/plain',value:'Quote'},'source-a');
+ editorHandlers.tinymce.loadContent({type:'text/html',value:'<p>HTML quote</p>'},'source-b');
+ let annotationDraft = '<p>Keep this annotation</p>';
+ editorHandlers['annotate-edit'] = {contentTypes:['text/html'],insertLink:()=>{annotationDraft+='WRONG';}};
+ currentEditor = 'annotate-edit';
+ a.summary='Source quote';
+ currentEditor='texteditor';
+ await clistAnnotate('source-a');
+ check(currentEditor==='texteditor' && document.getElementById('text-column').value.includes('Source quote'),'Arrow inserts into active text editor');
+ currentEditor='tinymce';
+ await clistAnnotate('source-a');
+ check(currentEditor==='tinymce' && fixtureHTML.includes('Source quote'),'Arrow inserts into active TinyMCE editor');
+ check(annotationDraft==='<p>Keep this annotation</p>','Inactive annotation draft is untouched');
+ document.getElementById('source-a').remove();
+ editorHandlers.tinymce.insertLink({content:{type:'text/plain',value:'Linked quote'},entryUrl:a.url,feedTitle:a.feed,reference:a});
+ check(getReferences().length===2,'Two sources collected; repeated URL deduplicated');
+ check(getReferences()[0].replyToken.statusId==='123','Reply threading metadata retained');
+ check(getReferences()[1].replyToken.cid==='cid','Bluesky attribution retained');
+ check(document.getElementById('clist-references-panel').textContent.includes('First source'),'References list remains visible');
+ check(document.getElementById('refs-button').style.display==='','Refs button remains available');
+ check(!document.querySelector('.currentReference, .currentReferences'),'No per-editor current-reference blocks');
+ playRefs(); check(document.getElementById('clist-references-panel').classList.contains('open'),'References panel opens');
+ document.getElementById('result').textContent='PASS: text/HTML source loading, link insertion after source removal, reference list/deduplication, reply tokens, Refs panel, active-editor quote routing, and no current-reference blocks.';
+ document.body.dataset.result='PASS';
+} catch(error) {
+ console.error(error);document.getElementById('result').textContent='FAIL: '+error.message;document.body.dataset.result='FAIL';
+}
+})();
+</script>

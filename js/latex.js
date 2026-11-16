@@ -554,7 +554,6 @@
             if (itemId) {
                 const editorDiv = document.getElementById('latexDiv')
                 const reference = createReference(itemId, editorDiv)
-                displayCurrentReference(reference, editorDiv)
                 displayReferences(editorDiv)
                 _pushLatexReference(reference)
             }
@@ -595,7 +594,6 @@
         if (!reference) return
         const editorDiv = document.getElementById('latexDiv')
         pushReference(reference)
-        displayCurrentReference(reference, editorDiv)
         displayReferences(editorDiv)
         if (sharedRefs && reference.url) sharedRefs.set(reference.url, JSON.stringify(reference))
     }

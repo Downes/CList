@@ -126,3 +126,10 @@ Credentials remain in transient bindings outside `CList.state`. Regression check
 in `tests/localrss-reader.test.cjs` cover duplicate clicks, account/session switches,
 pagination, replaced rows, API/malformed responses and uncertain writes. The
 `localrss-reader.browser.html` fixture also checks actual row buttons after pagination.
+
+Document attribution remains `CListReference[]` in `CList.state.references`, exposed
+through `getReferences()` and the Refs panel. Source listing `.reference` objects
+and collaborative `clist_refs` maps retain their existing shapes. There is no
+separate current-reference editor display or state. Do not replace document
+reference accumulation with a single latest source; preserve URL deduplication,
+reply tokens, per-document park/restore and publication snapshots.

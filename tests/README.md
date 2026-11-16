@@ -391,3 +391,26 @@ required bundle files and Python syntax without starting servers or touching a D
 All platform bundle scripts perform this preflight and repeat the check through
 the finished executable before reporting success. This executable check verifies
 packaged dependencies/assets, not successful authenticated backend HTTP requests.
+
+## Document references without last-source editor blocks
+
+Run `node --test tests/editor-references.test.cjs`, then the full Node suite.
+Checks cover real text/TinyMCE/Etherpad/Collab/LaTeX handlers with editor and
+transport fakes: source loading, resolved-link insertion after source rows leave
+the reader, URL deduplication, reply tokens, shared collaborative map updates and
+resynchronization. Document references and the Refs panel remain; the former
+per-editor attribution blocks and placeholders are removed.
+
+Open `/tests/editor-references.browser.html` through a local server. It checks
+actual DOM collection/rendering and panel opening with a mocked TinyMCE API,
+without loading TinyMCE or live collaboration servers. It reported PASS in the
+ChatGPT in-app browser on 2026-11-16. Normal live editor/server sessions were not
+tested. The complete Node suite passed 255 tests after this change.
+
+Active-editor quote regressions in `editor-references.test.cjs` and the browser
+fixture exercise visiting Annotations, activating Text or TinyMCE, then inserting
+from the feed arrow. The quote goes to the active editor, the inactive annotation
+draft stays unchanged and source metadata is still collected. Generic handlers,
+selected-text quotes and unsupported editors are covered. On 2026-11-16 all 257
+Node tests passed, and the updated DOM fixture passed in the ChatGPT in-app
+browser with editor APIs mocked; live service sessions were not exercised.

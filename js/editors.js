@@ -177,8 +177,7 @@ const editorHandlers = {
             if (!textEditorDiv) {
                 textEditorDiv = document.createElement('div');
                 textEditorDiv.id = 'textEditorDiv';
-                textEditorDiv.innerHTML = `<textarea id="text-column"></textarea>
-                        <div class="currentReferences"></div>`;
+                textEditorDiv.innerHTML = `<textarea id="text-column"></textarea>`;
                 writePaneContent.appendChild(textEditorDiv);
             }
             textEditorDiv.style.display = 'block';  // Show the editor
@@ -224,8 +223,7 @@ const editorHandlers = {
             // Add to references
             if (itemId) {
                 const editorDiv = document.getElementById('textEditorDiv');
-                const reference = createReference(itemId, editorDiv);
-                displayCurrentReference(reference, editorDiv);
+                createReference(itemId, editorDiv);
                 displayReferences(editorDiv);
             }
         },
@@ -576,7 +574,6 @@ async function _doLoadBlank(targetKey) {
 
     window.clearWriteTags?.();
     clearReferences(); // global references list/panel
-    document.querySelectorAll('.currentReference').forEach(el => el.remove()); // per-editor "last loaded" attribution block
     setLoadedPage(null);
 
     const handler = editorHandlers[targetKey];

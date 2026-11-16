@@ -55,7 +55,7 @@ function _serviceLabel(creatorId) {
     return '';
 }
 
-// ── Open write-pane annotation editor ─────────────────────────────────────────
+// ── Insert a source quote into the active editor ─────────────────────────────────────────
 
 // Builds the {content, feedTitle} pair for a quote-insert action: the current text
 // selection if there is one, else the reference's own summary, attributed via
@@ -81,20 +81,26 @@ function _buildQuoteContent(reference, handler) {
     return { content, feedTitle };
 }
 
-window.clistAnnotate = function(itemId) {
+window.clistAnnotate = async function(itemId) {
     const el = document.getElementById(itemId);
     if (!el || !el.reference) {
         showErrorModal('No reference found for this item.', { title: 'No reference' });
         return;
     }
     const reference = el.reference;
-    const returnTo = (currentEditor === 'annotate-edit') ? null : currentEditor;
-    switchToEditor('annotate-edit').then(() => {
-        if (returnTo) _annotateReturnEditor = returnTo;
-        const handler = editorHandlers['annotate-edit'];
-        const { content, feedTitle } = _buildQuoteContent(reference, handler);
-        handler.insertLink({ content, entryUrl: reference.url, feedTitle, reference: { ...reference } });
-    });
+    const handler = editorHandlers[currentEditor];
+    if (typeof handler?.insertLink !== 'function') {
+        showErrorModal('The active editor cannot insert a source quote.', { title: 'Cannot add text' });
+        return;
+    }
+    const { content, feedTitle } = _buildQuoteContent(reference, handler);
+    try {
+        await handler.insertLink({ content, entryUrl: reference.url, feedTitle, reference: { ...reference } });
+    } catch (error) {
+        console.error('Could not add text to active editor:', error);
+        showErrorModal('Could not add text: ' + error.message, { title: 'Cannot add text' });
+        return;
+    }
 
     if (window.innerWidth <= 768) {
         if (typeof mobShowWrite === 'function') mobShowWrite();

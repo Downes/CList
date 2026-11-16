@@ -831,8 +831,7 @@ window.CList.schemas['Collab'] = {
 
             if (itemId) {
                 const editorDiv = document.getElementById('collabDiv')
-                const reference = createReference(itemId, editorDiv)
-                displayCurrentReference(reference, editorDiv)
+                createReference(itemId, editorDiv)
                 displayReferences(editorDiv)
                 if (sharedRefs) {
                     const specificEl = document.getElementById(itemId)
@@ -867,7 +866,6 @@ window.CList.schemas['Collab'] = {
         if (!reference) return
         const editorDiv = document.getElementById('collabDiv')
         pushReference(reference)
-        displayCurrentReference(reference, editorDiv)
         displayReferences(editorDiv)
         if (sharedRefs && reference.url) sharedRefs.set(reference.url, JSON.stringify(reference))
     }

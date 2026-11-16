@@ -93,6 +93,7 @@ All current fixture paths are relative to the local server's root:
 | Browser page under `/tests/` | Main checks |
 |---|---|
 | `localrss-reader.browser.html` | Real LocalRSS modules with mocked service requests: account/filter isolation, pagination, stale audio/results and Feeds/Refresh |
+| `editor-references.browser.html` | Document reference collection and panel DOM without last-source editor blocks; mocked TinyMCE API |
 | `reader-boundary.browser.html` | Read/account/menu UI, request ownership, stale completion and guarded feed rendering with mocked services |
 | `publish-selection.browser.html` | Selection, rebuilds, busy state, permissions and publishing failures |
 | `publication-request.browser.html` | Awaited editor API, captured inputs, destination ordering and link handoff |
