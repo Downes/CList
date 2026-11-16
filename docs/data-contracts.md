@@ -119,3 +119,10 @@ carry captured account/header/session information transiently; kind/filter/offse
 are safe state. Reader contexts now include `accountKey`, `next(load)` for guarded
 pagination, and `updateAccount(record)` for reconciling an owned metadata update.
 Do not put resolved-account caches or auth headers in UI/operation summaries.
+
+LocalRSS row toggles use `CListLocalrssToggleRequest` (detached account, entry ID,
+read/bookmark action) and return `{value: boolean}` from explicit transport.
+Credentials remain in transient bindings outside `CList.state`. Regression checks
+in `tests/localrss-reader.test.cjs` cover duplicate clicks, account/session switches,
+pagination, replaced rows, API/malformed responses and uncertain writes. The
+`localrss-reader.browser.html` fixture also checks actual row buttons after pagination.

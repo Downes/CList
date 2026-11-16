@@ -23,7 +23,7 @@ function fixture() {
         rendered.push({ items: structuredClone(items), title: options.title, append: options.append, more: options.onLoadMore, normalize: options.normalize });
     };
     CList.ui.renderLoadMoreButton = (_, more) => rendered.push({ retry: more });
-    for (const name of ['localrss', 'localrss_requests', 'localrss_view', 'localrss_reader']) vm.runInContext(source(name), f.ctx);
+    for (const name of ['localrss', 'localrss_requests', 'localrss_view', 'localrss_reader', 'localrss_actions']) vm.runInContext(source(name), f.ctx);
     f.ctx._localrssProbeLocal = async () => false;
     f.ctx.fetch = async (url, options) => {
         calls.push({ url, options });
@@ -157,7 +157,7 @@ test('late audio-majority metadata cannot update the account after switching dat
 
 test('LocalRSS new scripts remain below 500 lines and load after their registered service and reader dependencies', () => {
     const html = fs.readFileSync('index.html', 'utf8');
-    for (const name of ['localrss_requests', 'localrss_view', 'localrss_reader']) {
+    for (const name of ['localrss_requests', 'localrss_view', 'localrss_reader', 'localrss_actions']) {
         new vm.Script(source(name)); assert.ok(source(name).split('\n').length < 500);
         assert.ok(html.indexOf('js/' + name + '.js') > html.indexOf('js/localrss.js'));
         assert.ok(html.indexOf('js/' + name + '.js') < html.indexOf('js/interface.js'));
@@ -174,4 +174,74 @@ test('opening Options preserves current pagination, and its Show filter remains 
     await f.ctx.localrssLoad(false, null, { filter: 'read', kind: 'items' });
     assert.equal(f.CList.state.reader.feedName, 'Read'); assert.equal(f.CList.state.localrssReading.filter, 'read');
     await f.action('Refresh'); assert.equal(f.CList.state.localrssReading.filter, 'read');
+});
+
+function bindAction(f, entryId = 7) {
+    return vm.runInContext(`bindLocalrssActions(${entryId}, {account: structuredClone(localrssCurrentAccount), filter: localrssFilter}, _readerContext)`, f.ctx);
+}
+function actionButton() {
+    const icon = { textContent: 'visibility' }, row = { removed: false, remove() { this.removed = true; } };
+    const classes = new Set();
+    return { classList: { toggle(name, active) { if (active) classes.add(name); else classes.delete(name); }, contains: name => classes.has(name) }, icon, row, disabled: false, title: 'Mark read', querySelector: () => icon, closest: () => row };
+}
+test('row toggles capture endpoint/database/auth, suppress double clicks and keep read rows visible', async () => {
+    const f = fixture(); await f.ctx.switchReaderAccount('a'); const id = bindAction(f), button = actionButton();
+    let finish; const calls = []; f.ctx.fetch = async (url, options) => { calls.push({url, options}); return new Promise(resolve => finish = resolve); };
+    const pending = f.ctx.localrssToggleRead(id, button); await f.ctx.localrssToggleRead(id, button);
+    assert.equal(calls.length, 1); assert.equal(button.disabled, true); assert.equal(button.row.removed, false);
+    assert.match(calls[0].url, /^https:\/\/rss-a\/api\/toggle_read$/);
+    assert.deepEqual(JSON.parse(calls[0].options.body), {db: 'db-a', id: 7});
+    assert.equal(calls[0].options.headers.Authorization, 'Bearer private-token');
+    finish(response({read: 1})); await pending;
+    assert.equal(button.icon.textContent, 'visibility_off'); assert.equal(button.row.removed, false); assert.equal(button.disabled, false);
+    f.ctx.fetch = async () => response({read:false});
+    await f.ctx.localrssToggleRead(id, button);
+    assert.equal(button.icon.textContent, 'visibility'); assert.equal(button.title, 'Mark read'); assert.equal(button.row.removed, false);
+    f.ctx.fetch = async () => response([]); await f.action('Unread');
+    assert.equal(f.CList.state.localrssReading.filter, 'unread');
+    f.ctx.fetch = () => { throw Error('Reloaded rows must not send old actions'); };
+    await f.ctx.localrssToggleRead(id, button);
+});
+test('account/session changes suppress late toggle feedback and prevent old rows sending writes', async () => {
+    for (const change of ['account', 'session']) {
+        const f = fixture(); await f.ctx.switchReaderAccount('a'); const id = bindAction(f), button = actionButton();
+        let fail; f.ctx.fetch = () => new Promise((_, reject) => fail = reject);
+        const pending = f.ctx.localrssToggleRead(id, button);
+        if (change === 'account') { f.ctx.fetch = async () => response([]); await f.ctx.switchReaderAccount('b'); }
+        else f.setToken('new-token');
+        fail(Error('late failure')); await pending;
+        assert.deepEqual(f.errors, []); assert.equal(button.row.removed, false);
+        f.ctx.fetch = () => { throw Error('Old button must not send'); }; await f.ctx.localrssToggleRead(id, button);
+    }
+});
+test('pagination preserves earlier row actions while replacement filters invalidate them', async () => {
+    const f = fixture(); await f.ctx.switchReaderAccount('a'); const id = bindAction(f);
+    await vm.runInContext('_readerContext.next(current => loadLocalrssView(current, {append:true, offset:50}))', f.ctx);
+    let count = 0; f.ctx.fetch = async () => { count++; return response({bookmarked: true}); };
+    const button = actionButton(); await f.ctx.localrssToggleBookmark(id, button);
+    assert.equal(count, 1); assert.equal(button.title, 'Remove bookmark'); assert.equal(button.icon.textContent, 'star'); assert.equal(button.classList.contains('action-active'), true);
+    f.ctx.fetch = async () => response([]); await f.action('All');
+    f.ctx.fetch = () => { throw Error('Replaced row must not send'); }; await f.ctx.localrssToggleBookmark(id, button);
+});
+test('toggle failures restore controls, show one error and never retry uncertain writes', async () => {
+    const f = fixture(); await f.ctx.switchReaderAccount('a'); const id = bindAction(f), button = actionButton();
+    f.ctx.showErrorModal = message => f.errors.push(message); let count = 0;
+    f.ctx.fetch = async () => { count++; throw Error('lost response'); };
+    await f.ctx.localrssToggleRead(id, button);
+    assert.equal(count, 1); assert.equal(f.errors.length, 1); assert.equal(button.disabled, false); assert.equal(button.row.removed, false);
+});
+test('toggle transport has no UI dependency and rejects API or malformed successful responses', async () => {
+    const ctx = vm.createContext({structuredClone, URLSearchParams}); vm.runInContext(source('localrss_requests'), ctx);
+    const request = {account: {serviceUrl:'https://rss',database:'db'}, entryId:9, action:'bookmark'};
+    for (const result of [{ok:false,error:'denied'}, {}, {bookmarked:'yes'}]) {
+        await assert.rejects(ctx.toggleLocalrssEntry(request, {fetch: async () => response(result), headers:{}}));
+    }
+    assert.equal('window' in ctx, false);
+});
+
+test('bookmark removal updates its icon and removes only Bookmarked-filter rows', async () => {
+    const f = fixture(); await f.ctx.switchReaderAccount('a'); await f.action('Bookmarked');
+    const id = bindAction(f), button = actionButton(); f.ctx.fetch = async () => response({bookmarked: false});
+    await f.ctx.localrssToggleBookmark(id, button);
+    assert.equal(button.icon.textContent, 'star'); assert.equal(button.classList.contains('action-active'), false); assert.equal(button.title, 'Bookmark'); assert.equal(button.row.removed, true);
 });

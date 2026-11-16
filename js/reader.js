@@ -206,6 +206,7 @@ async function runReaderRequest(selection, feedName, load, initialize = false) {
     const context = { requestId, account: structuredClone(selection.account), feedName, signal: abort.signal, isCurrent,
         commit: callback => { if (isCurrent()) callback(); },
         accountKey: selection.key,
+        isAccountCurrent: () => readerSelectionCurrent(selection),
         next: loadNext => isCurrent() && selection.initialized
             ? runReaderRequest(selection, feedName, loadNext) : Promise.resolve(),
         updateAccount: record => {

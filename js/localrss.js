@@ -88,12 +88,12 @@ window.CList.schemas['LOCALRSS'] = {
             const ri = item.readAt ? 'visibility_off' : 'visibility';
             const rt = item.readAt ? 'Mark unread' : 'Mark read';
             a += `<button class="clist-action-btn" `
-               + `onclick="localrssToggleRead(${item.entryId},this)" title="${rt}">`
+               + `onclick="localrssToggleRead(${item.localrssActionId},this)" title="${rt}">`
                + `<span class="material-icons md-18 md-light">${ri}</span></button>`;
-            const bi = item.bookmarked ? 'bookmark' : 'bookmark_border';
+            const bi = 'star';
             const bt = item.bookmarked ? 'Remove bookmark' : 'Bookmark';
-            a += `<button class="clist-action-btn" `
-               + `onclick="localrssToggleBookmark(${item.entryId},this)" title="${bt}">`
+            a += `<button class="clist-action-btn${item.bookmarked ? ' action-active' : ''}" `
+               + `onclick="localrssToggleBookmark(${item.localrssActionId},this)" title="${bt}">`
                + `<span class="material-icons md-18 md-light">${bi}</span></button>`;
             return a;
         }
@@ -249,35 +249,6 @@ function _localrssPlainText(html) {
 }
 
 // ---- Normalization ----
-
-async function localrssToggleRead(entryId, btn) {
-    try {
-        const data = await _localrssPost('/api/toggle_read', { id: entryId });
-        if (btn) {
-            const icon = btn.querySelector('.material-icons');
-            if (icon) icon.textContent = data.read ? 'visibility_off' : 'visibility';
-            btn.title = data.read ? 'Mark unread' : 'Mark read';
-        }
-        if (localrssFilter === 'unread' && data.read) btn?.closest('.status-box')?.remove();
-    } catch (err) {
-        console.error('LocalRSS: could not toggle read state:', err);
-        showErrorModal('Could not update read state: ' + err.message, { title: 'Could not update read state' });
-    }
-}
-
-async function localrssToggleBookmark(entryId, btn) {
-    try {
-        const data = await _localrssPost('/api/toggle_bookmark', { id: entryId });
-        if (btn) {
-            btn.innerHTML = `<span class="material-icons md-18 md-light">${data.bookmarked ? 'bookmark' : 'bookmark_border'}</span>`;
-            btn.title = data.bookmarked ? 'Remove bookmark' : 'Bookmark';
-        }
-        if (localrssFilter === 'bookmarked' && !data.bookmarked) btn?.closest('.status-box')?.remove();
-    } catch (err) {
-        console.error('LocalRSS: could not toggle bookmark:', err);
-        showErrorModal('Could not update bookmark: ' + err.message, { title: 'Could not update bookmark' });
-    }
-}
 
 // ---- Options panel (left pane) ----
 // Mirrors LocalRSS's own admin-UI sidebar (static/index.html), wired against the
@@ -710,6 +681,10 @@ async function _localrssRefreshStats() {
 }
 
 async function _localrssSearchPosts() {
+    const actionContext = _readerContext;
+    if (!actionContext?.isCurrent() || actionContext.account.type !== "LOCALRSS") return;
+    const actionRequest = { account: structuredClone(localrssCurrentAccount), filter: localrssFilter };
+    const actionHeaders = { ..._localrssAuthHeaders() };
     const input = document.getElementById('localrss-search-input');
     const status = document.getElementById('localrss-search-status');
     const fc = window.CList.ui.view.feedContainer;
@@ -720,6 +695,7 @@ async function _localrssSearchPosts() {
         const resp = await _localrssGet(localrssCurrentAccount, '/api/items', `db=${encodeURIComponent(localrssCurrentAccount.database)}&q=${encodeURIComponent(q)}`);
         const items = await resp.json();
         if (!resp.ok) throw new Error((items && items.error) || `HTTP ${resp.status}`);
+        if (!actionContext.isCurrent()) return;
         if (status) status.textContent = `${items.length} result${items.length !== 1 ? 's' : ''}.`;
         if (!items.length) {
             fc.innerHTML = '';
@@ -730,8 +706,12 @@ async function _localrssSearchPosts() {
             fc.appendChild(p);
             return;
         }
+        if (!actionContext.isCurrent()) return;
+        resetLocalrssActions();
         await window.CList.ui.renderFeed(items, fc, {
-            normalize: normalizeLocalrssItem,
+            isCurrent: actionContext.isCurrent,
+            normalize: async raw => { const item = await normalizeLocalrssItem(raw);
+                item.localrssActionId = bindLocalrssActions(raw.id, actionRequest, actionContext, actionHeaders); return item; },
             title: `Search: "${q}"`,
             append: false,
             onLoadMore: null,
@@ -890,14 +870,22 @@ async function _localrssRetryFeed() {
 // view's own per-feed "Show posts" action (see LOCALRSS_FEED's statusActions
 // above) -- both just want that one feed's entries loaded into the read pane.
 async function _localrssRenderFeedItems(feedId, titleText) {
+    const actionContext = _readerContext;
+    if (!actionContext?.isCurrent() || actionContext.account.type !== "LOCALRSS") return;
+    const actionRequest = { account: structuredClone(localrssCurrentAccount), filter: localrssFilter };
+    const actionHeaders = { ..._localrssAuthHeaders() };
     const fc = window.CList.ui.view.feedContainer;
     if (!feedId || !fc) return;
     try {
         const resp = await _localrssGet(localrssCurrentAccount, '/api/items', `db=${encodeURIComponent(localrssCurrentAccount.database)}&feed_id=${feedId}`);
         const items = await resp.json();
         if (!resp.ok) throw new Error((items && items.error) || `HTTP ${resp.status}`);
+        if (!actionContext.isCurrent()) return;
+        resetLocalrssActions();
         await window.CList.ui.renderFeed(items, fc, {
-            normalize: normalizeLocalrssItem,
+            isCurrent: actionContext.isCurrent,
+            normalize: async raw => { const item = await normalizeLocalrssItem(raw);
+                item.localrssActionId = bindLocalrssActions(raw.id, actionRequest, actionContext, actionHeaders); return item; },
             title: titleText || 'Feed',
             append: false,
             onLoadMore: null,

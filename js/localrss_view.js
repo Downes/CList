@@ -77,7 +77,8 @@ window.CList.ui.localrssReader = {
             return;
         }
         await context.render(page.items, {
-            normalize: request.kind === 'feeds' ? raw => normalizeLocalrssFeed(raw, request.account) : normalizeLocalrssItem,
+            normalize: request.kind === 'feeds' ? raw => normalizeLocalrssFeed(raw, request.account) : async raw => { const item = await normalizeLocalrssItem(raw);
+                item.localrssActionId = bindLocalrssActions(raw.id, request, context); return item; },
             title: request.kind === 'feeds' ? title + ' - Feeds' : title, append, onLoadMore,
         });
         if (request.kind === 'items') context.commit(() => {
@@ -91,3 +92,22 @@ window.CList.ui.localrssReader = {
     },
     metadataError(error) { console.error('LocalRSS metadata update failed:', error); showStatusMessage('LocalRSS loaded, but its account icon could not be updated: ' + error.message); },
 };
+
+Object.assign(window.CList.ui.localrssReader, {
+    actionBusy(button, busy) { if (button) button.disabled = busy; },
+    actionResult(button, action, value, filter) {
+        if (!button) return;
+        const icon = button.querySelector('.material-icons');
+        if (icon) icon.textContent = action === 'read' ? (value ? 'visibility_off' : 'visibility')
+            : 'star';
+        if (action === 'bookmark') button.classList.toggle('action-active', value);
+        button.title = action === 'read' ? (value ? 'Mark unread' : 'Mark read')
+            : (value ? 'Remove bookmark' : 'Bookmark');
+        if (action === 'bookmark' && filter === 'bookmarked' && !value) button.closest('.status-box')?.remove();
+    },
+    actionError(action, error) {
+        console.error('LocalRSS toggle failed:', error);
+        showErrorModal('Could not update ' + (action === 'read' ? 'read state' : 'bookmark') + ': ' + error.message,
+            { title: 'LocalRSS error' });
+    },
+});

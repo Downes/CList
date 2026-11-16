@@ -160,6 +160,17 @@ it does not run `node --test`. A successful push or release therefore is not a
 regression-test result. Related services such as LocalRSS and KVStore have their
 own repositories and deployments; this checkout's tests do not certify them.
 
+## Checking LocalRSS read and bookmark buttons
+
+In a LocalRSS Unread list, load another page and mark an item on the first page
+read: its row should stay visible and offer Mark unread. Click Unread or Refresh
+to reload and hide read entries. In Bookmarked, remove a bookmark: that row should
+disappear. While a button is awaiting its response it is disabled. Switching
+accounts during a pending action must leave the new account's rows unchanged.
+These manual checks perform real changes to the selected LocalRSS database.
+The mocked `localrss-reader.browser.html` fixture checks the pagination/button
+integration without modifying a live service.
+
 ## Bundled LocalRSS backend concurrency
 
 Run `python -m unittest discover -s tests -p 'localrss_backend_test.py' -v`.

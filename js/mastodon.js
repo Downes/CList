@@ -69,7 +69,7 @@ let accessToken = null;
                         <button class="clist-action-btn" title="Reply" onclick="handleMastodonAction('${_heJs(statusId)}', 'reply', this.parentElement)"><span class="material-icons md-18 md-light">reply</span></button>
                         <button class="clist-action-btn${isReblogged ? ' action-active' : ''}" title="Boost" onclick="handleMastodonAction('${_heJs(statusId)}', 'boost', this)"><span class="material-icons md-18 md-light">autorenew</span></button>
                         <button class="clist-action-btn${isFavourited ? ' action-active' : ''}" title="Favourite" onclick="handleMastodonAction('${_heJs(statusId)}', 'favorite', this)"><span class="material-icons md-18 md-light">favorite</span></button>
-                        <button class="clist-action-btn${isBookmarked ? ' action-active' : ''}" title="Bookmark" onclick="handleMastodonAction('${_heJs(statusId)}', 'bookmark', this)"><span class="material-icons md-18 md-light">bookmarks</span></button>
+                        <button class="clist-action-btn${isBookmarked ? ' action-active' : ''}" title="Bookmark" onclick="handleMastodonAction('${_heJs(statusId)}', 'bookmark', this)"><span class="material-icons md-18 md-light">star</span></button>
                         ${threadsBtn}
                         ${openInBrowserButton(_itemUrl, _itemID)}
                     `;

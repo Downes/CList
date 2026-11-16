@@ -27,6 +27,7 @@ window.fetch = () => { throw Error('Unexpected network request'); };
 <script src="../js/localrss_requests.js"></script>
 <script src="../js/localrss_view.js"></script>
 <script src="../js/localrss_reader.js"></script>
+<script src="../js/localrss_actions.js"></script>
 <script>
 (async () => {
  const check = (value, label) => { if (!value) throw Error(label); };
@@ -38,7 +39,8 @@ window.fetch = () => { throw Error('Unexpected network request'); };
   window.audioFiles = []; window.generatePlaylistHTML = () => 'Playlist';
   window.getEncKey = async () => null; window.showLoader = () => {};
   window.showStatusMessage = () => {};
-  window.makeListing = item => { const row = document.createElement('article'); row.textContent = item.feed + ': ' + item.title; return row; };
+  window.makeListing = item => { const row = document.createElement('article'); row.className = 'status-box'; row.textContent = item.feed + ': ' + item.title;
+   if (item.service === 'LOCALRSS') { const actions = document.createElement('div'); actions.innerHTML = CList.readers.LOCALRSS.statusActions(item, 'fixture-row'); row.appendChild(actions); } return row; };
   window.createFeedHeader = title => { const el = document.createElement('h2'); el.textContent = title; return el; };
   _localrssProbeLocal = async () => false;
   window.fetch = async (url, options) => {
@@ -60,10 +62,20 @@ window.fetch = () => { throw Error('Unexpected network request'); };
   localrssOptionsOverlay = () => {};
   await runReaderFeedAction(_readerSelection, 'Options');
   check(CList.state.reader.feedName === 'Unread', 'Options does not invalidate the displayed feed');
+  const readButton = document.querySelector('button[title="Mark read"]');
+  check(readButton, 'Read action rendered');
   const oldMore = document.getElementById('loadMoreButton'); check(oldMore, 'Full page offers Load more');
   await oldMore.onclick();
   check(CList.state.localrssReading.offset === 50, 'Pagination offset advances after success');
   check(document.querySelectorAll('#feed-container article').length === 51, 'Load more appends to existing items');
+  const priorFetch = window.fetch; let finishToggle; let toggleCount = 0;
+  window.fetch = (url, options) => url.includes('/api/toggle_read')
+   ? (toggleCount++, new Promise(resolve => finishToggle = resolve)) : priorFetch(url, options);
+  readButton.click(); readButton.click();
+  check(toggleCount === 1 && readButton.disabled, 'Earlier-page action remains usable and blocks duplicate clicks');
+  finishToggle(response({read:true})); await waitUntil(() => !readButton.disabled);
+  check(readButton.isConnected && readButton.title === 'Mark unread', 'Read row stays visible and can be marked unread');
+  window.fetch = priorFetch;
   await runReaderFeedAction(_readerSelection, 'Bookmarked');
   check(CList.state.localrssReading.filter === 'bookmarked', 'Bookmarked filter tracked in state');
   const count = requests.length; await oldMore.onclick(); check(requests.length === count, 'Old pagination callback is ignored');
@@ -73,7 +85,7 @@ window.fetch = () => { throw Error('Unexpected network request'); };
   check(requests.at(-1).url.includes('/api/feeds'), 'Refresh preserves Feeds view');
   check(requests.filter(r => r.url.includes('/api/items')).every(r => r.options.headers.Authorization === 'Bearer fixture-token'), 'Requests carry captured authentication');
   check(!JSON.stringify(CList.state.reader).includes('fixture-token'), 'Reader state excludes token');
-  document.body.dataset.result = 'PASS'; document.getElementById('result').textContent = 'PASS: real LocalRSS modules, account isolation, stale item/audio rejection, pagination, old callback guard, filters, Feeds and Refresh. All service requests mocked.';
+  document.body.dataset.result = 'PASS'; document.getElementById('result').textContent = 'PASS: real LocalRSS modules, account isolation, stale item/audio rejection, pagination, old callback guard, filters, Feeds, Refresh and row actions after pagination. All service requests mocked.';
  } catch (error) { console.error(error); document.body.dataset.result = 'FAIL'; document.getElementById('result').textContent = 'FAIL: ' + error.message; }
 })();
 </script>

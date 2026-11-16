@@ -22,6 +22,7 @@
  * @property {CListAccountData} account Detached selected account, including credentials.
  * @property {string|null} feedName
  * @property {AbortSignal} signal Services may pass it to fetch; cancellation is cooperative.
+ * @property {function(): boolean} isAccountCurrent Checks selected account/session independently of pagination.
  * @property {function(): boolean} isCurrent Checks generation, account record and session.
  * @property {function(function(): void): void} commit Synchronous guarded UI commit.
  * @property {function(Array, Object=): Promise<void>} render Shared feed renderer with a current-request guard.
@@ -38,3 +39,5 @@
 
 /** @typedef {{items: Object[], offset: number, hasMore: boolean}} CListLocalrssPage */
 /** @typedef {{kind: 'items'|'feeds', filter: string, offset: number}} CListLocalrssReadState */
+
+/** @typedef {{account: CListAccountData, entryId: (number|string), action: ('read'|'bookmark')}} CListLocalrssToggleRequest */

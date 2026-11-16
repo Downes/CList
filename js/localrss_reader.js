@@ -35,7 +35,7 @@ async function loadLocalrssView(context, options = {}) {
     const account = structuredClone(_localrssResolvedReader?.key === cacheKey && !options.reconnect
         ? _localrssResolvedReader.account : context.account);
     const view = window.CList.ui.localrssReader;
-    context.commit(() => view.begin(kind, append));
+    context.commit(() => { if (!append) resetLocalrssActions(); view.begin(kind, append); });
     try {
         if (_localrssResolvedReader?.key !== cacheKey || options.reconnect) await _localrssResolveServiceUrl(account);
         if (!context.isCurrent()) return;

@@ -182,8 +182,10 @@ LocalRSS list reads use `localrss_requests.js` (explicit data/transport),
 Load more continuations. `context.next()` starts a new owned request; old callbacks
 must not reload another account. Handler `uiActions` such as Options preserve
 the displayed feed and pagination while opening controls. `context.updateAccount()` reconciles owned
-metadata updates only. LocalRSS options/database/read/bookmark operations still
-have legacy paths; do not present those as migrated.
+metadata updates only. LocalRSS read/bookmark actions use `localrss_actions.js` with captured row targets,
+explicit toggle transport and view-owned feedback. Preserve earlier-page actions during
+pagination, invalidate replaced rows, and never automatically retry toggles. Options/database
+operations still have legacy paths; do not present those as migrated.
 
 `initialize(accountData, context)` receives a detached selected account and optional
 guarded request context. Existing feed actions receive no arguments. Only handlers

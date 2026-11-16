@@ -17,7 +17,7 @@ async function fetchLocalrssPage(request, { fetch: send, headers, signal }) {
     const response = await send(base.replace(/\/$/, '') + path + '?' + query,
         { headers: { ...headers }, signal });
     const data = await response.json().catch(() => null);
-    if (!response.ok) throw new Error(data?.error || `HTTP ${response.status}`);
+    if (!response.ok || data?.ok === false) throw new Error(data?.error || `HTTP ${response.status}`);
     if (snapshot.kind === 'stats') {
         if (!data || typeof data !== 'object') throw new Error('Unexpected LocalRSS statistics response.');
         return { hasAudio: !!data.has_audio_majority };
@@ -25,4 +25,24 @@ async function fetchLocalrssPage(request, { fetch: send, headers, signal }) {
     const items = snapshot.kind === 'feeds' ? data?.feeds : data;
     if (!Array.isArray(items)) throw new Error('Unexpected response from LocalRSS server.');
     return { items, offset: snapshot.offset, hasMore: snapshot.kind === 'items' && items.length === snapshot.limit };
+}
+
+/** Explicit toggle write. Never retries: a lost response may follow an accepted toggle.
+ * @param {CListLocalrssToggleRequest} request
+ * @param {{fetch: Function, headers: Object}} dependencies
+ * @returns {Promise<{value: boolean}>} */
+async function toggleLocalrssEntry(request, { fetch: send, headers }) {
+    const { account, entryId, action } = structuredClone(request);
+    if (!['read', 'bookmark'].includes(action) || entryId == null) throw new Error('Invalid LocalRSS toggle.');
+    const base = account._effectiveServiceUrl || account.serviceUrl;
+    if (!base || !account.database) throw new Error('LocalRSS needs a service URL and database.');
+    const response = await send(base.replace(/\/$/, '') + '/api/toggle_' + action, {
+        method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ db: account.database, id: entryId }),
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok || data?.ok === false) throw new Error(data?.error || `HTTP ${response.status}`);
+    const value = data?.[action === 'read' ? 'read' : 'bookmarked'];
+    if (![true, false, 0, 1].includes(value)) throw new Error('Unexpected LocalRSS toggle response; refresh before trying again.');
+    return { value: !!value };
 }

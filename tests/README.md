@@ -346,12 +346,27 @@ changes and audio-majority account metadata. Shared reader fixtures live in
 Open `localrss-reader.browser.html` through a local server. It exercises real
 reader/LocalRSS modules and normalization/rendering with all service responses
 mocked. It reported PASS in the ChatGPT in-app browser on 2026-11-14. This does
-not test deployed LocalRSS authorization or migrate its database-management and
-read/bookmark mutation paths.
+not test deployed LocalRSS authorization or migrate its database-management paths.
 
 The LocalRSS step also verifies that Options preserves the current pagination and
 its Show filter survives Refresh. The full Node suite passed 245 tests after this
 step; the LocalRSS browser fixture was rechecked and passed with mocked services.
+
+LocalRSS row toggles use `CListLocalrssToggleRequest` (detached account, entry ID,
+read/bookmark action) and return `{value: boolean}` from explicit transport.
+Credentials remain in transient bindings outside `CList.state`. Regression checks
+in `tests/localrss-reader.test.cjs` cover duplicate clicks, account/session switches,
+pagination, replaced rows, API/malformed responses and uncertain writes. The
+`localrss-reader.browser.html` fixture also checks actual row buttons after pagination.
+
+Bookmark controls use the common Material `star` icon and existing `action-active`
+orange highlight. LocalRSS action tests verify successful bookmark/unbookmark
+updates; Mastodon retains its existing API-backed active state. Bluesky Likes
+remain hearts (there is currently no bookmark control in that adapter).
+
+Marking a LocalRSS entry read leaves its row visible and allows toggling back.
+Unread/Refresh applies the unread filter on reload. LocalRSS regressions verify
+the icon change, retained row and invalidation of old actions after reload.
 
 ## Bundled LocalRSS backend concurrency
 

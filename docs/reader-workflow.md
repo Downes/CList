@@ -85,7 +85,7 @@ Bookmarked, Feeds and Refresh. Its split is service-specific:
 | `localrss_requests.js` | Explicit account/endpoint/database/filter/offset, auth headers and signal; returns item/feed/statistics data or throws, with no UI/global account reads |
 | `localrss_reader.js` | Resolve/capture the endpoint, coordinate guarded loads and continuations, maintain safe pagination state and optional audio-icon metadata |
 | `localrss_view.js` | Normalize/render content, empty messages, playlists, loader state and retry controls |
-| `localrss.js` | Registry/schema, existing local-first resolver, options, database-management and read/bookmark actions pending their own migration |
+| `localrss.js` | Registry/schema, existing local-first resolver, options and database-management actions pending their own migration |
 
 Endpoint resolution retains the existing local-first/launcher-proxy/remote policy.
 It operates on a detached account and caches only for that account and captured
@@ -104,7 +104,7 @@ Rendering, empty results, playlist updates and loader cleanup are guarded. Obsol
 items cannot append audio or replace another account/filter's feed. Normalization
 uses the captured account for feed attribution. Legacy options callbacks that
 reload a list use `reloadReader('LOCALRSS', action)` to obtain a new owned context;
-their database mutations and read/bookmark operations are not migrated here.
+their database mutations remain outside this migration.
 
 Background audio-majority metadata uses the actual account-record key and captured
 credentials; it checks ownership before encryption/storage/reconciliation. It
@@ -127,6 +127,28 @@ operations inside the overlay remain outside this migration.
 
 The completed LocalRSS step passed 245 Node tests; the updated browser fixture
 also passed with mocked requests. This is separate from testing a live service.
+
+## LocalRSS read and bookmark actions
+
+`localrss_actions.js` binds rows to transient detached account/endpoint, entry ID,
+auth headers, selected-account/session ownership and filter. The explicit
+`toggleLocalrssEntry` operation in `localrss_requests.js` returns a validated
+boolean or rejects; button rendering, row removal and errors belong to
+`localrss_view.js`. No toggle reads the shared current account.
+
+Buttons remain valid on earlier pages after Load more. Account/session changes
+or replacement of the list invalidate them. Duplicate clicks on a pending action
+send one write. Late results/errors cannot alter a newer list. Accepted read
+changes update the icon while keeping rows visible for toggling back. Unread or
+Refresh reloads the unread filter and hides read entries. Removing a bookmark
+removes rows from Bookmarked.
+A failed or uncertain response restores the control without automatically repeating
+the toggle. Search and Show posts also capture targets for their row buttons;
+their broader loading/options workflow remains legacy.
+
+The reader context's `isAccountCurrent()` checks selection/session ownership
+independently of page request generation. It must be combined with service-owned
+row lifetime checks; it does not authorize arbitrary stale rendering.
 
 ## Bundled backend responsiveness
 
