@@ -1,3 +1,4 @@
+/// <reference path="./reader-types.js" />
 //  reader.js  -  helper and utility functions for the feed reader
 //  Part of CList, the next generation of learning and connecting with your community
 //
@@ -11,53 +12,11 @@
 // 
 
 
-// 
-// Define handlers for each reader
-//
-// Definition:
-// 
-//      Readers are defined as objects that pass content to the feed reader in a standardized format
-//      The readerHandlers object contains a set of handlers for each type of reader
-//      Each handler must have the following methods:
-//          initialize:  Initialize the reader
-//          feedFunctions:  A set of functions that the reader supports
-//          statusActions:  A set of actions that can be taken on a status item
-
-//      The readerHandlers object is used to call the appropriate methods for the current reader.
-//      Usage:
-//      
-//      Add an reader to the readerHandlers object as follows:
-//          (function () {
-//              const serviceHandler = {
-//                   initialize: async (instance,id) => {    // Initialize the reader    
-// Values for instance and id
-// are passed in from the accounts array
-//                   },
-//                   feedFunctions: {                        // Feed functions
-//                       'Funcname': function() { },           // Name of the function, which will appear as a button
-//                       'Funcname2': function() { }          // Name of the function, which will appear as a button
-//                   },
-//                   statusActions: (item,itemID,itemLink) => {   // Status actions - icons below each status item
-//                   },
-//                   search: () => {                         // Search (optional)
-//                   },
-//               };
-//               editorHandlers['service'] = serviceHandler;
-//           })();
-// 
-//      The readerHandlers object is used to call the appropriate methods for the current editor.
-//      Usage:
-//
-//      const handler = readerHandlers[currentReader];
-//      if (handler && typeof handler.getContent === 'function') {
-//         const buttons = handler.feedFunctions();
-//      }
-//
-
-
-
-const leftContent = document.getElementById('left-content');
-if (!leftContent) { console.error('Element with ID "left-content" not found.'); }
+// Registry dispatch and request lifetime live here; reader-state.js owns plain
+// transitions and reader-view.js owns Read/account/feed-menu rendering.
+// initialize(account, context) may use guarded context.render()/commit().
+// Legacy feed actions retain zero arguments; context-aware actions opt in with
+// handler.supportsRequestContext = true. Service internals migrate separately.
 
 // Ensure readerHandlers exists
 if (typeof window.CList.readers === 'undefined') {
@@ -83,34 +42,6 @@ function _heJs(s) {
 }
 
 
-// Returns a DOM element for the icon appropriate for the given account type.
-// accountData (the parsed account, if available) lets a type's icon vary by
-// the account's own data -- e.g. LOCALRSS shows a podcast icon once hasAudio
-// is set (see _localrssMaybePersistHasAudio() in localrss.js), never by name.
-function accountIcon(type, accountData) {
-    if (type === 'Mastodon') {
-        const span = document.createElement('span');
-        span.className = 'account-icon-img';
-        span.setAttribute('aria-label', 'Mastodon');
-        return span;
-    }
-    if (type === 'LOCALRSS') {
-        const span = document.createElement('span');
-        span.className = 'material-icons';
-        span.textContent = (accountData && accountData.hasAudio) ? 'podcasts' : 'rss_feed';
-        return span;
-    }
-    const materialIcons = {
-        'Bluesky':   'cloud',
-        'WordPress': 'article',
-        'Blogger':   'article',
-    };
-    const span = document.createElement('span');
-    span.className = 'material-icons';
-    span.textContent = materialIcons[type] || 'account_circle';
-    return span;
-}
-
 // Builds and returns a styled account-list div.
 function finderString() {
     const findInput = document.getElementById('find-input');
@@ -128,44 +59,41 @@ function finderString() {
 //  (with some commands located in 'left-content')
 
 
+let _readerSelection = null;
+let _readerContext = null;
+let _readerAbort = null;
+let _readerPanelVersion = 0;
+function readerState() { return window.CList.state.reader ||= createReaderState(); }
+function readerSession() {
+    const storeUrl = window.CList.config.flaskSiteUrl;
+    return { storeUrl, username: window.CList.state.username || '',
+        token: getSiteSpecificCookie(storeUrl, window.CList.keys.ACCESS_TOKEN) || '' };
+}
+function invalidateReader(mode = 'idle') {
+    _readerAbort?.abort(); _readerSelection = null; _readerContext = null; _readerPanelVersion++;
+    window.CList.state.reader = resetReaderState(readerState(), mode);
+    window.CList.ui.reader.reset();
+}
+function readerSelectionCurrent(selection) {
+    const session = readerSession();
+    return _readerSelection === selection
+        && session.storeUrl === selection.session.storeUrl && session.token === selection.session.token
+        && session.username === selection.session.username
+        && window.CList.accounts.some(record => record.key === selection.key && record.value === selection.value);
+}
 async function playRead() {
-    if (typeof isRegistered === 'function' && !isRegistered()) {
-        // Logged-out visitors have no personal reader accounts — show the
-        // public, no-login RSS collections instead (same list setLoggedOutUI()
-        // pre-renders into left-content at boot).
-        openLeftInterface(document.createElement('div'));
-        if (typeof renderPublicFeedsList === 'function') {
-            renderPublicFeedsList(document.getElementById('left-content'));
-        }
-        return;
-    }
-
-    openLeftInterface(readPanel());
-
-    if (!Array.isArray(window.CList.accounts)) {
-        throw new Error('Error: Accounts array not found; maybe you need to log in.');
-    }
-
+    const view = window.CList.ui.reader;
+    if (!isRegistered()) { invalidateReader('public'); view.openPublic(); return; }
+    const version = ++_readerPanelVersion, session = readerSession();
+    view.open();
     try {
         await ensureAccountsLoaded();
+        if (version !== _readerPanelVersion || JSON.stringify(session) !== JSON.stringify(readerSession()) || !isRegistered()) return;
         populateReadAccountList(window.CList.accounts);
     } catch (error) {
-        showErrorModal('Could not load accounts — try logging out and back in. ' + error.message, { title: 'Could Not Load Accounts' });
+        if (version === _readerPanelVersion && JSON.stringify(session) === JSON.stringify(readerSession())) view.accountsFailed(error);
     }
 }
-
-// Returns the Read panel element (created on demand)
-function readPanel() {
-    const div = document.createElement('div');
-    div.id = 'read-section';
-    div.innerHTML = `
-        <div id="read-account-list"></div>
-        <div id="select-account"></div>
-        <div id="account-status"></div>
-    `;
-    return div;
-}
-
 
 // playFind
 
@@ -229,98 +157,124 @@ function findPanel() {
 }
 
 
-// Function to populate the read account list
+// Compatibility entry point for account refreshes and existing callers.
 function populateReadAccountList(accounts) {
-    const accountList = document.getElementById('read-account-list');
-    if (!accountList) return;
-    accountList.innerHTML = '';
-
-    const list = makeAccountList(
-        'Select an account to read',
-        accounts,
-        v => v.permissions.includes('r') && v.type !== 'Annotate' && v.type !== 'Hypothesis',
-        key => switchReaderAccount(key)
-    );
-
-    // Annotations require a real, network-reachable kvstore for annotations.mooc.ca to verify
-    // the token against — not available to a Local-only account (see local-kvstore.js).
-    if (!(window.CList.isLocalMode && window.CList.isLocalMode())) {
-        const annotBtn = document.createElement('button');
-        annotBtn.className = 'account-button';
-        annotBtn.onclick = () => window.showAnnotations('all');
-        const annotIcon = document.createElement('span');
-        annotIcon.className = 'material-icons';
-        annotIcon.textContent = 'rate_review';
-        const annotLabel = document.createElement('span');
-        annotLabel.textContent = 'Annotations';
-        annotBtn.appendChild(annotIcon);
-        annotBtn.appendChild(annotLabel);
-        list.appendChild(annotBtn);
-    }
-
-    if (isRegistered()) {
-        const collectionsBtn = document.createElement('button');
-        collectionsBtn.className = 'account-button';
-        const icon = document.createElement('span');
-        icon.className = 'material-icons';
-        icon.textContent = 'collections_bookmark';
-        const label = document.createElement('span');
-        label.textContent = 'Collections';
-        collectionsBtn.append(icon, label);
-        collectionsBtn.onclick = () => window.showSavedCollections().catch(error => {
-            console.error('Could not load collections:', error);
-            showServiceError('feed-container', 'Could not load collections', error.message);
-        });
-        list.appendChild(collectionsBtn);
-    }
-
-    accountList.appendChild(list);
-
-    // Kick off background RSS fetches so feeds are ready before the user clicks
-    if (typeof rssBackgroundFetchAll === 'function') {
-        rssBackgroundFetchAll(accounts);
-    }
+    const state = window.CList.state?.reader;
+    if (state?.accountKey && !accounts.some(record => record.key === state.accountKey
+        && (parseAccountValue(record)?.permissions || '').includes('r'))) invalidateReader();
+    else if (state?.accountKey && _readerSelection && !readerSelectionCurrent(_readerSelection)) invalidateReader();
+    window.CList.ui.reader.accounts(accounts, {
+        annotations: !(window.CList.isLocalMode && window.CList.isLocalMode()), collections: isRegistered(),
+        onAccount: switchReaderAccount,
+        onAnnotations: async () => {
+            invalidateReader('annotations');
+            try { await window.showAnnotations('all'); } catch (error) { window.CList.ui.reader.failed(error); }
+        },
+        onCollections: async () => {
+            invalidateReader('collections');
+            try { await window.showSavedCollections(); } catch (error) { window.CList.ui.reader.failed(error); }
+        },
+    });
+    if (typeof rssBackgroundFetchAll === 'function') Promise.resolve().then(() => rssBackgroundFetchAll(accounts))
+        .catch(error => window.CList.ui.reader.accountsFailed(error));
 }
-
-
 
 // Function to switch accounts
 async function switchReaderAccount(key) {
-    const selectedAccount = window.CList.accounts.find(acc => acc.key === key);
-    const accountData = parseAccountValue(selectedAccount);
-    if (!accountData) { showErrorModal('Could not read account data — it may be corrupt.', { title: 'Account Data Error' }); return; }
-    const instanceType = accountData.type;
-    const handler = window.CList.readers[instanceType];
-
-    if (!handler) {
-        console.error('Unsupported instance type:', instanceType);
-        showErrorModal(`"${instanceType}" accounts are not supported as a reader — check your account type.`, { title: 'Unsupported Account Type' });
+    const view = window.CList.ui.reader;
+    const record = window.CList.accounts.find(account => account.key === key);
+    const account = record && parseAccountValue(record);
+    if (!account || !(account.permissions || '').includes('r')) { view.invalidAccount(); return; }
+    const handler = window.CList.readers[account.type];
+    if (!handler) { view.unsupported(account.type); return; }
+    const selection = { key, value: record.value, account: structuredClone(account), handler,
+        session: readerSession(), initialized: false };
+    _readerSelection = selection;
+    const feedName = Object.keys(handler.feedFunctions || {}).find(name => name !== 'Refresh') || null;
+    return runReaderRequest(selection, feedName, async context => {
+        await handler.initialize?.(structuredClone(selection.account), context);
+        if (context.isCurrent()) selection.initialized = true;
+    }, true);
+}
+async function runReaderRequest(selection, feedName, load, initialize = false) {
+    if (!readerSelectionCurrent(selection)) return;
+    _readerAbort?.abort(); const abort = _readerAbort = new AbortController();
+    const state = window.CList.state.reader = beginReaderRequest(readerState(), selection.key, selection.account.type, feedName);
+    const requestId = state.requestId, view = window.CList.ui.reader;
+    const isCurrent = () => !abort.signal.aborted && readerState().requestId === requestId && readerSelectionCurrent(selection);
+    /** @type {CListReaderContext} */
+    const context = { requestId, account: structuredClone(selection.account), feedName, signal: abort.signal, isCurrent,
+        commit: callback => { if (isCurrent()) callback(); },
+        accountKey: selection.key,
+        next: loadNext => isCurrent() && selection.initialized
+            ? runReaderRequest(selection, feedName, loadNext) : Promise.resolve(),
+        updateAccount: record => {
+            if (!isCurrent() || record.key !== selection.key) return;
+            const account = parseAccountValue(record); if (!account) throw new Error('Invalid updated reader account.');
+            selection.value = record.value; selection.account = structuredClone(account);
+            window.CList.accounts = window.CList.accounts.map(row => row.key === record.key ? { ...record } : row);
+            view.selected?.(account);
+        },
+        render: (items, options) => isCurrent() ? view.render(items, { ...options, isCurrent }) : Promise.resolve(),
+    };
+    _readerContext = context;
+    view.begin(selection.account, state, Object.keys(selection.handler.feedFunctions || {}),
+        name => runReaderFeedAction(selection, name), initialize);
+    try {
+        await load(context);
+        if (!isCurrent()) { if (readerState().requestId === requestId) invalidateReader(); return; }
+        window.CList.state.reader = finishReaderRequest(readerState(), requestId);
+        view.complete(selection.account, readerState());
+        setTimeout(() => { if (isCurrent()) view.clearStatus(); }, 5000);
+    } catch (error) {
+        if (!isCurrent()) { if (readerState().requestId === requestId) invalidateReader(); return; }
+        const message = error?.message || String(error);
+        window.CList.state.reader = finishReaderRequest(readerState(), requestId, message);
+        view.failed(new Error(message)); view.busy(initialize);
+    }
+}
+async function runReaderFeedAction(selection, name) {
+    if (!selection.initialized || !readerSelectionCurrent(selection)) return;
+    const action = selection.handler.feedFunctions?.[name];
+    if (typeof action !== 'function') return;
+    if (selection.handler.uiActions?.includes(name)) {
+        const context = _readerContext;
+        if (!context?.isCurrent()) return;
+        try { await (selection.handler.supportsRequestContext ? action(context) : action()); }
+        catch (error) { if (context.isCurrent()) window.CList.ui.reader.failed(error); }
         return;
     }
+    const feed = name === 'Refresh' ? readerState().feedName : name;
+    return runReaderRequest(selection, feed, context => selection.handler.supportsRequestContext
+        ? action(context) : action());
+}
 
-    setupFeedButtons(instanceType);
-    window.CList.ui.view.feedContainer.innerHTML = '';
+// Controlled reload entry point for service options/reconnect callbacks.
+function reloadReader(type, load, feedName = readerState().feedName) {
+    const selection = _readerSelection;
+    if (!selection?.initialized || selection.account.type !== type || !readerSelectionCurrent(selection)) return Promise.resolve();
+    return runReaderRequest(selection, feedName, load);
+}
 
-    try {
-        if (typeof handler.initialize === 'function') {
-            await handler.initialize(accountData);
-        }
-    } catch (err) {
-        console.error('Error loading feed:', err);
-        showServiceError('feed-container', 'Could not load feed', err.message,
-            'Try selecting the account again, or check your network connection.');
-    }
-
-    // Clear status after some time
-    setTimeout(() => {
-        document.getElementById('account-status').innerHTML = '';
-        document.getElementById('account-status').style.display = 'none';
-    }, 5000);
-
-    const selectedAccountDiv = document.getElementById('selectedAccount');
-    if (selectedAccountDiv) {
-        selectedAccountDiv.innerHTML = '';
-        selectedAccountDiv.appendChild(accountIcon(instanceType, accountData));
-        selectedAccountDiv.appendChild(document.createTextNode(accountData.title));
+// Compatibility entry point for search providers outside account-backed reading.
+function setupFeedButtons(instanceType) {
+    const handler = window.CList.readers[instanceType];
+    const selection = _readerSelection;
+    if (selection?.account.type === instanceType) {
+        window.CList.ui.reader.menu(Object.keys(handler?.feedFunctions || {}), readerState().feedName,
+            name => runReaderFeedAction(selection, name), readerState().status === 'loading');
+    } else {
+        invalidateReader('external');
+        const names = Object.keys(handler?.feedFunctions || {});
+        const generation = readerState().requestId;
+        const run = async name => {
+            if (readerState().requestId !== generation) return;
+            window.CList.state.reader = { ...readerState(), feedName: name === 'Refresh' ? readerState().feedName : name };
+            window.CList.ui.reader.menu(names, readerState().feedName, run, false);
+            try { await handler.feedFunctions[name](); }
+            catch (error) { if (readerState().requestId === generation) window.CList.ui.reader.failed(error); }
+        };
+        window.CList.state.reader = { ...readerState(), feedName: names.find(name => name !== 'Refresh') || null };
+        window.CList.ui.reader.menu(names, readerState().feedName, run, false);
     }
 }

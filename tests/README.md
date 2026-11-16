@@ -1,5 +1,10 @@
 # CList architecture regression tests
 
+Start with [Testing CList](../docs/testing.md) for setup, running Node/browser
+checks and reporting results. AI coding tools must also read
+[Testing instructions](../docs/ai/testing.md). This catalogue retains the detailed
+feature checks and acceptance IDs; the guides do not replace them.
+
 Run commands from the repository root.
 
 ## Collection save separation
@@ -312,3 +317,62 @@ controller-owned selection through rebuilds, altered button attributes, read-onl
 account filtering, annotation highlighting/aria state, and publishing/page action
 callbacks. The existing `publish-selection.browser.html` fixture still loads the
 real view/controller; its real-browser checks remain separate from automated tests.
+
+## Reader selection/loading boundary
+
+Run `node --test tests/reader-controller.test.cjs`, then the full suite.
+Mocked checks cover pure transitions, detached account capture, credential-free
+state, overlapping initialization/feed requests, errors/cleanup timers, session
+changes, removed accounts, Refresh semantics, legacy argument compatibility and
+shared rendering after asynchronous normalization. Public-feed editor tests also
+preserve Read-menu ordering and the Collections action.
+
+Open `reader-boundary.browser.html` through the local server. It uses the real
+Read/account/feed-menu UI and shared renderer with synthetic handlers and no live
+requests. It reported PASS in the ChatGPT in-app browser on 2026-11-14; the Node
+suite passed 231 tests. Legacy service direct-DOM writes, search/load-more internals
+and shared reader-session variables still require service migrations. See
+[Reader workflow](../docs/reader-workflow.md) for that explicit limit.
+
+## LocalRSS guarded reader
+
+Run `node --test tests/localrss-reader.test.cjs tests/reader-controller.test.cjs`,
+then the full suite. Explicit-transport and integration checks cover captured
+endpoints/auth/filter/offsets, local-first reconnect, stale probe/item/error
+results, loader ownership, pagination duplicates/retry, Feeds/Refresh, session
+changes and audio-majority account metadata. Shared reader fixtures live in
+`tests/helpers/reader-fixture.cjs`.
+
+Open `localrss-reader.browser.html` through a local server. It exercises real
+reader/LocalRSS modules and normalization/rendering with all service responses
+mocked. It reported PASS in the ChatGPT in-app browser on 2026-11-14. This does
+not test deployed LocalRSS authorization or migrate its database-management and
+read/bookmark mutation paths.
+
+The LocalRSS step also verifies that Options preserves the current pagination and
+its Show filter survives Refresh. The full Node suite passed 245 tests after this
+step; the LocalRSS browser fixture was rechecked and passed with mocked services.
+
+## Bundled LocalRSS backend concurrency
+
+Run `python -m unittest discover -s tests -p 'localrss_backend_test.py' -v`.
+These three tests use the real harvest/toggle functions extracted without Flask
+startup, a temporary SQLite database, and mocked network fetching. They check
+read/unread/bookmark writes during a stalled harvest, committed-feed isolation
+when another feed fails, retention of bookmarks, and lock release. They require
+only Python's standard library and are separate from the Node suite. They do not
+test deployed HTTP/authentication or restart a running service.
+
+The bundled backend now serializes harvests separately from database writes and
+commits each completed feed before awaiting another network result. Restart the
+bundled LocalRSS backend to load this change. A remote LocalRSS service needs the
+same backend fix deployed separately; CList's launcher timeout is unchanged.
+
+LocalRSS packaging checks: run
+`python -m unittest discover -s tests -p 'localrss_*test.py' -v` for backend and
+bundle preflight tests (six checks, separate from Node). With backend dependencies
+installed, `python launcher.py --check-localrss` verifies dependency imports,
+required bundle files and Python syntax without starting servers or touching a DB.
+All platform bundle scripts perform this preflight and repeat the check through
+the finished executable before reporting success. This executable check verifies
+packaged dependencies/assets, not successful authenticated backend HTTP requests.

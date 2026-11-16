@@ -5,7 +5,7 @@
 #
 # Pass --with-localrss to produce a "CList + LocalRSS" build that bundles a
 # local LocalRSS backend (localrss_bundled/) alongside CList. That variant
-# also needs: pip install -r requirements-localrss.txt
+# installs requirements-localrss.txt automatically and checks the finished executable.
 
 set -e
 
@@ -14,14 +14,16 @@ EXTRA_ARGS=()
 
 for arg in "$@"; do
     if [ "$arg" = "--with-localrss" ]; then
+        python3 -m pip install -r "$(dirname "$0")/requirements-localrss.txt"
+        python3 "$(dirname "$0")/localrss_bundle.py"
         NAME="clist-localrss"
         EXTRA_ARGS+=(
             --add-data "localrss_bundled:localrss_bundled"
-            --hidden-import flask
-            --hidden-import aiohttp
-            --hidden-import feedparser
-            --hidden-import clist_server_admin
-            --hidden-import clist_kvstore_auth
+            --collect-all flask
+            --collect-all aiohttp
+            --collect-all feedparser
+            --collect-all clist_server_admin
+            --collect-all clist_kvstore_auth
         )
     fi
 done
@@ -45,5 +47,9 @@ python3 -m PyInstaller \
     --add-data "images:images" \
     "${EXTRA_ARGS[@]}" \
     launcher.py
+
+if [ "$NAME" = "clist-localrss" ] || [ "$NAME" = "CList-LocalRSS" ]; then
+    "dist/$NAME" --check-localrss
+fi
 
 echo "Build complete. Executable: dist/$NAME"

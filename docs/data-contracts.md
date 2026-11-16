@@ -106,3 +106,16 @@ by the original member in a WeakMap. Credentials are excluded from receipts.
 `CListPublishingPanelOptions` supplies explicit ordinary Post selection/busy inputs
 and controller callbacks to the view. The view reflects those values without
 reading or modifying publishing state or using button attributes as selection.
+
+Reader contracts live in `js/reader-types.js`, referenced by `js/clist-types.js`.
+`CListReaderState` contains only safe selection/loading data. `CListReaderContext`
+is transient and may carry credentials in its detached account, so never persist
+or log it. Its guard/render methods are cooperative boundaries; services must
+adopt them before stale direct-DOM writes are prevented.
+
+LocalRSS reads use `CListLocalrssRequest`, `CListLocalrssPage`, and
+`CListLocalrssReadState` in `reader-types.js`. The request/transport dependencies
+carry captured account/header/session information transiently; kind/filter/offset
+are safe state. Reader contexts now include `accountKey`, `next(load)` for guarded
+pagination, and `updateAccount(record)` for reconciling an owned metadata update.
+Do not put resolved-account caches or auth headers in UI/operation summaries.

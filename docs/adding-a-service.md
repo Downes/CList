@@ -121,7 +121,7 @@ Register a reader handler to add the service to the **Read** account list. When 
 
 ```js
 const handler = window.CList.readers[accountData.type];
-await handler.initialize(accountData);
+await handler.initialize(accountData, context);
 ```
 
 `initialize(accountData)` receives the full parsed account object and is responsible for extracting whatever it needs — credentials, instance URL, etc. The handler then owns all feed loading logic; `reader.js` has no knowledge of individual service types.
@@ -140,7 +140,7 @@ await handler.initialize(accountData);
         },
 
         // Feed names map to functions called when the user picks that feed view.
-        // These are rendered as buttons in #feed-menu by interface.js.
+        // These are rendered in #feed-menu by reader-view.js via reader.js.
         feedFunctions: {
             'Timeline': loadMyServiceFeed.bind(null, 'home'),
             'Bookmarks': loadMyServiceFeed.bind(null, 'bookmarks'),
@@ -593,3 +593,28 @@ contract. `web-page-workflow.js` calls it with captured output and account data;
 and `web-page-view.js` handles version choices and feedback. Identity and indexing
 helpers are in `web-page-records.js`; do not add UI to those data operations.
 Collection publishing remains separate. See `publish_structure.md`.
+
+
+### Reader request ownership
+
+See [Reader workflow](reader-workflow.md) before changing reader loading.
+`initialize(accountData, context)` preserves the selected account as a detached
+snapshot. The optional context exposes `account`, `feedName`, `signal`,
+`isCurrent()`, synchronous `commit(callback)`, and `render(items, options)`.
+Use captured inputs for requests and guard result/error/state commits. The shared
+renderer guards both container setup and post-normalization item appends.
+
+Set `supportsRequestContext: true` only when all feed functions accept context as
+their first argument and return/await their load promises. Otherwise existing
+zero-argument calls are retained; this is essential for partially bound functions.
+Legacy direct-DOM service code is not automatically protected by the central
+request generation. Migrate service fetching and rendering deliberately, rather
+than promising isolation from a controller-only change.
+
+
+For pagination, use `context.next(load)` to start a new guarded generation for the
+same captured selection. Old callbacks do not run after a different account/feed
+is selected. UI-only feed-menu actions may declare their labels in `uiActions`;
+these receive the current context without invalidating the displayed feed or its
+pagination. LocalRSS uses this for Options. Service option controls can use
+`reloadReader(type, load, feedName)` to request an explicitly named view.

@@ -4,7 +4,7 @@
 #
 # Pass -WithLocalRSS to produce a "CList + LocalRSS" build that bundles a
 # local LocalRSS backend (localrss_bundled/) alongside CList. That variant
-# also needs: pip install -r requirements-localrss.txt
+# installs requirements-localrss.txt automatically and checks the finished executable.
 
 param(
     [switch]$WithLocalRSS
@@ -17,14 +17,18 @@ $exeName = "CList"
 $extraArgs = @()
 
 if ($WithLocalRSS) {
+    python -m pip install -r (Join-Path $PSScriptRoot "requirements-localrss.txt")
+    if ($LASTEXITCODE -ne 0) { throw "LocalRSS dependency installation failed" }
+    python (Join-Path $PSScriptRoot "localrss_bundle.py")
+    if ($LASTEXITCODE -ne 0) { throw "LocalRSS dependency check failed" }
     $exeName = "CList-LocalRSS"
     $extraArgs = @(
         '--add-data', 'localrss_bundled;localrss_bundled',
-        '--hidden-import', 'flask',
-        '--hidden-import', 'aiohttp',
-        '--hidden-import', 'feedparser',
-        '--hidden-import', 'clist_server_admin',
-        '--hidden-import', 'clist_kvstore_auth'
+        '--collect-all', 'flask',
+        '--collect-all', 'aiohttp',
+        '--collect-all', 'feedparser',
+        '--collect-all', 'clist_server_admin',
+        '--collect-all', 'clist_kvstore_auth'
     )
 }
 
@@ -65,5 +69,11 @@ python -m PyInstaller `
     --add-data "tools/mkcert.exe;tools" `
     @extraArgs `
     launcher.py
+
+if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed" }
+if ($WithLocalRSS) {
+    $check = Start-Process -FilePath (Join-Path $PSScriptRoot "dist\$exeName.exe") -ArgumentList "--check-localrss" -WindowStyle Hidden -Wait -PassThru
+    if ($check.ExitCode -ne 0) { throw "Packaged LocalRSS dependency check failed" }
+}
 
 Write-Host "Build complete. Executable: dist\$exeName.exe"

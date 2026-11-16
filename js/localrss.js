@@ -52,7 +52,9 @@ window.CList.schemas['LOCALRSS'] = {
         name: 'LOCALRSS', display: 'LocalRSS', icon: 'rss_feed',
         description: 'Read a personal LocalRSS database',
         type: 'feed',
-        initialize: async (accountData) => { await initializeLocalrss(accountData); },
+        supportsRequestContext: true,
+        uiActions: ['Options'],
+        initialize: async (accountData, context) => initializeLocalrss(accountData, context),
         editCollection: async (key, account) => {
             const resolved = { ...account };
             await _localrssResolveServiceUrl(resolved);
@@ -61,12 +63,12 @@ window.CList.schemas['LOCALRSS'] = {
         saveCollection: (request, session) => savePublicFeedCollection(request.feedAccount,
             request.name, request.items, request.identity.id, session.token, session.encKey),
         feedFunctions: {
-            'Unread':     () => { localrssFilter = 'unread';     localrssLoad().catch(localrssReportLoadError); },
-            'All':        () => { localrssFilter = 'all';        localrssLoad().catch(localrssReportLoadError); },
-            'Bookmarked': () => { localrssFilter = 'bookmarked'; localrssLoad().catch(localrssReportLoadError); },
-            'Feeds':      () => localrssLoadFeedList().catch(localrssReportLoadError),
-            'Refresh':    () => localrssLoad().catch(localrssReportLoadError),
-            'Options':    () => localrssOptionsOverlay(),
+            'Unread':     context => loadLocalrssView(context, { filter: 'unread', kind: 'items' }),
+            'All':        context => loadLocalrssView(context, { filter: 'all', kind: 'items' }),
+            'Bookmarked': context => loadLocalrssView(context, { filter: 'bookmarked', kind: 'items' }),
+            'Feeds':      context => loadLocalrssView(context, { kind: 'feeds' }),
+            'Refresh':    context => loadLocalrssView(context),
+            'Options':    context => context.commit(() => localrssOptionsOverlay()),
         },
         onFeedClick:   null,
         onAuthorClick: null,
@@ -209,11 +211,7 @@ async function _localrssResolveServiceUrl(accountData) {
 
 // Manual re-probe + reload, for when local availability changes mid-session.
 async function _localrssReconnect() {
-    if (!localrssCurrentAccount) return;
-    await _localrssResolveServiceUrl(localrssCurrentAccount);
-    const statusEl = document.getElementById('localrss-connection-status');
-    if (statusEl) statusEl.textContent = _localrssConnectionStatusText(localrssCurrentAccount);
-    await localrssLoad();
+    return reloadReader('LOCALRSS', context => loadLocalrssView(context, { reconnect: true }));
 }
 
 function _localrssConnectionStatusText(accountData) {
@@ -251,192 +249,6 @@ function _localrssPlainText(html) {
 }
 
 // ---- Normalization ----
-
-async function normalizeLocalrssItem(raw) {
-    const item = {
-        service: 'LOCALRSS',
-        url:      raw.link || `local-entry:${raw.id}`,
-        title:    raw.title,
-        titleHtml: `<strong>${escapeHtml(raw.title || '')}</strong>`,
-        expandOnTitleClick: true,
-        desc:     _localrssPlainText(raw.content_html),
-        feed:     raw.feed_title,
-        feedUrl:  raw.feed_url || null,
-        author:   raw.author || raw.feed_author || '',
-        date:     new Date((raw.published || 0) * 1000).toLocaleDateString(),
-        link:     raw.link,
-        guid:     String(raw.id),
-        entryId:  raw.id,
-        readAt:   raw.read_at,
-        bookmarked: raw.bookmarked,
-    };
-    if (raw.content_html) item.full_content = typeof window.sanitizeHtml === 'function' ? window.sanitizeHtml(raw.content_html) : raw.content_html;
-    if (raw.thumbnail) item.images = [{ url: raw.thumbnail }];
-    if (raw.audio_url) {
-        audioFiles.push({ src: raw.audio_url, title: raw.title });
-        const idx = audioFiles.length - 1;
-        item.audioIcon = `<button class="clist-action-btn" title="Play audio" onclick="playAudio(${idx});"><span class="material-icons md-18 md-light">play_arrow</span></button>`;
-    }
-    return item;
-}
-
-// Normalizes a /api/feeds row (the feed itself -- title/url/description -- not its
-// entries) for the "Feeds" list view. url is the feed's own RSS/Atom URL, so the
-// arrow ("Write about this") and pencil (Annotate) buttons, which read generically
-// off makeListing()'s reference object, target the feed as a whole.
-async function normalizeLocalrssFeed(raw) {
-    return {
-        service: 'LOCALRSS_FEED',
-        url:      raw.url,
-        title:    raw.title || raw.url,
-        titleHtml: `<strong>${escapeHtml(raw.title || raw.url)}</strong>`,
-        desc:     _localrssPlainText(raw.description || ''),
-        feed:     localrssCurrentAccount?.title || localrssCurrentAccount?.database || '',
-        feedUrl:  null,
-        author:   raw.author || '',
-        date:     '',
-        link:     raw.url,
-        guid:     `localrss-feed:${raw.id}`,
-        feedId:   raw.id,
-    };
-}
-
-// Syncs hasAudio on the account from the database-wide majority test (/api/stats'
-// has_audio_majority) rather than "has any loaded item ever carried an audio_url" --
-// a database with a handful of enclosures amid mostly-text entries should not get
-// stuck showing the podcast icon. Drives the sidebar's podcast icon (accountIcon()
-// in reader.js/kvstore.js), which is otherwise rendered from stored account data
-// alone, before any feed has been loaded.
-async function _localrssSyncHasAudio(accountData) {
-    if (!accountData) return;
-    let isPodcast = false;
-    try {
-        const resp = await _localrssGet(accountData, '/api/stats', `db=${encodeURIComponent(accountData.database)}`);
-        const data = await resp.json().catch(() => null);
-        if (!resp.ok || !data) return;
-        isPodcast = !!data.has_audio_majority;
-    } catch (err) {
-        console.error('LocalRSS: could not check audio majority:', err);
-        return;
-    }
-    if (!!accountData.hasAudio === isPodcast) return;
-    const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
-    if (!encKey) return;
-    const encryptedValue = await encryptWithKey(encKey, JSON.stringify({ ...accountData, hasAudio: isPodcast }));
-    await window.CList.storage.kv.put(accountData.instance, encryptedValue);
-    accountData.hasAudio = isPodcast;
-    window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl);
-    if (typeof populateReadAccountList === 'function') populateReadAccountList(window.CList.accounts);
-}
-
-// ---- Public API ----
-
-async function initializeLocalrss(accountData) {
-    localrssCurrentAccount = accountData;
-    localrssFilter = 'unread';
-    await _localrssResolveServiceUrl(accountData);
-    await localrssLoad();
-}
-
-async function localrssLoad(append = false) {
-    if (!localrssCurrentAccount) return;
-    const fc = window.CList.ui.view.feedContainer;
-    if (!fc) return;
-    if (!append) localrssOffset = 0;
-    showLoader();
-    try {
-        // Clear audio state from any previous load; append pages keep it.
-        if (!append) {
-            audioFiles.length = 0;
-            const audioList = document.getElementById('audio-list');
-            if (audioList) audioList.innerHTML = '';
-        }
-        const resp = await _localrssGet(localrssCurrentAccount, '/api/items',
-            `db=${encodeURIComponent(localrssCurrentAccount.database)}`
-            + `&filter=${encodeURIComponent(localrssFilter)}`
-            + `&limit=${LOCALRSS_PAGE_SIZE}&offset=${localrssOffset}`);
-        const items = await resp.json().catch(() => null);
-        if (!resp.ok) throw new Error((items && items.error) || `HTTP ${resp.status}`);
-        if (!Array.isArray(items)) throw new Error('Unexpected response from server');
-
-        if (!append) {
-            _localrssSyncHasAudio(localrssCurrentAccount)
-                .catch(err => console.error('LocalRSS: could not sync hasAudio flag:', err));
-        }
-
-        if (!append && !items.length) {
-            fc.innerHTML = '';
-            fc.appendChild(createFeedHeader(localrssCurrentAccount.title || 'LocalRSS'));
-            const p = document.createElement('p');
-            p.className = 'feed-status-message';
-            p.textContent = localrssFilter === 'bookmarked' ? 'No bookmarked items.'
-                          : localrssFilter === 'unread'     ? 'All caught up — no unread items.'
-                          :                                   'No items found.';
-            fc.appendChild(p);
-            return;
-        }
-
-        const hasMore = items.length === LOCALRSS_PAGE_SIZE;
-        await window.CList.ui.renderFeed(items, fc, {
-            normalize: normalizeLocalrssItem,
-            title: localrssCurrentAccount.title || 'LocalRSS',
-            append,
-            onLoadMore: hasMore ? () => {
-                localrssOffset += LOCALRSS_PAGE_SIZE;
-                localrssLoad(true).catch(localrssReportLoadError);
-            } : null,
-        });
-
-        const audioList = document.getElementById('audio-list');
-        if (audioList) audioList.innerHTML = generatePlaylistHTML();
-    } catch (err) {
-        console.error('LocalRSS: error loading items:', err);
-        showServiceError('feed-container', 'LocalRSS error', err.message,
-            'Try clicking <strong>Refresh</strong>, or check the Service URL/Database in your account settings.');
-    } finally {
-        if (window.CList.ui.view.loadingIndicator) window.CList.ui.view.loadingIndicator.style.display = 'none';
-    }
-}
-
-// Loads the current database's feed list itself (title/url/description per feed)
-// into the read pane, as opposed to localrssLoad()'s entries. Reuses the same
-// generic window.CList.ui.renderFeed() rendering path as every other feed view --
-// just with a different normalize function and service tag (normalizeLocalrssFeed /
-// LOCALRSS_FEED) so the arrow/pencil buttons target the feed itself.
-async function localrssLoadFeedList() {
-    if (!localrssCurrentAccount) return;
-    const fc = window.CList.ui.view.feedContainer;
-    if (!fc) return;
-    showLoader();
-    try {
-        const resp = await _localrssGet(localrssCurrentAccount, '/api/feeds', `db=${encodeURIComponent(localrssCurrentAccount.database)}&limit=1000`);
-        const data = await resp.json().catch(() => null);
-        if (!resp.ok || !data) throw new Error((data && data.error) || `HTTP ${resp.status}`);
-        const feeds = data.feeds || [];
-
-        if (!feeds.length) {
-            fc.innerHTML = '';
-            fc.appendChild(createFeedHeader(`${localrssCurrentAccount.title || 'LocalRSS'} — Feeds`));
-            const p = document.createElement('p');
-            p.className = 'feed-status-message';
-            p.textContent = 'No feeds in this database.';
-            fc.appendChild(p);
-            return;
-        }
-
-        await window.CList.ui.renderFeed(feeds, fc, {
-            normalize: normalizeLocalrssFeed,
-            title: `${localrssCurrentAccount.title || 'LocalRSS'} — Feeds`,
-            append: false,
-            onLoadMore: null,
-        });
-    } catch (err) {
-        console.error('LocalRSS: error loading feed list:', err);
-        showServiceError('feed-container', 'LocalRSS error', err.message);
-    } finally {
-        if (window.CList.ui.view.loadingIndicator) window.CList.ui.view.loadingIndicator.style.display = 'none';
-    }
-}
 
 async function localrssToggleRead(entryId, btn) {
     try {
@@ -664,8 +476,7 @@ function _localrssStatsSection(div) {
         showSelect.appendChild(opt);
     });
     showSelect.onchange = () => {
-        localrssFilter = showSelect.value;
-        localrssLoad().catch(localrssReportLoadError);
+        localrssLoad(false, null, { filter: showSelect.value, kind: 'items' }).catch(localrssReportLoadError);
     };
     showRow.appendChild(showSelect);
     div.appendChild(showRow);
