@@ -145,6 +145,18 @@ function _insertIntoTextarea(text) {
     textarea.setSelectionRange(newCursorPosition, newCursorPosition);
 }
 
+//
+// Each entry in editorHandlers may optionally define:
+//     editorFunctions:  A set of functions the editor supports, rendered as buttons in the
+//                        shared #editor-menu bar — the editor-side equivalent of a reader's
+//                        feedFunctions (reader.js), rendered by setupFeedButtons (interface.js).
+//                        { 'Funcname': function() { } }  // label shown on the button
+//                    Populated automatically by setupEditorButtons() (below), called from
+//                    initializeEditor() right before handler.initialize() runs. A handler that
+//                    needs richer toolbar markup than a flat button list (e.g. collab, latex)
+//                    skips this field and builds its own markup into #editor-menu directly
+//                    inside initialize() instead, which simply overwrites what this rendered.
+//
 const editorHandlers = {
     texteditor: {
         label: 'Text',
@@ -879,6 +891,28 @@ function updateLoadedPageUI() {
     if (statusEl) { statusEl.textContent = ''; statusEl.removeAttribute('data-state'); }
 }
 
+// Populates the shared #editor-menu bar from editorType's handler.editorFunctions, the
+// editor-side equivalent of setupFeedButtons() (interface.js) reading a reader's feedFunctions.
+// No-op if the handler declares no editorFunctions — leaving #editor-menu hidden/empty for
+// handlers that don't use this bar, or that build their own richer markup into it instead.
+function setupEditorButtons(editorType) {
+    const buttonsContainer = document.getElementById('editor-menu');
+    if (!buttonsContainer) return;
+
+    const handler = editorHandlers[editorType];
+    const editorFunctions = handler && handler.editorFunctions;
+    if (!editorFunctions || Object.keys(editorFunctions).length === 0) return;
+
+    for (const [label, action] of Object.entries(editorFunctions)) {
+        const button = document.createElement('button');
+        button.className = 'btn btn-small editor-menu-btn';
+        button.textContent = label;
+        button.onclick = () => action();
+        buttonsContainer.appendChild(button);
+    }
+    buttonsContainer.style.display = '';
+}
+
 
 
 // Function to initialize an editor by type.
@@ -902,6 +936,10 @@ async function initializeEditor(editorType, account) {
     // Restore tags row (collection editor hides it; all others need it)
     const writeTagsEl = document.getElementById('write-tags');
     if (writeTagsEl) writeTagsEl.style.display = '';
+
+    // Restore title row (the annotate editor hides it — it has its own Title field; all others need it)
+    const writeTitleRowEl = document.getElementById('write-title-row');
+    if (writeTitleRowEl) writeTitleRowEl.style.display = '';
 
     // Populate format picker from this handler's formats list
     const formatSelectEl = document.getElementById('write-format');
@@ -928,6 +966,11 @@ async function initializeEditor(editorType, account) {
         editorMenuEl.innerHTML = '';
         editorMenuEl.style.display = 'none';
     }
+
+    // Populate it from this handler's editorFunctions, if it declares any (see the doc
+    // comment above editorHandlers). Handlers building richer custom markup (collab, latex)
+    // overwrite this themselves inside their own initialize(), called right after.
+    setupEditorButtons(editorType);
 
     // Close all editors
     // Note that we do not remove the editors, we just hide them

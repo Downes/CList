@@ -292,7 +292,8 @@ async function _renderSendControls(sendSection) {
         sendBtn.textContent = 'Sending…';
         try {
             const bodyText = await editorHandlers['annotate-edit'].getContent();
-            const ok = await _submitAnnotation(sendSection, target.id, target.url, bodyText, tags, visibility, acct, session.token, session);
+            const ok = await _submitAnnotation(sendSection, target.id, target.url, bodyText, tags, visibility, acct, session.token, session,
+                { title: target.title, author_name: target.author_name, feed: target.feed });
             if (ok) {
                 showStatusMessage(`Sent to ${acct.title || acct.instance}.`);
                 if (currentEditor === 'annotate-edit' && _annotateTarget() === draft
@@ -313,6 +314,16 @@ async function _renderSendControls(sendSection) {
     });
 }
 
+// Empties the form to start a new annotation: drops the current target (and any convergent
+// references alongside it) and the Description body, then re-renders the ref fields blank.
+// Registered as this editor's 'Clear' editorFunctions entry (editor-menu button).
+function _annotateClear() {
+    clearReferences();
+    _annotateDraftRef = null;
+    _refreshAnnotateRefFields();
+    editorHandlers['annotate-edit'].setContent('');
+}
+
 (function () {
     if (typeof editorHandlers === 'undefined') {
         console.error('editorHandlers is not defined — annotate-editor.js must load after editors.js');
@@ -325,8 +336,18 @@ async function _renderSendControls(sendSection) {
         contentTypes: ['text/plain', 'text/html'],
         requiresAccount: false,
 
+        editorFunctions: {
+            'Clear': () => _annotateClear(),
+        },
+
         initialize: async () => {
             currentEditor = 'annotate-edit';
+
+            // This editor has its own Title field (ref.title, in _renderAnnotateRefFields) —
+            // hide the shared #write-title-row so there isn't a second, redundant title input.
+            // Restored by editors.js's initializeEditor() when switching to any other editor.
+            const writeTitleRowEl = document.getElementById('write-title-row');
+            if (writeTitleRowEl) writeTitleRowEl.style.display = 'none';
 
             const writePaneContent = window.CList.ui.view.writePaneContent;
             let div = document.getElementById('annotateEditDiv');

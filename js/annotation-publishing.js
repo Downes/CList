@@ -47,14 +47,16 @@ async function publishAnnotationAccount(account, content, refs, options = {}) {
     return outcome.url;
 }
 
-// Compatibility entry point shared by the inline form and annotation editor.
-async function _submitAnnotation(panel, itemID, url, body, tags, visibility, account, token, capturedSession) {
+// Compatibility entry point shared by the inline form and annotation editor. refExtra carries
+// optional title/author_name/feed metadata (from the Annotate editor's ref fields) attached to
+// the target as target_selector — see captureAnnotationRequest's `selectors` option.
+async function _submitAnnotation(panel, itemID, url, body, tags, visibility, account, token, capturedSession, refExtra = {}) {
     try {
         const session = capturedSession || captureAnnotationSession();
         assertAnnotationSession(session);
         if (token !== undefined && account.type !== 'Hypothesis' && session.token !== token)
             throw new Error('The account session changed. Reopen the annotation controls.');
-        const request = captureAnnotationRequest({ body, references: [{ url }], tags, visibility });
+        const request = captureAnnotationRequest({ body, references: [{ url, ...refExtra }], tags, visibility, selectors: true });
         const outcome = await runAnnotationOperation(account, request, session);
         window.CList.ui.annotations.show(outcome);
         return outcome.created > 0;

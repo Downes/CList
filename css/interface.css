@@ -173,8 +173,10 @@ button {
 .btn-secondary:hover { background: var(--text-muted); }
 
 /* Menu bar — shared by #feed-menu and #editor-menu (the above-title toolbar
-   an editor handler populates, e.g. collab's/LaTeX's): the row of action
-   buttons at the top of a pane. */
+   an editor handler populates, e.g. collab's/LaTeX's own custom markup, or a
+   plain editorFunctions button list via setupEditorButtons() — editors.js):
+   the row of action buttons at the top of a pane. .editor-menu-btn is the
+   editor-menu equivalent of .feed-filter-btn, a plain marker class. */
 .menu-bar {
   min-height: 41px;
   padding: 5px 10px;

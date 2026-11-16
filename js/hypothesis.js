@@ -300,7 +300,11 @@ window.hypothesisCreate = async function(acct, payload) {
             admin:  [userUri],
         },
         target:     [{ source: payload.target_url }],
-        document:   {},
+        // Hypothesis shows this as the annotated page's title in its own UI; without it the
+        // target_url is shown instead. Comes from the CList-side title field (the Annotate
+        // editor's own Title input, or a feed item's title) via target_selector, not window
+        // title/document.title of this page.
+        document:   payload.target_selector?.title ? { title: [payload.target_selector.title] } : {},
         references: [],
     };
 

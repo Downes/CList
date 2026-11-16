@@ -14,20 +14,26 @@ window.CList.schemas['gRSShopper'] = {
 
 // Post a new annotation to gRSShopper as a post_type='link' record (api/clist.pl's
 // cmd=clist_publish). payload matches runAnnotationWorkflow's create() contract:
-// { target_url, body, tags, visibility, motivation }. Create-only — gRSShopper's
-// token-authenticated endpoint also supports updating an existing post by id, but
-// nothing in the current annotation pipeline carries a postId to use it.
+// { target_url, body, tags, visibility, motivation, target_selector? }. target_selector
+// (title/author_name/feed - see captureAnnotationRequest) carries the annotated article's
+// real metadata when the caller requested it (the Annotate editor's Title/Author/Feed fields);
+// falls back to a synthesized title when absent. Create-only — gRSShopper's token-authenticated
+// endpoint also supports updating an existing post by id, but nothing in the current annotation
+// pipeline carries a postId to use it.
 /** @param {CListAccountData} account
  * @param {Object} payload
  * @returns {Promise<Object>} */
 window.grsshopperCreate = async function(account, payload) {
     if (!account.apiToken) throw new Error('No gRSShopper API token - check Account Settings.');
     const base = (account.instance || '').replace(/\/$/, '');
+    const selector = payload.target_selector || {};
     const body = {
         token:       account.apiToken,
-        title:       (payload.body || 'Annotation').split('\n')[0].slice(0, 80) || 'Annotation',
+        title:       selector.title || (payload.body || 'Annotation').split('\n')[0].slice(0, 80) || 'Annotation',
         description: payload.body || '',
         link:        payload.target_url,
+        author:      selector.author_name || '',
+        feed:        selector.feed || '',
     };
     let response;
     try {
