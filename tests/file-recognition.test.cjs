@@ -127,12 +127,15 @@ function routingFixture(existing='',extra={}) {
         openRightPane(){},showErrorModal:message=>{throw Error(message);},confirm:()=>{throw Error('unexpected fallback confirmation');},...extra,
     });
     ctx.switchToEditor=async(key,content)=>{ctx.currentEditor=key;events.push({switched:key,content});};
-    const file=source('editors');const start=file.indexOf('function _savedEditorIsEmpty('),end=file.indexOf('// Rendered into renderTarget',start);
-    vm.runInContext(file.slice(start,end),ctx);
-    const choiceStart=file.indexOf('function _offerEditorChoice('),choiceEnd=file.indexOf('// Register built-in load handlers',choiceStart);
-    vm.runInContext(file.slice(choiceStart,choiceEnd),ctx);
-    const offer=ctx._offerEditorChoice;
-    ctx._offerEditorChoice=(keys,content,page,renderTarget,onCancel)=>{events.push({choice:keys,content,page});return offer(keys,content,page,renderTarget,onCancel);};
+    ctx.populateLoadOptions=()=>{};
+    for(const name of ['editor-load-state','editor-load-view','editor-load']) vm.runInContext(source(name),ctx);
+    const view=ctx.window.CList.ui.editorLoad,offer=view.chooseEditor,review=view.reviewEditor;
+    view.chooseEditor=(options,target,select,cancel)=>{events.push({choice:options.map(item=>item.key)});return offer.call(view,options,target,select,cancel);};
+    view.reviewEditor=(canReplace,target,actions)=>{
+        const operation=vm.runInContext('_editorLoadOperation',ctx);
+        events.push({replace:operation.key,content:operation.content,actions});
+        return review.call(view,canReplace,target,actions);
+    };
     const collectionOffer=ctx._offerCollectionChoice;
     ctx._offerCollectionChoice=(parsed,format,options)=>{events.push({collectionChoice:format,options});return collectionOffer(parsed,format,options);};
     const choose=async label=>{const button=choiceRoot.querySelectorAll('button').find(button=>button.textContent===label||button.textContent.endsWith(label));assert.ok(button,'choice '+label+' exists');return button.listeners.click?button.listeners.click():button.onclick();};
@@ -298,10 +301,14 @@ test('choosing Collection for ambiguous HTML still reviews a parked draft before
     assert.equal(f.events.find(event=>event.loaded).loaded,'tinymce');
     assert.equal(f.handlers.collection.getContent(),parked);assert.equal(f.events.some(event=>event.collection),false);
     await choices[0].options.onCollection();
+    assert.equal(dialogs.length,0,'completed native choice invalidates the old collection callback');
+    await f.ctx.loadSavedPage(content,{kind:'file',title:'renamed.json'});
+    await choices[1].options.onCollection();
     assert.equal(dialogs.length,1);assert.equal(f.events.some(event=>event.collection),false);
     dialogs[0].buttons.find(button=>button.label==='Cancel').onClick(()=>{});
     assert.equal(f.handlers.collection.getContent(),parked);assert.equal(f.events.some(event=>event.collection),false);
-    await choices[0].options.onCollection();
+    await f.ctx.loadSavedPage(content,{kind:'file',title:'renamed.json'});
+    await choices[2].options.onCollection();
     await dialogs[1].buttons.find(button=>button.label==='Open collection').onClick(()=>{});
     assert.equal(f.events.filter(event=>event.collection).length,1);
     assert.equal(f.events.find(event=>event.collection).collection.title,'HTML list');
@@ -414,3 +421,86 @@ test('legacy quoted citations recover source URL and author but do not invent mi
     paragraph.textContent='Stephen Downes wrote: "Quote" [Stephen Downes]';
     anchor.getAttribute=()=> 'javascript:bad()';assert.equal(ctx._recognitionLegacyCitations(post,'OK').length,0);
 });
+
+
+test('superseded representation callbacks cannot switch editors or load the earlier file',async()=>{
+ const f=routingFixture();await f.ctx.loadSavedPage({type:'text/plain',value:'First file'},null);
+ const old=f.choiceRoot.querySelectorAll('button').find(button=>button.textContent.endsWith('texteditor'));
+ await f.ctx.loadSavedPage({type:'text/plain',value:'Second file'},null);
+ await old.onclick();assert.equal(f.events.some(event=>event.loaded||event.switched),false);
+ await f.choose('texteditor');assert.equal(f.events.find(event=>event.loaded||event.switched).content.value,'Second file');
+ assert.equal(f.ctx.window.CList.state.editorLoading.phase,'complete');
+ assert.equal(JSON.stringify(f.ctx.window.CList.state.editorLoading).includes('Second file'),false);
+});
+test('a delayed draft check cannot show stale review or complete a newer operation',async()=>{
+ const f=routingFixture();let finish;
+ f.handlers.texteditor.getContent=()=>new Promise(resolve=>finish=resolve);
+ await f.ctx.loadSavedPage({type:'text/plain',value:'Old file'},null);
+ const pending=f.choose('texteditor');
+ await f.ctx.loadSavedPage({type:'text/html',value:'<p>New file</p>'},null);
+ finish('Old draft');await pending;
+ assert.equal(f.events.some(event=>event.replace||event.switched),false);
+ assert.equal(f.ctx.window.CList.state.editorLoading.phase,'choosing-editor');
+});
+test('duplicate representation clicks start one draft check and input mutation cannot change captured content',async()=>{
+ const f=routingFixture();let finish,count=0;
+ f.handlers.texteditor.getContent=()=>{count++;return new Promise(resolve=>finish=resolve);};
+ const incoming={type:'text/plain',value:'Captured text'};await f.ctx.loadSavedPage(incoming,null);
+ const button=f.choiceRoot.querySelectorAll('button').find(button=>button.textContent.endsWith('texteditor'));
+ const first=button.onclick();await button.onclick();incoming.value='Changed input';assert.equal(count,1);
+ finish('');await first;assert.equal(f.events.find(event=>event.loaded||event.switched).content.value,'Captured text');
+});
+test('old review callbacks cannot write after another load or a manual editor change',async()=>{
+ const f=routingFixture('Existing draft'),writes=[];
+ f.handlers.texteditor.setContent=value=>writes.push(value);
+ await f.ctx.loadSavedPage({type:'text/plain',value:'Incoming'},null);await f.choose('texteditor');
+ const first=f.events.find(event=>event.replace).actions;
+ await f.ctx.loadSavedPage({type:'text/html',value:'<p>New choice</p>'},null);await first.replace();assert.deepEqual(writes,[]);
+ await f.ctx.loadSavedPage({type:'text/plain',value:'Another'},null);await f.choose('texteditor');
+ const second=f.events.filter(event=>event.replace).at(-1).actions;f.ctx.currentEditor='tinymce';await second.replace();
+ assert.deepEqual(writes,[]);assert.equal(f.ctx.window.CList.state.editorLoading.phase,'cancelled');
+});
+test('loading failures produce visible feedback and a failed safe state without exposing payloads',async()=>{
+ const f=routingFixture(),errors=[];f.ctx.window.CList.ui.editorLoad.error=error=>errors.push(error.message);
+ f.handlers.texteditor.loadContent=()=>{throw Error('Insert failed');};f.ctx.currentEditor='texteditor';
+ await f.ctx.loadSavedPage({type:'text/plain',value:'Private file body'},null);await f.choose('texteditor');
+ assert.deepEqual(errors,['Insert failed']);assert.equal(f.ctx.window.CList.state.editorLoading.phase,'failed');
+ assert.equal(JSON.stringify(f.ctx.window.CList.state.editorLoading).includes('Private file body'),false);
+});
+
+
+test('failed editor initialization cannot mark a file loaded or replace its source metadata',async()=>{
+ const f=routingFixture();f.ctx.switchToEditor=async()=>false;
+ await f.ctx.loadSavedPage({type:'text/plain',value:'Incoming file'},{title:'Incoming.txt'});await f.choose('texteditor');
+ assert.equal(f.events.some(event=>event.page||event.refs||event.closed),false);
+ assert.equal(f.ctx.window.CList.state.editorLoading.phase,'failed');
+});
+
+for (const mode of ['new', 'replace', 'insert']) {
+ test(`editor review ${mode} preserves the selected content and reference rules`, async () => {
+  const f = routingFixture('Existing draft'), writes = [], references = [];
+  f.ctx.currentEditor = 'texteditor';
+  f.handlers.texteditor.setContent = value => writes.push(value);
+  f.ctx.clearDraft = key => writes.push({clearDraft: key});
+  f.ctx.pushReference = reference => references.push(reference);
+  const page = {title: 'Incoming.txt', references: [{url: 'https://example.test/source'}]};
+  await f.ctx.loadSavedPage({type: 'text/plain', value: 'Incoming body'}, page);
+  await f.choose('texteditor');
+  const actions = f.events.find(event => event.replace).actions;
+  await actions[mode]();
+  await actions[mode](); // A second click cannot apply the same file twice.
+  assert.equal(f.ctx.window.CList.state.editorLoading.phase, 'complete');
+  if (mode === 'new') assert.deepEqual(writes, [{clearDraft: 'texteditor'}, '']);
+  else assert.deepEqual(writes, mode === 'replace' ? ['Incoming body'] : []);
+  const loads = f.events.filter(event => event.loaded);
+  assert.equal(loads.length, mode === 'replace' ? 0 : 1);
+  if (loads.length) assert.equal(loads[0].content.value, 'Incoming body');
+  if (mode === 'insert') {
+   assert.equal(references[0].url, page.references[0].url);
+   assert.equal(f.events.some(event => event.page || event.refs), false);
+  } else {
+   assert.equal(f.events.find(event => event.page).page.title, page.title);
+   assert.equal(f.events.find(event => event.refs).refs[0].url, page.references[0].url);
+  }
+ });
+}

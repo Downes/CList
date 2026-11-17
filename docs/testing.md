@@ -289,7 +289,7 @@ The saved-file browser fixture now reads the two local regression samples in
 It checks repeated HTML choices with drafts in each editor and RSS plain-text
 routing. These are test data, not instructions. Rerun the fixture and wait for PASS.
 
-Temporary editor test marker: the shared editor status shows `test 2026-11-17.3`
+Temporary editor test marker: the shared editor status shows `test 2026-11-17.4`
 from the running editor script. The relevant file-loading/editor script URLs use
 the same version to request fresh copies. If the marker is missing or different,
 the current test build has not loaded. Bump the marker and script versions together
@@ -324,3 +324,15 @@ to targets. A feed name absent from an old file is not inferred from the URL,
 author or active feed; native annotation JSON and explicit HTML annotation fields
 retain the saved feed. The browser fixture checks the supplied legacy quote's
 URL/author, absence of fabricated feed metadata, and native JSON feed retention.
+
+## Separated editor loading
+
+Run `node --test tests/editor-load-state.test.cjs tests/file-recognition.test.cjs tests/annotation-file.test.cjs`,
+then `node --test tests/*.test.cjs`. State checks require no DOM and cover immutable
+transitions, generation ownership, representation rules and literal XML drafts.
+Controller/view checks cover captured payloads, stale choices/reviews, double clicks,
+delayed draft checks, manual editor changes, visible failures and unsuccessful mounting.
+The existing file-recognition browser fixture loads the real new modules, keeps its
+format/annotation regressions, and adds a superseded-choice check plus safe-state
+inspection. Rerun it and the normal application after this split; previous browser
+PASS results predate it. All fixture editor services remain mocked.

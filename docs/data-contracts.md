@@ -174,3 +174,8 @@ for retry. Node annotation tests exercise the real switch and initialize functio
 with delayed/rejected TinyMCE startup. The browser fixture also exercises the real
 queued-content switch (editor widgets remain mocked) and explicit HTML fields.
 Rerun the fixture for this revision; previous PASS results predate the startup fix.
+
+`CListEditorLoadState` describes the safe shared editor-loading generation/phase,
+selected target and error. `editor-load-state.js` accepts explicit capabilities and
+content inputs to compute representations without consulting UI or sessions.
+The controller's captured content/page/callbacks are transient, outside that state.

@@ -531,3 +531,15 @@ to targets. A feed name absent from an old file is not inferred from the URL,
 author or active feed; native annotation JSON and explicit HTML annotation fields
 retain the saved feed. The browser fixture checks the supplied legacy quote's
 URL/author, absence of fabricated feed metadata, and native JSON feed retention.
+
+## Separated editor loading
+
+Run `node --test tests/editor-load-state.test.cjs tests/file-recognition.test.cjs tests/annotation-file.test.cjs`,
+then `node --test tests/*.test.cjs`. State checks require no DOM and cover immutable
+transitions, generation ownership, representation rules and literal XML drafts.
+Controller/view checks cover captured payloads, stale choices/reviews, double clicks,
+delayed draft checks, manual editor changes, visible failures and unsuccessful mounting.
+The existing file-recognition browser fixture loads the real new modules, keeps its
+format/annotation regressions, and adds a superseded-choice check plus safe-state
+inspection. Rerun it and the normal application after this split; previous browser
+PASS results predate it. All fixture editor services remain mocked.

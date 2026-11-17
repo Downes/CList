@@ -621,3 +621,28 @@ to targets. A feed name absent from an old file is not inferred from the URL,
 author or active feed; native annotation JSON and explicit HTML annotation fields
 retain the saved feed. The browser fixture checks the supplied legacy quote's
 URL/author, absence of fabricated feed metadata, and native JSON feed retention.
+
+## Editor loading UI/state boundary
+
+| Module | Responsibility |
+|---|---|
+| `editor-load-state.js` | Plain phase/generation transitions, representation variants and emptiness decisions with explicit inputs |
+| `editor-load.js` | Shared `loadSavedPage` controller, payload/page capture, operation lifetime, selected handler inspection and application |
+| `editor-load-view.js` | Editor/collection choices, existing-draft review, close/navigation surfaces and visible errors |
+| `editors.js` | Editor registry, mounting/switching, parked metadata, queued-content delivery and existing editor controls |
+
+`CList.state.editorLoading` holds only id, phase, selected target and error. Incoming
+content/page records are cloned into a transient operation; neither body content nor
+callbacks/credentials are serialized into UI state. Representation selection always
+precedes draft inspection, including when the current editor is compatible. Captured
+callbacks claim their stage before awaiting, reject duplicate/superseded actions,
+and cannot apply an old review after a manual editor change. An old delayed draft
+check cannot render over a newer selection. Cancellation and failure are explicit
+phases. Editor initialization reports failure without marking a file loaded.
+
+The view receives plain labels/capabilities and callbacks rather than reading editor
+contents or executing writes. It reuses the existing collection-choice helper.
+The controller preserves New/Replace/Insert behavior and native annotation/pending
+content handling. Generation guards stop obsolete controller actions and metadata
+updates; they do not cancel the existing service handlers' asynchronous DOM mounting.
+Those mounting/park-restore lifecycles remain a separate refactor slice.

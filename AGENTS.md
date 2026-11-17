@@ -175,6 +175,17 @@ Full reference: `docs/error-handling.md`. These rules apply to all new and modif
 - `.error-message` — red, for hard failures requiring user action
 - `.feed-status-message` — neutral grey, for soft/informational states ("No posts found")
 
+## Editor file loading
+
+Editor loading uses `editor-load-state.js` (plain transitions and representation rules),
+`editor-load.js` (captured operation/controller), and `editor-load-view.js` (choices and
+feedback). `CList.state.editorLoading` contains only generation/phase/target/error;
+file bodies, page records and callbacks remain in transient operation captures.
+Keep representation choice before draft review, expire old callbacks, and preserve
+recognition, native annotation loading and collection-versus-text behavior. Editor
+mounting/park-restore and queued content still belong to `editors.js` and handlers.
+Do not claim that generation checks cancel a service editor's asynchronous mounting.
+
 ## Reader dispatch
 
 The central boundary uses `reader.js` (controller), `reader-state.js` (pure

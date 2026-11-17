@@ -490,3 +490,12 @@
  * Optional editor local-file export, separate from publication/native getContent.
  * @typedef {{type: string, value: string}} CListEditorFileContent
  */
+
+/**
+ * Safe editor-file loading state. File bodies, page records and callbacks are transient.
+ * @typedef {Object} CListEditorLoadState
+ * @property {number} id Monotonic operation generation.
+ * @property {'recognizing'|'choosing-editor'|'choosing-collection'|'reviewing'|'loading'|'complete'|'cancelled'|'failed'} phase
+ * @property {string|null} target Selected editor key, or collection.
+ * @property {string|null} error
+ */

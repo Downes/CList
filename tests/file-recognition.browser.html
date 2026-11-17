@@ -21,6 +21,9 @@ window.sanitizeHtml=html=>{const doc=new DOMParser().parseFromString(html,'text/
  for(const el of doc.querySelectorAll('script,iframe,object'))el.remove();return doc.body.innerHTML;};
 </script>
 <script src="../js/editors.js"></script>
+<script src="../js/editor-load-state.js"></script>
+<script src="../js/editor-load-view.js"></script>
+<script src="../js/editor-load.js"></script>
 <script src="../js/collection-formats.js"></script>
 <script src="../js/file-recognition.js"></script>
 <script src="../js/files.js"></script>
@@ -74,6 +77,15 @@ window.sanitizeHtml=html=>{const doc=new DOMParser().parseFromString(html,'text/
    check(text.includes('Text')&&text.includes('HTML')&&text.includes('Annotate'),'Legacy annotation offers all three editors on every load');
    check(!text.includes('already has content'),'Editor choice precedes overwrite review');
   }
+  // Superseded UI callbacks must not load the previous file.
+  currentEditor='texteditor';textBody='';annotationBody='';
+  await load('Old file payload','text/plain','old.txt',false);
+  const oldTextChoice=[...document.querySelectorAll('#load-options button')].find(button=>button.textContent.includes('Text'));
+  await load('New file payload','text/plain','new.txt',false);
+  await oldTextChoice.onclick();check(textBody==='','Old representation callback is ignored');
+  await choose('Text');check(textBody==='New file payload','Current captured file loads');
+  check(CList.state.editorLoading.phase==='complete','Controller records completed load');
+  check(!JSON.stringify(CList.state.editorLoading).includes('New file payload'),'Shared loading state contains no file body');
   // Use the real queued-content switch path for the legacy annotation regression.
   annotationBody='';refs=[];currentEditor='texteditor';switchToEditor=realSwitchToEditor;
   await load(legacySample,'text/plain','content(9).txt',false);await choose('Annotate');
@@ -145,7 +157,7 @@ window.sanitizeHtml=html=>{const doc=new DOMParser().parseFromString(html,'text/
   const replace=[...document.querySelectorAll('#load-options button')].find(button=>button.textContent==='Replace');
   check(replace,'Replace choice available');replace.click();check(annotationBody===native.body,'Replace restores full annotation');
   for(const id of ['write-title','load-options','writeReferences','annotateEditDiv','fixture-editor-root','fixture-dialog']) document.getElementById(id)?.remove();
-  document.body.dataset.result='PASS';document.getElementById('result').textContent='PASS: content-first collection formats (including empty), XML/JSON fallback, exact document metadata/references, legacy HTML, native annotation save/load, real annotation switching, HTML field/citation recovery and overwrite choice. No external requests or file writes.';
+  document.body.dataset.result='PASS';document.getElementById('result').textContent='PASS: content-first collection formats (including empty), XML/JSON fallback, exact document metadata/references, legacy HTML, native annotation save/load, real annotation switching, HTML field/citation recovery, separated load state and overwrite choice. No external requests or file writes.';
  }catch(error){console.error(error);document.body.dataset.result='FAIL';document.getElementById('result').textContent='FAIL: '+error.message;}
 })();
 </script>
