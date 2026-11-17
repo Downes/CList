@@ -4,6 +4,7 @@
 
 /** @param {CListAccountSession} session */
 function assertAccountSession(session) {
+    if (session.isCurrent && !session.isCurrent()) throw new Error('The account operation is no longer current.');
     if (!session.encKey || !session.token) throw new Error('Please log in again before managing accounts.');
     if (session.storeUrl !== window.CList.config.flaskSiteUrl ||
         session.token !== getSiteSpecificCookie(session.storeUrl, window.CList.keys.ACCESS_TOKEN)) {

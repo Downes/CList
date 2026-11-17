@@ -12,28 +12,12 @@
 
 
 
-// Shared by both file-picking paths below: decide whether the file's content is
-// collection-shaped (a genuine non-empty RSS/OPML/JSON/HTML item list) and, if
-// so, offer a Collection-vs-native choice before falling through to the normal
-// restorePostContent() handling — which stays untouched either way, so HTML's
-// #post-title/#post-content/#post-references extraction (parseHtmlContent())
-// still runs for the native path exactly as before this existed.
+// Both pickers read bytes; recognition inspects content before extension/MIME hints.
 function _decideFileLoad(content, mimeType, filename) {
-    if (typeof content !== 'string') {
-        // Binary content never carries a collection shape.
-        return restorePostContent(content, mimeType, filename);
-    }
-    const format = _detectFormat(mimeType, filename);
-    const parsed = _collectionShape(content, format);
-    if (!parsed) return restorePostContent(content, mimeType, filename);
-
-    return new Promise(resolve => {
-        _offerCollectionChoice(parsed, format, {
-            renderTarget: window.CList.ui.view.loadOptions,
-            onCancel: () => { resolve(null); if (typeof populateLoadOptions === 'function') populateLoadOptions(); },
-            onNative: () => resolve(restorePostContent(content, mimeType, filename)),
-        });
-    });
+    return restorePostContent(content, mimeType, filename);
+}
+async function readLocalFileContent(file) {
+    return _decideFileLoad(await file.arrayBuffer(), file.type || '', file.name);
 }
 
 async function loadFile() {
@@ -42,51 +26,34 @@ async function loadFile() {
             const [fileHandle] = await window.showOpenFilePicker();
             const file = await fileHandle.getFile();
 
-            const mimeType = file.type || "unknown"; // Get MIME type
-            let content;
-
-            if (mimeType.startsWith("text/") || mimeType === "application/json" || mimeType === "application/xml") {
-                // Text-based files
-                content = await file.text();
-            } else {
-                // Binary files (e.g., images, PDFs)
-                content = await file.arrayBuffer(); // Read as ArrayBuffer
-            }
-
-            return await _decideFileLoad(content, mimeType, file.name);
+            return await readLocalFileContent(file);
         } catch (err) {
+            if (err.name === 'AbortError') return null;
             console.error("File load failed:", err);
+            showErrorModal('Could not open file: ' + err.message, { title: 'File load failed' });
             return null;
         }
     } else {
        // document.getElementById('fallbackMessage').style.display = 'block';
         const fileInput = document.getElementById('fileInput');
 
-        return new Promise((resolve, reject) => {
+        return new Promise(resolve => {
             fileInput.onchange = async () => {
                 const file = fileInput.files[0];
                 if (file) {
                     try {
-                        const mimeType = file.type || "unknown";
-                        let con; // Define content in the proper scope
-
-                        if (mimeType.startsWith("text/") || mimeType === "application/json" || mimeType === "application/xml") {
-                            // Read text-based content
-                            con = await file.text();
-                        } else {
-                            // Read binary content
-                            con = await file.arrayBuffer();
-                        }
-                        // Pass the content, MIME type and filename to restorePostContent
-                        resolve(await _decideFileLoad(con, mimeType, file.name));
+                        resolve(await readLocalFileContent(file));
                     } catch (err) {
                         console.error("Fallback file load failed:", err);
-                        reject(err);
+                        showErrorModal('Could not open file: ' + err.message, { title: 'File load failed' });
+                        resolve(null);
                     }
                 } else {
-                    reject(new Error("No file selected"));
+                    resolve(null);
                 }
             };
+            fileInput.oncancel = () => resolve(null);
+            fileInput.value = '';
             fileInput.click(); // Trigger the file input
         });
 
@@ -94,78 +61,11 @@ async function loadFile() {
 }
 
 function restorePostContent(content, mimeType, filename) {
-    console.log("Processing content with MIME type:", mimeType);
-
-    // Loaded-page indicator metadata — lets the editor show which file this
-    // content came from (setLoadedPage()/updateLoadedPageUI() in editors.js),
-    // same as a page loaded from My Pages shows its title.
-    const page = filename ? { kind: 'file', title: filename } : null;
-
-    // Handle string content
-    if (typeof content === "string") {
-        if (mimeType.startsWith("text/html")) {
-            return parseHtmlContent(content, mimeType, page);
-        } else if (mimeType.startsWith("text/") || mimeType === "application/json") {
-            // Trust the declared MIME type (from the file's own extension) as-is —
-            // a .txt file loads as plain text even if its content happens to contain
-            // HTML-like tags (e.g. a saved markup fragment meant to be edited as text).
-            if (mimeType === "application/json") {
-                try {
-                    const json = JSON.parse(content);
-                    if (json?.format === 'clist-slides-yjs-v1' && typeof json.update === 'string') {
-                        return { type: 'application/vnd.clist.slides+json', value: content, page };
-                    }
-                    return { type: mimeType, value: json, page };
-                } catch (err) {
-                    console.error("Invalid JSON content:", err);
-                    return { type: "invalid", value: "Invalid JSON content" };
-                }
-            } else {
-                // Treat as plain text
-                return { type: mimeType, value: content, page };
-            }
-        } else {
-            console.warn(`Unsupported MIME type: ${mimeType}`);
-            return { type: mimeType, value: `Unsupported MIME type: ${mimeType}` };
-        }
-    }
-
-    // Handle binary content
-    if (content instanceof ArrayBuffer) {
-        console.log("Binary content received.");
-        if (/\.pptx$/i.test(filename || '')) mimeType = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
-        return { type: mimeType, value: content, page };
-    }
-
-    // Fallback for unexpected content types
-    console.error("Unexpected content type:", typeof content);
-    return { type: "unknown", value: "Unknown content type" };
-}
-
-// Helper: Parse HTML Content
-function parseHtmlContent(content, mimeType, page) {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(content, "text/html");
-
-    // Check for parser errors
-    if (doc.querySelector("parsererror")) {
-        console.error("Invalid HTML content.");
-        return { type: "invalid", value: "Invalid HTML content" };
-    }
-
-    const titleContent = doc.querySelector("#post-title")?.innerHTML || "Untitled";
-    // #post-content is CList's own round-trip export marker — a generic HTML file
-    // won't have it, so fall back to the whole document body rather than a placeholder.
-    const mainContent = doc.querySelector("#post-content")?.innerHTML || doc.body.innerHTML || "";
-    const referencesContent = doc.querySelector("#post-references")?.innerHTML || "";
-
-    const titleInput = window.CList.ui.view.writeTitle;
-    if (titleInput) titleInput.value = titleContent;
-
-    const referencesDiv = document.getElementById("writeReferences");
-    if (referencesDiv) referencesDiv.innerHTML = referencesContent;
-
-    return { type: mimeType, value: mainContent, page };
+    const detected = recognizeSavedContent(content, mimeType, filename);
+    const metadata = detected.page || {};
+    const page = { ...metadata, ...(filename ? { kind: 'file', title: filename } : {}),
+        ...(metadata.title ? { documentTitle: metadata.title } : {}) };
+    return { ...detected, page, recognized: true };
 }
 
 // Save
@@ -175,7 +75,8 @@ function parseHtmlContent(content, mimeType, page) {
 async function packagePost({
     forPublishing = false,
     title,
-    referenceHtml
+    referenceHtml,
+    fileMetadata = null
 } = {}) {
     // Get title
 
@@ -213,7 +114,8 @@ async function packagePost({
     // Append the content div
     const contentDiv = document.createElement('div');
     contentDiv.id = 'post-content';
-    contentDiv.innerHTML = contentValue; // Set HTML directly
+    if (fileMetadata && handler?.contentTypes?.[0] === 'text/plain') contentDiv.textContent = contentValue;
+    else contentDiv.innerHTML = contentValue;
     postDiv.appendChild(contentDiv);
 
     // Append the references div
@@ -221,6 +123,14 @@ async function packagePost({
     referencesDiv.id = 'post-references';
     referencesDiv.innerHTML = referenceValue; // Retrieve HTML from the target div
     postDiv.appendChild(referencesDiv);
+
+    if (fileMetadata) {
+        const metadata = document.createElement('script');
+        metadata.id = 'clist-file-metadata'; metadata.type = 'application/json';
+        const nativeType = (handler?.contentTypes || [])[0] === 'text/plain' ? 'text/plain' : 'text/html';
+        metadata.textContent = JSON.stringify({ ...fileMetadata, content: { type: nativeType, value: contentValue } }).replace(/</g, '\\u003c');
+        postDiv.appendChild(metadata);
+    }
 
     // Return the outerHTML of the constructed post div
     return postDiv.outerHTML;
@@ -307,13 +217,22 @@ async function saveContent() {
     const handler = editorHandlers[currentEditor];
     const isNativeFile = !!handler?.fileExtension;
     const isRawFileRoundTrip = isNativeFile || (currentLoadedPage?.kind === 'file' && getReferences().length === 0);
-    const content = isRawFileRoundTrip
-        ? await editorHandlers[currentEditor]?.getContent?.()
-        : await packagePost();
-    const fileContent = String(content); // Ensure content is treated as a string
-    const suggestedName = isNativeFile
-        ? (currentLoadedPage?.kind === 'file' ? currentLoadedPage.title : 'presentation.' + handler.fileExtension)
-        : (isRawFileRoundTrip ? currentLoadedPage.title : undefined);
+    let content, nativeType = null;
+    if (typeof handler?.getFileContent === 'function') {
+        const native = await handler.getFileContent();
+        content = native.value; nativeType = native.type;
+    } else if (isRawFileRoundTrip) content = await handler.getContent();
+    else content = await packagePost({ fileMetadata: {
+        format: 'clist-post-v1', editor: currentEditor,
+        title: window.CList.ui.view.writeTitle?.textContent || '', references: structuredClone(getReferences()),
+    } });
+    if (content == null) return;
+    const fileContent = String(content);
+    const suggestedName = nativeType
+        ? (currentLoadedPage?.kind === 'file' ? currentLoadedPage.title : 'annotation.json')
+        : isNativeFile
+            ? (currentLoadedPage?.kind === 'file' ? currentLoadedPage.title : 'presentation.' + handler.fileExtension)
+            : (isRawFileRoundTrip ? currentLoadedPage.title : undefined);
 
     const loggedIn = !!(window.CList.state && window.CList.state.username);
     let targetId = null;

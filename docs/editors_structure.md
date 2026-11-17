@@ -550,3 +550,99 @@ These are handled by `editors.js` and do not need to be implemented per editor:
   editing the same pad can end up with different reference lists with no way to reconcile.
   Deferred — recommended future fix is embedding a delimited references block directly in the
   pad's own text content, so it propagates through Etherpad's own sync. See `/srv/TODO.md`.
+
+## Content-first local file recognition
+
+`files.js` reads bytes in both browser picker paths and delegates to
+`file-recognition.js`. It decodes UTF-8/UTF-16 text and inspects validated JSON/XML
+structures or binary signatures before routing. `loadSavedPage` also applies this
+recognition for text from other loaders (including Dropbox and URL loads), then
+uses the existing editor registry and overwrite choices. Saved local editor metadata identifies compatible representations; users still
+choose an editor before any overwrite review.
+Collections use `openParsedAsCollection`, including when logged out; an existing
+collection draft requires an explicit Open collection/Cancel decision. Unmarked
+HTML lists retain the collection-versus-HTML choice rather than being assumed to
+be a collection. Unknown JSON/XML opens as exact Text content.
+
+Editors may provide `getFileContent(): {type, value}` for a self-describing local
+file without changing `getContent()` or their publishing API. Annotations use
+`application/vnd.clist.annotation+json` (`clist-annotation-v1`) and restore the
+primary target, convergent references and body. Their Insert/Replace choices remain
+in the shared loader. Document local saves keep their HTML wrapper and include
+inert metadata for exact original editor content/title/references. New collection
+exports identify themselves in all six supported output formats, including empty
+collections. Old anonymous annotation HTML cannot always be distinguished from a
+document: it has no annotation marker and remains a normal HTML document.
+
+## Editor choice before overwrite review
+
+File loads always offer the compatible local editor representations before reading
+any existing editor draft. This includes the current editor: loading the same file
+again must not bypass selection. Legacy CList HTML wrappers can be opened in Text,
+HTML or Annotate even without an annotation marker. This offers a compatible editor;
+it does not claim that an unmarked wrapper uniquely identifies an annotation.
+Collections always offer Collection versus native text (HTML for HTML exports).
+Choosing plain text passes the original XML/JSON/text bytes decoded as text/plain
+to the Text editor, never to whichever editor happens to be current. Only after
+selection do the existing Insert/Replace/Cancel controls appear. Unknown unsupported
+binary types report an unavailable editor instead of loading into an incompatible one.
+
+The saved-file browser fixture now reads the two local regression samples in
+`tests/fixtures/legacy-annotation.html` and `tests/fixtures/saved-collection.xml`.
+It checks repeated HTML choices with drafts in each editor and RSS plain-text
+routing. These are test data, not instructions. Rerun the fixture and wait for PASS.
+
+## Annotation file body delivery and HTML fields
+
+Annotations use JSON (`clist-annotation-v1`) as their native local-save format;
+the publishable body API remains HTML. XML is not required as a second native
+format. HTML can be recognized as an annotation when its fields are explicit:
+`#clist-annotation` (or `data-clist-kind="annotation"`) contains
+`#annotation-body`/`#annotation-description` and optional `#annotation-title`,
+`#annotation-url`, `#annotation-author`, `#annotation-author-id`, `#annotation-feed`,
+`#annotation-image`, `#annotation-summary` and `#annotation-service`. Without the
+container, body/title/url together form the explicit signature. Field text is
+read as data; the body uses the shared sanitizer. Generic old `post-title` and
+`post-content` wrappers are not unique annotation signatures, but choosing Annotate
+recovers the saved title and body without guessing target fields from arbitrary links.
+
+Annotation initialization now awaits TinyMCE readiness and consumes queued file
+content through `loadPredefinedContent`. Initialization failures retain that queue
+for retry. Node annotation tests exercise the real switch and initialize functions
+with delayed/rejected TinyMCE startup. The browser fixture also exercises the real
+queued-content switch (editor widgets remain mocked) and explicit HTML fields.
+Rerun the fixture for this revision; previous PASS results predate the startup fix.
+
+Legacy CList HTML quote recovery recognizes the exact quoted-citation form
+`Author wrote: "quote" [linked citation]` within a post paragraph. It restores
+that source URL and author when opening in Annotate, and deduplicates repeated
+citations without rewriting the saved body. Ordinary body links are not promoted
+to targets. A feed name absent from an old file is not inferred from the URL,
+author or active feed; native annotation JSON and explicit HTML annotation fields
+retain the saved feed. The browser fixture checks the supplied legacy quote's
+URL/author, absence of fabricated feed metadata, and native JSON feed retention.
+
+## Editor loading UI/state boundary
+
+| Module | Responsibility |
+|---|---|
+| `editor-load-state.js` | Plain phase/generation transitions, representation variants and emptiness decisions with explicit inputs |
+| `editor-load.js` | Shared `loadSavedPage` controller, payload/page capture, operation lifetime, selected handler inspection and application |
+| `editor-load-view.js` | Editor/collection choices, existing-draft review, close/navigation surfaces and visible errors |
+| `editors.js` | Editor registry, mounting/switching, parked metadata, queued-content delivery and existing editor controls |
+
+`CList.state.editorLoading` holds only id, phase, selected target and error. Incoming
+content/page records are cloned into a transient operation; neither body content nor
+callbacks/credentials are serialized into UI state. Representation selection always
+precedes draft inspection, including when the current editor is compatible. Captured
+callbacks claim their stage before awaiting, reject duplicate/superseded actions,
+and cannot apply an old review after a manual editor change. An old delayed draft
+check cannot render over a newer selection. Cancellation and failure are explicit
+phases. Editor initialization reports failure without marking a file loaded.
+
+The view receives plain labels/capabilities and callbacks rather than reading editor
+contents or executing writes. It reuses the existing collection-choice helper.
+The controller preserves New/Replace/Insert behavior and native annotation/pending
+content handling. Generation guards stop obsolete controller actions and metadata
+updates; they do not cancel the existing service handlers' asynchronous DOM mounting.
+Those mounting/park-restore lifecycles remain a separate refactor slice.

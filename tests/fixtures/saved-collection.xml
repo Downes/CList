@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>OK</title>
+    <link></link>
+    <description>OK</description>
+    <dc:identifier>urn:uuid:71f96dcf-6084-4c84-b1b2-2fc199721999</dc:identifier>
+  <item>
+    <title>Complete LocalRSS options and feed-management refactor</title>
+    <link>https://github.com/Downes/CList/commit/acb80ebc20103a90face67fb7fb2fb6fc741ef6f</link>
+    <description>Complete LocalRSS options and feed-management refactorSeparate Options, search, feed management and OPML into captured controllers, explicit</description>
+    <author>Stephen Downes</author>
+  </item>
+  </channel>
+</rss>

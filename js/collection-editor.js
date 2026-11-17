@@ -350,27 +350,20 @@ function _renderEntryFields(item, container, onTitleChange, isFeedCollection = f
 // local-only leaf entry via a blob: URL, which the user can later Publish to
 // get a real URL.
 async function _addEntryFromFile(file, draftItems, col, token, encKey, refresh, editTargets) {
-    const format = _detectFormat(file.type, file.name);
-    if (_collectionFormatParsers[format]) {
+    const detected = recognizeSavedContent(await file.arrayBuffer(), file.type, file.name);
+    if (detected.collection) {
         if (!token || !encKey) {
-            showErrorModal('Please log in to add a collection file.', { title: 'Login required' });
+            showErrorModal('Please log in to add a nested collection file.', { title: 'Login required' });
             return;
         }
-        try {
-            const text   = await file.text();
-            const parsed = _collectionFormatParsers[format](text);
-            if (parsed && parsed.items && parsed.items.length) {
-                const identity = _resolveCollectionIdentity(null, parsed.id);
-                await _kvSaveItems(identity.key, identity.id, parsed.title || file.name, parsed.items, token, encKey);
-                editTargets?.collections.add(identity.id);
-                draftItems.push({ membershipId: crypto.randomUUID(), role: 'contains', collectionId: identity.id, title: parsed.title || file.name });
-                refresh();
-                showStatusMessage(`Imported "${parsed.title || file.name}" as a nested collection.`);
-                return;
-            }
-        } catch (e) {
-            console.error('[collection add-entry] file is not a recognized collection export, adding as a local page', e);
-        }
+        const parsed = detected.collection;
+        const identity = _resolveCollectionIdentity(null, parsed.id);
+        await _kvSaveItems(identity.key, identity.id, parsed.title || file.name, parsed.items, token, encKey);
+        editTargets?.collections.add(identity.id);
+        draftItems.push({ membershipId: crypto.randomUUID(), role: 'contains', collectionId: identity.id, title: parsed.title || file.name });
+        refresh();
+        showStatusMessage(`Imported "${parsed.title || file.name}" as a nested collection.`);
+        return;
     }
 
     const blobUrl = URL.createObjectURL(file);
@@ -378,7 +371,7 @@ async function _addEntryFromFile(file, draftItems, col, token, encKey, refresh, 
         membershipId: crypto.randomUUID(),
         title:        file.name,
         url:          blobUrl,
-        mimeType:     file.type || 'text/plain',
+        mimeType:     detected.type,
         localOnly:    true,
     });
     refresh();

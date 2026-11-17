@@ -75,6 +75,7 @@
  * @property {string} storeUrl
  * @property {string} token
  * @property {CryptoKey} encKey
+ * @property {function(): boolean} [isCurrent] Optional owner-lifetime guard, checked before encryption and persistence.
  */
 
 /**
@@ -475,4 +476,26 @@
  * @property {function(string): string[]} onToggle Return the updated controller selection.
  * @property {function(): *} onPublish
  * @property {function(): *} onWebPage
+ */
+
+/**
+ * Native annotation file; publishable editor content remains the HTML body alone.
+ * @typedef {Object} CListAnnotationFile
+ * @property {'clist-annotation-v1'} format
+ * @property {string} body
+ * @property {CListReference} target Standalone draft fields are retained even without a URL.
+ * @property {CListReference[]} references Convergent targets, with the primary URL first.
+ */
+/**
+ * Optional editor local-file export, separate from publication/native getContent.
+ * @typedef {{type: string, value: string}} CListEditorFileContent
+ */
+
+/**
+ * Safe editor-file loading state. File bodies, page records and callbacks are transient.
+ * @typedef {Object} CListEditorLoadState
+ * @property {number} id Monotonic operation generation.
+ * @property {'recognizing'|'choosing-editor'|'choosing-collection'|'reviewing'|'loading'|'complete'|'cancelled'|'failed'} phase
+ * @property {string|null} target Selected editor key, or collection.
+ * @property {string|null} error
  */

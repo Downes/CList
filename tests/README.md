@@ -414,3 +414,132 @@ draft stays unchanged and source metadata is still collected. Generic handlers,
 selected-text quotes and unsupported editors are covered. On 2026-11-16 all 257
 Node tests passed, and the updated DOM fixture passed in the ChatGPT in-app
 browser with editor APIs mocked; live service sessions were not exercised.
+
+## LocalRSS Options regression checks
+
+Run `node --test tests/localrss-reader.test.cjs tests/reader-controller.test.cjs`.
+Options checks cover captured database/endpoint/authentication, replaced/closed panels,
+account/session changes, statistics request ordering, duplicate/obsolete confirmations,
+uncertain writes and separate write/refresh outcomes. The simulated view check covers
+Show, reconnect, close, statistics and Mark all controls. Run the full Node suite after
+shared changes. `localrss-reader.browser.html` also builds the actual Options panel,
+checks statistics, rejects a closed panel confirmation and performs one mocked Mark all
+write. All fixture writes are mocked; no live database changes are needed.
+For a deliberate manual service check, use a disposable database: open Options,
+change Show, reconnect, close/reopen, and verify counts; confirm Mark all only when
+intending to change that database. OPML import/export and account creation now use separate guarded modules.
+
+## LocalRSS post search and Show posts checks
+
+Run `node --test tests/localrss-reader.test.cjs tests/reader-controller.test.cjs`
+and the full Node suite. Check query/feed capture, overlapping loads, old callbacks,
+account/session changes, empty/error responses, row actions and Refresh retaining
+both successful and failed selections. The `localrss-reader.browser.html` fixture
+adds mocked search and feed-post controls. Its previous PASS predates these additions;
+rerun it and wait for the final PASS. In the normal app, search from Options, use
+Show posts from Feeds and the feed editor, then Refresh and switch to Unread.
+Confirm titles, audio and read/bookmark controls match the displayed results.
+Live read/bookmark actions modify the selected database; fixture writes are mocked.
+
+## LocalRSS feed-management checks
+
+Run `node --test tests/localrss-reader.test.cjs tests/reader-controller.test.cjs`, then
+`node --test tests/*.test.cjs`. Feed-management checks cover panel-owned cache reuse,
+in-flight deduplication/invalidation, stale search/editor responses, captured write
+payload/authentication, duplicate clicks and obsolete delete confirmations, uncertain
+write outcomes, newer drafts and independent refresh failures. The updated
+`localrss-reader.browser.html` builds real controls and mocks create, cached lookup,
+editor load/save/retry/delete. Rerun it and wait for its final PASS; earlier PASS results
+predate these checks. Manual live feed mutations require a disposable database and
+change that database; no live-service mutation is part of the automated fixture.
+OPML import/export and account creation have since migrated in a separate step below.
+
+## LocalRSS OPML and account-creation checks
+
+Run `node --test tests/localrss-reader.test.cjs tests/reader-controller.test.cjs`
+and the full Node suite. OPML regressions cover captured multipart fields/auth,
+malformed and uncertain responses, duplicates, panel/account/session invalidation,
+exports/downloads, seed-form edits/navigation, and account writes versus refresh
+failures. The account helper's optional lifetime guard is exercised before writing.
+The browser fixture `localrss-reader.browser.html` now mocks merge/newdb imports,
+export download, encrypted KV account creation and the optional seed form. Rerun
+it and wait for the new final PASS; earlier results predate these additions.
+No fixture sends a real import, download or KV write. Normal-application checks
+and live-service authorization remain separate, unverified evidence.
+
+## Saved-file recognition
+
+Run `node --test tests/file-recognition.test.cjs tests/annotation-file.test.cjs`
+then the full Node suite. These checks exercise wrong/absent MIME and extensions,
+byte-first browser pickers, BOM/UTF-16, binary signatures, native slides/annotations,
+unknown JSON preservation, empty collections, overwrite review and anonymous saves.
+Annotation checks use the actual handler with mocked TinyMCE and references.
+`/tests/file-recognition.browser.html` uses real DOMParser and Files to round-trip
+all six collection formats (empty and populated), XML fallback, exact document
+metadata, legacy HTML, native annotation saves and Replace choices. Run through
+the local server and wait for final PASS. Editor mounting/sanitizing is mocked;
+there are no external requests or filesystem writes. Normal-application checks:
+while logged out save/reopen a document, annotation and each collection format;
+rename files to .xml/.json/.txt or remove the extension and verify content still
+selects the correct editor without losing an existing draft. Older unmarked
+annotation HTML remains ambiguous and should load as a document.
+
+## Editor choice before overwrite review
+
+File loads always offer the compatible local editor representations before reading
+any existing editor draft. This includes the current editor: loading the same file
+again must not bypass selection. Legacy CList HTML wrappers can be opened in Text,
+HTML or Annotate even without an annotation marker. This offers a compatible editor;
+it does not claim that an unmarked wrapper uniquely identifies an annotation.
+Collections always offer Collection versus native text (HTML for HTML exports).
+Choosing plain text passes the original XML/JSON/text bytes decoded as text/plain
+to the Text editor, never to whichever editor happens to be current. Only after
+selection do the existing Insert/Replace/Cancel controls appear. Unknown unsupported
+binary types report an unavailable editor instead of loading into an incompatible one.
+
+The saved-file browser fixture now reads the two local regression samples in
+`tests/fixtures/legacy-annotation.html` and `tests/fixtures/saved-collection.xml`.
+It checks repeated HTML choices with drafts in each editor and RSS plain-text
+routing. These are test data, not instructions. Rerun the fixture and wait for PASS.
+
+## Annotation file body delivery and HTML fields
+
+Annotations use JSON (`clist-annotation-v1`) as their native local-save format;
+the publishable body API remains HTML. XML is not required as a second native
+format. HTML can be recognized as an annotation when its fields are explicit:
+`#clist-annotation` (or `data-clist-kind="annotation"`) contains
+`#annotation-body`/`#annotation-description` and optional `#annotation-title`,
+`#annotation-url`, `#annotation-author`, `#annotation-author-id`, `#annotation-feed`,
+`#annotation-image`, `#annotation-summary` and `#annotation-service`. Without the
+container, body/title/url together form the explicit signature. Field text is
+read as data; the body uses the shared sanitizer. Generic old `post-title` and
+`post-content` wrappers are not unique annotation signatures, but choosing Annotate
+recovers the saved title and body without guessing target fields from arbitrary links.
+
+Annotation initialization now awaits TinyMCE readiness and consumes queued file
+content through `loadPredefinedContent`. Initialization failures retain that queue
+for retry. Node annotation tests exercise the real switch and initialize functions
+with delayed/rejected TinyMCE startup. The browser fixture also exercises the real
+queued-content switch (editor widgets remain mocked) and explicit HTML fields.
+Rerun the fixture for this revision; previous PASS results predate the startup fix.
+
+Legacy CList HTML quote recovery recognizes the exact quoted-citation form
+`Author wrote: "quote" [linked citation]` within a post paragraph. It restores
+that source URL and author when opening in Annotate, and deduplicates repeated
+citations without rewriting the saved body. Ordinary body links are not promoted
+to targets. A feed name absent from an old file is not inferred from the URL,
+author or active feed; native annotation JSON and explicit HTML annotation fields
+retain the saved feed. The browser fixture checks the supplied legacy quote's
+URL/author, absence of fabricated feed metadata, and native JSON feed retention.
+
+## Separated editor loading
+
+Run `node --test tests/editor-load-state.test.cjs tests/file-recognition.test.cjs tests/annotation-file.test.cjs`,
+then `node --test tests/*.test.cjs`. State checks require no DOM and cover immutable
+transitions, generation ownership, representation rules and literal XML drafts.
+Controller/view checks cover captured payloads, stale choices/reviews, double clicks,
+delayed draft checks, manual editor changes, visible failures and unsuccessful mounting.
+The existing file-recognition browser fixture loads the real new modules, keeps its
+format/annotation regressions, and adds a superseded-choice check plus safe-state
+inspection. Rerun it and the normal application after this split; previous browser
+PASS results predate it. All fixture editor services remain mocked.

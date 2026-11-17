@@ -85,7 +85,9 @@ Bookmarked, Feeds and Refresh. Its split is service-specific:
 | `localrss_requests.js` | Explicit account/endpoint/database/filter/offset, auth headers and signal; returns item/feed/statistics data or throws, with no UI/global account reads |
 | `localrss_reader.js` | Resolve/capture the endpoint, coordinate guarded loads and continuations, maintain safe pagination state and optional audio-icon metadata |
 | `localrss_view.js` | Normalize/render content, empty messages, playlists, loader state and retry controls |
-| `localrss.js` | Registry/schema, existing local-first resolver, options and database-management actions pending their own migration |
+| `localrss_options.js` | Captured Options panel lifetime, statistics sequencing and Mark all as read controller |
+| `localrss_options_view.js` | Options shell, connection/database/Show controls, statistics and visible feedback |
+| `localrss.js` | Registry/schema, local-first resolver and legacy search/feed editing/import/export |
 
 Endpoint resolution retains the existing local-first/launcher-proxy/remote policy.
 It operates on a detached account and caches only for that account and captured
@@ -158,3 +160,78 @@ single-feed harvesting must not hold the database lock while fetching feeds.
 Read/bookmark changes can therefore finish between feed results. Completed feeds
 remain committed if a later feed fails. This backend fix needs a service restart;
 it does not update a separately deployed remote LocalRSS instance.
+
+## LocalRSS Options, statistics and Mark all as read
+
+Options captures its resolved account/database, authentication and selected-account
+ownership before asynchronous work. Opening it preserves reader pagination. Closing,
+replacing, switching accounts or changing session invalidates its callbacks. Statistics
+requests carry a panel sequence so an older result cannot overwrite newer counts.
+Mark all confirmation captures the original target, checks panel ownership again before
+sending, blocks duplicate writes and never automatically retries uncertain responses.
+Write success is reported separately from statistics/list refresh failure. The list
+reloads only if it is currently the unread item view; other filters and Feeds stay put.
+The database picker selects by record key; reconnect and switching rebuild only the
+owned panel. OPML import/export and account creation use the separate OPML modules described below.
+
+## LocalRSS post search and feed posts
+
+Post search and both Show posts entry points now use the same guarded loader,
+explicit transport and view as normal item lists. `CList.state.localrssReading.selection`
+contains only the search term or feed ID/title; credentials remain in transient
+reader captures. Each search/feed action starts a new reader request generation.
+Refresh repeats the captured selection, including after failure; normal filters
+clear it. These views preserve the existing maximum 1,600-item single response
+(no Load more), across stored posts regardless of read state/retention. Row actions
+use the all filter, so unbookmarking does not remove a search/feed result.
+Feed-list Show posts buttons use transient numeric bindings instead of interpolated
+titles in inline JavaScript. Replacing the list or switching accounts invalidates
+those callbacks. The editor Show posts binding checks its captured Options lifetime
+and feed identity; feed management now uses its own captured controller and view.
+Search feedback updates only its original, current panel and request. Feed rendering,
+audio, empty results, errors and loaders use the shared reader guards.
+
+## LocalRSS feed management and cache
+
+`localrss_feeds.js` owns discovery/create, client-side Find/update filtering, editor
+loading, Save, Retry and Delete confirmation. `localrss_feeds_view.js` owns their
+controls, captured input reading and feedback; `requestLocalrssFeed` provides explicit
+transport in `localrss_requests.js`. Feed lists are cached per Options binding, which
+already captures the resolved endpoint, database, authentication and account/session.
+Concurrent lookups share one read. Search/editor sequences suppress older responses
+and callbacks; closing/replacing Options or changing accounts/session invalidates them.
+Writes capture feed ID and fields before awaiting, suppress duplicates and do not retry
+uncertain outcomes. Cache generations are invalidated before and after every attempted
+write, so an older list read cannot repopulate the cache. OPML retains a compatibility
+invalidation entry point but its overall workflow remains legacy.
+Save/Retry completion never overwrites newer form fields. Late editor/write results
+cannot change a newly selected editor. Delete confirms one captured editor and checks
+that ownership again before sending. Accepted writes and subsequent statistics/list
+refresh failures are separate outcomes. No credentials are stored in shared reader state.
+
+## LocalRSS OPML and account creation
+
+`localrss_opml_requests.js` handles explicit multipart imports and blob exports.
+`localrss_opml.js` captures Options/form lifetime, service/database, file/mode/name
+and authentication before awaiting. `localrss_opml_view.js` owns scoped inputs,
+feedback, file clearing and downloads' controls. Duplicate import/export clicks
+are suppressed. Late results, errors and downloads cannot affect a replaced panel
+or changed account/session. Import attempts invalidate feed cache generations;
+successful merge/replace also expires the captured feed editor while retaining text.
+
+New-database success retains a receipt independent of the subsequent account save.
+The optional confirmation and Create account recovery control use that receipt;
+neither repeats the OPML import. Account creation uses shared `saveAccount` and
+`loadAccountRecords`, reads current keys before choosing a suffix, reconciles an
+existing matching service/database, and serializes its own account creations.
+It persists the captured configured service URL, never a transient resolved endpoint.
+Acknowledged saves are retained even when account-list refresh fails, so retry
+refresh does not write again. A later explicit recovery first reads saved records
+to reconcile an earlier uncertain write. Owner/session guards are checked before
+encryption and KV persistence. These are client guards, not a server-side atomic
+reservation of account keys against other clients.
+
+The optional Add Account seed control captures its exact form and controls, uses
+that form's explicit service URL and only fills the database if those original
+values remain unchanged. It reports the created database when newer edits are kept.
+Seeding does not save an account; the normal Save button still owns persistence.

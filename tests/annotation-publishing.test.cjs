@@ -188,6 +188,7 @@ function editorFixture() {
     f.ctx.document.getElementById = id => id === 'annotate-edit-body' ? textarea : null;
     f.ctx.tinymce = { get: () => ({ getContent: () => html, setContent: value => html = value }) };
     f.ctx.editorHandlers = {}; f.ctx.currentEditor = 'annotate-edit';
+    f.ctx.hasValidSession = () => true;
     f.ctx.getReferences = () => refs;
     f.ctx.ensureAccountsLoaded = async () => [{ value: JSON.stringify(f.account) }];
     f.ctx.parseAccountValue = record => JSON.parse(record.value);

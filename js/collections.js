@@ -1660,29 +1660,7 @@ window.showSavedCollections = async function() {
                         if (proxypError) throw new Error(proxypError);
                     }
 
-                    const format      = _detectFormat(contentType, url);
-
-                    // Route through the shared loadSavedPage() path — same as "Load
-                    // from file" — instead of forcing switchToEditor() directly: it
-                    // picks the right editor, checks for existing content, and offers
-                    // Replace/Insert/Cancel instead of silently cursor-inserting into
-                    // whatever's already there.
-                    async function loadNative() {
-                        if (typeof loadSavedPage === 'function') {
-                            const nativeType = (format === 'html') ? 'text/html' : 'text/plain';
-                            await loadSavedPage({ type: nativeType, value: text }, null, optionsDiv, () => populateLoadOptions());
-                        }
-                    }
-
-                    // Only offer the Collection editor when the content actually parses
-                    // into a genuine non-empty list of items — not just because its
-                    // format happens to be one that CAN carry a collection.
-                    const parsed = _collectionShape(text, format);
-                    if (parsed) {
-                        _offerCollectionChoice(parsed, format, { renderTarget: optionsDiv, onNative: loadNative });
-                    } else {
-                        await loadNative();
-                    }
+                    await loadSavedPage({ type: contentType, value: text }, null, optionsDiv, () => populateLoadOptions());
                     resolve(null);
                 } catch (e) {
                     console.error('[load from URL]', e);
@@ -2256,11 +2234,9 @@ window.openParsedAsCollection = async function (parsed) {
 // Called by external modules (e.g. dropbox.js) that cannot access module-private variables.
 // Returns true if the format was recognised, false otherwise.
 window.loadCollectionText = async function (text, filename) {
-    const format = _detectFormat('', filename || '');
-    let parsed;
-    if      (format === 'rss')  parsed = _parseCollectionRSS(text);
-    else if (format === 'opml') parsed = _parseCollectionOPML(text);
-    else return false;
+    const detected = recognizeSavedContent(text, '', filename);
+    if (!detected.collection) return false;
+    const parsed = detected.collection;
     await window.openParsedAsCollection(parsed);
     return true;
 };

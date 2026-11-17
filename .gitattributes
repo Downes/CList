@@ -1,0 +1,2 @@
+# Use LF for text files in both the index and working tree.
+* text=auto eol=lf

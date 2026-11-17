@@ -75,6 +75,7 @@ const collectionFormats = {
         serialize(name, items, id) {
             return JSON.stringify({
                 ...(id ? { id } : {}),
+                format: 'clist-collection-v1',
                 title: name,
                 publishedAt: new Date().toISOString(),
                 items: items.filter(i => i.url).map(item => ({
@@ -101,7 +102,7 @@ const collectionFormats = {
             const idHtml = id
                 ? `\n  <meta name="dcterms.identifier" content="${escapeHtml(id)}">\n  <link rel="identifier" href="${escapeHtml(id)}">`
                 : '';
-            return `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8">\n  <title>${escapeHtml(name)}</title>${idHtml}\n</head>\n<body>\n<h1>${escapeHtml(name)}</h1>\n<ul>\n${rows}\n</ul>\n</body>\n</html>`;
+            return `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8">\n  <meta name="clist.kind" content="collection">\n  <title>${escapeHtml(name)}</title>${idHtml}\n</head>\n<body>\n<h1>${escapeHtml(name)}</h1>\n<ul>\n${rows}\n</ul>\n</body>\n</html>`;
         },
     },
     md: {
@@ -114,7 +115,7 @@ const collectionFormats = {
             });
             // YAML front matter — the de facto standard for Markdown document metadata
             // (Jekyll/Hugo/etc.).
-            const front = id ? `---\nid: ${id}\ntitle: ${name}\n---\n\n` : '';
+            const front = `---\nclist: collection\n${id ? 'id: ' + id + '\n' : ''}title: ${name}\n---\n\n`;
             return `${front}# ${name}\n\n${lines.join('\n')}\n`;
         },
     },
@@ -129,7 +130,7 @@ const collectionFormats = {
             // Plain text has no metadata standard at all — this leading line is an
             // acknowledged CList-specific convention, not a real standard.
             const idLine = id ? `ID: ${id}\n\n` : '';
-            return `${idLine}${name}\n${'='.repeat(name.length || 10)}\n\n${lines.join('\n\n')}\n`;
+            return `CList-Type: collection\n${idLine}${name}\n${'='.repeat(name.length || 10)}\n\n${lines.join('\n\n')}\n`;
         },
     },
 };
@@ -144,6 +145,7 @@ function _validUrnUuid(value) {
 
 function _parseCollectionJSON(text) {
     const data  = JSON.parse(text);
+    if (!data || !Array.isArray(data.items)) throw new Error('Not a collection JSON object.');
     const items = (data.items || [])
         .map(i => ({ title: i.title || i.url || '', url: i.url || '', author_name: i.author || '', summary: i.summary || '' }))
         .filter(i => i.url);
@@ -152,6 +154,8 @@ function _parseCollectionJSON(text) {
 
 function _parseCollectionOPML(text) {
     const doc      = new DOMParser().parseFromString(text, 'text/xml');
+    if (doc.querySelector('parsererror') || doc.documentElement?.localName !== 'opml'
+        || !doc.querySelector('body')) throw new Error('Not an OPML collection.');
     const titleEl  = doc.querySelector('head > title');
     const title    = titleEl?.textContent?.trim() || 'Imported collection';
     const id       = _validUrnUuid(doc.querySelector('head > id')?.textContent?.trim());
@@ -180,18 +184,28 @@ function _parseCollectionHTML(text) {
     return { title, items, id };
 }
 
+// XML namespace prefixes are arbitrary. Read direct Dublin Core children by
+// namespace URI/local name, not a CSS selector containing a literal dc: prefix.
+function _collectionDublinCoreText(parent, name) {
+    return [...(parent?.children || [])].find(child => child.localName === name
+        && ['http://purl.org/dc/elements/1.1/', 'http://purl.org/dc/terms/'].includes(child.namespaceURI))?.textContent?.trim() || '';
+}
+
 function _parseCollectionRSS(text) {
     const doc   = new DOMParser().parseFromString(text, 'text/xml');
+    const root = doc.documentElement?.localName;
+    if (doc.querySelector('parsererror') || !['rss', 'feed'].includes(root)
+        || (root === 'rss' && !doc.querySelector('channel'))) throw new Error('Not an RSS/Atom collection.');
     const titleEl = doc.querySelector('channel > title, feed > title');
     const title   = titleEl?.textContent?.trim() || 'Imported feed';
-    const id      = _validUrnUuid(
-        doc.querySelector('channel > dc\\:identifier, feed > dc\\:identifier')?.textContent?.trim()
-    );
+    const channel = doc.querySelector('channel') || doc.documentElement;
+    const id = _validUrnUuid(_collectionDublinCoreText(channel, 'identifier')
+        || (root === 'feed' ? [...channel.children].find(child => child.localName === 'id')?.textContent?.trim() : ''));
     const rssItems  = [...doc.querySelectorAll('item')].map(item => ({
         title:       item.querySelector('title')?.textContent?.trim() || '',
         url:         item.querySelector('link')?.textContent?.trim() || '',
         author_name: item.querySelector('author')?.textContent?.trim()
-                  || item.querySelector('dc\\:creator')?.textContent?.trim() || '',
+                  || _collectionDublinCoreText(item, 'creator') || '',
         summary:     item.querySelector('description')?.textContent?.trim() || '',
     }));
     const atomItems = [...doc.querySelectorAll('entry')].map(entry => ({
@@ -249,6 +263,7 @@ function _collectionShape(text, format) {
         const parsed = parser(text);
         if (!parsed) return null;
         if (_unambiguousCollectionFormats.has(format)) return parsed;
+        if (format === 'json' && Array.isArray(JSON.parse(text)?.items)) return parsed;
         return (parsed.items && parsed.items.length) ? parsed : null;
     } catch (e) {
         console.error('[_collectionShape] parse failed', e);
@@ -263,13 +278,13 @@ function _collectionShape(text, format) {
 // styling. `onNative` is supplied by the caller and runs its own pre-existing
 // native-format handling unchanged — this only inserts the extra decision point
 // ahead of it, for the genuine-collection case.
-function _offerCollectionChoice(parsed, format, { renderTarget, onCancel, onNative } = {}) {
+function _offerCollectionChoice(parsed, format, { renderTarget, onCancel, onNative, onCollection } = {}) {
     const optionsDiv = renderTarget || window.CList.ui.view.loadOptions;
     if (!optionsDiv) return onNative?.();
     optionsDiv.innerHTML = '';
 
     const count = parsed.items.length;
-    const nativeLabel = format === 'html' ? 'HTML' : (format === 'json' ? 'JSON' : 'plain text');
+    const nativeLabel = format === 'html' ? 'HTML' : 'plain text';
     const tip = document.createElement('p');
     tip.className = 'list-tip';
     tip.textContent = `"${parsed.title || 'Untitled'}" contains ${count} item${count === 1 ? '' : 's'} — open as a collection, or as ${nativeLabel}?`;
@@ -288,13 +303,17 @@ function _offerCollectionChoice(parsed, format, { renderTarget, onCancel, onNati
         labelEl.textContent = label;
         btn.appendChild(iconEl);
         btn.appendChild(labelEl);
-        btn.addEventListener('click', onClick);
+        btn.addEventListener('click', async () => {
+            try { await onClick(); }
+            catch (error) { console.error('Collection choice failed:', error); showErrorModal(error.message, { title: 'Load failed' }); }
+        });
         return btn;
     }
 
     list.appendChild(makeButton('list_alt', 'Open as Collection', async () => {
         document.getElementById('generic-modal')?.remove();
-        if (typeof window.openParsedAsCollection === 'function') await window.openParsedAsCollection(parsed);
+        if (onCollection) await onCollection();
+        else if (typeof window.openParsedAsCollection === 'function') await window.openParsedAsCollection(parsed);
     }));
 
     list.appendChild(makeButton(format === 'html' ? 'article' : 'description', `Open as ${nativeLabel}`, async () => {

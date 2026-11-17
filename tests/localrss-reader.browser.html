@@ -3,7 +3,7 @@
 <title>CList LocalRSS reader regression</title>
 <h1>LocalRSS guarded reader</h1>
 <pre id="result">Checking LocalRSS reader...</pre>
-<div id="left-content"></div><div id="selectedAccount"></div>
+<div id="left-pane-body"></div><div id="left-content"></div><div id="selectedAccount"></div>
 <div id="feed-menu"></div><div id="feed-container"></div>
 <script>
 window.CList = { defaults: { LOCALRSS: 'https://rss.invalid' }, schemas: {}, accountHooks: {}, config: { flaskSiteUrl: 'https://fixture.invalid' }, keys: { ACCESS_TOKEN: 'access_token' },
@@ -20,6 +20,7 @@ window.toggleTranslation = () => {};
 window.fetch = () => { throw Error('Unexpected network request'); };
 </script>
 <script src="../js/ui.js"></script>
+<script src="../js/account-state.js"></script>
 <script src="../js/reader-state.js"></script>
 <script src="../js/reader-view.js"></script>
 <script src="../js/reader.js"></script>
@@ -28,6 +29,13 @@ window.fetch = () => { throw Error('Unexpected network request'); };
 <script src="../js/localrss_view.js"></script>
 <script src="../js/localrss_reader.js"></script>
 <script src="../js/localrss_actions.js"></script>
+<script src="../js/localrss_options_view.js"></script>
+<script src="../js/localrss_options.js"></script>
+<script src="../js/localrss_feeds_view.js"></script>
+<script src="../js/localrss_feeds.js"></script>
+<script src="../js/localrss_opml_requests.js"></script>
+<script src="../js/localrss_opml_view.js"></script>
+<script src="../js/localrss_opml.js"></script>
 <script>
 (async () => {
  const check = (value, label) => { if (!value) throw Error(label); };
@@ -39,13 +47,16 @@ window.fetch = () => { throw Error('Unexpected network request'); };
   window.audioFiles = []; window.generatePlaylistHTML = () => 'Playlist';
   window.getEncKey = async () => null; window.showLoader = () => {};
   window.showStatusMessage = () => {};
+  window.openLeftPane = () => {}; window.showLeftOverlaySection = () => {};
+  window.buildDialogModal = (title, message, buttons) => { window.fixtureConfirm = () => buttons[0].onClick(() => {}); };
   window.makeListing = item => { const row = document.createElement('article'); row.className = 'status-box'; row.textContent = item.feed + ': ' + item.title;
-   if (item.service === 'LOCALRSS') { const actions = document.createElement('div'); actions.innerHTML = CList.readers.LOCALRSS.statusActions(item, 'fixture-row'); row.appendChild(actions); } return row; };
+   const statusActions = CList.readers[item.service]?.statusActions;
+   if (statusActions) { const actions = document.createElement('div'); actions.innerHTML = statusActions(item, 'fixture-row'); row.appendChild(actions); } return row; };
   window.createFeedHeader = title => { const el = document.createElement('h2'); el.textContent = title; return el; };
   _localrssProbeLocal = async () => false;
   window.fetch = async (url, options) => {
    requests.push({ url, options });
-   if (url.includes('/api/stats')) return response({ has_audio_majority: false });
+   if (url.includes('/api/stats')) return response({ has_audio_majority: false, feeds: 3, unread: 50, bookmarked: 2, retention_days: 30 });
    if (url.includes('/api/feeds')) return response({ feeds: [{ id: 1, title: 'Captured feed', url: 'https://feed.invalid' }] });
    if (url.includes('db=A')) return new Promise(resolve => finishA = resolve);
    if (url.includes('offset=50')) return response([{ id: 51, title: 'Second page' }]);
@@ -59,9 +70,17 @@ window.fetch = () => { throw Error('Unexpected network request'); };
   finishA(response([{ id: 999, title: 'Obsolete A', audio_url: 'https://old.invalid/audio' }])); await a;
   check(!document.getElementById('feed-container').textContent.includes('Obsolete A'), 'Old account result did not render');
   check(audioFiles.length === 0, 'Old account audio did not enter playlist');
-  localrssOptionsOverlay = () => {};
+
   await runReaderFeedAction(_readerSelection, 'Options');
   check(CList.state.reader.feedName === 'Unread', 'Options does not invalidate the displayed feed');
+  check(document.getElementById('localrss-stats-pill').textContent.includes('feeds=3'), 'Actual Options stats rendered');
+  const mark = [...document.querySelectorAll('#localrss-options-panel button')].find(button => button.textContent === 'Mark all as read');
+  const beforeConfirm = requests.length; mark.click();
+  document.querySelector('#feed-options-section button[title="Close"]').click();
+  await window.fixtureConfirm();
+  check(requests.length === beforeConfirm, 'Closed panel confirmation cannot send a write');
+  await runReaderFeedAction(_readerSelection, 'Options');
+
   const readButton = document.querySelector('button[title="Mark read"]');
   check(readButton, 'Read action rendered');
   const oldMore = document.getElementById('loadMoreButton'); check(oldMore, 'Full page offers Load more');
@@ -78,14 +97,133 @@ window.fetch = () => { throw Error('Unexpected network request'); };
   window.fetch = priorFetch;
   await runReaderFeedAction(_readerSelection, 'Bookmarked');
   check(CList.state.localrssReading.filter === 'bookmarked', 'Bookmarked filter tracked in state');
+  const markActive = [...document.querySelectorAll('#localrss-options-panel button')].find(button => button.textContent === 'Mark all as read');
+  const beforeWrite = window.fetch; let finishWrite; let writes = 0;
+  window.fetch = (url, options) => url.includes('/api/mark_all_read') ? (writes++, new Promise(resolve => finishWrite = resolve)) : beforeWrite(url, options);
+  markActive.click(); const confirmed = window.fixtureConfirm(); await waitUntil(() => writes === 1);
+  check(markActive.disabled, 'Mark all blocks duplicate actions');
+  finishWrite(response({ok:true})); await waitUntil(() => !markActive.disabled);
+  check(writes === 1, 'Mark all sends one captured write'); window.fetch = beforeWrite;
   const count = requests.length; await oldMore.onclick(); check(requests.length === count, 'Old pagination callback is ignored');
   await runReaderFeedAction(_readerSelection, 'Feeds');
   check(document.getElementById('feed-container').textContent.includes('B: Captured feed'), 'Feed normalization uses captured account');
   await runReaderFeedAction(_readerSelection, 'Refresh');
   check(requests.at(-1).url.includes('/api/feeds'), 'Refresh preserves Feeds view');
+  // Search and feed-post results share the real guarded renderer and Options controls.
+  const searchRequests = [];
+  window.fetch = async (url, options) => {
+   searchRequests.push({url, options});
+   if (url.includes('/api/stats')) return response({has_audio_majority:false, feeds:1, unread:1, bookmarked:0, retention_days:30});
+   if (url.includes('/api/feeds')) return response({feeds:[{id:7,title:'Feed "quotes" and <tags>',url:'https://feed.invalid'}]});
+   if (url.includes('feed_id=7')) return response([{id:72,title:'Selected feed post'}]);
+   if (new URL(url).searchParams.has('q')) return response([{id:71,title:'Matched search post'}]);
+   return response([]);
+  };
+  const searchInput = document.getElementById('localrss-search-input');
+  searchInput.value = 'needle & title';
+  const searchButton = [...document.querySelectorAll('#localrss-options-panel button')].find(button => button.textContent === 'Search');
+  await searchButton.onclick();
+  check(document.getElementById('feed-container').textContent.includes('Matched search post'), 'Search uses real guarded item rendering');
+  check(document.getElementById('localrss-search-status').textContent === '1 result.', 'Search count displayed');
+  searchInput.value = 'edited after request';
+  await runReaderFeedAction(_readerSelection, 'Refresh');
+  check(new URL(searchRequests.filter(r => r.url.includes('/api/items')).at(-1).url).searchParams.get('q') === 'needle & title', 'Refresh retains captured search');
+  check(!document.getElementById('loadMoreButton'), 'Search retains single-response behavior');
+  await runReaderFeedAction(_readerSelection, 'Feeds');
+  const showPosts = document.querySelector('#feed-container button[title="Show posts"]');
+  check(showPosts, 'Feed Show posts button rendered'); showPosts.click();
+  await waitUntil(() => CList.state.reader.feedName === 'Feed posts' && CList.state.reader.status === 'ready');
+  check(document.getElementById('feed-container').textContent.includes('Selected feed post'), 'Feed Show posts loads captured feed');
+  check(document.getElementById('feed-container').textContent.includes('Feed "quotes" and <tags>'), 'Feed title remains literal text');
+  await runReaderFeedAction(_readerSelection, 'Refresh');
+  check(new URL(searchRequests.filter(r => r.url.includes('/api/items')).at(-1).url).searchParams.get('feed_id') === '7', 'Refresh retains selected feed');
+  const beforeOldFeed = searchRequests.length; showPosts.click();
+  check(searchRequests.length === beforeOldFeed, 'Replaced feed-row callback is invalid');
+  await runReaderFeedAction(_readerSelection, 'Unread');
+  check(!CList.state.localrssReading.selection, 'Normal filter clears search/feed selection');
+  // Exercise feed discovery, cached lookup, editor writes and captured deletion in the real DOM.
+  const feedOperations = []; let feedTitle = 'Managed feed'; let listReads = 0;
+  window.fetch = async (url, options) => {
+   const path = new URL(url).pathname;
+   feedOperations.push({url, options});
+   if (path === '/api/stats') return response({has_audio_majority:false,feeds:1,unread:0,bookmarked:0,retention_days:30});
+   if (path === '/api/feeds') { listReads++; return response({feeds:[{id:77,title:feedTitle,url:'https://managed.invalid/rss'}]}); }
+   if (path === '/api/feed/77') return response({ok:true,feed:{id:77,title:feedTitle,url:'https://managed.invalid/rss',fail_count:0}});
+   if (path === '/api/feed_create') return response({ok:true,existing:false,feed:{id:77,title:feedTitle,url:'https://managed.invalid/rss'}});
+   if (path === '/api/feed_update') { feedTitle = JSON.parse(options.body).title; return response({ok:true,feed:{id:77,title:feedTitle}}); }
+   if (path === '/api/feed_retry') return response({ok:true,feed:{id:77,fail_count:0}});
+   if (path === '/api/feed_delete') return response({ok:true});
+   if (path === '/api/items') return response([]);
+   throw Error('Unexpected feed fixture request: ' + path);
+  };
+  const create = [...document.querySelectorAll('#localrss-options-panel button')].find(button => button.textContent === 'Create / Discover');
+  document.getElementById('localrss-new-feed-url').value = 'https://managed.invalid';
+  await create.onclick();
+  check(document.getElementById('localrss-create-feed-status').textContent.includes('Added:'), 'Feed discovery success feedback');
+  const find = document.getElementById('localrss-feed-search-input'); find.value = 'Managed';
+  find.dispatchEvent(new Event('input')); await waitUntil(() => document.querySelector('#localrss-feed-results button'));
+  const firstListReads = listReads, firstFeedButton = document.querySelector('#localrss-feed-results button');
+  find.value = 'feed'; find.dispatchEvent(new Event('input'));
+  await waitUntil(() => document.querySelector('#localrss-feed-results button'));
+  await waitUntil(() => document.querySelector('#localrss-feed-results button') !== firstFeedButton);
+  check(listReads === firstListReads, 'Feed lookup reuses panel-owned cache');
+  await document.querySelector('#localrss-feed-results button').onclick();
+  check(document.getElementById('localrss-edit-feed-title').value === 'Managed feed', 'Editor loads the captured feed');
+  const editorButtons = [...document.querySelectorAll('#localrss-feed-editor button')];
+  document.getElementById('localrss-edit-feed-title').value = 'Renamed feed';
+  await editorButtons.find(button => button.textContent === 'Save').onclick();
+  check(document.getElementById('localrss-feed-editor-status').textContent === 'Saved.', 'Save feedback retained');
+  await editorButtons.find(button => button.textContent === 'Retry').onclick();
+  check(document.getElementById('localrss-feed-editor-status').textContent === 'Fetched successfully.', 'Retry feedback rendered');
+  editorButtons.find(button => button.textContent === 'Delete').click(); window.fixtureConfirm();
+  await waitUntil(() => document.getElementById('localrss-feed-editor').style.display === 'none');
+  const feedWrites = feedOperations.filter(call => call.options.method === 'POST');
+  check(feedWrites.length === 4 && feedWrites.every(call => JSON.parse(call.options.body).db === 'B'), 'Feed writes retain captured database');
+  // OPML controls use real FormData, captured downloads and the existing account save/load helpers.
+  const opmlCalls = [], downloads = [], encryptedAccounts = new Map();
+  for (const record of CList.accounts) encryptedAccounts.set(record.key, 'encrypted:' + record.value);
+  CList.storage = {kv:{list:async () => [...encryptedAccounts].map(([key,value]) => ({key,value})),
+   put:async (key,value) => encryptedAccounts.set(key,value)}};
+  window.encryptWithKey = async (_,text) => 'encrypted:' + text;
+  window.decryptWithKey = async (_,text) => text.slice('encrypted:'.length);
+  window.getEncKey = async () => 'fixture-key';
+  window.populatePostOptions = () => {}; window.populateReadAccountList = () => {}; window.updateUIVisibility = () => {};
+  window.downloadBlob = (blob,name) => downloads.push({blob,name});
+  window.fetch = async (url,options) => {
+   opmlCalls.push({url,options}); const path = new URL(url).pathname;
+   if (path === '/api/opml_import') {
+    check(options.body instanceof FormData, 'OPML uses multipart form data');
+    const mode = options.body.get('mode');
+    return response({ok:true,mode,imported:2,skipped:1,...(mode === 'newdb' ? {db:'fixture-created'} : {})});
+   }
+   if (path === '/api/opml_export') return {ok:true,blob:async () => new Blob(['<opml/>'],{type:'text/xml'})};
+   if (path === '/api/stats') return response({has_audio_majority:false,feeds:2,unread:0,bookmarked:0,retention_days:30});
+   if (path === '/api/items') return response([]);
+   throw Error('Unexpected OPML request: ' + path);
+  };
+  const opmlFile = document.getElementById('localrss-opml-file');
+  const chooseOpml = () => {const transfer = new DataTransfer(); transfer.items.add(new File(['<opml/>'],'fixture.opml',{type:'text/xml'})); opmlFile.files = transfer.files;};
+  const importButton = [...document.querySelectorAll('#localrss-options-panel button')].find(button => button.textContent === 'Import');
+  document.getElementById('localrss-opml-mode').value = 'merge'; chooseOpml(); await importButton.onclick();
+  check(document.getElementById('localrss-opml-import-status').textContent.includes('Imported 2 feeds'), 'Merge import success retained');
+  const exportButton = [...document.querySelectorAll('#localrss-options-panel button')].find(button => button.textContent === 'Export OPML');
+  await exportButton.onclick(); check(downloads.length === 1 && downloads[0].name === 'B.opml', 'Export uses captured filename and mocked download');
+  document.getElementById('localrss-opml-mode').value = 'newdb';
+  document.getElementById('localrss-new-db-name').value = 'Fixture imported'; chooseOpml(); await importButton.onclick();
+  window.fixtureConfirm(); await waitUntil(() => CList.accounts.some(record => JSON.parse(record.value).database === 'fixture-created'));
+  const saved = CList.accounts.find(record => JSON.parse(record.value).database === 'fixture-created');
+  check(JSON.parse(saved.value).serviceUrl === 'https://rss.invalid', 'New database account keeps configured service URL');
+  check(opmlCalls.filter(call => call.url.includes('/api/opml_import')).length === 2, 'Account save does not repeat OPML import');
+  const seedForm = document.createElement('div');
+  seedForm.innerHTML = '<input id="serviceUrlInput" value="https://seed.invalid"><input id="databaseInput" value="seed draft">';
+  document.body.appendChild(seedForm); seedForm.appendChild(_localrssBuildAccountOpmlSection(seedForm));
+  const seedFile = seedForm.querySelector('#localrss-create-opml-file'), transfer = new DataTransfer();
+  transfer.items.add(new File(['<opml/>'],'seed.opml',{type:'text/xml'})); seedFile.files = transfer.files;
+  await seedForm.querySelector('button').onclick();
+  check(seedForm.querySelector('#databaseInput').value === 'fixture-created', 'Seed import updates only its own form');
   check(requests.filter(r => r.url.includes('/api/items')).every(r => r.options.headers.Authorization === 'Bearer fixture-token'), 'Requests carry captured authentication');
   check(!JSON.stringify(CList.state.reader).includes('fixture-token'), 'Reader state excludes token');
-  document.body.dataset.result = 'PASS'; document.getElementById('result').textContent = 'PASS: real LocalRSS modules, account isolation, stale item/audio rejection, pagination, old callback guard, filters, Feeds, Refresh and row actions after pagination. All service requests mocked.';
+  document.body.dataset.result = 'PASS'; document.getElementById('result').textContent = 'PASS: real LocalRSS modules, account isolation, stale item/audio rejection, pagination, old callback guard, filters, Feeds, Refresh row actions after pagination, Options, post search, Show posts/Refresh feed management/cache and OPML/account creation. All service requests mocked.';
  } catch (error) { console.error(error); document.body.dataset.result = 'FAIL'; document.getElementById('result').textContent = 'FAIL: ' + error.message; }
 })();
 </script>
