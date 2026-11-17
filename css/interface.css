@@ -173,10 +173,8 @@ button {
 .btn-secondary:hover { background: var(--text-muted); }
 
 /* Menu bar — shared by #feed-menu and #editor-menu (the above-title toolbar
-   an editor handler populates, e.g. collab's/LaTeX's own custom markup, or a
-   plain editorFunctions button list via setupEditorButtons() — editors.js):
-   the row of action buttons at the top of a pane. .editor-menu-btn is the
-   editor-menu equivalent of .feed-filter-btn, a plain marker class. */
+   an editor handler populates, e.g. collab's/LaTeX's): the row of action
+   buttons at the top of a pane. */
 .menu-bar {
   min-height: 41px;
   padding: 5px 10px;
@@ -433,6 +431,17 @@ body a:hover, html a:hover { text-decoration: underline; }
   border-radius: var(--radius-lg);
 }
 
+.currentReference {
+  display: block;
+  margin-top: 10px;
+  justify-content: space-between;
+  border: 1px solid var(--border-dark);
+  padding: 10px;
+  margin-bottom: 10px;
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-pane);
+}
+
 .allReferences {
   position: absolute;
   inset: 0;
@@ -460,6 +469,8 @@ body a:hover, html a:hover { text-decoration: underline; }
   background-color: var(--border-main);
   cursor: col-resize;
   height: 100dvh;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .pane-snap-btn {
@@ -973,16 +984,13 @@ body a:hover, html a:hover { text-decoration: underline; }
     overflow: hidden;
   }
 
-  /* !important beats the inline flex style that the desktop drag-to-resize/snap
-     logic (interface.js) leaves on these elements — without it, a saved desktop
-     split (e.g. flex:1/flex:0) collapses one pane's flex-basis to 0% and lets the
-     other grow to fill the whole 200vw #main-content track, doubling its width. */
   #read-pane, #write-pane {
     width: 100vw;
     height: 100%;
+    flex: none;
     position: relative;
     overflow: auto;
-    flex: 1 0 auto !important;
+    flex: 1 0 auto;
   }
 
   #left-pane.pane-open {
@@ -999,17 +1007,13 @@ body a:hover, html a:hover { text-decoration: underline; }
     #main-content, #main-window { width: 200vw; }
     #read-pane, #write-pane {
       width: 100vw;
-      flex: 1 0 100vw !important;
+      flex: 1 0 100vw;
       -webkit-flex-shrink: 0;
       flex-shrink: 0;
     }
   }
 
-  /* Only "Add to collection" actually requires login (collectItem() shows its
-     own "please log in" modal otherwise) — Expand, Open in browser, and
-     "Write about this" all work for guests and must stay visible. Scoped to
-     .login-only-btn instead of the whole .clist-action-btn class. */
-  body:not(.user-registered) .login-only-btn { display: none; }
+  body:not(.user-registered) .clist-action-btn { display: none; }
 }
 
 .clist-action-btn {
@@ -1169,7 +1173,7 @@ body.chat-active .chat-only-btn { display: inline-flex; }
 }
 html.dark-mode #divider { background-color: #3a3a3a; }
 html.dark-mode .find-input {
-    background: #2d2d2d; border-bottom-color: #3a3a3a; color: #e0e0e0;
+  background: #2d2d2d; border-bottom-color: #3a3a3a; color: #e0e0e0;
 }
 html.dark-mode .find-input:focus { background: #333; }
 html.dark-mode .list-tip { color: #999; }
@@ -1182,14 +1186,14 @@ html.dark-mode .service-icon-img { background-color: #777; }
 html.dark-mode .account-button:hover  { background-color: #2f2f2f; }
 html.dark-mode .account-button:active { background-color: #2a3a2a; }
 html.dark-mode .save-button {
-    background: #333; color: #ccc; border-bottom-color: #555;
+  background: #333; color: #ccc; border-bottom-color: #555;
 }
 html.dark-mode .save-button:hover  { background-color: #3a3a3a; }
 html.dark-mode .save-button:active { background-color: #3a5a3a; }
 html.dark-mode .loader { border-color: #3a3a3a; border-top-color: var(--highlight-color); }
 html.dark-mode #modal-content, html.dark-mode #modal-content-stacked {
-    background-color: #252525; color: #e0e0e0;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.6);
+  background-color: #252525; color: #e0e0e0;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.6);
 }
 
 .collection-pick-btn:hover { background: var(--bg-hover-subtle); }
@@ -1331,16 +1335,6 @@ textarea.collection-editor-input { min-height: 60px; resize: vertical; }
 .tox-tbtn svg { fill: var(--text-main) !important; }
 .tox-tbtn:hover { background: var(--bg-hover) !important; }
 .tox-statusbar { background: var(--bg-pane) !important; border-color: var(--border-main) !important; color: var(--text-muted) !important; }
-
-/* Annotate editor's Description field — its TinyMCE instance is scoped smaller than the main
-   write-column editor's, so its toolbar buttons shrink to match (class added by
-   annotate-editor.js's _initAnnotateTinyMCE on init). TinyMCE's icon SVGs have no viewBox, so
-   sizing them via width/height just crops the 24x24 artwork instead of scaling it — use
-   transform:scale() on the natural-size SVG instead, which scales the rendered pixels. */
-.annotate-mini-toolbar .tox-tbtn { width: 20px !important; height: 20px !important; margin: 0 2px 0 0 !important; }
-.annotate-mini-toolbar .tox-tbtn svg { transform: scale(0.833); transform-origin: center; }
-.annotate-mini-toolbar .tox-toolbar__group { padding: 0 1px !important; }
-.annotate-mini-toolbar.tox-tinymce .tox-editor-header { padding: 1px 0 !important; }
 
 #collab-editor-container { background: var(--bg-body); border-color: var(--border-main); }
 #tiptap-editor .ProseMirror { background: var(--bg-body); color: var(--text-main); }
