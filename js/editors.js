@@ -888,6 +888,131 @@ function updateLoadedPageUI() {
     if (statusEl) { statusEl.textContent = ''; statusEl.removeAttribute('data-state'); }
 }
 
+// Generic pane-switcher for editors with multiple content panes shown/hidden via the shared
+// #editor-menu bar (e.g. annotate-edit's Upload overlay, a future gRSShopper-post editor's
+// Write/Edit/Upload/Preview/Publish tabs). A pane is {id, container, render(container)};
+// render is called fresh every time the pane activates — panes may depend on state that
+// changed since they were last shown (e.g. which account is selected elsewhere in the
+// editor) — a pane whose content never changes should guard its own render() idempotently,
+// the same convention editor initialize() methods already follow. Register once per editor
+// instance (typically inside initialize() or whatever it calls); switch from a plain
+// editorFunctions entry, same as any other editor-menu button. This is the pilot of the
+// "reusable menu contract" in docs/ui-logic-separation-plan.md — deliberately just the
+// pane-switch core (no popout nav stack/Back/Close), since panes here are inline divs in the
+// write pane, not a modal.
+const _editorPaneState = {};
+
+function registerEditorPanes(editorType, panes) {
+    _editorPaneState[editorType] = { panes: new Map(panes.map(p => [p.id, p])), activeId: null };
+}
+
+// Shows one registered pane, hiding whichever pane (if any) was previously active for this
+// editor. Clicking the already-active pane's button closes it instead (hides, no re-render).
+function switchEditorPane(editorType, paneId) {
+    const state = _editorPaneState[editorType];
+    const def = state && state.panes.get(paneId);
+    if (!def) return;
+
+    if (state.activeId === paneId) {
+        def.container.style.display = 'none';
+        state.activeId = null;
+        return;
+    }
+    if (state.activeId) {
+        const prev = state.panes.get(state.activeId);
+        if (prev) prev.container.style.display = 'none';
+    }
+    def.container.style.display = 'block';
+    state.activeId = paneId;
+    if (def.render) def.render(def.container);
+}
+
+// Shared Upload-pane UI: an editable Source URL field (prefilled from candidates[0] when given),
+// a thumbnail strip of any other candidate images (click-to-upload, same convention as
+// gRSShopper's own candidate-image picker, api/hub_images.pl's render_image_picker/
+// hubAttachImage) when there's more than one, and a status line. The upload itself goes through
+// window.CList.uploaders (grsshopper_publish.js), the same registry-dispatch shape editors
+// already use for window.CList.publishers — this function only builds/reacts to the pane's UI.
+// Calls onUploaded({url, fileId}) on success so each caller decides what to do with the hosted
+// URL (append an <img> to a body, fill a cover-image field, …) — extracted out of annotate-
+// editor.js's original _renderAnnotateUploadPane so a second editor (grsshopper-editor.js) can
+// use the same UI without duplicating it, per the "functions an editor can just plug in" goal.
+function renderUploadPane(pane, account, candidates, onUploaded) {
+    pane.innerHTML = '';
+    candidates = candidates || [];
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'collection-editor-field';
+    wrapper.style.cssText = 'border-top:1px solid #ccc;padding-top:8px;margin-top:8px;';
+
+    const label = document.createElement('label');
+    label.textContent = 'Upload Image';
+    wrapper.appendChild(label);
+
+    const status = document.createElement('div');
+    status.className = 'feed-status-message';
+    status.style.cssText = 'margin:4px 0;';
+
+    const runUpload = async (sourceUrl) => {
+        if (!sourceUrl) { showErrorModal('Enter or choose an image URL first.', { title: 'URL required' }); return; }
+        const uploader = window.CList.uploaders?.[account.type];
+        if (typeof uploader?.uploadFromUrl !== 'function') {
+            showErrorModal(`Image upload is not available for ${account.type} accounts.`, { title: 'Upload failed' });
+            return;
+        }
+        status.textContent = 'Uploading…';
+        try {
+            const result = await uploader.uploadFromUrl(account, sourceUrl);
+            urlInput.value = result.url;
+            status.textContent = 'Uploaded ✓';
+            onUploaded?.(result);
+        } catch (error) {
+            console.error('[editors] image upload failed', error);
+            status.textContent = '';
+            showErrorModal(error.message, { title: 'Upload failed' });
+        }
+    };
+
+    if (candidates.length > 1) {
+        const strip = document.createElement('div');
+        strip.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;';
+        candidates.forEach(url => {
+            const thumbBtn = document.createElement('button');
+            thumbBtn.type = 'button';
+            thumbBtn.style.cssText = 'padding:0;border:2px solid transparent;background:none;cursor:pointer;';
+            const img = document.createElement('img');
+            img.src = url;
+            img.alt = 'Candidate image';
+            img.style.cssText = 'width:100px;height:75px;object-fit:cover;display:block;';
+            img.onerror = () => thumbBtn.remove();
+            thumbBtn.appendChild(img);
+            thumbBtn.addEventListener('click', () => runUpload(url));
+            strip.appendChild(thumbBtn);
+        });
+        wrapper.appendChild(strip);
+    }
+
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:6px;';
+    const urlInput = document.createElement('input');
+    urlInput.type = 'text';
+    urlInput.className = 'collection-editor-input';
+    urlInput.placeholder = 'Image URL';
+    urlInput.value = candidates[0] || '';
+    urlInput.style.flex = '1';
+    const uploadBtn = document.createElement('button');
+    uploadBtn.className = 'btn btn-small';
+    uploadBtn.textContent = 'Upload';
+    uploadBtn.addEventListener('click', () => runUpload(urlInput.value.trim()));
+    urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') uploadBtn.click(); });
+    row.appendChild(urlInput);
+    row.appendChild(uploadBtn);
+    wrapper.appendChild(row);
+    wrapper.appendChild(status);
+
+    pane.appendChild(wrapper);
+}
+
 // Populates the shared #editor-menu bar from editorType's handler.editorFunctions, the
 // editor-side equivalent of setupFeedButtons() (interface.js) reading a reader's feedFunctions.
 // No-op if the handler declares no editorFunctions — leaving #editor-menu hidden/empty for
@@ -1102,7 +1227,8 @@ async function loadSavedPage(content, page, renderTarget, onCancel) {
     // be switched into.
     const candidates = Object.keys(editorHandlers).filter(key => {
         const h = editorHandlers[key];
-        return typeof h.initialize === 'function' && (h.contentTypes || []).includes(content.type);
+        return typeof h.initialize === 'function' && (h.contentTypes || []).includes(content.type)
+            && (typeof h.visible !== 'function' || h.visible());
     });
 
     if (!candidates.length) {

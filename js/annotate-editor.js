@@ -2,13 +2,17 @@
 // Part of CList, the next generation of learning and connecting with your community
 //
 // Depends on: utilities.js (escapeHtml, showStatusMessage, showErrorModal, parseAccountValue,
-//             getSiteSpecificCookie, getAccounts, cleanHTMLContent), kvstore.js, editors.js
-//             (currentEditor, editorHandlers, switchToEditor), tags.js (getWriteTags),
+//             getSiteSpecificCookie, getAccounts, cleanHTMLContent, ensureAccountsLoaded),
+//             kvstore.js, editors.js
+//             (currentEditor, editorHandlers, switchToEditor, registerEditorPanes,
+//             switchEditorPane, renderUploadPane), tags.js (getWriteTags),
 //             tinymce.js (pushAndDisplayReference), references.js (getReferences, pushReference),
-//             annotate.js (_submitAnnotation — loads before this file), the global `tinymce`
-//             library object (same script tag tinymce.js uses) for the Description field's own
-//             small, separate TinyMCE instance (selector '#annotate-edit-body' — independent of
-//             tinymce.js's 'write-column' instance, own init-once flag).
+//             annotate.js (_submitAnnotation — loads before this file), ui.js (buildDialogModal),
+//             grsshopper_publish.js (window.CList.uploaders.gRSShopper — loads before this file),
+//             the global `tinymce` library object (same script tag tinymce.js uses) for the
+//             Description field's own small, separate TinyMCE instance (selector
+//             '#annotate-edit-body' — independent of tinymce.js's 'write-column' instance, own
+//             init-once flag).
 //
 // A normal editor like any other: it takes citations via the shared insertLink/insertLinkVia
 // contract (the "Write about this" arrow button, or the Alt+A shortcut in interface.js) and
@@ -27,6 +31,12 @@ let _annotateReturnEditor = null;
 // since it's not a real citation until the user fills in a URL and sends it; once a real
 // reference is attached via insertLink/loadContent, that takes over as _annotateTarget()'s result.
 let _annotateDraftRef = null;
+
+// Current "Send to" account list/selection, refreshed every time _renderSendControls runs.
+// Read by _annotateRenderUploadPane() to resolve which account to upload against — the
+// Upload Image button now lives in the shared #editor-menu bar (see editorFunctions below),
+// not the Send row, so it has no selection of its own to capture at click time.
+let _annotateSendState = { writeAccts: [], storeSelect: null };
 
 // Resolves to whatever the ref-fields/Send controls should currently operate on: the real
 // cited reference if one has been attached, else the standalone draft (created on first need).
@@ -58,7 +68,7 @@ function _annotateReceiveReference(reference, editorDiv) {
     if (!reference) return;
     const target = _annotateTarget();
     if (!target.url) {
-        ['title', 'url', 'author_name', 'author_id', 'feed', 'image', 'service',
+        ['title', 'url', 'author_name', 'author_id', 'feed', 'image', 'images', 'service',
          'created_at', 'cited_at', 'replyToken', 'id', 'summary'].forEach(key => {
             if (reference[key]) target[key] = reference[key];
         });
@@ -147,6 +157,19 @@ async function _renderAnnotateEditor(container) {
     container.appendChild(fieldsSection);
     _renderAnnotateRefFields(fieldsSection);
 
+    // Upload pane — hidden until the 'Upload Image' editor-menu button opens it (see
+    // switchEditorPane, editors.js). A persistent panel rather than a modal, same shape as
+    // gRSShopper's own Upload tab (editor/tabs.pl's Tab_Upload / editor/forms.pl's
+    // form_file_select: an import-from-URL field alongside file upload, on its own pane
+    // rather than a one-shot dialog) — you stay on it until you close it yourself.
+    const uploadPane = document.createElement('div');
+    uploadPane.id = 'annotate-upload-pane';
+    uploadPane.style.display = 'none';
+    container.appendChild(uploadPane);
+    registerEditorPanes('annotate-edit', [
+        { id: 'upload', container: uploadPane, render: _annotateRenderUploadPane },
+    ]);
+
     const bodyWrapper = document.createElement('div');
     bodyWrapper.className = 'collection-editor-field';
     const bodyLabel = document.createElement('label');
@@ -228,7 +251,7 @@ async function _renderSendControls(sendSection) {
     sendSection.innerHTML = '';
     const renderSession = captureAnnotationSession();
     const token = renderSession.token;
-    if (!token) {
+    if (!token || !hasValidSession()) {
         const msg = document.createElement('p');
         msg.className = 'feed-status-message';
         msg.textContent = 'Log in with an annotation account to send.';
@@ -236,7 +259,7 @@ async function _renderSendControls(sendSection) {
         return;
     }
 
-    const accounts = await ensureAccountsLoaded().catch(() => []);
+    const accounts = (await ensureAccountsLoaded().catch(() => [])) || [];
     const writeAccts = accounts.map(parseAccountValue).filter(d =>
         d && (d.type === 'Annotate' || d.type === 'Hypothesis' || d.type === 'gRSShopper') && (d.permissions || 'rw').includes('w')
     );
@@ -272,6 +295,10 @@ async function _renderSendControls(sendSection) {
     sendBtn.className = 'btn btn-small';
     sendBtn.textContent = 'Send';
     row.appendChild(sendBtn);
+
+    // Upload Image lives in the shared #editor-menu bar now (see editorFunctions below), not
+    // here — it reads the current selection back out of _annotateSendState when clicked.
+    _annotateSendState = { writeAccts, storeSelect };
 
     sendSection.appendChild(row);
 
@@ -324,6 +351,45 @@ function _annotateClear() {
     editorHandlers['annotate-edit'].setContent('');
 }
 
+// Resolves whichever account is currently selected in the Send row's "Send to" picker and,
+// if it supports image upload (window.CList.uploaders), renders the Upload pane against it —
+// called by switchEditorPane() (editors.js) every time the 'Upload Image' editor-menu button
+// opens this pane, so it always reflects the live Send-to selection rather than whatever was
+// selected the last time the pane was opened. Shows a prompt instead if nothing selected (or
+// the selected account's type) supports upload.
+function _annotateRenderUploadPane(container) {
+    const { writeAccts, storeSelect } = _annotateSendState;
+    const selected = storeSelect && writeAccts[parseInt(storeSelect.value, 10)];
+    container.innerHTML = '';
+    if (!selected || !window.CList.uploaders?.[selected.type]) {
+        const msg = document.createElement('p');
+        msg.className = 'feed-status-message';
+        msg.textContent = 'Select a "Send to" account that supports image upload, above, first.';
+        container.appendChild(msg);
+        return;
+    }
+    _renderAnnotateUploadPane(container, structuredClone(selected));
+}
+
+// Renders the Upload pane via the shared renderUploadPane (editors.js) — candidate images come
+// from ref.images (or ref.image alone), same click-to-attach convention as gRSShopper's own
+// candidate-image picker (api/hub_images.pl's render_image_picker/hubAttachImage). On success,
+// writes the hosted URL into ref.image and appends an <img> referencing it to the Description
+// body via _annotateAppendHTML — this editor's one "use" for an uploaded image; grsshopper-
+// editor.js's Upload pane uses the same shared UI for its own purpose instead.
+// `account` is the specific account selected in the Send row at the moment the pane was opened
+// (resolved by _annotateRenderUploadPane, not via findAccountByType), so the upload goes to
+// that account even when more than one gRSShopper write account is configured.
+function _renderAnnotateUploadPane(pane, account) {
+    const ref = _annotateTarget();
+    const candidates = (ref.images && ref.images.length) ? ref.images : (ref.image ? [ref.image] : []);
+    renderUploadPane(pane, account, candidates, (result) => {
+        ref.image = result.url;
+        _refreshAnnotateRefFields();
+        _annotateAppendHTML(`<img src="${escapeHtml(result.url)}" alt="">`);
+    });
+}
+
 (function () {
     if (typeof editorHandlers === 'undefined') {
         console.error('editorHandlers is not defined — annotate-editor.js must load after editors.js');
@@ -338,6 +404,7 @@ function _annotateClear() {
 
         editorFunctions: {
             'Clear': () => _annotateClear(),
+            'Upload Image': () => switchEditorPane('annotate-edit', 'upload'),
         },
 
         initialize: async () => {

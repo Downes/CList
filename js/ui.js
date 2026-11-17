@@ -621,6 +621,11 @@ window.CList.ui.listing = function makeListing(
 
     // Create reference object on the DOM element
     const firstImage = (images || []).find(image => /^https?:\/\//i.test(image.preview_url));
+    // All candidate image URLs (not just the first) - lets an editor offer a picker
+    // over every image this item had (see annotate-editor.js's upload pane).
+    const candidateImages = (images || [])
+        .map(image => image.url || image.preview_url)
+        .filter(url => /^https?:\/\//i.test(url || ''));
     statusSpecific.reference = {
         service: service || null,
         author_name: itemAuthor || '(unknown author)',
@@ -635,6 +640,7 @@ window.CList.ui.listing = function makeListing(
         id: itemID || '(no ID)',
         summary: (itemDesc || '').slice(0, 140),
         image: firstImage ? firstImage.preview_url : '',
+        ...(candidateImages.length && { images: candidateImages }),
         ...(item.replyToken && { replyToken: item.replyToken }),
     };
 

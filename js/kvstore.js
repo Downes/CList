@@ -184,8 +184,8 @@ function loginRequired(msg) {
     if (registerButton) registerButton.style.display="inline-block";
     accountButton.style.display="none";
     logoutButton.style.display="none";
-    if (msg && (msg.includes('expired') || msg.includes('cleared') || msg.includes('logged out'))) {
-        identityDiv.textContent = `Session ended — please log in again.`;
+    if (msg) {
+        identityDiv.textContent = msg;
     } else {
         renderIdentityLabel();
     }

@@ -19,6 +19,9 @@
 //      summary:     string,
 //      image:       string | undefined,  // source item's image URL, if it had one (Annotate
 //                                         // editor only — not shown in the References panel)
+//      images:      string[] | undefined,  // ALL candidate image URLs the source item had,
+//                                            // if more than the one in `image` (Annotate
+//                                            // editor's upload picker only — see ui.js)
 //      replyToken:  object | null,   // service-specific; see below
 //    }
 //

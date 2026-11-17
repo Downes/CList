@@ -7,34 +7,34 @@ window.CList.schemas['gRSShopper'] = {
     instanceFromKey: true,
     kvKey: { label: 'Site URL', placeholder: 'https://www.downes.ca' },
     fields: [
-        { key: 'title',    label: 'Title',     editable: true, inputType: 'text', placeholder: 'gRSShopper', default: 'gRSShopper' },
-        { key: 'apiToken', label: 'API Token', editable: true, inputType: 'text', placeholder: 'Your gRSShopper CList API token', default: '' },
+        { key: 'title',       label: 'Title',       editable: true, inputType: 'text', placeholder: 'gRSShopper', default: 'gRSShopper' },
+        { key: 'apiToken',    label: 'API Token',   editable: true, inputType: 'text', placeholder: 'Your gRSShopper CList API token', default: '' },
+        { key: 'permissions', label: 'Permissions', editable: true, inputType: 'text', placeholder: 'rw', default: 'rw' },
     ]
 };
 
-// Post a new annotation to gRSShopper as a post_type='link' record (api/clist.pl's
-// cmd=clist_publish). payload matches runAnnotationWorkflow's create() contract:
-// { target_url, body, tags, visibility, motivation, target_selector? }. target_selector
-// (title/author_name/feed - see captureAnnotationRequest) carries the annotated article's
-// real metadata when the caller requested it (the Annotate editor's Title/Author/Feed fields);
-// falls back to a synthesized title when absent. Create-only — gRSShopper's token-authenticated
-// endpoint also supports updating an existing post by id, but nothing in the current annotation
-// pipeline carries a postId to use it.
+// Raw call to gRSShopper's token-authenticated cmd=clist_publish endpoint (api/clist.pl's
+// api_clist_publish) — creates a post_type='link' record, or updates one in place when
+// fields.id is given (api_clist_publish accepts an optional post id; omitted, it dedups by
+// link via find_duplicate_post). Shared by grsshopperCreate below (the annotation-pipeline
+// adapter) and grsshopper-editor.js's Publish pane, which has no "annotation" framing at all —
+// just its own Title/Link/Author/Feed fields and a post id to update once one exists.
 /** @param {CListAccountData} account
- * @param {Object} payload
- * @returns {Promise<Object>} */
-window.grsshopperCreate = async function(account, payload) {
+ * @param {{title: string, description: string, link: string, author?: string, feed?: string, content?: string, id?: string}} fields
+ * @returns {Promise<{id: string, url: string}>} */
+window.grsshopperSavePost = async function(account, fields) {
     if (!account.apiToken) throw new Error('No gRSShopper API token - check Account Settings.');
     const base = (account.instance || '').replace(/\/$/, '');
-    const selector = payload.target_selector || {};
     const body = {
         token:       account.apiToken,
-        title:       selector.title || (payload.body || 'Annotation').split('\n')[0].slice(0, 80) || 'Annotation',
-        description: payload.body || '',
-        link:        payload.target_url,
-        author:      selector.author_name || '',
-        feed:        selector.feed || '',
+        title:       fields.title,
+        description: fields.description || '',
+        link:        fields.link,
+        author:      fields.author || '',
+        feed:        fields.feed || '',
+        content:     fields.content || '',
     };
+    if (fields.id) body.id = fields.id;
     let response;
     try {
         response = await fetch(`${base}/cgi-bin/api.cgi?cmd=clist_publish`, {
@@ -47,6 +47,57 @@ window.grsshopperCreate = async function(account, payload) {
     if (!response.ok || !data || data.status !== 'OK')
         throw new Error('gRSShopper publish failed: ' + (data?.message || response.status));
     return { id: String(data.post_id), url: data.url };
+};
+
+// Post a new annotation to gRSShopper as a post_type='link' record. payload matches
+// runAnnotationWorkflow's create() contract: { target_url, body, tags, visibility, motivation,
+// target_selector? }. target_selector (title/author_name/feed - see captureAnnotationRequest)
+// carries the annotated article's real metadata when the caller requested it (the Annotate
+// editor's Title/Author/Feed fields); falls back to a synthesized title when absent.
+// Create-only — nothing in the current annotation pipeline carries a postId to update with.
+/** @param {CListAccountData} account
+ * @param {Object} payload
+ * @returns {Promise<Object>} */
+window.grsshopperCreate = async function(account, payload) {
+    const selector = payload.target_selector || {};
+    return window.grsshopperSavePost(account, {
+        title:       selector.title || (payload.body || 'Annotation').split('\n')[0].slice(0, 80) || 'Annotation',
+        description: payload.body || '',
+        link:        payload.target_url,
+        author:      selector.author_name || '',
+        feed:        selector.feed || '',
+    });
+};
+
+// Hosts a remote URL (e.g. a feed item's image - see the Annotate editor's Upload pane,
+// annotate-editor.js's _renderAnnotateUploadPane) as a local file on this gRSShopper site,
+// without requiring an existing post to attach it to. Calls the token-authenticated
+// cmd=clist_upload endpoint (api/clist.pl's api_clist_upload), which reuses gRSShopper's
+// own upload_url()/save_file() (dedup by source URL already built in - re-citing the same
+// feed image won't re-fetch or re-store it). Registered under window.CList.uploaders so any
+// editor can offer file upload the same way editors offer publish via window.CList.publishers.
+/** @param {CListAccountData} account
+ * @param {string} sourceUrl
+ * @returns {Promise<{url: string, fileId: string}>} */
+window.CList.uploaders = window.CList.uploaders || {};
+window.CList.uploaders.gRSShopper = {
+    async uploadFromUrl(account, sourceUrl) {
+        if (!account.apiToken) throw new Error('No gRSShopper API token - check Account Settings.');
+        const base = (account.instance || '').replace(/\/$/, '');
+        let response;
+        try {
+            response = await fetch(`${base}/cgi-bin/api.cgi?cmd=clist_upload`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: account.apiToken, source_url: sourceUrl }),
+            });
+        } catch (error) {
+            throw Object.assign(new Error('Connection lost; check gRSShopper before retrying.'), { outcome: 'uncertain' });
+        }
+        const data = await response.json().catch(() => null);
+        if (!response.ok || !data || data.status !== 'OK')
+            throw new Error('gRSShopper upload failed: ' + (data?.message || response.status));
+        return { url: data.url, fileId: String(data.file_id) };
+    },
 };
 
 window.CList.publishers.gRSShopper = {
