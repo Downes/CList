@@ -345,31 +345,8 @@ function _promptDropboxOverwrite(statusEl, filename, doOverwrite) {
     }
 
     async function _openInEditor(text, filename) {
-        const format = _detectFormat('', filename);
-
-        // Route through the shared loadSavedPage() path — same as "Load from
-        // file" — instead of forcing switchToEditor() directly: it picks the
-        // right editor, checks for existing content, and offers Replace/Insert/
-        // Cancel instead of silently cursor-inserting into whatever's already there.
-        async function loadNative() {
-            if (typeof loadSavedPage === 'function') {
-                const nativeType = (format === 'html') ? 'text/html' : 'text/plain';
-                const content    = { type: nativeType, value: text };
-                const page       = { kind: 'file', title: filename };
-                const optionsDiv = window.CList.ui.view.loadOptions;
-                await loadSavedPage(content, page, optionsDiv, () => populateLoadOptions());
-            }
-        }
-
-        // Only offer the Collection editor when the content actually parses into
-        // a genuine non-empty list of items — not just because its format happens
-        // to be one that CAN carry a collection.
-        const parsed = (typeof _collectionShape === 'function') ? _collectionShape(text, format) : null;
-        if (parsed) {
-            await _offerCollectionChoice(parsed, format, { renderTarget: window.CList.ui.view.loadOptions, onNative: loadNative });
-        } else {
-            await loadNative();
-        }
+        const content = restorePostContent(text, '', filename);
+        await loadSavedPage(content, content.page, window.CList.ui.view.loadOptions, () => populateLoadOptions());
     }
 
     window.CList.loaders = window.CList.loaders || [];

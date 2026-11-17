@@ -477,3 +477,16 @@
  * @property {function(): *} onPublish
  * @property {function(): *} onWebPage
  */
+
+/**
+ * Native annotation file; publishable editor content remains the HTML body alone.
+ * @typedef {Object} CListAnnotationFile
+ * @property {'clist-annotation-v1'} format
+ * @property {string} body
+ * @property {CListReference} target Standalone draft fields are retained even without a URL.
+ * @property {CListReference[]} references Convergent targets, with the primary URL first.
+ */
+/**
+ * Optional editor local-file export, separate from publication/native getContent.
+ * @typedef {{type: string, value: string}} CListEditorFileContent
+ */

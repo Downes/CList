@@ -75,16 +75,15 @@ function _annotateReceiveReference(reference, editorDiv) {
 // rather than a full document, and its own init-once flag so it doesn't collide with that
 // instance. Idempotent like every other editor's initialize() — called once, on first render.
 let _annotateTinyMCEInitialized = false;
+let _annotateTinyMCEReady = null;
 
 function _initAnnotateTinyMCE() {
-    if (_annotateTinyMCEInitialized) return;
+    if (_annotateTinyMCEReady) return _annotateTinyMCEReady;
     if (typeof tinymce === 'undefined') {
-        console.error('TinyMCE is not loaded.');
-        showErrorModal('TinyMCE failed to load — check your network connection.', { title: 'Editor failed to load' });
-        return;
+        throw new Error('TinyMCE failed to load — check your network connection.');
     }
     const dm = document.documentElement.classList.contains('dark-mode');
-    tinymce.init({
+    _annotateTinyMCEReady = Promise.resolve(tinymce.init({
         selector: '#annotate-edit-body',
         height: 200,
         menubar: false,
@@ -100,6 +99,8 @@ function _initAnnotateTinyMCE() {
             // generates the toolbar container itself.
             editor.on('init', () => {
                 editor.getContainer().classList.add('annotate-mini-toolbar');
+                const textarea = document.getElementById('annotate-edit-body');
+                if (textarea?.value) editor.setContent(textarea.value);
             });
             // Mirrors tinymceConfig's own setup — keeps the backing textarea's raw value in
             // sync with user edits, since getContent()/setContent() elsewhere in this file
@@ -109,8 +110,11 @@ function _initAnnotateTinyMCE() {
                 if (ta) ta.value = editor.getContent();
             });
         },
+    })).then(() => { _annotateTinyMCEInitialized = true; }).catch(error => {
+        _annotateTinyMCEReady = null; _annotateTinyMCEInitialized = false;
+        throw error; // initializeEditor owns visible initialization feedback.
     });
-    _annotateTinyMCEInitialized = true;
+    return _annotateTinyMCEReady;
 }
 
 // Appends HTML to the end of the Description field — never at the cursor — per the "content is
@@ -159,13 +163,12 @@ async function _renderAnnotateEditor(container) {
     body.style.cssText = 'width:100%;box-sizing:border-box;';
     bodyWrapper.appendChild(body);
     container.appendChild(bodyWrapper);
-    _initAnnotateTinyMCE();
-
     const sendSection = document.createElement('div');
     sendSection.id = 'annotate-send-section';
     sendSection.style.cssText = 'margin-top:10px;';
     container.appendChild(sendSection);
     await _renderSendControls(sendSection);
+    await _initAnnotateTinyMCE();
 }
 
 // Editable Title/URL/Author/Feed/Image fields for the reference this annotation targets —
@@ -324,6 +327,43 @@ function _annotateClear() {
     editorHandlers['annotate-edit'].setContent('');
 }
 
+// Native local-file content is independent of getContent(), which remains the
+// annotation's publishable HTML body. Keep the full target and convergent references.
+function _annotationFileReferences(target, references) {
+    const list = references.filter(ref => ref && typeof ref === 'object' && !Array.isArray(ref));
+    return target.url ? [target, ...list.filter(ref => ref.url !== target.url)] : list;
+}
+function _setAnnotationBody(value) {
+    const editor = typeof tinymce !== 'undefined' && tinymce.get('annotate-edit-body');
+    if (editor) editor.setContent(value);
+    const textarea = document.getElementById('annotate-edit-body');
+    if (textarea) textarea.value = value;
+}
+function _restoreAnnotationFile(value, insert = false) {
+    const data = typeof value === 'string' ? JSON.parse(value) : structuredClone(value);
+    if (!data || data.format !== 'clist-annotation-v1' || typeof data.body !== 'string'
+        || !data.target || typeof data.target !== 'object' || Array.isArray(data.target)
+        || !Array.isArray(data.references)) throw new Error('Invalid CList annotation file.');
+    const incoming = _annotationFileReferences(data.target, data.references);
+    const existingBody = editorHandlers['annotate-edit'].getContent();
+    const append = insert && !!existingBody;
+    const safeBody = typeof window.sanitizeHtml === 'function'
+        ? String(window.sanitizeHtml(data.body)) : escapeHtml(data.body);
+    if (append) {
+        const merged = [...getReferences()];
+        for (const ref of incoming) {
+            if (!ref.url || !merged.some(existing => existing.url === ref.url)) merged.push(ref);
+        }
+        setReferences(merged);
+        _setAnnotationBody(existingBody + safeBody);
+    } else {
+        _annotateDraftRef = data.target;
+        setReferences(incoming);
+        _setAnnotationBody(safeBody);
+    }
+    _refreshAnnotateRefFields();
+}
+
 (function () {
     if (typeof editorHandlers === 'undefined') {
         console.error('editorHandlers is not defined — annotate-editor.js must load after editors.js');
@@ -333,7 +373,7 @@ function _annotateClear() {
     editorHandlers['annotate-edit'] = {
         label: 'Annotate',
         icon: 'edit',
-        contentTypes: ['text/plain', 'text/html'],
+        contentTypes: ['text/plain', 'text/html', 'application/vnd.clist.annotation+json'],
         requiresAccount: false,
 
         editorFunctions: {
@@ -360,6 +400,9 @@ function _annotateClear() {
             // Idempotent, like every other editor's initialize() — re-entering this editor
             // (e.g. a second Alt+A press) must not wipe whatever's already been typed.
             div.style.display = 'block';
+            if (!_annotateTinyMCEInitialized) await _initAnnotateTinyMCE();
+            if (_annotateTinyMCEReady) await _annotateTinyMCEReady;
+            if (typeof loadPredefinedContent === 'function') await loadPredefinedContent('annotate-edit');
         },
 
         getContent: () => {
@@ -369,14 +412,17 @@ function _annotateClear() {
             return ta ? ta.value.trim() : '';
         },
 
+        getFileContent: () => {
+            const target = structuredClone(_annotateTarget());
+            return { type: 'application/vnd.clist.annotation+json', value: JSON.stringify({
+                format: 'clist-annotation-v1', body: editorHandlers['annotate-edit'].getContent(),
+                target, references: structuredClone(_annotationFileReferences(target, getReferences())),
+            }) };
+        },
+
         setContent: (value) => {
-            const editor = tinymce.get('annotate-edit-body');
-            if (editor) editor.setContent(value);
-            // Programmatic setContent() doesn't fire the 'change' handler that normally mirrors
-            // TinyMCE's content into the backing textarea — keep it in sync here too, same as
-            // the main 'write-column' editor's setContent() in tinymce.js.
-            const ta = document.getElementById('annotate-edit-body');
-            if (ta) ta.value = value;
+            if (value && typeof value === 'object') return _restoreAnnotationFile(value);
+            _setAnnotationBody(value);
         },
 
         // Insertion target for the "Write about this" arrow button (clistAnnotate) and the
@@ -386,7 +432,10 @@ function _annotateClear() {
         // _annotateReceiveReference(), which decides whether it fills the (empty) target or
         // joins it as an additional convergent target.
         loadContent: ({ type, value }, itemId) => {
-            const itemContent = (type === 'text/html') ? cleanHTMLContent(value) : escapeHtml(value);
+            if (type === 'application/vnd.clist.annotation+json') return _restoreAnnotationFile(value, true);
+            const itemContent = (type === 'text/html')
+                ? (typeof window.sanitizeHtml === 'function' ? String(window.sanitizeHtml(value)) : escapeHtml(value))
+                : escapeHtml(value);
             if (itemContent) _annotateAppendHTML(itemContent);
 
             if (itemId) {

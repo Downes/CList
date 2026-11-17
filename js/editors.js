@@ -12,6 +12,9 @@
 
 
 
+// Temporary visible build marker for browser testing; bump with each test revision.
+const EDITOR_TEST_VERSION = '2026-11-17.3';
+
 // Name of the current editor
 let currentEditor = 'texteditor'; // Default editor is TinyMCE
 
@@ -348,16 +351,8 @@ function _appendBackButton(container, onClick) {
 }
 
 // More than one local editor can handle the just-loaded content's type (and the
-// current editor isn't one of them) — let the user pick instead of silently
-// guessing. Called only for keys that exclude currentEditor (loadSavedPage()
-// already routes a currentEditor match straight to the empty/replace-or-insert
-// check). The chosen editor's DOM/content persists across switches (per-editor
-// state park/restore), so it may still hold old content from an earlier visit —
-// each choice below checks for that before switching, same as loadSavedPage()'s
-// own switch-branch. Rendered in the same right-pane spot, mirroring
-// playLoadBlank()'s list styling. page/renderTarget/onCancel mirror loadSavedPage()'s
-// own params — passed through so a choice offered mid-"Load a page" or mid-"Load
-// from file" lands back in the right place either way.
+// Render every compatible local representation, including the current editor.
+// Only after a button is selected does loadSavedPage inspect that editor's draft.
 function _offerEditorChoice(keys, content, page, renderTarget, onCancel) {
     const optionsDiv = renderTarget || window.CList.ui.view.loadOptions;
     if (!optionsDiv) return;
@@ -386,34 +381,14 @@ function _offerEditorChoice(keys, content, page, renderTarget, onCancel) {
         btn.appendChild(iconEl);
         btn.appendChild(nameEl);
         btn.addEventListener('click', async () => {
-            const targetHandler = editorHandlers[key];
-            let targetExisting = '';
-            if (typeof targetHandler.getContent === 'function') {
-                try {
-                    targetExisting = await targetHandler.getContent();
-                } catch (e) {
-                    // Target editor instance doesn't exist yet (never visited this
-                    // session) — treat as empty, same as a fresh editor.
-                    targetExisting = '';
-                }
+            const selected = content.editorChoices?.[key] || content;
+            try {
+                await loadSavedPage({ ...selected, recognized: true, chosenEditor: key,
+                    collection: null, editorChoices: null }, page, renderTarget, onCancel);
+            } catch (error) {
+                console.error('Editor load failed:', error);
+                showErrorModal(error.message, { title: 'Editor load failed' });
             }
-            const targetIsEmpty = !targetExisting || !removeHtml(targetExisting).trim();
-
-            if (targetIsEmpty) {
-                await switchToEditor(key, content);
-                setLoadedPage(page || null);
-                document.getElementById('generic-modal')?.remove();
-                return;
-            }
-
-            // Switch without carrying content, so it doesn't get auto-inserted during
-            // init — then offer the same Replace/Insert/Cancel choice as other loads.
-            // switchToEditor() calls closeRightPane() internally, so reopen it before
-            // rendering the dialogue or it ends up invisible in a width:0 pane.
-            await switchToEditor(key, null);
-            openRightPane();
-            offerReplaceOrInsert(key, targetHandler, content, page, renderTarget, onCancel);
-            document.getElementById('generic-modal')?.remove();
         });
         list.appendChild(btn);
     });
@@ -823,7 +798,10 @@ function updateEditorIndicator() {
     const handler = editorHandlers[currentEditor];
     const label = handler?.label || currentEditor;
     const status = document.getElementById('editor-status');
-    if (status) status.textContent = 'editor: ' + label;
+    if (status) {
+        status.textContent = 'editor: ' + label + ' · test ' + EDITOR_TEST_VERSION;
+        status.title = 'Temporary editor test version: ' + EDITOR_TEST_VERSION;
+    }
 }
 
 
@@ -834,6 +812,9 @@ function updateEditorIndicator() {
 // overwrite check have what they need to find the adapter/account and update
 // the right kvstore record.
 function setLoadedPage(page) {
+    if (page?.documentTitle && window.CList.ui.view.writeTitle) {
+        window.CList.ui.view.writeTitle.textContent = page.documentTitle;
+    }
     const changed = page && (page.kind !== currentLoadedPage?.kind || page.id !== currentLoadedPage?.id || page.title !== currentLoadedPage?.title);
     currentLoadedPage = page ? { ...page } : null;
     updateLoadedPageUI();
@@ -1095,39 +1076,75 @@ function closeLoadSurfaces() {
 // onCancel = what Cancel does on that prompt (defaults to reopening My Pages if
 // registered, else the right-pane load list) — callers outside My Pages (e.g.
 // "Load from file") pass their own, so Cancel returns to where the user actually was.
+function _savedEditorIsEmpty(handler, value) {
+    if (!value) return true;
+    return !(handler.contentTypes?.[0] === 'text/plain' ? String(value).trim() : removeHtml(value).trim());
+}
 async function loadSavedPage(content, page, renderTarget, onCancel) {
-    // Empty contentTypes means "doesn't support generic file/page content at all"
-    // (e.g. collection, which only loads structured items via its own My Collections
-    // path) — never a wildcard. A handler also needs a working initialize() to ever
-    // be switched into.
-    const candidates = Object.keys(editorHandlers).filter(key => {
-        const h = editorHandlers[key];
-        return typeof h.initialize === 'function' && (h.contentTypes || []).includes(content.type);
-    });
-
-    if (!candidates.length) {
-        if (!confirm('No editor registered for this content type. Load into the current editor anyway? Formatting may be lost.')) return;
-        loadContent(content);
-        closeLoadSurfaces();
-        return;
+    if (!content.recognized && typeof recognizeSavedContent === 'function'
+        && (typeof content.value === 'string' || content.value instanceof ArrayBuffer)) {
+        const detected = recognizeSavedContent(content.value, content.type, page?.title || '');
+        page = { ...page, ...detected.page, ...(page?.title ? { title: page.title } : {}) };
+        content = { ...content, ...detected, recognized: true };
     }
-
-    let targetKey;
-    if (candidates.includes(currentEditor)) {
-        targetKey = currentEditor;
-    } else {
-        const localCandidates = candidates.filter(key => !editorHandlers[key].requiresAccount);
-        if (localCandidates.length > 1) {
-            _offerEditorChoice(localCandidates, content, page, renderTarget, onCancel);
+    if (content.collection) {
+        if (!content.collectionChosen) {
+            return _offerCollectionChoice(content.collection, content.format, { renderTarget, onCancel,
+                onCollection: () => loadSavedPage({ ...content, collectionChosen: true }, page, renderTarget, onCancel),
+                onNative: () => loadSavedPage({ type: content.format === 'html' ? 'text/html' : 'text/plain',
+                    value: content.sourceText ?? content.value, recognized: true, chosenEditor: content.format === 'html' ? 'tinymce' : 'texteditor' },
+                    page, renderTarget, onCancel) });
+        }
+        const existingCollection = await editorHandlers.collection?.getContent?.();
+        if (existingCollection && String(existingCollection).trim()) {
+            const message = document.createElement('p');
+            message.textContent = 'The collection editor already has content. Open this collection in its place?';
+            buildDialogModal('Open collection', message, [
+                { label: 'Cancel', secondary: true, onClick: close => close() },
+                { label: 'Open collection', onClick: async close => {
+                    close();
+                    try { await window.openParsedAsCollection(content.collection); }
+                    catch (error) { console.error('Collection file load failed:', error); showErrorModal(error.message, { title: 'Collection load failed' }); }
+                } },
+            ]);
             return;
         }
-        targetKey = localCandidates[0];
+        return window.openParsedAsCollection(content.collection);
     }
+    const documentTitle = page?.documentTitle || content.page?.title;
+    if (documentTitle) page = { ...page, documentTitle };
 
-    if (!targetKey) {
+    // Representation choice comes before inspecting any editor's existing draft.
+    const choices = {};
+    for (const [key, handler] of Object.entries(editorHandlers)) {
+        if (typeof handler.initialize !== 'function' || handler.requiresAccount
+            || (typeof handler.visible === 'function' && !handler.visible())) continue;
+        if ((handler.contentTypes || []).includes(content.type)) choices[key] = content;
+    }
+    if (content.type === 'text/html' && editorHandlers.texteditor?.initialize) {
+        choices.texteditor = { ...content, type: 'text/plain', value: content.value };
+    }
+    if (content.type === 'text/html' && choices['annotate-edit'] && page?.documentTitle) {
+        const references = structuredClone(page.references || []);
+        const target = references[0] || { title: page.documentTitle };
+        choices['annotate-edit'] = { ...content, type: 'application/vnd.clist.annotation+json',
+            value: { format: 'clist-annotation-v1', body: content.value, target, references } };
+    }
+    if (content.type === 'application/vnd.clist.annotation+json') {
+        if (editorHandlers.texteditor?.initialize) choices.texteditor = {
+            type: 'text/plain', value: content.sourceText ?? JSON.stringify(content.value, null, 2) };
+        if (editorHandlers.tinymce?.initialize) choices.tinymce = { type: 'text/html', value: content.value.body };
+    }
+    const candidates = Object.keys(choices);
+    if (!candidates.length || (content.chosenEditor && !choices[content.chosenEditor])) {
         showErrorModal('No local editor is available for this content type.', { title: 'Editor Unavailable' });
         return;
     }
+    if (!content.chosenEditor && candidates.length > 1) {
+        return _offerEditorChoice(candidates, { ...content, editorChoices: choices }, page, renderTarget, onCancel);
+    }
+    const targetKey = content.chosenEditor || candidates[0];
+    content = { ...choices[targetKey], chosenEditor: targetKey, recognized: true };
 
     if (targetKey !== currentEditor) {
         // The target editor's DOM/content persists across switches (per-editor state
@@ -1145,7 +1162,7 @@ async function loadSavedPage(content, page, renderTarget, onCancel) {
                 targetExisting = '';
             }
         }
-        const targetIsEmpty = !targetExisting || !removeHtml(targetExisting).trim();
+        const targetIsEmpty = _savedEditorIsEmpty(targetHandler, targetExisting);
 
         if (targetIsEmpty) {
             await switchToEditor(targetKey, content);
@@ -1168,7 +1185,7 @@ async function loadSavedPage(content, page, renderTarget, onCancel) {
 
     const handler = editorHandlers[targetKey];
     const existing = (typeof handler.getContent === 'function') ? await handler.getContent() : '';
-    const isEmpty = !existing || !removeHtml(existing).trim();
+    const isEmpty = _savedEditorIsEmpty(handler, existing);
 
     if (isEmpty) {
         handler.loadContent(content);

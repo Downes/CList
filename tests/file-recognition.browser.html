@@ -1,0 +1,151 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CList saved-file recognition regression</title>
+<h1>Saved-file recognition</h1><pre id="result">Checking...</pre>
+<div id="write-title"></div><div id="load-options"></div><div id="writeReferences"></div>
+<div id="fixture-editor-root"><div id="annotateEditDiv"><textarea id="annotate-edit-body"></textarea></div></div>
+<script>
+window.CList={state:{},config:{},keys:{},accounts:[],ui:{view:{}}};
+window.escapeHtml=value=>String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;');
+window.cleanHTMLContent=value=>value;
+window.showStatusMessage=()=>{};window.showErrorModal=message=>{throw Error(message);};
+window.removeHtml=value=>String(value).replace(/<[^>]*>/g,'');
+const browserFetch=window.fetch.bind(window);
+window.fetch=(url,...args)=>String(url).startsWith('fixtures/')?browserFetch(url,...args):Promise.reject(Error('Unexpected network request'));
+let refs=[];window.getReferences=()=>refs;window.setReferences=value=>refs=structuredClone(value);
+window.pushReference=ref=>{if(!refs.some(r=>r.url===ref.url))refs.push(ref);};
+window.clearReferences=()=>{refs=[];};
+let annotationBody='';
+window.tinymce={get:()=>({getContent:()=>annotationBody,setContent:value=>{annotationBody=value;}}),init:async()=>[]};
+window.sanitizeHtml=html=>{const doc=new DOMParser().parseFromString(html,'text/html');
+ for(const el of doc.querySelectorAll('script,iframe,object'))el.remove();return doc.body.innerHTML;};
+</script>
+<script src="../js/editors.js"></script>
+<script src="../js/collection-formats.js"></script>
+<script src="../js/file-recognition.js"></script>
+<script src="../js/files.js"></script>
+<script src="../js/annotate-editor.js"></script>
+<script>
+(async()=>{
+ const check=(ok,label)=>{if(!ok)throw Error(label);};
+ const messages=[];let collection=null,textBody='',htmlBody='',saved='';
+ window.buildDialogModal=(title,message,buttons)=>{
+  const root=document.createElement('div');root.id='fixture-dialog';root.appendChild(message);
+  const close=()=>root.remove();
+  for(const choice of buttons){const button=document.createElement('button');button.textContent=choice.label;
+   button.onclick=()=>choice.onClick(close);root.appendChild(button);}document.body.appendChild(root);return {close};
+ };
+ CList.ui.view.writeTitle=document.getElementById('write-title');
+ CList.ui.view.writePaneContent=document.getElementById('fixture-editor-root');
+ const realSwitchToEditor=switchToEditor;
+ window.closeReferencesPanel=()=>{};populateEditorList=async()=>{};
+ CList.ui.view.loadOptions=document.getElementById('load-options');
+ editorHandlers.texteditor={contentTypes:['text/plain'],requiresAccount:false,initialize:()=>{},
+  getContent:()=>textBody,setContent:value=>{textBody=value;},loadContent:({value})=>{textBody+=value;}};
+ editorHandlers.tinymce={contentTypes:['text/html'],requiresAccount:false,initialize:()=>{},
+  getContent:()=>htmlBody,setContent:value=>{htmlBody=value;},loadContent:({value})=>{htmlBody+=value;}};
+ window.openParsedAsCollection=async parsed=>{collection=parsed;currentEditor='collection';};
+ setLoadedPage=page=>{currentLoadedPage=page;};closeLoadSurfaces=()=>{};closeRightPane=()=>{};
+ const fixtureSwitch=async(key,content)=>{currentEditor=key;await editorHandlers[key].initialize();if(content)await editorHandlers[key].loadContent(content);};
+ switchToEditor=fixtureSwitch;
+ const choose=async label=>{
+  const button=[...document.querySelectorAll('#load-options button')].find(button=>button.textContent.includes(label));
+  check(button,'Available editor choice: '+label);button.click();await new Promise(resolve=>setTimeout(resolve,0));
+ };
+ editorHandlers.texteditor.label='Text';editorHandlers.tinymce.label='HTML';
+ const load=async(text,mime='application/octet-stream',filename='misleading.bin',autoChoose=true)=>{
+  const file=new File([text],filename,{type:mime});const content=await readLocalFileContent(file);
+  await loadSavedPage(content,content.page,CList.ui.view.loadOptions);
+  if(autoChoose){
+   if(content.collection)await choose('Open as Collection');
+   else await choose(content.type==='application/vnd.clist.annotation+json'?'Annotate':content.editor==='texteditor'||content.type==='text/plain'?'Text':'HTML');
+  }
+  return content;
+ };
+ try{
+  const sampleFetch=window.fetch;
+  const [legacySample,rssSample]=await Promise.all([
+   fetch('fixtures/legacy-annotation.html').then(response=>response.text()),
+   fetch('fixtures/saved-collection.xml').then(response=>response.text())]);
+  for(const current of ['texteditor','tinymce','annotate-edit']){
+   currentEditor=current;annotationBody='<p>Existing draft</p>';textBody='existing';htmlBody='existing';
+   await load(legacySample,'text/plain','content(9).txt',false);
+   const text=document.getElementById('load-options').textContent;
+   check(text.includes('Text')&&text.includes('HTML')&&text.includes('Annotate'),'Legacy annotation offers all three editors on every load');
+   check(!text.includes('already has content'),'Editor choice precedes overwrite review');
+  }
+  // Use the real queued-content switch path for the legacy annotation regression.
+  annotationBody='';refs=[];currentEditor='texteditor';switchToEditor=realSwitchToEditor;
+  await load(legacySample,'text/plain','content(9).txt',false);await choose('Annotate');
+  check(annotationBody.includes('Stephen Downes wrote:'),'Real Annotation initialize consumes the carried file body');
+  check(pendingContent===null,'Carried annotation content is consumed exactly once');
+  check(JSON.parse(editorHandlers['annotate-edit'].getFileContent().value).target.title==='OK','Legacy post title becomes annotation draft title only after choosing Annotate');
+  const recoveredCitation=JSON.parse(editorHandlers['annotate-edit'].getFileContent().value).target;
+  check(recoveredCitation.url==='https://github.com/Downes/CList/commit/acb80ebc20103a90face67fb7fb2fb6fc741ef6f','Legacy citation URL becomes annotation target URL');
+  check(recoveredCitation.author_name==='Stephen Downes','Legacy quote author becomes annotation author');
+  check(!recoveredCitation.feed,'No feed name is invented when absent from the file');
+
+  switchToEditor=fixtureSwitch;
+  annotationBody='';refs=[];currentEditor='texteditor';
+  const htmlAnnotation='<div id="clist-annotation"><div id="annotation-title">Saved target</div><div id="annotation-url">https://target.invalid/html</div><div id="annotation-author">Writer</div><div id="annotation-feed">Journal</div><div id="annotation-body"><p>Recovered <strong>HTML annotation</strong>.</p></div></div>';
+  await load(htmlAnnotation,'application/xml','annotation.xml');
+  const recovered=JSON.parse(editorHandlers['annotate-edit'].getFileContent().value);
+  check(recovered.target.title==='Saved target'&&recovered.target.url==='https://target.invalid/html'&&recovered.target.author_name==='Writer','HTML field ids restore annotation fields');
+  check(recovered.body.includes('<strong>HTML annotation</strong>'),'HTML field recovery retains the rich description');
+  textBody='';currentEditor='collection';await load(rssSample,'application/xml','OK.xml',false);
+  check(document.getElementById('load-options').textContent.includes('Open as plain text'),'RSS offers plain text');
+  await choose('Open as plain text');check(currentEditor==='texteditor'&&textBody===rssSample,'RSS plain text never falls back to Collection');
+  textBody='';htmlBody='';annotationBody='';refs=[];
+  const id='urn:uuid:11111111-1111-4111-8111-111111111111';
+  const items=[{title:'One',url:'https://one.invalid/',author_name:'Author'}];
+  for(const format of Object.keys(collectionFormats))for(const entries of [items,[]]){
+   collection=null;await load(collectionFormats[format].serialize('Saved collection',entries,id),'image/png','wrong.pdf');
+   check(collection&&collection.title==='Saved collection'&&collection.items.length===entries.length,format+' collection round-trips despite filename/MIME, including empty');
+   check(collection.id===id,format+' identity retained');messages.push(format+': '+entries.length+' items');
+  }
+  const prefixedRSS=collectionFormats.rss.serialize('Alias namespace',items,id).replaceAll('xmlns:dc=', 'xmlns:metadata=').replaceAll('<dc:', '<metadata:').replaceAll('</dc:', '</metadata:');
+  await load(prefixedRSS,'text/plain','namespace.txt');
+  check(collection.id===id,'Dublin Core identity survives alternate namespace prefix');
+  editorHandlers.collection={contentTypes:[],getContent:()=>collection?JSON.stringify(collection.items):''};
+  collection={title:'Parked draft',items:[{url:'https://draft.invalid'}]};
+  await load(collectionFormats.json.serialize('Incoming',items,id),'text/plain','wrong.txt');
+  check(collection.title==='Parked draft','Parked collection is not overwritten');
+  const cancel=[...document.querySelectorAll('#fixture-dialog button')].find(button=>button.textContent==='Cancel');
+  cancel.click();check(collection.title==='Parked draft','Cancel retains the parked draft');
+  await load(collectionFormats.json.serialize('Incoming',items,id));
+  await [...document.querySelectorAll('#fixture-dialog button')].find(button=>button.textContent==='Open collection').onclick();
+  check(collection.title==='Incoming','Collection opens only after explicit approval');
+  delete editorHandlers.collection;collection=null;
+  for(const xml of ['<?xml version="1.0"?><document><title>Ordinary XML</title></document>','<document><broken></document>']){
+   collection=null;textBody='';currentEditor='texteditor';await load(xml,'application/rss+xml','wrong.rss');
+   check(!collection&&textBody===xml,'Ordinary/malformed XML stays exact text');
+  }
+  textBody='';currentEditor='texteditor';const json='{"settings":{"mode":"dark"}}';await load(json,'application/rss+xml','wrong.xml');
+  check(textBody===json,'Unknown JSON remains text rather than object coercion');
+  const literal='literal <tags> & "quotes"';textBody=literal;currentEditor='texteditor';
+  const metadata={format:'clist-post-v1',editor:'texteditor',title:'Saved document',references:[{url:'https://source.invalid',title:'Source <quoted>'}]};
+  const packed=await packagePost({title:'Saved document',referenceHtml:'',fileMetadata:metadata});
+  const parsed=new DOMParser().parseFromString(packed,'text/html');
+  check(JSON.parse(parsed.querySelector('#clist-file-metadata').textContent).references[0].title==='Source <quoted>','Embedded metadata safely preserves angle brackets');
+  textBody='';refs=[];currentEditor='tinymce';await load(packed,'application/xml','wrong.xml');
+  check(currentEditor==='texteditor'&&textBody===literal,'Document metadata selects original local editor and exact literal content');
+  check(refs[0].url==='https://source.invalid','Document references restored');
+  const legacy='<div id="post"><div id="post-title">Old title</div><div id="post-content"><p>Old document</p></div></div>';
+  htmlBody='';currentEditor='tinymce';await load(legacy,'application/json','wrong.json');
+  check(htmlBody==='<p>Old document</p>','Legacy HTML wrapper recognized by content');
+  const target={url:'https://target.invalid',title:'Annotation target',author_name:'Author',feed:'CList Changelog'};
+  const native={format:'clist-annotation-v1',body:'<p>Native <strong>annotation</strong></p>',target,references:[target,{url:'https://second.invalid'}]};
+  annotationBody='';refs=[];currentEditor='texteditor';await load(JSON.stringify(native),'application/xml','wrong.xml');
+  check(currentEditor==='annotate-edit'&&annotationBody===native.body,'Native annotation loads into annotation editor');
+  check(JSON.parse(editorHandlers['annotate-edit'].getFileContent().value).target.title===target.title,'Annotation target restored');
+  _writeLocalFile=async content=>{saved=content;};await saveContent();
+  check(JSON.parse(saved).format==='clist-annotation-v1'&&JSON.parse(saved).references.length===2&&JSON.parse(saved).target.feed==='CList Changelog','Logged-out annotation save retains native fields and references');
+  annotationBody='<p>Existing draft</p>';await load(JSON.stringify(native),'text/plain','wrong.txt');
+  check(annotationBody==='<p>Existing draft</p>','Existing annotation draft waits for choice');
+  const replace=[...document.querySelectorAll('#load-options button')].find(button=>button.textContent==='Replace');
+  check(replace,'Replace choice available');replace.click();check(annotationBody===native.body,'Replace restores full annotation');
+  for(const id of ['write-title','load-options','writeReferences','annotateEditDiv','fixture-editor-root','fixture-dialog']) document.getElementById(id)?.remove();
+  document.body.dataset.result='PASS';document.getElementById('result').textContent='PASS: content-first collection formats (including empty), XML/JSON fallback, exact document metadata/references, legacy HTML, native annotation save/load, real annotation switching, HTML field/citation recovery and overwrite choice. No external requests or file writes.';
+ }catch(error){console.error(error);document.body.dataset.result='FAIL';document.getElementById('result').textContent='FAIL: '+error.message;}
+})();
+</script>

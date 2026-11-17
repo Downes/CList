@@ -138,3 +138,39 @@ reply tokens, per-document park/restore and publication snapshots.
 `assertAccountSession` checks it alongside the captured store/token before account
 operations, encryption and persistence. LocalRSS OPML receipt saves use it to stop
 closed/replaced panel operations from writing. It is never serialized into accounts.
+
+## Saved files
+
+`file-recognition.js` returns a content-derived editor MIME/value plus optional
+collection, original editor hint and page metadata. JSON/XML that does not match
+an actual supported structure stays text; filenames and MIME claims cannot turn
+it into a collection. `CListAnnotationFile` preserves the annotation body, target
+fields and references independently of the publishable HTML returned by getContent.
+Optional `getFileContent()` returns `CListEditorFileContent` only for local saving.
+CList HTML document wrappers carry inert JSON metadata (`clist-post-v1`), including
+raw typed content, editor/title and references, so literal Text content round-trips.
+New collection JSON/HTML/Markdown/text exports include an explicit collection
+marker (RSS/OPML identify themselves by structure). Historical files are supported
+where their content is distinctive; unmarked old annotation HTML is indistinguishable
+from an ordinary document and must not be guessed into the annotation editor.
+
+## Annotation file body delivery and HTML fields
+
+Annotations use JSON (`clist-annotation-v1`) as their native local-save format;
+the publishable body API remains HTML. XML is not required as a second native
+format. HTML can be recognized as an annotation when its fields are explicit:
+`#clist-annotation` (or `data-clist-kind="annotation"`) contains
+`#annotation-body`/`#annotation-description` and optional `#annotation-title`,
+`#annotation-url`, `#annotation-author`, `#annotation-author-id`, `#annotation-feed`,
+`#annotation-image`, `#annotation-summary` and `#annotation-service`. Without the
+container, body/title/url together form the explicit signature. Field text is
+read as data; the body uses the shared sanitizer. Generic old `post-title` and
+`post-content` wrappers are not unique annotation signatures, but choosing Annotate
+recovers the saved title and body without guessing target fields from arbitrary links.
+
+Annotation initialization now awaits TinyMCE readiness and consumes queued file
+content through `loadPredefinedContent`. Initialization failures retain that queue
+for retry. Node annotation tests exercise the real switch and initialize functions
+with delayed/rejected TinyMCE startup. The browser fixture also exercises the real
+queued-content switch (editor widgets remain mocked) and explicit HTML fields.
+Rerun the fixture for this revision; previous PASS results predate the startup fix.

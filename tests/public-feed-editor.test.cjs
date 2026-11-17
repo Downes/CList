@@ -30,7 +30,7 @@ class FixtureParser {
         });
         return {
             documentElement: { localName: xml.includes('<opml') ? 'opml' : 'html' },
-            querySelector: () => null,
+            querySelector: selector => selector === 'body' && /<body[\s>]/.test(xml) ? {} : null,
             querySelectorAll: () => outlines,
         };
     }
