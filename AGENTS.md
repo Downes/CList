@@ -184,8 +184,18 @@ must not reload another account. Handler `uiActions` such as Options preserve
 the displayed feed and pagination while opening controls. `context.updateAccount()` reconciles owned
 metadata updates only. LocalRSS read/bookmark actions use `localrss_actions.js` with captured row targets,
 explicit toggle transport and view-owned feedback. Preserve earlier-page actions during
-pagination, invalidate replaced rows, and never automatically retry toggles. Options/database
-operations still have legacy paths; do not present those as migrated.
+pagination, invalidate replaced rows, and never automatically retry toggles. Options panel
+lifetime, statistics and Mark all as read use `localrss_options.js` (captured controller),
+`localrss_options_view.js` (view) and explicit transport in `localrss_requests.js`.
+Post search and Show posts reuse the guarded list loader with captured selection
+in `CList.state.localrssReading`; Refresh retains it and normal filters clear it.
+Feed discovery/search/edit/retry/delete use `localrss_feeds.js` (panel-owned cache and
+editor controller), `localrss_feeds_view.js` (controls/feedback), and explicit requests.
+Invalidate captured cache generations on writes; never automatically repeat uncertain writes.
+OPML import/export and new-database account creation use `localrss_opml.js`
+(controller/receipts), `localrss_opml_view.js` (captured controls) and
+`localrss_opml_requests.js` (explicit transport). Reuse `saveAccount`/`loadAccountRecords`;
+never repeat an import to recover an account-save or refresh failure.
 
 `initialize(accountData, context)` receives a detached selected account and optional
 guarded request context. Existing feed actions receive no arguments. Only handlers

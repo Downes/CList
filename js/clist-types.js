@@ -75,6 +75,7 @@
  * @property {string} storeUrl
  * @property {string} token
  * @property {CryptoKey} encKey
+ * @property {function(): boolean} [isCurrent] Optional owner-lifetime guard, checked before encryption and persistence.
  */
 
 /**

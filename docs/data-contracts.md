@@ -133,3 +133,8 @@ and collaborative `clist_refs` maps retain their existing shapes. There is no
 separate current-reference editor display or state. Do not replace document
 reference accumulation with a single latest source; preserve URL deduplication,
 reply tokens, per-document park/restore and publication snapshots.
+
+`CListAccountSession.isCurrent` is an optional transient operation-owner guard.
+`assertAccountSession` checks it alongside the captured store/token before account
+operations, encryption and persistence. LocalRSS OPML receipt saves use it to stop
+closed/replaced panel operations from writing. It is never serialized into accounts.

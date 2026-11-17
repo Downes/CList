@@ -63,13 +63,16 @@ window.CList.ui.localrssReader = {
         }
     },
     async render(page, context, request, append, onLoadMore) {
-        const title = request.account.title || 'LocalRSS';
+        const title = request.selection?.mode === 'search' ? `Search: "${request.selection.query}"`
+            : request.selection?.mode === 'feed' ? request.selection.title || 'Feed'
+            : request.account.title || 'LocalRSS';
         if (!append && !page.items.length) {
             context.commit(() => {
                 const container = window.CList.ui.view.feedContainer; container.innerHTML = '';
                 container.appendChild(createFeedHeader(request.kind === 'feeds' ? title + ' - Feeds' : title));
                 const message = document.createElement('p'); message.className = 'feed-status-message';
                 message.textContent = request.kind === 'feeds' ? 'No feeds in this database.'
+                    : request.selection ? 'No posts found.'
                     : request.filter === 'bookmarked' ? 'No bookmarked items.'
                     : request.filter === 'unread' ? 'All caught up - no unread items.' : 'No items found.';
                 container.appendChild(message);
@@ -77,7 +80,11 @@ window.CList.ui.localrssReader = {
             return;
         }
         await context.render(page.items, {
-            normalize: request.kind === 'feeds' ? raw => normalizeLocalrssFeed(raw, request.account) : async raw => { const item = await normalizeLocalrssItem(raw);
+            normalize: request.kind === 'feeds' ? async raw => {
+                const item = await normalizeLocalrssFeed(raw, request.account);
+                item.localrssFeedPostsId = bindLocalrssFeedPosts(raw.id, item.title, context);
+                return item;
+            } : async raw => { const item = await normalizeLocalrssItem(raw);
                 item.localrssActionId = bindLocalrssActions(raw.id, request, context); return item; },
             title: request.kind === 'feeds' ? title + ' - Feeds' : title, append, onLoadMore,
         });

@@ -35,9 +35,11 @@
  * @property {string} filter
  * @property {number} offset
  * @property {number} limit
+ * @property {CListLocalrssSelection} [selection]
  */
 
 /** @typedef {{items: Object[], offset: number, hasMore: boolean}} CListLocalrssPage */
-/** @typedef {{kind: 'items'|'feeds', filter: string, offset: number}} CListLocalrssReadState */
+/** @typedef {{mode: 'search', query: string}|{mode: 'feed', feedId: number|string, title: string}} CListLocalrssSelection */
+/** @typedef {{kind: 'items'|'feeds', filter: string, offset: number, selection?: CListLocalrssSelection}} CListLocalrssReadState */
 
 /** @typedef {{account: CListAccountData, entryId: (number|string), action: ('read'|'bookmark')}} CListLocalrssToggleRequest */

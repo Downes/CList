@@ -414,3 +414,55 @@ draft stays unchanged and source metadata is still collected. Generic handlers,
 selected-text quotes and unsupported editors are covered. On 2026-11-16 all 257
 Node tests passed, and the updated DOM fixture passed in the ChatGPT in-app
 browser with editor APIs mocked; live service sessions were not exercised.
+
+## LocalRSS Options regression checks
+
+Run `node --test tests/localrss-reader.test.cjs tests/reader-controller.test.cjs`.
+Options checks cover captured database/endpoint/authentication, replaced/closed panels,
+account/session changes, statistics request ordering, duplicate/obsolete confirmations,
+uncertain writes and separate write/refresh outcomes. The simulated view check covers
+Show, reconnect, close, statistics and Mark all controls. Run the full Node suite after
+shared changes. `localrss-reader.browser.html` also builds the actual Options panel,
+checks statistics, rejects a closed panel confirmation and performs one mocked Mark all
+write. All fixture writes are mocked; no live database changes are needed.
+For a deliberate manual service check, use a disposable database: open Options,
+change Show, reconnect, close/reopen, and verify counts; confirm Mark all only when
+intending to change that database. OPML import/export and account creation now use separate guarded modules.
+
+## LocalRSS post search and Show posts checks
+
+Run `node --test tests/localrss-reader.test.cjs tests/reader-controller.test.cjs`
+and the full Node suite. Check query/feed capture, overlapping loads, old callbacks,
+account/session changes, empty/error responses, row actions and Refresh retaining
+both successful and failed selections. The `localrss-reader.browser.html` fixture
+adds mocked search and feed-post controls. Its previous PASS predates these additions;
+rerun it and wait for the final PASS. In the normal app, search from Options, use
+Show posts from Feeds and the feed editor, then Refresh and switch to Unread.
+Confirm titles, audio and read/bookmark controls match the displayed results.
+Live read/bookmark actions modify the selected database; fixture writes are mocked.
+
+## LocalRSS feed-management checks
+
+Run `node --test tests/localrss-reader.test.cjs tests/reader-controller.test.cjs`, then
+`node --test tests/*.test.cjs`. Feed-management checks cover panel-owned cache reuse,
+in-flight deduplication/invalidation, stale search/editor responses, captured write
+payload/authentication, duplicate clicks and obsolete delete confirmations, uncertain
+write outcomes, newer drafts and independent refresh failures. The updated
+`localrss-reader.browser.html` builds real controls and mocks create, cached lookup,
+editor load/save/retry/delete. Rerun it and wait for its final PASS; earlier PASS results
+predate these checks. Manual live feed mutations require a disposable database and
+change that database; no live-service mutation is part of the automated fixture.
+OPML import/export and account creation have since migrated in a separate step below.
+
+## LocalRSS OPML and account-creation checks
+
+Run `node --test tests/localrss-reader.test.cjs tests/reader-controller.test.cjs`
+and the full Node suite. OPML regressions cover captured multipart fields/auth,
+malformed and uncertain responses, duplicates, panel/account/session invalidation,
+exports/downloads, seed-form edits/navigation, and account writes versus refresh
+failures. The account helper's optional lifetime guard is exercised before writing.
+The browser fixture `localrss-reader.browser.html` now mocks merge/newdb imports,
+export download, encrypted KV account creation and the optional seed form. Rerun
+it and wait for the new final PASS; earlier results predate these additions.
+No fixture sends a real import, download or KV write. Normal-application checks
+and live-service authorization remain separate, unverified evidence.
