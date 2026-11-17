@@ -38,6 +38,12 @@ satisfy a general error-feedback rule.
 - Preserve the plain JavaScript architecture and open-ended member/account
   properties. Keep encrypted records, decrypted JSON, and parsed objects distinct.
 
+## Line endings
+
+Use LF for all text edits and new files, including on Windows. Follow
+`.gitattributes` and `.editorconfig`; do not introduce CRLF when writing files
+through scripts or tools. Preserve binary files unchanged.
+
 ## Architecture
 
 - Keep service-specific functions in that service's JavaScript module. When a
