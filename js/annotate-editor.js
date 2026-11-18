@@ -4,8 +4,8 @@
 // Depends on: utilities.js (escapeHtml, showStatusMessage, showErrorModal, parseAccountValue,
 //             getSiteSpecificCookie, getAccounts, cleanHTMLContent, ensureAccountsLoaded),
 //             kvstore.js, editors.js
-//             (currentEditor, editorHandlers, switchToEditor, registerEditorPanes,
-//             switchEditorPane, renderUploadPane), tags.js (getWriteTags),
+//             (currentEditor, editorHandlers, switchToEditor), editor-panes.js
+//             (registerEditorPanes, switchEditorPane, renderUploadPane), tags.js (getWriteTags),
 //             tinymce.js (pushAndDisplayReference), references.js (getReferences, pushReference),
 //             annotate.js (_submitAnnotation — loads before this file), ui.js (buildDialogModal),
 //             grsshopper_publish.js (window.CList.uploaders.gRSShopper — loads before this file),
@@ -162,7 +162,7 @@ async function _renderAnnotateEditor(container) {
     _renderAnnotateRefFields(fieldsSection);
 
     // Upload pane — hidden until the 'Upload Image' editor-menu button opens it (see
-    // switchEditorPane, editors.js). A persistent panel rather than a modal, same shape as
+    // switchEditorPane, editor-panes.js). A persistent panel rather than a modal, same shape as
     // gRSShopper's own Upload tab (editor/tabs.pl's Tab_Upload / editor/forms.pl's
     // form_file_select: an import-from-URL field alongside file upload, on its own pane
     // rather than a one-shot dialog) — you stay on it until you close it yourself.
@@ -356,7 +356,7 @@ function _annotateClear() {
 
 // Resolves whichever account is currently selected in the Send row's "Send to" picker and,
 // if it supports image upload (window.CList.uploaders), renders the Upload pane against it —
-// called by switchEditorPane() (editors.js) every time the 'Upload Image' editor-menu button
+// called by switchEditorPane() (editor-panes.js) every time the 'Upload Image' editor-menu button
 // opens this pane, so it always reflects the live Send-to selection rather than whatever was
 // selected the last time the pane was opened. Shows a prompt instead if nothing selected (or
 // the selected account's type) supports upload.
@@ -374,7 +374,7 @@ function _annotateRenderUploadPane(container) {
     _renderAnnotateUploadPane(container, structuredClone(selected));
 }
 
-// Renders the Upload pane via the shared renderUploadPane (editors.js) — candidate images come
+// Renders the Upload pane via the shared renderUploadPane (editor-panes.js) — candidate images come
 // from ref.images (or ref.image alone), same click-to-attach convention as gRSShopper's own
 // candidate-image picker (api/hub_images.pl's render_image_picker/hubAttachImage). On success,
 // writes the hosted URL into ref.image and appends an <img> referencing it to the Description

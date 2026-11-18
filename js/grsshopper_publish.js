@@ -98,7 +98,55 @@ window.CList.uploaders.gRSShopper = {
             throw new Error('gRSShopper upload failed: ' + (data?.message || response.status));
         return { url: data.url, fileId: String(data.file_id) };
     },
+
+    // The deferred step of grsshopper-editor.js's three-step upload flow: nothing is sent to
+    // gRSShopper until a post exists, so this always carries postId and performs the file
+    // save *and* the graph-link (post <-> file) in a single request — cmd=clist_upload_for_post
+    // (api/clist.pl's api_clist_upload_for_post), unlike cmd=clist_upload above which only ever
+    // creates an unlinked file. Takes either a remote sourceUrl (reuses upload_url() server-side,
+    // same as uploadFromUrl) or a local `file` (File/Blob from a <input type="file">), read here
+    // into base64 since the token-authenticated JSON API has no multipart form.
+    /** @param {CListAccountData} account
+     * @param {{postId: string, sourceUrl?: string, file?: File}} selection
+     * @returns {Promise<{url: string, fileId: string}>} */
+    async uploadForPost(account, { postId, sourceUrl, file }) {
+        if (!account.apiToken) throw new Error('No gRSShopper API token - check Account Settings.');
+        const base = (account.instance || '').replace(/\/$/, '');
+        const body = { token: account.apiToken, post_id: postId };
+        if (file) {
+            body.filename = file.name;
+            body.data = await _grsshopperFileToBase64(file);
+        } else if (sourceUrl) {
+            body.source_url = sourceUrl;
+        } else {
+            throw new Error('No file or source URL to upload.');
+        }
+        let response;
+        try {
+            response = await fetch(`${base}/cgi-bin/api.cgi?cmd=clist_upload_for_post`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+            });
+        } catch (error) {
+            throw Object.assign(new Error('Connection lost; check gRSShopper before retrying.'), { outcome: 'uncertain' });
+        }
+        const data = await response.json().catch(() => null);
+        if (!response.ok || !data || data.status !== 'OK')
+            throw new Error('gRSShopper upload failed: ' + (data?.message || response.status));
+        return { url: data.url, fileId: String(data.file_id) };
+    },
 };
+
+// Reads a File/Blob into a bare base64 string (no "data:...;base64," prefix) for
+// uploadForPost's JSON body. Local helper, not a general utilities.js candidate —
+// specific to this one upload path.
+function _grsshopperFileToBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result).split(',', 2)[1] || '');
+        reader.onerror = () => reject(new Error('Could not read the selected file.'));
+        reader.readAsDataURL(file);
+    });
+}
 
 window.CList.publishers.gRSShopper = {
     construct(title, post) {

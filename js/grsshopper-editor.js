@@ -3,8 +3,8 @@
 //
 // Depends on: utilities.js (escapeHtml, showStatusMessage, showErrorModal, parseAccountValue,
 //             ensureAccountsLoaded), ui.js (buildAccountSelect), kvstore.js, editors.js
-//             (currentEditor, editorHandlers, registerEditorPanes, switchEditorPane,
-//             renderUploadPane), grsshopper_publish.js (window.grsshopperSavePost,
+//             (currentEditor, editorHandlers), editor-panes.js (registerEditorPanes,
+//             switchEditorPane, renderUploadPane), grsshopper_publish.js (window.grsshopperSavePost,
 //             window.CList.uploaders.gRSShopper — loads before this file), the global `tinymce`
 //             library object (same script tag tinymce.js uses) for this editor's own two TinyMCE
 //             instances — the Write pane's long-form content (selector '#grsshopper-post-body')
@@ -16,8 +16,9 @@
 // A direct editor for a gRSShopper post record (api/clist.pl's cmd=clist_publish /
 // cmd=clist_fetch) — not an annotation of something else the way annotate-edit is. Modeled on
 // gRSShopper's own ghub post-edit screen's multi-pane Write/Edit/Upload/Publish tabs (editor/
-// tabs.pl), using the shared pane-switcher (registerEditorPanes/switchEditorPane, editors.js)
-// built for exactly this. Deliberately out of scope for this pass (see /srv/ROADMAP.md):
+// tabs.pl), using the shared pane-switcher (registerEditorPanes/switchEditorPane,
+// editor-panes.js) built for exactly this. Deliberately out of scope for this pass
+// (see /srv/ROADMAP.md):
 // scheduled/pub_date-gated posting, a Preview pane, an Analyze pane, and author/feed
 // graph-linked autocomplete (gRSShopper's own graph API isn't exposed to CList yet) — Author/
 // Feed here are plain text fields. "Publish" is immediate-only: create or update the post
@@ -30,6 +31,18 @@
 // (Write pane) and description (Edit pane) — each live in their own TinyMCE instance, not here,
 // same split as annotate-edit's ref/body separation.
 let _grsshopperPost = { title: '', link: '', author: '', feed: '', id: null };
+
+// The full reference object a quoted source entry carried (see insertLink/insertLinkVia below) —
+// retained (not just its title/url/author/feed, already copied into _grsshopperPost) so the
+// Upload pane can offer the entry's own images as candidate thumbnails, same as annotate-
+// editor.js's _annotateTarget()-sourced candidates. Reset by Clear.
+let _grsshopperReference = null;
+
+// The Upload pane's three-step flow (selection -> stage -> send) is deferred: step 2 ("upload
+// into CList") is just holding this in memory, since nothing can actually reach gRSShopper until
+// a post exists. Shape is either { sourceUrl } or { file } (a local File object). Cleared once
+// _grsshopperSendPendingUpload succeeds, or by Clear.
+let _grsshopperPendingUpload = null;
 
 // gRSShopper write accounts and the live <select> picking among them, refreshed every time the
 // Edit pane renders — read by the Upload and Publish panes to resolve which account to use,
@@ -130,6 +143,22 @@ function _grsshopperAppendHTML(html) {
         if (ta) ta.value = editor.getContent();
     } else {
         const ta = document.getElementById('grsshopper-post-body');
+        if (ta) ta.value = ta.value ? ta.value + '<br><br>' + html : html;
+    }
+}
+
+// Appends HTML to the end of the post description — used for a quoted source entry
+// (insertLink/insertLinkVia), since the quote is supplementary context for the post, not
+// the post's own body text. Mirrors _grsshopperAppendHTML's live-editor/textarea fallback.
+function _grsshopperAppendDescriptionHTML(html) {
+    const editor = tinymce.get('grsshopper-post-description');
+    if (editor) {
+        const existing = editor.getContent();
+        editor.setContent(existing ? existing + '<p>' + html + '</p>' : `<p>${html}</p>`);
+        const ta = document.getElementById('grsshopper-post-description');
+        if (ta) ta.value = editor.getContent();
+    } else {
+        const ta = document.getElementById('grsshopper-post-description');
         if (ta) ta.value = ta.value ? ta.value + '<br><br>' + html : html;
     }
 }
@@ -238,6 +267,63 @@ async function _grsshopperRenderEditPane(container) {
     makeField('Feed', 'feed');
 }
 
+// The entry's own images (from the quoted source's reference — see _grsshopperReference),
+// offered as one-click candidate thumbnails. Same shape-sniffing as annotate-editor.js's
+// _renderAnnotateUploadPane: a reader-populated reference may carry .images (plural) or a
+// single .image.
+function _grsshopperCandidateImages() {
+    const ref = _grsshopperReference;
+    if (!ref) return [];
+    return (ref.images && ref.images.length) ? ref.images : (ref.image ? [ref.image] : []);
+}
+
+// Step 2 of the three-step upload flow: stages `selection` ({ sourceUrl } or { file }) without
+// any network call — just held in memory until a post exists to attach it to. If a post already
+// exists (an update, or a later selection after Publish already succeeded once), step 3 fires
+// immediately instead of waiting; otherwise the selection is queued silently (Q4: queue, don't
+// error) and picked up by _grsshopperSendPendingUpload once Publish succeeds.
+function _grsshopperStageUpload(selection, statusEl) {
+    _grsshopperPendingUpload = selection;
+    if (_grsshopperPost.id) {
+        _grsshopperSendPendingUpload(statusEl);
+    } else if (statusEl) {
+        const label = selection.file ? selection.file.name : selection.sourceUrl;
+        statusEl.textContent = `Queued "${label}" — will upload to gRSShopper once the post is published.`;
+    }
+}
+
+// Step 3: the only point anything actually reaches gRSShopper. Always carries the now-existing
+// post id, so cmd=clist_upload_for_post can do the file transfer and the post<->file graph-link
+// in one request (see grsshopper_publish.js's uploadForPost / api/clist.pl's
+// api_clist_upload_for_post). Called both from the Upload pane (post already existed) and from
+// the Publish pane right after a successful save (post didn't exist until now).
+async function _grsshopperSendPendingUpload(statusEl) {
+    const pending = _grsshopperPendingUpload;
+    if (!pending || !_grsshopperPost.id) return;
+    const account = _grsshopperSelectedAccount();
+    if (!account) return;
+    const label = pending.file ? pending.file.name : pending.sourceUrl;
+    if (statusEl) statusEl.textContent = `Uploading "${label}" to gRSShopper…`;
+    try {
+        const result = await window.CList.uploaders.gRSShopper.uploadForPost(structuredClone(account), {
+            postId: _grsshopperPost.id, sourceUrl: pending.sourceUrl, file: pending.file,
+        });
+        _grsshopperPendingUpload = null;
+        showStatusMessage(`Uploaded "${label}" to gRSShopper.`);
+        if (statusEl) statusEl.textContent = `Uploaded: ${result.url}`;
+    } catch (error) {
+        console.error('[grsshopper-editor] upload failed', error);
+        showErrorModal(error.message, { title: 'Upload failed' });
+        if (statusEl) statusEl.textContent = 'Upload failed — see error for details.';
+    }
+}
+
+// Bespoke Upload pane for the three selection mechanisms (plus the in-scope placeholder for a
+// fourth): candidate thumbnails from the quoted entry, a source URL, or a local file — each
+// stages via _grsshopperStageUpload rather than uploading immediately, unlike the shared
+// renderUploadPane() (editor-panes.js), which is immediate-upload-only and stays in use for the
+// Annotate editor's unlinked-image case. Selecting from a CList image library is out of scope
+// for now (see /srv/ROADMAP.md) — shown disabled.
 function _grsshopperRenderUploadPane(container) {
     const account = _grsshopperSelectedAccount();
     container.innerHTML = '';
@@ -248,9 +334,97 @@ function _grsshopperRenderUploadPane(container) {
         container.appendChild(msg);
         return;
     }
-    renderUploadPane(container, structuredClone(account), [], (result) => {
-        _grsshopperAppendHTML(`<img src="${escapeHtml(result.url)}" alt="">`);
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'collection-editor-field';
+
+    const status = document.createElement('p');
+    status.className = 'feed-status-message';
+    if (_grsshopperPendingUpload) {
+        const label = _grsshopperPendingUpload.file ? _grsshopperPendingUpload.file.name : _grsshopperPendingUpload.sourceUrl;
+        status.textContent = _grsshopperPost.id
+            ? `Uploading "${label}" to gRSShopper…`
+            : `Queued "${label}" — will upload to gRSShopper once the post is published.`;
+    }
+
+    const candidates = _grsshopperCandidateImages();
+    if (candidates.length) {
+        const label = document.createElement('label');
+        label.textContent = 'From the Quoted Entry';
+        wrapper.appendChild(label);
+        const strip = document.createElement('div');
+        strip.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;';
+        candidates.forEach(url => {
+            const thumbBtn = document.createElement('button');
+            thumbBtn.type = 'button';
+            thumbBtn.title = 'Select this image for upload';
+            thumbBtn.style.cssText = 'padding:0;border:2px solid transparent;background:none;cursor:pointer;';
+            const img = document.createElement('img');
+            img.src = url;
+            img.alt = 'Candidate image';
+            img.style.cssText = 'width:100px;height:75px;object-fit:cover;display:block;';
+            img.onerror = () => thumbBtn.remove();
+            thumbBtn.appendChild(img);
+            thumbBtn.addEventListener('click', () => _grsshopperStageUpload({ sourceUrl: url }, status));
+            strip.appendChild(thumbBtn);
+        });
+        wrapper.appendChild(strip);
+    }
+
+    const urlRow = document.createElement('div');
+    urlRow.className = 'collection-editor-field';
+    const urlLabel = document.createElement('label');
+    urlLabel.textContent = 'From a URL';
+    urlRow.appendChild(urlLabel);
+    const urlInner = document.createElement('div');
+    urlInner.style.cssText = 'display:flex;gap:6px;';
+    const urlInput = document.createElement('input');
+    urlInput.type = 'text';
+    urlInput.className = 'collection-editor-input';
+    urlInput.placeholder = 'https://example.com/image.jpg';
+    urlInput.style.flex = '1';
+    const urlBtn = document.createElement('button');
+    urlBtn.className = 'btn btn-small';
+    urlBtn.textContent = 'Upload';
+    urlBtn.addEventListener('click', () => {
+        const sourceUrl = urlInput.value.trim();
+        if (!sourceUrl) { showErrorModal('Enter a URL first.', { title: 'URL required' }); return; }
+        _grsshopperStageUpload({ sourceUrl }, status);
     });
+    urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') urlBtn.click(); });
+    urlInner.appendChild(urlInput);
+    urlInner.appendChild(urlBtn);
+    urlRow.appendChild(urlInner);
+    wrapper.appendChild(urlRow);
+
+    const fileRow = document.createElement('div');
+    fileRow.className = 'collection-editor-field';
+    const fileLabel = document.createElement('label');
+    fileLabel.textContent = 'From Your Computer';
+    fileRow.appendChild(fileLabel);
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.addEventListener('change', () => {
+        if (fileInput.files && fileInput.files[0]) _grsshopperStageUpload({ file: fileInput.files[0] }, status);
+    });
+    fileRow.appendChild(fileInput);
+    wrapper.appendChild(fileRow);
+
+    const libraryRow = document.createElement('div');
+    libraryRow.className = 'collection-editor-field';
+    const libraryLabel = document.createElement('label');
+    libraryLabel.textContent = 'From the CList Image Library';
+    libraryRow.appendChild(libraryLabel);
+    const libraryBtn = document.createElement('button');
+    libraryBtn.className = 'btn btn-small btn-secondary';
+    libraryBtn.textContent = 'Coming Soon';
+    libraryBtn.disabled = true;
+    libraryBtn.title = 'Not yet implemented — see /srv/ROADMAP.md';
+    libraryRow.appendChild(libraryBtn);
+    wrapper.appendChild(libraryRow);
+
+    wrapper.appendChild(status);
+    container.appendChild(wrapper);
 }
 
 function _grsshopperRenderPublishPane(container) {
@@ -294,6 +468,9 @@ function _grsshopperRenderPublishPane(container) {
             _grsshopperPost.id = result.id;
             status.textContent = `Saved: ${result.url}`;
             showStatusMessage(`Saved to ${acct.title || acct.instance}.`);
+            // The post id gRSShopper just returned is the thing a queued upload (Upload pane)
+            // was waiting on — send it now, same request that does the post<->file graph-link.
+            _grsshopperSendPendingUpload();
         } catch (error) {
             console.error('[grsshopper-editor] publish failed', error);
             showErrorModal(error.message, { title: 'Publish failed' });
@@ -304,8 +481,24 @@ function _grsshopperRenderPublishPane(container) {
     });
 }
 
+// Populates empty Title/Link/Author/Feed fields from a quoted source entry — only when the
+// field hasn't been filled in yet, so later quotes never clobber what the user already
+// typed on the Edit pane. Re-renders that pane if it's the one currently visible.
+function _grsshopperFillFieldsFromReference(reference) {
+    if (!reference) return;
+    _grsshopperReference = reference;
+    if (!_grsshopperPost.title && reference.title) _grsshopperPost.title = reference.title;
+    if (!_grsshopperPost.link && reference.url) _grsshopperPost.link = reference.url;
+    if (!_grsshopperPost.author && reference.author_name) _grsshopperPost.author = reference.author_name;
+    if (!_grsshopperPost.feed && reference.feed) _grsshopperPost.feed = reference.feed;
+    const editPane = document.getElementById('grsshopper-edit-pane');
+    if (editPane && editPane.style.display !== 'none') _grsshopperRenderEditPane(editPane);
+}
+
 function _grsshopperClear() {
     _grsshopperPost = { title: '', link: '', author: '', feed: '', id: null };
+    _grsshopperReference = null;
+    _grsshopperPendingUpload = null;
     editorHandlers['grsshopper-post'].setContent('');
     _grsshopperSetDescription('');
     const editPane = document.getElementById('grsshopper-edit-pane');
@@ -354,6 +547,7 @@ function _grsshopperClear() {
 
                 const writePane = document.createElement('div');
                 writePane.id = 'grsshopper-write-pane';
+                writePane.style.display = 'none';
                 const editPane = document.createElement('div');
                 editPane.id = 'grsshopper-edit-pane';
                 editPane.style.display = 'none';
@@ -374,7 +568,7 @@ function _grsshopperClear() {
                     { id: 'upload', container: uploadPane, render: _grsshopperRenderUploadPane },
                     { id: 'publish', container: publishPane, render: _grsshopperRenderPublishPane },
                 ]);
-                switchEditorPane('grsshopper-post', 'write');
+                switchEditorPane('grsshopper-post', 'edit');
             }
             // Idempotent, like every other editor's initialize() — re-entering must not wipe
             // whatever's already been typed.
@@ -398,6 +592,24 @@ function _grsshopperClear() {
         loadContent: ({ type, value }) => {
             const itemContent = (type === 'text/html') ? cleanHTMLContent(value) : escapeHtml(value);
             if (itemContent) _grsshopperAppendHTML(itemContent);
+        },
+
+        insertLink: ({ content, entryUrl, feedTitle, reference }) => {
+            const itemContent = (content.type === 'text/html') ? cleanHTMLContent(content.value) : escapeHtml(content.value);
+            if (itemContent) {
+                _grsshopperAppendDescriptionHTML(`${itemContent} [<a href="${escapeHtml(entryUrl)}">${escapeHtml(feedTitle)}</a>]`);
+            }
+            _grsshopperFillFieldsFromReference(reference);
+        },
+
+        insertLinkVia: ({ content, linkedUrl, linkedTitle, entryUrl, authorOrFeedTitle, reference }) => {
+            const itemContent = (content.type === 'text/html') ? cleanHTMLContent(content.value) : escapeHtml(content.value);
+            if (itemContent) {
+                _grsshopperAppendDescriptionHTML(
+                    `${itemContent} [<a href="${escapeHtml(linkedUrl)}">${escapeHtml(linkedTitle)}</a>, via <a href="${escapeHtml(entryUrl)}">${escapeHtml(authorOrFeedTitle)}</a>]`
+                );
+            }
+            _grsshopperFillFieldsFromReference(reference);
         },
     };
 })();
