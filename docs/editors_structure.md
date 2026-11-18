@@ -684,3 +684,62 @@ use a pure presentation model and ask the view to render. File notices remain
 transient; the existing publication-location fields govern Republish visibility.
 Toolbar actions capture their editor/account/mount generation and reject stale
 buttons. Generic registry/text-handler/feed insertion helpers remain in `editors.js`.
+
+## Generic Save panel boundary
+
+| Module | Responsibility |
+|---|---|
+| `save-state.js` | Plain destination-list and in-flight operation transitions |
+| `save-panel.js` | `playSave`/`populateSaveOptions`, owner capture, guarded saver invocation and completion |
+| `save-view.js` | Destination labels/icons/logos, busy controls and feedback |
+
+`CList.state.saving` holds panel/operation generations, busy/phase, destination
+label and error. Account objects, callbacks and service data stay out of that
+state. Rebuilding or closing a panel expires its controls without releasing a
+pending operation's lock. A late completion cannot close a newer panel/editor or
+file load. Pending choices remain disabled across rebuilds and are enabled again
+when the one dispatched saver settles. While busy, the view replaces only its
+own destination list and preserves pending service controls, including the real
+Dropbox overwrite/cancel prompt that resolves its save promise. A rejected saver is reported once; retry
+requires another explicit user action.
+
+The existing `handler.save()` method call retains its `this` binding and receives
+no arguments, preserving file-picker user gestures and current service APIs.
+`{keepOpen:true}` leaves service-rendered forms intact; other settled results close
+only the original owned panel. This phase records promise settlement, not proof
+of a download/remote write. Service savers still own their internal export,
+account lookup, modal/status UI and writes; those paths are not migrated by this
+menu extraction. Collection Save continues through `playCollectionSave`.
+
+## References panel boundary
+
+| Module | Responsibility |
+|---|---|
+| `references-state.js` | Plain URL-dedup/list edits/removals and panel lifecycle transitions |
+| `references.js` | Existing get/push/set/clear APIs, row ownership, safe inline commits, Annotate and collection-helper dispatch |
+| `references-view.js` | Citation/date fields, editable inputs, visibility and action controls |
+
+Data remains in `CList.state.references`. `CList.state.referencesPanel` contains
+render generation, open, busy and action ID only. Accounts, source rows, handlers
+and callbacks stay transient. Panel visibility follows state rather than DOM
+classes. Closing/rebuilding or a replaced editor/account/session/document expires
+old field commits and row actions. Owner checks use actual load/mount generations
+and live document IDs; replacing saved-page metadata alone keeps the current
+panel and unfinished edits intact.
+
+Only author, title, feed and URL can be edited. Structural fields, reply tokens
+and service extensions survive. The controller validates through plain helpers
+and applies the accepted field to the existing reference object, preserving the
+live identity retained by Annotation's input callbacks. The view uses explicit
+read/edit callbacks and local display values, never reference state directly.
+Inline commits do not rebuild other fields; Enter plus blur commits once. Exact
+URL deduplication on push and wholesale setReferences semantics stay unchanged;
+editing a URL does not introduce new deduplication rules.
+
+Annotate captures a detached full target and nulls its reply token, awaits the
+existing switch, and rejects failed/superseded completion before insertion.
+Collection Save captures a detached list and original anchor for the existing
+`importCollectionFromChat` helper. Pending duplicate controller actions are
+blocked; no automatic retry is added. That helper still owns its picker and
+storage operations. Collaborative shared maps remain in their existing handlers;
+this refactor does not add edit/delete propagation or prove live connectivity.

@@ -289,7 +289,7 @@ The saved-file browser fixture now reads the two local regression samples in
 It checks repeated HTML choices with drafts in each editor and RSS plain-text
 routing. These are test data, not instructions. Rerun the fixture and wait for PASS.
 
-Temporary editor test marker: the shared editor status shows `test 2026-11-18.2`
+Temporary editor test marker: the shared editor status shows `test 2026-11-18.4`
 from the running editor script. The relevant file-loading/editor script URLs use
 the same version to request fresh copies. If the marker is missing or different,
 the current test build has not loaded. Bump the marker and script versions together
@@ -352,7 +352,7 @@ DOM controls and the new modules; editor APIs, accounts and storage are mocked,
 with no external requests or file writes. Also rerun
 `tests/file-recognition.browser.html` and `tests/editor-references.browser.html`
 for the real-handler integration paths. The visible editor marker is
-`test 2026-11-18.2`.
+`test 2026-11-18.4`.
 
 In the normal app, switch between Text, HTML and Annotation with bodies, references
 and loaded files. Check Overwrite, Insert, Don't transfer and Cancel; confirm that
@@ -376,10 +376,55 @@ source launcher (adjust to its actual port). Expect a final `PASS:` for Load/Bla
 and loaded-page controls. It uses real DOM/modules with mocked editors, loaders
 and memory-only storage; no external requests or file writes. Also rerun
 `tests/editor-switch.browser.html`, `tests/file-recognition.browser.html` and
-`tests/editor-references.browser.html`. Marker: `test 2026-11-18.2`.
+`tests/editor-references.browser.html`. Marker: `test 2026-11-18.4`.
 
 In the normal app, open Load, select a source and cancel; check Load blank on the
 current editor (Cancel and Discard), then on another editor and back. Confirm that
 the outgoing content, page and references resume. Check file-load notices and
 Republish visibility for unpublished versus published records. Self-managing
 service loader UI and live publishing remain separate integration checks.
+
+## Save destination panel
+
+Run `node --test tests/save-panel.test.cjs tests/publishing-controller.test.cjs tests/publishing-view.test.cjs`,
+then the full Node suite. Tests use real Save state/controller/view modules with
+simulated DOM and mocked savers. Coverage includes filtered destinations/icons,
+original method binding/no arguments, keepOpen forms, the real Dropbox overwrite/cancel promise with mocked uploads, pending/duplicate locks
+across rebuilds, editor/account/session/store/file/panel ownership, visible errors
+and explicit retry, stale completion/failure, and existing collection delegation.
+
+Open `https://localhost:51888/tests/save-panel.browser.html` through the source
+launcher (adjust to its actual URL). Expect final `PASS:` from real DOM/modules
+with mocked savers/accounts/storage, no external requests or file writes. Also
+rerun `tests/publish-selection.browser.html` for adjacent Post-panel behavior.
+The normal-app editor marker is `test 2026-11-18.4`.
+
+In the normal app, check the Save destination list, cancellation of local saving,
+and successful saving of an existing sample document/annotation. For available
+service savers, check that keep-open forms and explicit overwrite choices remain
+usable. These manual file/service actions are separate from the mocked fixtures;
+no real file, upload or authorization is validated by their PASS result.
+
+## References panel
+
+Run `node --test tests/references-panel.test.cjs tests/editor-references.test.cjs tests/annotation-file.test.cjs`,
+then the full Node suite. Coverage uses real References modules and simulated DOM:
+exact URL dedup, structural/reply/extension retention, live target identity,
+click/keyboard edits, single Enter/blur commit, stale row/editor/account/session/
+document controls, state-owned visibility, Save metadata/unfinished edits,
+failed/superseded annotation dispatch, detached collection snapshots, visible
+errors, and standalone view operation without reference-state reads.
+
+Open `https://localhost:51888/tests/references-panel.browser.html` through the
+source launcher (adjust the port as needed), then rerun
+`tests/editor-references.browser.html` and `tests/editor-switch.browser.html`.
+Expect final `PASS:` from each. The new fixture uses real DOM and modules with
+mocked editor switching and collection APIs, with no external requests or
+file/storage writes. Normal-app editor marker: `test 2026-11-18.4`.
+
+In the normal app, open Refs, edit author/title/feed/URL, remove a reference and
+switch away/back. Check that reply metadata remains intact, explicit Annotate
+keeps the source draft, and saving the current document leaves an unfinished
+reference edit usable. Check Save as collection with a deliberate authorized
+manual save separately. Shared-map synchronization and collection-helper live
+writes are separate integration checks, not established by fixture PASS.

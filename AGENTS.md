@@ -205,6 +205,26 @@ still own their internal UI and cannot be cancelled by these guards. Expire old
 controls on panel navigation and reject stale editor/account/session/file-load
 owners. Preserve full loaded-page metadata and existing publication visibility.
 
+Generic Save destinations use `save-state.js` (panel/in-flight transitions),
+`save-panel.js` (captured dispatch/completion controller), and `save-view.js`
+(destination rendering/busy/error feedback). `CList.state.saving` contains only
+panel/operation IDs, phase, busy, destination label and error. Retain the pending
+lock across panel rebuilds, preserve `save()` method binding/no arguments and
+`{keepOpen:true}` service forms and pending service prompts during list rebuilds,
+and never automatically retry writes. Collection
+Save still delegates to its existing controller. These guards do not capture or
+cancel a legacy saver's internal content/account reads, UI or service writes.
+
+References use `references-state.js` (plain list/panel transitions),
+`references.js` (compatibility API, captured row/action ownership), and
+`references-view.js` (citation editing and panel controls). Data stays in
+`CList.state.references`; visibility/generation/busy lives in `referencesPanel`.
+Keep URL deduplication, structural/reply metadata and legacy live reference-object
+identity on inline edits. Expire stale row/document controls; normal Save metadata
+updates alone do not represent another document or discard unfinished edits.
+Collaborative map synchronization remains handler-owned. The existing collection
+picker/storage helper is not migrated or cancelled by this panel extraction.
+
 ## Reader dispatch
 
 The central boundary uses `reader.js` (controller), `reader-state.js` (pure

@@ -188,6 +188,7 @@ function closeLeftPane() {
 }
 
 function closeRightPane(options = {}) {
+    if (typeof invalidateSavePanel === 'function') invalidateSavePanel();
     if (!options.preserveEditorControls && typeof invalidateEditorControls === 'function') invalidateEditorControls();
     if (typeof invalidateEditorPicker === 'function') invalidateEditorPicker();
     rightPane.style.width = '0';
@@ -284,6 +285,7 @@ function openLeftInterface(content) {
 }
 
 function openRightInterface(panelId) {
+    if (panelId !== 'save-instructions' && typeof invalidateSavePanel === 'function') invalidateSavePanel();
     if (panelId !== 'load-instructions' && typeof invalidateEditorControls === 'function') invalidateEditorControls();
     if (panelId !== 'editor-instructions' && typeof invalidateEditorPicker === 'function') invalidateEditorPicker();
     openRightPane();

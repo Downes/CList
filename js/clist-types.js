@@ -3,6 +3,26 @@
 // Read docs/data-contracts.md before extending these definitions.
 
 /**
+ * Reference panel lifecycle, separate from CList.state.references data.
+ * @typedef {Object} CListReferencesPanelState
+ * @property {number} generation Render/control lifetime; old rows cannot mutate a replacement list.
+ * @property {boolean} open Controller-owned visibility, not inferred from DOM classes.
+ * @property {boolean} busy One controller Annotate/collection-helper dispatch at a time.
+ * @property {number} actionId Monotonic asynchronous action identity.
+ */
+
+/**
+ * Generic Save destination panel state. Saver/account/content captures are transient.
+ * @typedef {Object} CListSavePanelState
+ * @property {number} panelId Monotonic destination-list generation.
+ * @property {number} operationId Monotonic save-dispatch generation.
+ * @property {boolean} busy Retained across list rebuilds until the dispatched saver settles.
+ * @property {'ready'|'saving'|'complete'|'failed'} phase Saver settlement, not proof of a remote write.
+ * @property {string|null} destination Selected destination label, never credentials or body content.
+ * @property {string|null} error
+ */
+
+/**
  * Captured loaded-page properties used by page/collection publication; extensible.
  * @typedef {Object.<string, *> & {kind: string, id?: string, pageKey?: string,
  * service?: string, accountInstance?: string, serviceId?: string, url?: string,

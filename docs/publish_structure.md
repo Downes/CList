@@ -579,3 +579,15 @@ reconciling selected account keys. Selection/busy state belongs to the controlle
 the view receives explicit values and callbacks, including accessible selected
 state and annotation highlighting. Button attributes reflect selection and do
 not determine publication targets. Save-menu rendering remains separate.
+
+## Save destination panel
+
+The generic Save list uses `save-state.js` for plain panel/operation transitions,
+`save-panel.js` for dispatch/completion, and `save-view.js` for rendering. Existing
+savers keep their no-argument `save()` API and optional `{keepOpen:true}` result.
+Collection Save still delegates to its existing controller. A pending generic
+save disables destination choices even if the list is rebuilt; old completions
+do not close newer panels. Pending service prompts survive destination-list
+rebuilds so their explicit Overwrite/Cancel controls can still settle the request. The controller does not automatically repeat writes.
+Service export/account/content capture and service-specific forms remain in each
+saver module; this boundary does not cancel their internal asynchronous work.

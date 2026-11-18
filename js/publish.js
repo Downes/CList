@@ -91,19 +91,6 @@ async function playPost() {
 
 }
 
-async function playSave() {
-    if (window.CList.state?.collectionPublishing?.busy) { showStatusMessage('Wait for collection publication to finish.'); return; }
-    if (typeof currentEditor !== 'undefined' && currentEditor === 'collection') {
-        if (typeof window.playCollectionSave === 'function') {
-            await window.playCollectionSave();
-            return;
-        }
-    }
-    populateSaveOptions();
-    openRightInterface('save-instructions');
-}
-
-
 function reconcilePublishSelection(accounts) {
     const eligibleKeys = new Set(
         accounts.filter(account => {
@@ -139,51 +126,6 @@ function populatePostOptions(accounts) {
 }
 
 // Standalone web-page publishing is implemented by web-page-*.js.
-
-function populateSaveOptions() {
-    const saveOptionsDiv = document.getElementById('save-options');
-    saveOptionsDiv.innerHTML = '';
-
-    const list = document.createElement('div');
-    list.className = 'account-list';
-
-    const tip = document.createElement('div');
-    tip.className = 'list-tip';
-    tip.textContent = 'Select a destination to save to';
-    list.appendChild(tip);
-
-    window.CList.savers.forEach(handler => {
-        if (!window.CList.ui.isHandlerVisible(handler)) return;
-        const btn = document.createElement('button');
-        btn.className = 'account-button';
-
-        const iconEl = document.createElement('span');
-        if (handler.logoSrc) {
-            iconEl.className = 'service-icon-img';
-            iconEl.style.webkitMask = `url('${handler.logoSrc}') no-repeat center / contain`;
-            iconEl.style.mask = `url('${handler.logoSrc}') no-repeat center / contain`;
-        } else {
-            iconEl.className = 'material-icons';
-            iconEl.textContent = handler.icon || 'save';
-        }
-
-        const nameEl = document.createElement('span');
-        nameEl.textContent = handler.label;
-
-        btn.appendChild(iconEl);
-        btn.appendChild(nameEl);
-
-        btn.addEventListener('click', async () => {
-            const result = await handler.save();
-            if (!result?.keepOpen) closeRightPane();
-        });
-
-        list.appendChild(btn);
-    });
-
-    saveOptionsDiv.appendChild(list);
-}
-
 
 function reportPublisherError(accountData, error) {
     const destination = accountData.title || accountData.type;

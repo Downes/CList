@@ -338,7 +338,16 @@ controller compatibility entry point for account refresh: reconcile selected key
 then pass detached selection/busy values and action callbacks to the view. The
 view never reads selection from buttons or changes `CList.state.publishing`.
 `makeWebPageOption()` remains available from the view and accepts its action as
-a callback. Save-menu rendering in `publish.js` is a separate Save concern.
+a callback. Save destinations use `save-state.js`, `save-panel.js`, and `save-view.js`.
+`playSave`/`populateSaveOptions` remain compatibility functions in `save-panel.js`.
+Keep the registered saver's no-argument method call and `{keepOpen:true}` result
+contract; service-owned forms and exports remain in their current modules. The
+pending Save lock survives panel rebuilds. Preserve pending service UI controls
+when replacing the destination list; Dropbox awaits its overwrite/cancel buttons. Guards own dispatch and completion UI,
+not cancellation/capture of a legacy saver's internal asynchronous data operations.
+Use `tests/save-panel.test.cjs` plus the full Node suite and the Save browser fixture
+for this boundary; mocked UI evidence does not establish actual saved files or
+remote writes.
 
 Editor source attribution is collected in the document References list, not a
 separate last-loaded-source block. Preserve `pushReference`/`getReferences`, URL
@@ -353,3 +362,17 @@ The generic feed arrow (`clistAnnotate`) must dispatch to the active editor's
 `annotate-edit` or let an inactive annotation draft redirect insertion. Explicit
 annotation navigation (Alt+A or the References panel's annotation action) remains
 separate. Capture the target handler at invocation and await its insertion errors.
+
+References now use `references-state.js` (plain list/panel transitions),
+`references.js` (captured controller and compatibility APIs), and
+`references-view.js` (display-only rows and callback-driven edits). Inline edits
+retain live reference-object identity required by existing Annotation field
+handlers; pure helpers preserve all structural/reply/extension fields. True
+editor/document loads expire old controls, while a Save/publication metadata
+update leaves the current panel and unfinished fields usable. Explicit Annotate
+captures a detached target with a null reply token and checks switch completion
+before inserting it. Collection Save passes a detached list to the existing
+picker/storage helper; its internal async UI/writes remain a legacy path. Run
+`tests/references-panel.test.cjs`, `tests/editor-references.test.cjs` and the full
+Node suite, plus the References browser fixtures. Live shared-map edit/delete
+propagation is not established or migrated by this boundary.

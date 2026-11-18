@@ -195,3 +195,22 @@ phase, blank target and error. Bodies/accounts/handlers remain transient. The
 existing extensible `currentLoadedPage` compatibility pointer retains its full
 record shape; `CListLoadedPagePresentation` is a separate display-only projection
 with label, URL, title, publication visibility and optional transient notice.
+
+## Generic Save panel
+
+`CListSavePanelState` describes `CList.state.saving`: panel/operation IDs, phase,
+busy flag, destination label and error. Saver settlement and an actual saved
+resource are distinct; there is no invented publication/file receipt here.
+Credentials, account objects, body content and callbacks remain outside state.
+The existing saver `save()` method and optional `{keepOpen:true}` result do not
+change. Busy remains true across panel rebuilds until that dispatched call settles.
+
+## Reference panel lifecycle
+
+`CListReferencesPanelState` documents `CList.state.referencesPanel`: generation,
+open, busy and action ID. Reference records remain in the existing references
+array with their complete structural/reply/extension fields. Plain helpers return
+list changes; accepted inline fields retain the original reference-object
+identity for existing editor callbacks. Panel display models contain citation
+fields only; source records and callbacks remain transient controller captures.
+Annotation and collection dispatch clone their target/list before awaiting.

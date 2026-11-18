@@ -1,0 +1,178 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CList References panel regression</title>
+<h1>References state and controls</h1>
+<pre id="result">Checking...</pre>
+<button id="references-button" class="btn" style="display:none">Refs</button>
+<div id="write-editor-area"></div><div id="fixture-errors"></div>
+<script>
+let currentEditor = 'source', currentEditorAccount = null, currentLoadedPage = null, fixtureDocId = 'document-one';
+let editorHandlers = {source: {getDocId: () => fixtureDocId}, other: {getDocId: () => 'other-document'}, 'annotate-edit': {}};
+window.CList = {state: {username: 'fixture-user'}, config: {flaskSiteUrl: 'https://store.invalid'}, ui: {view: {
+ writeEditorArea: document.getElementById('write-editor-area'), referencesButton: document.getElementById('references-button')}}};
+const referenceErrors = [], referenceNotices = [];
+let annotationRefreshes = 0;
+window.fetch = () => Promise.reject(Error('Unexpected external request'));
+window.showStatusMessage = text => referenceNotices.push(text);
+window.showErrorModal = (message, options) => {
+ referenceErrors.push({message, options}); const paragraph = document.createElement('p');
+ paragraph.textContent = message; paragraph.className = 'error-message';
+ document.getElementById('fixture-errors').appendChild(paragraph);
+};
+window._refreshAnnotateSendControls = () => { annotationRefreshes++; };
+window._refreshAnnotateRefFields = () => { annotationRefreshes++; };
+window.switchToEditor = async target => {
+ currentEditor = target; currentEditorAccount = null;
+ CList.state.editorSwitching = {id: (CList.state.editorSwitching?.id || 0) + 1};
+ setReferences([]); return true;
+};
+</script>
+<script src="../js/references-state.js?v=2026-11-18.4"></script>
+<script src="../js/references-view.js?v=2026-11-18.4"></script>
+<script src="../js/references.js?v=2026-11-18.4"></script>
+<script src="../js/editor-controls-state.js?v=2026-11-18.4"></script>
+<script src="../js/editor-controls-view.js?v=2026-11-18.4"></script>
+<script src="../js/editor-controls.js?v=2026-11-18.4"></script>
+<script>
+(async () => {
+ const check = (condition, message) => { if (!condition) throw Error(message); };
+ const equal = (actual, expected, message) => check(JSON.stringify(actual) === JSON.stringify(expected), message);
+ const reference = name => ({url: 'https://source.invalid/' + name, title: name, author_name: 'Author ' + name, feed: 'Feed ' + name,
+  created_at: '2026-11-15T12:30:00Z', cited_at: '2026-11-18T14:00:00Z', service: 'Mastodon', author_id: 'author-id', id: 'item-' + name,
+  replyToken: {type: 'Mastodon', statusId: 'reply-' + name}, extension: {retained: name}});
+ const panel = () => document.getElementById('clist-references-panel');
+ const rows = () => [...panel().querySelectorAll('.status-box')];
+ const field = (index, key) => rows()[index].querySelector('span[data-reference-field="' + key + '"]');
+ const action = (index, title) => rows()[index].querySelector('button[title="' + title + '"]');
+ const save = () => [...panel().querySelectorAll('button')].find(button => button.textContent === 'Save as collection');
+ const reset = () => {
+  clearReferences(); currentEditor = 'source'; currentEditorAccount = null; currentLoadedPage = null; fixtureDocId = 'document-one';
+  CList.state.username = 'fixture-user'; CList.config.flaskSiteUrl = 'https://store.invalid';
+  CList.state.editorSwitching = undefined; CList.state.editorLoading = undefined;
+  referenceErrors.length = 0; referenceNotices.length = 0; annotationRefreshes = 0;
+  document.getElementById('fixture-errors').replaceChildren();
+ };
+ const edit = (index, key, value, keyboard = false) => {
+  const display = field(index, key);
+  if (keyboard) display.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true, cancelable: true}));
+  else display.click();
+  const input = rows()[index].querySelector('input[data-reference-field="' + key + '"]');
+  check(input, 'Editable input rendered for ' + key); input.value = value;
+  input.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true, cancelable: true}));
+  input.dispatchEvent(new Event('blur')); return input;
+ };
+ const normalSwitch = switchToEditor;
+ try {
+  reset(); const original = reference('one');
+  check(pushReference(original), 'First exact URL is accepted');
+  check(!pushReference({...reference('duplicate'), url: original.url}), 'Identical URL is deduplicated');
+  check(pushReference({...reference('case'), url: 'https://source.invalid/ONE'}), 'URL deduplication preserves exact case matching');
+  equal(getReferences()[0], original, 'Reference structural fields and service extensions are retained');
+  check(document.getElementById('references-button').style.display === '', 'Nonempty references display the Refs button');
+  const citationText = rows()[0].querySelector('.ref-citation-line').textContent;
+  check(citationText.includes('2026-11-15') && citationText.includes('Cited on 2026-11-18'), 'Publication and citation dates remain distinct');
+  edit(0, 'title', '<img src=x onerror=bad()>Edited title');
+  check(getReferences()[0].title === '<img src=x onerror=bad()>Edited title' && !panel().querySelector('img'), 'Click editing commits safe text without inserting HTML');
+  edit(0, 'author_name', 'Keyboard author', true);
+  check(getReferences()[0].author_name === 'Keyboard author', 'Keyboard editing commits the selected field');
+  equal(getReferences()[0].replyToken, original.replyToken, 'Inline edits preserve reply tokens');
+  equal(getReferences()[0].extension, original.extension, 'Inline edits preserve extension fields');
+  edit(1, 'url', original.url);
+  check(getReferences().length === 2 && getReferences()[0].url === getReferences()[1].url, 'Editing a URL preserves existing duplicate-URL edit behavior');
+
+  for (const change of ['replace', 'remove', 'editor', 'document']) {
+   reset(); setReferences([reference('first'), reference('second')]);
+   const oldRemove = action(0, 'Remove reference').onclick;
+   field(0, 'title').click(); const oldInput = rows()[0].querySelector('input[data-reference-field="title"]');
+   if (change === 'replace') setReferences([reference('replacement')]);
+   if (change === 'remove') await action(1, 'Remove reference').onclick();
+   if (change === 'editor') currentEditor = 'other';
+   if (change === 'document') fixtureDocId = 'document-two';
+   const expected = structuredClone(getReferences()); oldInput.value = 'Obsolete edit';
+   oldInput.dispatchEvent(new Event('blur')); await oldRemove();
+   equal(getReferences(), expected, change + ': stale input and remove callbacks cannot mutate the current list');
+  }
+
+  reset(); setReferences([reference('open')]); playRefs();
+  check(CList.state.referencesPanel.open && panel().classList.contains('open'), 'Refs opens through controller state');
+  panel().classList.remove('open'); playRefs();
+  check(!CList.state.referencesPanel.open && !panel().classList.contains('open'), 'Closing follows state even if the DOM class was removed');
+  panel().classList.add('open'); playRefs();
+  check(CList.state.referencesPanel.open && panel().classList.contains('open'), 'Opening follows state even if the DOM class was added');
+  panel().querySelector('button[title="Close"]').click();
+  check(!CList.state.referencesPanel.open && !panel().classList.contains('open'), 'Header Close updates state and visibility');
+  clearReferences(); check(getReferences().length === 0 && !panel().classList.contains('open'), 'Clear empties references and closes the panel');
+  check(document.getElementById('references-button').style.display === 'none', 'Clear hides the Refs button');
+
+  reset(); const sameDocumentReference = reference('metadata'); setReferences([sameDocumentReference]); playRefs();
+  field(0,'title').click(); const unfinished = rows()[0].querySelector('input'); unfinished.value='Unfinished reference edit';
+  setLoadedPage({kind:'local-page',id:'saved-document',title:'Saved document'});
+  check(rows()[0].querySelector('input') === unfinished, 'Saving metadata preserves the unfinished reference input');
+  unfinished.dispatchEvent(new Event('blur'));
+  check(getReferences()[0].title === 'Unfinished reference edit' && getReferences()[0] === sameDocumentReference, 'Save metadata keeps current field callbacks and legacy target identity');
+  await action(0,'Remove reference').onclick(); check(getReferences().length===0, 'Visible Remove still works after saving metadata');
+  panel().querySelector('button[title="Close"]').click(); check(!CList.state.referencesPanel.open, 'Visible Close still works after saving metadata');
+
+  reset(); const annotationSource = reference('annotation'); setReferences([annotationSource]);
+  switchToEditor = normalSwitch; await action(0, 'Annotate this reference').onclick();
+  check(currentEditor === 'annotate-edit' && getReferences().length === 1, 'Annotate switches and inserts its captured source');
+  check(getReferences()[0].replyToken === null, 'Standalone annotation target has no reply token');
+  check(annotationSource.replyToken.statusId === 'reply-annotation', 'Annotate leaves the original source token unchanged');
+  check(getReferences()[0] !== annotationSource && annotationRefreshes === 2, 'Annotation captures a detached target and refreshes its controls');
+
+  reset(); setReferences([reference('pending')]); let finishSwitch, switchCalls = 0;
+  switchToEditor = () => { switchCalls++; return new Promise(resolve => { finishSwitch = resolve; }); };
+  const annotate = action(0, 'Annotate this reference'), pending = annotate.onclick();
+  check(annotate.disabled && save().disabled && !action(0, 'Remove reference').disabled, 'Busy disables Annotate and collection Save while keeping removal available');
+  await annotate.onclick(); check(switchCalls === 1, 'Duplicate pending annotation is blocked');
+  currentEditor = 'other'; CList.state.editorSwitching = {id: 1}; setReferences([reference('new-editor')]);
+  finishSwitch(true); await pending;
+  equal(getReferences(), [reference('new-editor')], 'Superseded annotation switch cannot insert into a newer editor');
+  check(!CList.state.referencesPanel.busy && !save().disabled, 'Superseded annotation releases its busy guard');
+
+  reset(); setReferences([reference('failed-switch')]); switchToEditor = async () => false;
+  await action(0, 'Annotate this reference').onclick();
+  equal(getReferences(), [reference('failed-switch')], 'Rejected switch does not insert or alter the source reference');
+  check(annotationRefreshes === 0 && !CList.state.referencesPanel.busy, 'Rejected switch does not claim annotation completion');
+
+  reset(); setReferences([reference('collection')]); let collectionCapture, collectionAnchor, finishCollection, collectionCalls = 0;
+  window.importCollectionFromChat = (snapshot, anchor) => {
+   collectionCalls++; collectionCapture = snapshot; collectionAnchor = anchor;
+   return new Promise(resolve => { finishCollection = resolve; });
+  };
+  const collectionButton = save(), collectionPending = collectionButton.onclick();
+  check(collectionAnchor === collectionButton && collectionCalls === 1, 'Collection helper receives the actual rendered anchor');
+  await collectionButton.onclick(); check(collectionCalls === 1, 'Duplicate collection Save is blocked');
+  collectionCapture[0].extension.retained = 'Changed snapshot';
+  check(getReferences()[0].extension.retained === 'collection', 'Collection export receives a detached snapshot');
+  finishCollection(); await collectionPending; check(!collectionButton.disabled, 'Collection completion releases controls');
+  const oldSave = save().onclick; setReferences([reference('replacement')]); await oldSave();
+  check(collectionCalls === 1, 'Stale collection Save callback cannot dispatch a new helper workflow');
+  window.importCollectionFromChat = async () => { throw Error('Synthetic collection failure'); };
+  await save().onclick(); check(document.getElementById('fixture-errors').textContent.includes('Synthetic collection failure'), 'Collection helper errors produce visible feedback');
+  check(!CList.state.referencesPanel.busy, 'Collection helper failure releases its busy guard');
+
+  // Exercise the standalone view with shared state made unreadable.
+  reset(); let edits = 0, allowEdit = true;
+  const state = CList.state, registry = editorHandlers, displayReference = {title: 'Original display', url: 'https://standalone.invalid'};
+  CList.state = new Proxy({}, {get() { throw Error('The view read shared state'); }});
+  editorHandlers = new Proxy({}, {get() { throw Error('The view read the editor registry'); }});
+  check(CList.ui.references.mount([{reference: displayReference,
+   edit: () => { edits++; return allowEdit; }, annotate: async () => {}, remove: () => {}}],
+   {open: true, busy: false, close: () => {}, save: async () => {}}), 'Standalone view mounts without controller state');
+  edit(0, 'title', 'Accepted display', true);
+  check(edits === 1 && field(0, 'title').textContent === 'Accepted display', 'Enter followed by blur commits once without replacing the panel');
+  check(displayReference.title === 'Original display', 'View commits do not mutate supplied display models');
+  allowEdit = false; edit(0, 'title', 'Rejected display');
+  check(edits === 2 && field(0, 'title').textContent === 'Accepted display', 'Rejected stale edit restores the last accepted local display');
+  CList.ui.references.busy(true);
+  check(action(0, 'Annotate this reference').disabled && save().disabled && !action(0, 'Remove reference').disabled, 'Standalone view busy handling follows supplied state');
+  CList.state = state; editorHandlers = registry; switchToEditor = normalSwitch;
+  document.getElementById('result').textContent = 'PASS: real References state/controller/view, exact URL deduplication, structural metadata and live target retention, Save metadata/unfinished-edit preservation, inline click/keyboard editing and single commits, stale row/editor/document guards, state-owned visibility, standalone annotation targets, duplicate/superseded action guards, collection snapshots/anchors and visible errors. Editor switching and collection APIs mocked; no external requests or file/storage writes.';
+  document.body.dataset.result = 'PASS';
+ } catch (error) {
+  console.error(error); document.getElementById('result').textContent = 'FAIL: ' + error.message;
+  document.body.dataset.result = 'FAIL';
+ }
+})();
+</script>
