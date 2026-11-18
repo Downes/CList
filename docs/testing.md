@@ -289,7 +289,7 @@ The saved-file browser fixture now reads the two local regression samples in
 It checks repeated HTML choices with drafts in each editor and RSS plain-text
 routing. These are test data, not instructions. Rerun the fixture and wait for PASS.
 
-Temporary editor test marker: the shared editor status shows `test 2026-11-17.4`
+Temporary editor test marker: the shared editor status shows `test 2026-11-18.2`
 from the running editor script. The relevant file-loading/editor script URLs use
 the same version to request fresh copies. If the marker is missing or different,
 the current test build has not loaded. Bump the marker and script versions together
@@ -336,3 +336,50 @@ The existing file-recognition browser fixture loads the real new modules, keeps 
 format/annotation regressions, and adds a superseded-choice check plus safe-state
 inspection. Rerun it and the normal application after this split; previous browser
 PASS results predate it. All fixture editor services remain mocked.
+
+## Editor switching and draft restoration
+
+Run `node --test tests/editor-switch.test.cjs tests/annotation-file.test.cjs tests/editor-references.test.cjs tests/file-recognition.test.cjs tests/loaded-page-messages.test.cjs`,
+then the full Node suite. These tests use real state/controller/view modules with
+simulated DOM, storage, accounts and editor APIs. They cover account-specific
+page/reference restoration, collaborative resync, all transfer choices, duplicate
+and stale controls, delayed account listing, serialized mounts, rejected delivery,
+corrupt accounts/drafts, retry and newer-content preservation.
+
+Open `https://localhost:51888/tests/editor-switch.browser.html` through the source
+launcher (adjust the port to its actual URL). Expect a final `PASS:` covering real
+DOM controls and the new modules; editor APIs, accounts and storage are mocked,
+with no external requests or file writes. Also rerun
+`tests/file-recognition.browser.html` and `tests/editor-references.browser.html`
+for the real-handler integration paths. The visible editor marker is
+`test 2026-11-18.2`.
+
+In the normal app, switch between Text, HTML and Annotation with bodies, references
+and loaded files. Check Overwrite, Insert, Don't transfer and Cancel; confirm that
+returning to an editor resumes its page and references. Refresh with a saved local
+draft, then test Restore and Discard. Type newer content while the restore dialog
+is open and confirm it survives. Check a live collaborative editor separately if
+available; fixture success does not establish its connectivity or authorization.
+
+## Load/Blank controls and loaded-page presentation
+
+Run `node --test tests/editor-controls.test.cjs tests/loaded-page-messages.test.cjs tests/editor-switch.test.cjs tests/file-recognition.test.cjs`,
+then the full Node suite. These tests exercise real controller/view/state modules
+with simulated DOM and mocked editor/storage/loader APIs: filtered sources,
+shared routing, duplicate/stale requests, navigation/session/store/editor/file
+changes, source failure/retry, blank Cancel/Discard, outgoing page/reference
+restoration, newer content, failed/superseded initialization, publication controls
+and stale/erroring toolbar actions.
+
+Open `https://localhost:51888/tests/editor-controls.browser.html` through the
+source launcher (adjust to its actual port). Expect a final `PASS:` for Load/Blank
+and loaded-page controls. It uses real DOM/modules with mocked editors, loaders
+and memory-only storage; no external requests or file writes. Also rerun
+`tests/editor-switch.browser.html`, `tests/file-recognition.browser.html` and
+`tests/editor-references.browser.html`. Marker: `test 2026-11-18.2`.
+
+In the normal app, open Load, select a source and cancel; check Load blank on the
+current editor (Cancel and Discard), then on another editor and back. Confirm that
+the outgoing content, page and references resume. Check file-load notices and
+Republish visibility for unpublished versus published records. Self-managing
+service loader UI and live publishing remain separate integration checks.

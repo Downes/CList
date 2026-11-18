@@ -187,7 +187,9 @@ function closeLeftPane() {
     savePaneState();
 }
 
-function closeRightPane() {
+function closeRightPane(options = {}) {
+    if (!options.preserveEditorControls && typeof invalidateEditorControls === 'function') invalidateEditorControls();
+    if (typeof invalidateEditorPicker === 'function') invalidateEditorPicker();
     rightPane.style.width = '0';
     mainWindow.style.right = '0';
     currentPane = 'write-pane';
@@ -282,6 +284,8 @@ function openLeftInterface(content) {
 }
 
 function openRightInterface(panelId) {
+    if (panelId !== 'load-instructions' && typeof invalidateEditorControls === 'function') invalidateEditorControls();
+    if (panelId !== 'editor-instructions' && typeof invalidateEditorPicker === 'function') invalidateEditorPicker();
     openRightPane();
     const rightContent = document.getElementById('right-content');
     Array.from(rightContent.children).forEach(child => { child.style.display = 'none'; });

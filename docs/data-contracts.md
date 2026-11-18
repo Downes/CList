@@ -179,3 +179,19 @@ Rerun the fixture for this revision; previous PASS results predate the startup f
 selected target and error. `editor-load-state.js` accepts explicit capabilities and
 content inputs to compute representations without consulting UI or sessions.
 The controller's captured content/page/callbacks are transient, outside that state.
+
+## Editor switching
+
+`CListEditorSwitchState` describes `CList.state.editorSwitching`: mount generation,
+phase, target/active editor-account identity keys, error and detached parked
+page/reference metadata. Account objects and queued/transferred bodies stay in
+transient controller captures. The existing sessionStorage draft body and `_refs`
+records retain their format; the key prefix is `CList.keys.EDITOR_DRAFT_PREFIX`.
+
+## Editor Load/Blank controls and page presentation
+
+`CListEditorControlsState` describes `CList.state.editorControls`: panel generation,
+phase, blank target and error. Bodies/accounts/handlers remain transient. The
+existing extensible `currentLoadedPage` compatibility pointer retains its full
+record shape; `CListLoadedPagePresentation` is a separate display-only projection
+with label, URL, title, publication visibility and optional transient notice.

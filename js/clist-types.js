@@ -499,3 +499,32 @@
  * @property {string|null} target Selected editor key, or collection.
  * @property {string|null} error
  */
+
+/**
+ * Load source/blank control state. Handler, account and body captures are transient.
+ * @typedef {Object} CListEditorControlsState
+ * @property {number} id Monotonic panel generation.
+ * @property {'sources'|'loading-source'|'routing'|'template'|'blank-choices'|'blank-check'|'blank-review'|'blanking'|'complete'|'cancelled'|'failed'} phase
+ * @property {string|null} target Selected blank editor key, if any.
+ * @property {string|null} error
+ */
+/**
+ * Display values for the existing loaded-page/publication controls.
+ * @typedef {Object} CListLoadedPagePresentation
+ * @property {string|undefined} documentTitle
+ * @property {string} label
+ * @property {string} url
+ * @property {boolean} hasPublicationLocation
+ * @property {string|null} notice Transient load confirmation, emitted by the controller.
+ */
+
+/**
+ * In-memory switch state. Credentials and queued/transferred bodies remain transient.
+ * @typedef {Object} CListEditorSwitchState
+ * @property {number} id Monotonic mount request generation.
+ * @property {'idle'|'pending'|'mounting'|'complete'|'failed'} phase
+ * @property {string|null} target Editor/account identity key requested.
+ * @property {string|null} active Last successfully mounted editor/account identity key.
+ * @property {Object.<string, {page: CListWebPageSource|null, references: CListReference[]}>} parked Detached metadata; never editor bodies.
+ * @property {string|null} error
+ */

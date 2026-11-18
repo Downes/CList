@@ -1,0 +1,199 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CList editor switching regression</title>
+<h1>Editor switching and draft restoration</h1>
+<pre id="result">Checking...</pre>
+<div id="editor-status"></div>
+<div id="editor-instructions"></div>
+<div id="write-tags"></div><div id="write-title-row"></div>
+<select id="write-format"></select><div id="editor-menu"></div>
+<div id="write-title"></div><div id="fixture-editors"></div>
+<div id="fixture-dialogs"></div>
+<script>
+window.CList = {state: {}, accounts: [], keys: {EDITOR_DRAFT_PREFIX: 'clist_draft_'},
+ ui: {view: {writePaneContent: document.getElementById('fixture-editors'),
+ writeTitle: document.getElementById('write-title')}}};
+const memory = new Map();
+Object.defineProperty(window, 'sessionStorage', {configurable: true, value: {
+ getItem: key => memory.has(key) ? memory.get(key) : null,
+ setItem: (key, value) => memory.set(key, String(value)),
+ removeItem: key => memory.delete(key), clear: () => memory.clear(),
+}});
+window.fetch = () => Promise.reject(Error('Unexpected external request'));
+let fixtureReferences = [], fixtureRegistered = false;
+const fixtureMessages = [], fixtureErrors = [];
+window.getReferences = () => fixtureReferences;
+window.setReferences = value => { fixtureReferences = structuredClone(value); };
+window.closeReferencesPanel = () => {};
+window.showStatusMessage = text => fixtureMessages.push(text);
+window.showErrorModal = (message, options) => fixtureErrors.push({message, options});
+window.openRightInterface = id => { document.getElementById(id).hidden = false; };
+window.closeRightPane = () => { document.getElementById('editor-instructions').hidden = true; };
+window.isRegistered = () => fixtureRegistered;
+window.ensureAccountsLoaded = async () => {};
+window.parseAccountValue = account => JSON.parse(account.value);
+window.makeEditorButton = (label, icon, select) => {
+ const button = document.createElement('button'); button.className = 'account-button';
+ const symbol = document.createElement('span'); symbol.className = 'material-icons'; symbol.textContent = icon || 'edit';
+ const text = document.createElement('span'); text.textContent = label;
+ button.append(symbol, text); button.onclick = select; return button;
+};
+window.buildDialogModal = (title, message, choices) => {
+ const root = document.createElement('section'); root.dataset.fixtureDialog = title;
+ root.appendChild(message); const close = () => root.remove();
+ for (const choice of choices) {
+  const button = document.createElement('button'); button.className = 'btn';
+  button.textContent = choice.label; button.onclick = () => choice.onClick(close); root.appendChild(button);
+ }
+ document.getElementById('fixture-dialogs').replaceChildren(root); return {close};
+};
+</script>
+<script src="../js/editors.js?v=2026-11-18.2"></script>
+<script src="../js/editor-state.js?v=2026-11-18.2"></script>
+<script src="../js/editor-switch-view.js?v=2026-11-18.2"></script>
+<script src="../js/editor-switch.js?v=2026-11-18.2"></script>
+<script src="../js/editor-controls-state.js?v=2026-11-18.2"></script>
+<script src="../js/editor-controls-view.js?v=2026-11-18.2"></script>
+<script src="../js/editor-controls.js?v=2026-11-18.2"></script>
+<script>
+(async () => {
+ const check = (condition, message) => { if (!condition) throw Error(message); };
+ const equal = (actual, expected, message) => check(JSON.stringify(actual) === JSON.stringify(expected), message);
+ const reference = suffix => ({url: 'https://source.invalid/' + suffix, title: suffix,
+  replyToken: {type: 'Mastodon', statusId: suffix}});
+ const page = suffix => ({kind: 'file', title: suffix + '.txt', documentTitle: suffix});
+ const bodies = new Map(); let liveReferences = [reference('live-old')];
+ const slot = key => key + ':' + (currentEditorAccount?.key || 'local');
+ const handler = (key, label, requiresAccount = false) => ({
+  label, icon: 'edit', requiresAccount, contentTypes: ['text/plain'],
+  initialize: async () => {
+   currentEditor = key;
+   let element = document.getElementById('fixture-' + key);
+   if (!element) { element = document.createElement('div'); element.id = 'fixture-' + key;
+    document.getElementById('fixture-editors').appendChild(element); }
+   element.style.display = ''; await loadPredefinedContent(key);
+  },
+  getContent: () => bodies.get(slot(key)) || '',
+  setContent: value => bodies.set(slot(key), value),
+  loadContent: ({value}) => bodies.set(slot(key), (bodies.get(slot(key)) || '') + value),
+ });
+ for (const key of Object.keys(editorHandlers)) delete editorHandlers[key];
+ Object.assign(editorHandlers, {source: handler('source', 'Source'), target: handler('target', 'Target'),
+  account: handler('account', 'Account editor', true), collab: {...handler('collab', 'Collaborative'),
+   getDocId: () => 'connected-document', resyncReferences: () => setReferences(liveReferences)}});
+ const accountA = {key: 'account-a', value: JSON.stringify({type: 'Account', permissions: ['e'], title: 'Account A', token: 'private-a'})};
+ const accountB = {key: 'account-b', value: JSON.stringify({type: 'Account', permissions: ['e'], title: 'Account B', token: 'private-b'})};
+ const button = (label, root = document.getElementById('editor-switch-options')) => {
+  const found = [...root.querySelectorAll('button')].find(element => element.textContent === label || element.textContent.endsWith(label));
+  check(found, 'Rendered button: ' + label); return found;
+ };
+ const pickerTarget = () => {
+  const found = [...document.querySelectorAll('#editor-switch-options button')].find(element => /Target(?: \[|$)/.test(element.textContent));
+  check(found, 'Target editor picker button rendered'); return found;
+ };
+ const reset = () => {
+  currentEditor = 'source'; currentEditorAccount = null; currentLoadedPage = null; pendingContent = null;
+  CList.state.editorSwitching = undefined; fixtureReferences = []; fixtureRegistered = false; CList.accounts = [];
+  bodies.clear(); memory.clear(); fixtureMessages.length = 0; fixtureErrors.length = 0;
+  document.getElementById('fixture-dialogs').replaceChildren();
+ };
+ const seedSourceAndTarget = async () => {
+  reset(); await switchToEditor('target'); editorHandlers.target.setContent('Destination');
+  setLoadedPage(page('destination')); setReferences([reference('shared'), reference('destination')]);
+  await switchToEditor('source'); editorHandlers.source.setContent('Source body');
+  setLoadedPage(page('source')); setReferences([reference('shared'), reference('source')]);
+ };
+ try {
+  // The real switch controller parks metadata separately for accounts sharing one handler.
+  reset(); setLoadedPage(page('source')); setReferences([reference('source')]);
+  await switchToEditor('account', null, accountA); setLoadedPage(page('a')); setReferences([reference('a')]);
+  await switchToEditor('account', null, accountB);
+  check(currentLoadedPage === null && getReferences().length === 0, 'Unvisited account starts with empty metadata');
+  setLoadedPage(page('b')); setReferences([reference('b')]);
+  await switchToEditor('account', null, accountA);
+  check(currentLoadedPage.title === 'a.txt', 'Account A page resumes independently');
+  equal(getReferences(), [reference('a')], 'Account A references and reply tokens resume');
+  await switchToEditor('account', null, accountB);
+  check(currentLoadedPage.title === 'b.txt', 'Account B page resumes independently');
+  equal(getReferences(), [reference('b')], 'Account B references resume');
+  await switchToEditor('source'); check(currentLoadedPage.title === 'source.txt', 'Source editor page resumes');
+  equal(getReferences(), [reference('source')], 'Source editor references resume');
+  check(!JSON.stringify(CList.state.editorSwitching).includes('private-'), 'Shared switch state contains no account credentials');
+
+  await switchToEditor('collab'); setLoadedPage(page('collaborative'));
+  equal(getReferences(), liveReferences, 'Live collaborative references are read on entry');
+  await switchToEditor('source'); liveReferences = [reference('live-new')];
+  await switchToEditor('collab'); equal(getReferences(), liveReferences, 'Returning collaborative editor resyncs its updated live map');
+  check(currentLoadedPage.title === 'collaborative.txt', 'Collaborative page identity still resumes');
+
+  // Select the actual picker control, then invoke the actual rendered transfer controls.
+  for (const mode of ['Overwrite', 'Insert', "Don't transfer", 'Cancel']) {
+   await seedSourceAndTarget(); await playEditorSwitch();
+   await pickerTarget().onclick();
+   const action = button(mode); const callback = action.onclick;
+   await callback(); await callback();
+   const cancelled = mode === 'Cancel';
+   check(currentEditor === (cancelled ? 'source' : 'target'), mode + ' selects the expected editor');
+   const targetBody = bodies.get('target:local');
+   check(targetBody === (mode === 'Overwrite' ? 'Source body' : mode === 'Insert' ? 'DestinationSource body' : 'Destination'), mode + ' applies once and preserves the proper destination body');
+   const expectedReferences = mode === 'Overwrite' ? [reference('shared'), reference('source')]
+    : mode === 'Insert' ? [reference('shared'), reference('destination'), reference('source')]
+    : cancelled ? [reference('shared'), reference('source')] : [reference('shared'), reference('destination')];
+   equal(getReferences(), expectedReferences, mode + ' preserves its reference replacement/union rules');
+   check(currentLoadedPage.title === (cancelled ? 'source.txt' : 'destination.txt'), mode + ' preserves the destination page identity');
+  }
+
+  await seedSourceAndTarget(); await playEditorSwitch();
+  const oldPicker = pickerTarget(); await oldPicker.onclick(); const oldTransfer = button('Overwrite').onclick;
+  await playEditorSwitch(); await oldTransfer(); await oldPicker.onclick();
+  check(currentEditor === 'source' && bodies.get('target:local') === 'Destination', 'Stale picker/transfer callbacks perform no switch or write');
+  check(!document.getElementById('editor-switch-options').textContent.includes('Transfer content to the new editor?'), 'Stale picker callback cannot replace rebuilt choices');
+
+  // A closed picker must reject controls from a delayed account load.
+  reset(); fixtureRegistered = true; let finishAccounts;
+  window.ensureAccountsLoaded = () => new Promise(resolve => { finishAccounts = resolve; });
+  const listing = playEditorSwitch(); closeEditorSwitchOverlay();
+  CList.accounts = [accountA, accountB]; finishAccounts(); await listing;
+  check(document.getElementById('editor-switch-account-options').children.length === 0, 'Closed picker rejects late account choices');
+  window.ensureAccountsLoaded = async () => {}; await playEditorSwitch();
+  const labels = document.getElementById('editor-switch-account-options').textContent;
+  check(labels.includes('Account A') && labels.includes('Account B'), 'Reopened picker renders current account choices');
+  fixtureRegistered = false;
+
+  // Storage is an in-memory object; all restore/discard buttons use the real view/controller.
+  reset(); const savedReferences = [reference('draft')]; setReferences(savedReferences);
+  saveDraft('source', 'Restored draft'); setReferences([reference('before-restore')]);
+  await offerDraftRestore('source', 'text/plain');
+  const restore = button('Restore', document.getElementById('fixture-dialogs')).onclick;
+  await restore(); await restore();
+  check(editorHandlers.source.getContent() === 'Restored draft', 'Draft body restores exactly once');
+  equal(getReferences(), savedReferences, 'Draft restore retains references and reply tokens');
+
+  editorHandlers.source.setContent('Keep current content'); setReferences([reference('current')]);
+  saveDraft('source', 'Discarded draft'); await offerDraftRestore('source', 'text/plain');
+  await button('Discard', document.getElementById('fixture-dialogs')).onclick();
+  check(!memory.has('clist_draft_source') && !memory.has('clist_draft_source_refs'), 'Discard removes only captured editor draft and references');
+  check(editorHandlers.source.getContent() === 'Keep current content', 'Discard leaves current body untouched');
+  equal(getReferences(), [reference('current')], 'Discard leaves current references untouched');
+
+  saveDraft('source', 'Older saved draft'); await offerDraftRestore('source', 'text/plain');
+  editorHandlers.source.setContent('Newer typed content');
+  await button('Restore', document.getElementById('fixture-dialogs')).onclick();
+  check(editorHandlers.source.getContent() === 'Newer typed content', 'Delayed restore preserves newer editor content');
+  check(memory.get('clist_draft_source') === 'Older saved draft', 'Skipped restore keeps saved draft for later');
+  check(fixtureMessages.some(message => message.includes('editor has changed')), 'Skipped restore gives visible feedback');
+
+  await offerDraftRestore('source', 'text/plain');
+  const staleDraft = button('Restore', document.getElementById('fixture-dialogs')).onclick;
+  await switchToEditor('target'); await staleDraft();
+  check(editorHandlers.target.getContent() === '', 'Stale draft callback cannot write into another editor');
+  check(fixtureErrors.length === 0, 'No unexpected editor operation errors');
+  check(document.getElementById('editor-status').textContent.includes('test ' + EDITOR_TEST_VERSION), 'Real editor status displays current test marker');
+  document.getElementById('result').textContent = 'PASS: real editor switching state/controller/view, account-specific page/reference restoration, live collaborative resync, Overwrite/Insert/Don\'t transfer/Cancel, stale and duplicate callbacks, closed-picker account isolation, draft restore/discard and newer-content protection. All editor APIs, accounts and storage mocked; no external requests or file writes.';
+  document.body.dataset.result = 'PASS';
+ } catch (error) {
+  console.error(error); document.getElementById('result').textContent = 'FAIL: ' + error.message;
+  document.body.dataset.result = 'FAIL';
+ }
+})();
+</script>
