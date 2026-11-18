@@ -225,6 +225,16 @@ updates alone do not represent another document or discard unfinished edits.
 Collaborative map synchronization remains handler-owned. The existing collection
 picker/storage helper is not migrated or cancelled by this panel extraction.
 
+Write tags use `tags-state.js` (plain selection/suggestion rules),
+`tags-workflow.js` (explicit KV/encryption operations), `tags.js` (controller),
+and `tags-view.js` (chips/input/dropdown/creation choices). Tags and unsubmitted
+input remain global across editor switches; rebind replaced controls without
+losing text typed during an asynchronous mount. Collection caches are scoped by
+user/server/token/local mode; never store credentials or encryption keys in
+`CList.state.writeTags`. Creation preserves the legacy encrypted empty-array
+record and add-if-absent semantics. Check the captured session before each
+asynchronous preparation/write boundary; never retry an uncertain write.
+
 ## Reader dispatch
 
 The central boundary uses `reader.js` (controller), `reader-state.js` (pure

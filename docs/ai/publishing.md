@@ -376,3 +376,14 @@ picker/storage helper; its internal async UI/writes remain a legacy path. Run
 `tests/references-panel.test.cjs`, `tests/editor-references.test.cjs` and the full
 Node suite, plus the References browser fixtures. Live shared-map edit/delete
 propagation is not established or migrated by this boundary.
+
+Write-tag selection uses `tags-state.js`, `tags.js`, `tags-view.js`, and explicit
+collection storage/encryption in `tags-workflow.js`. `getWriteTags()` still returns
+a detached, exact-case array and `clearWriteTags()` remains the blank/New hook.
+Tags and unsubmitted text retain their existing global scope across editors.
+Collection suggestions are session/server/mode scoped. New collection creation
+uses add-only encrypted JSON `[]` at the existing `collection:<name>` key, without
+changing collection serialization or overwriting existing records. Confirmed
+AlreadyExists and a failed/uncertain write remain different outcomes. Guard every
+key/encryption/write boundary against a changed session and never automatically
+retry. Tags tests mock KV/crypto; they do not establish live authorization.

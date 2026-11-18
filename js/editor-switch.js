@@ -115,6 +115,7 @@ function queueEditorMount(editorType, account, carriedContent, switching) {
         }
         if (editorSwitchState().id !== state.id) return false;
         updateEditorIndicator();
+        window.refreshWriteTags?.();
         window.CList.state.editorSwitching = transitionEditorSwitch(editorSwitchState(), state.id, 'complete');
         return true;
     };

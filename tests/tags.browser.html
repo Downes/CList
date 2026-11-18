@@ -1,0 +1,193 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CList write tags regression</title>
+<h1>Write tags and collection suggestions</h1>
+<pre id="result">Checking...</pre>
+<div id="write-tags"></div><div id="fixture-errors"></div>
+<script>
+let currentEditor = 'source', currentEditorAccount = null;
+let fixtureToken = 'initial-token', fixtureLocal = false;
+const tagListCalls = [], tagKeyCalls = [], tagEncryptCalls = [], tagAddCalls = [], tagErrors = [], tagNotices = [];
+let tagListImpl = async () => [], tagKeyImpl = async () => ({fixtureKey: true}),
+ tagEncryptImpl = async () => 'cipher:[]', tagAddImpl = async () => {};
+window.CList = {state: {username: 'initial-user'}, config: {flaskSiteUrl: 'https://store.invalid'},
+ keys: {ACCESS_TOKEN: 'access_token'}, isLocalMode: () => fixtureLocal, ui: {view: {writeTags: document.getElementById('write-tags')}},
+ storage: {kv: {
+  list: async () => { tagListCalls.push({store: CList.config.flaskSiteUrl, user: CList.state.username}); return tagListImpl(); },
+  add: async (key, value) => { tagAddCalls.push({key, value}); return tagAddImpl(key, value); },
+  update: () => { throw Error('Unexpected collection overwrite'); },
+ }}};
+window.getSiteSpecificCookie = () => fixtureToken;
+window.getEncKey = async store => { tagKeyCalls.push(store); return tagKeyImpl(store); };
+window.encryptWithKey = async (key, value) => { tagEncryptCalls.push({key, value}); return tagEncryptImpl(key, value); };
+window.fetch = () => Promise.reject(Error('Unexpected external request'));
+window.showStatusMessage = message => tagNotices.push(message);
+window.showErrorModal = (message, options) => {
+ tagErrors.push({message, options}); const paragraph = document.createElement('p');
+ paragraph.className = 'error-message'; paragraph.textContent = message;
+ document.getElementById('fixture-errors').appendChild(paragraph);
+};
+</script>
+<script src="../js/tags-state.js?v=2026-11-18.5"></script>
+<script src="../js/tags-workflow.js?v=2026-11-18.5"></script>
+<script src="../js/tags-view.js?v=2026-11-18.5"></script>
+<script src="../js/tags.js?v=2026-11-18.5"></script>
+<script>
+(async () => {
+ if (document.readyState === 'loading') await new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve, {once: true}));
+ const check = (condition, message) => { if (!condition) throw Error(message); };
+ const equal = (actual, expected, message) => check(JSON.stringify(actual) === JSON.stringify(expected), message);
+ const state = () => CList.state.writeTags;
+ const input = () => document.getElementById('write-tag-input');
+ const flush = () => new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+ const waitFor = async (condition, message) => {
+  for (let attempt = 0; attempt < 100; attempt++) {
+   if (condition()) return;
+   await new Promise(resolve => setTimeout(resolve, 0));
+  }
+  throw Error(message);
+ };
+ const records = names => names.map(name => ({key: 'collection:' + name})).concat({key: 'account:ignored'});
+ const typed = value => { input().value = value; input().dispatchEvent(new Event('input', {bubbles: true})); };
+ const key = value => input().dispatchEvent(new KeyboardEvent('keydown', {key: value, bubbles: true, cancelable: true}));
+ const add = async (value, separator = 'Enter') => { typed(value); key(separator); await flush(); };
+ const names = () => [...document.querySelectorAll('#write-tags-dropdown button')].map(button => button.textContent);
+ const offer = label => {
+  const button = [...document.querySelectorAll('#write-tags-col-offer button')].find(button => button.textContent === label);
+  check(button, 'Collection offer button: ' + label); return button;
+ };
+ let epoch = 0;
+ const reset = collectionNames => {
+  input()?.blur();
+  currentEditor = 'source'; currentEditorAccount = null; fixtureLocal = false;
+  CList.state.username = 'fixture-user-' + ++epoch; fixtureToken = 'fixture-token-' + epoch;
+  CList.config.flaskSiteUrl = 'https://store.invalid'; CList.state.editorSwitching = undefined; CList.state.editorLoading = undefined;
+  CList.state.writeTags = createWriteTagsState();
+  tagListImpl = async () => records(collectionNames || []); tagKeyImpl = async () => ({fixtureKey: epoch});
+  tagEncryptImpl = async () => 'cipher:[]'; tagAddImpl = async () => {};
+  for (const array of [tagListCalls, tagKeyCalls, tagEncryptCalls, tagAddCalls, tagErrors, tagNotices]) array.length = 0;
+  document.getElementById('fixture-errors').replaceChildren(); refreshWriteTags();
+ };
+ const focusLoaded = async () => {
+  input().focus(); await waitFor(() => !state().loading && state().collections !== null, 'Collection suggestions did not finish loading');
+ };
+ try {
+  reset(['Alpha', 'Alpine', 'alpha', 'Beta']); await focusLoaded();
+  await add('Alpha'); await add('Alpha'); await add('alpha');
+  equal(getWriteTags(), ['Alpha', 'alpha'], 'Tags retain exact duplicate rules and original case');
+  const snapshot = getWriteTags(); snapshot.push('Caller mutation');
+  equal(getWriteTags(), ['Alpha', 'alpha'], 'getWriteTags returns a detached array snapshot');
+  await add('Beta', ','); equal(getWriteTags(), ['Alpha', 'alpha', 'Beta'], 'Comma adds the current input');
+  key('Backspace'); await flush(); equal(getWriteTags(), ['Alpha', 'alpha'], 'Backspace on empty input removes the last selected tag');
+  document.querySelector('.write-tag-chip-remove').click(); await flush();
+  equal(getWriteTags(), ['alpha'], 'Chip removal updates selected tags');
+  clearWriteTags(); await add('Alpha'); typed('aL');
+  equal(names(), ['Alpine', 'alpha'], 'Suggestions use case-insensitive prefix matching while excluding only exact selected names');
+  const choice = document.querySelector('#write-tags-dropdown button');
+  const mouse = new MouseEvent('mousedown', {bubbles: true, cancelable: true}); choice.dispatchEvent(mouse); await flush();
+  check(mouse.defaultPrevented && getWriteTags().includes('Alpine'), 'Suggestion mousedown preserves input focus and selects its supplied name');
+  check(tagListCalls.length === 1 && tagAddCalls.length === 0, 'Normal tag selection reuses the account cache without collection writes');
+
+  reset(['Private']); await focusLoaded(); typed('Priv'); const expiredChoice=document.querySelector('#write-tags-dropdown button');
+  fixtureToken=''; CList.state.username=null; typed('Anonymous draft'); key('Enter'); await flush();
+  expiredChoice.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,cancelable:true}));
+  equal(getWriteTags(),['Anonymous draft'],'Token expiry while focused keeps local tagging usable and rejects private old choices');
+
+  reset([]); await focusLoaded(); typed('Before mount'); currentEditor='pending-editor'; CList.state.editorSwitching={id:1,phase:'mounting'};
+  typed('During mount'); refreshWriteTags(); check(input().value==='During mount','Editor refresh retains text typed during a pending mount');
+  key('Enter'); await flush(); equal(getWriteTags(),['During mount'],'Rebound editor controls commit the preserved tag draft');
+
+  reset([]); fixtureToken = ''; CList.state.username = null; refreshWriteTags(); await focusLoaded();
+  await add('Anonymous tag'); equal(getWriteTags(), ['Anonymous tag'], 'Anonymous users can select arbitrary tags');
+  check(tagListCalls.length === 0 && tagKeyCalls.length === 0 && tagAddCalls.length === 0, 'Anonymous tagging performs no collection reads or writes');
+  check(!document.getElementById('write-tags-col-offer'), 'Anonymous tagging offers no collection creation');
+
+  reset([]); let finishList;
+  tagListImpl = () => new Promise(resolve => { finishList = resolve; }); input().focus();
+  await waitFor(() => !!finishList, 'Delayed list request was not started'); typed('a'); typed('b');
+  finishList(records(['Alpha', 'Beta', 'Bravo'])); await waitFor(() => !state().loading, 'Delayed list request did not settle'); await flush();
+  equal(names(), ['Beta', 'Bravo'], 'A delayed collection list renders suggestions for the latest typed query');
+  const oldChoice = document.querySelector('#write-tags-dropdown button'); clearWriteTags();
+  oldChoice.dispatchEvent(new MouseEvent('mousedown', {bubbles: true, cancelable: true}));
+  equal(getWriteTags(), [], 'A cleared selection rejects old suggestion callbacks');
+  typed('b'); const oldInput = input(), switchedChoice = document.querySelector('#write-tags-dropdown button');
+  currentEditor = 'other-editor'; CList.state.editorSwitching = {id: 1}; refreshWriteTags(); typed('a');
+  switchedChoice.dispatchEvent(new MouseEvent('mousedown', {bubbles: true, cancelable: true}));
+  oldInput.dispatchEvent(new Event('blur')); await new Promise(resolve => setTimeout(resolve, 170));
+  equal(getWriteTags(), [], 'A new editor rejects old suggestion controls');
+  equal(names(), ['Alpha'], 'An old delayed blur cannot close the new editor suggestion list');
+
+  reset(['Account A']); await focusLoaded(); check(tagListCalls.length === 1, 'First account collection cache is populated');
+  CList.state.username = 'account-b'; fixtureToken = 'token-b'; tagListImpl = async () => records(['Account B']);
+  refreshWriteTags(); await focusLoaded(); equal(state().collections, ['Account B'], 'Changing account clears and reloads collection suggestions');
+  CList.config.flaskSiteUrl = 'https://other-store.invalid'; tagListImpl = async () => records(['Other store']);
+  refreshWriteTags(); await focusLoaded(); equal(state().collections, ['Other store'], 'Changing storage server isolates the collection cache');
+  check(tagListCalls.length === 3, 'Each account/store context performs its own collection read');
+
+  reset([]); let finishOld, finishNew;
+  tagListImpl = () => new Promise(resolve => { finishOld = resolve; }); input().focus();
+  await waitFor(() => !!finishOld, 'Old account request was not started');
+  CList.state.username = 'new-account'; fixtureToken = 'new-token'; CList.config.flaskSiteUrl = 'https://new-store.invalid';
+  tagListImpl = () => new Promise(resolve => { finishNew = resolve; }); refreshWriteTags(); input().focus();
+  await waitFor(() => !!finishNew, 'New account request was not started');
+  finishNew(records(['Current collection'])); await waitFor(() => !state().loading, 'Current account request did not finish');
+  finishOld(records(['Obsolete collection'])); await flush();
+  equal(state().collections, ['Current collection'], 'A late old-account read cannot overwrite current suggestions');
+
+  reset([]); await focusLoaded(); await add('Declined collection');
+  await offer('No').onclick(); check(!document.getElementById('write-tags-col-offer') && tagAddCalls.length === 0, 'No dismisses collection creation without a write');
+  equal(getWriteTags(), ['Declined collection'], 'Declining collection creation retains the selected tag');
+  clearWriteTags(); await add('New collection'); let finishAdd;
+  tagAddImpl = () => new Promise(resolve => { finishAdd = resolve; });
+  const yes = offer('Yes'), creation = yes.onclick(); await waitFor(() => !!finishAdd, 'Collection add was not started');
+  await yes.onclick(); check(tagAddCalls.length === 1 && state().creating, 'Repeated Yes callbacks cannot start duplicate collection writes');
+  equal(tagAddCalls[0], {key: 'collection:New collection', value: 'cipher:[]'}, 'Creation uses exact collection:name and encrypted empty-list payload');
+  check(tagEncryptCalls.length === 1 && tagEncryptCalls[0].value === '[]' && tagEncryptCalls[0].key.fixtureKey === epoch, 'Creation encrypts precisely JSON [] with the captured key');
+  finishAdd(); await creation;
+  check(state().creation.status === 'created' && state().collections.includes('New collection') && !state().creating, 'Confirmed creation updates the original cache and releases its guard');
+  equal(getWriteTags(), ['New collection'], 'Confirmed creation preserves selected tags');
+  check(!JSON.stringify(state()).includes('fixture-token'), 'Shared tag state contains no token or encryption key');
+
+  reset([]); await focusLoaded(); tagAddImpl = async () => { const error = Error('Already exists'); error.code = 'AlreadyExists'; throw error; };
+  await add('Existing collection'); await offer('Yes').onclick();
+  check(tagAddCalls.length === 1 && state().creation.status === 'exists' && state().collections.includes('Existing collection'), 'AlreadyExists confirms cache membership without overwriting the existing collection');
+  check(tagErrors.length === 0, 'AlreadyExists is a confirmed result rather than an operation error');
+
+  for (const stage of ['key', 'encryption']) {
+   reset([]); await focusLoaded(); let finishStage;
+   if (stage === 'key') tagKeyImpl = () => new Promise(resolve => { finishStage = resolve; });
+   else tagEncryptImpl = () => new Promise(resolve => { finishStage = resolve; });
+   await add('Stale ' + stage); const pending = offer('Yes').onclick();
+   await waitFor(() => !!finishStage, 'Pending ' + stage + ' step did not start');
+   fixtureToken = 'replacement-token'; CList.state.username = 'replacement-user'; refreshWriteTags();
+   finishStage(stage === 'key' ? {fixtureKey: 'obsolete'} : 'obsolete-cipher'); await pending;
+   check(tagAddCalls.length === 0 && !state().creating, stage + ': changed session prevents collection add and releases the guard');
+   check(tagNotices.includes('An earlier tag operation failed.'), stage + ': rejected stale creation produces visible feedback');
+   equal(getWriteTags(), ['Stale ' + stage], stage + ': session changes do not erase selected tags');
+  }
+
+  reset([]); await focusLoaded(); tagAddImpl = async () => { throw Error('Synthetic collection write failure'); };
+  await add('Retained tag'); await offer('Yes').onclick(); await flush();
+  check(tagAddCalls.length === 1 && state().creation.status === 'failed' && !state().creating, 'Failed collection creation is not retried automatically');
+  equal(getWriteTags(), ['Retained tag'], 'Failed collection creation preserves selected tags');
+  check(document.getElementById('fixture-errors').textContent.includes('Synthetic collection write failure'), 'Collection write errors are visibly reported');
+
+  reset([]); await focusLoaded(); let finishEarlier;
+  tagAddImpl = () => new Promise(resolve => { finishEarlier = resolve; });
+  await add('Earlier collection'); const earlier = offer('Yes').onclick();
+  await waitFor(() => !!finishEarlier, 'Earlier collection write was not started');
+  clearWriteTags(); await add('Current selection');
+  check(offer('Yes').disabled, 'A newer creation offer respects the existing in-flight collection write');
+  finishEarlier(); await earlier;
+  equal(getWriteTags(), ['Current selection'], 'Late collection completion does not retarget the current tag selection');
+  check(state().offer === 'Current selection' && !offer('Yes').disabled, 'Late completion retains and releases the current creation offer');
+  check(!tagNotices.includes('Created collection "Earlier collection".'), 'Late completion does not show stale success feedback for a newer selection');
+  check(tagErrors.length === 0, 'Final isolation scenario has no unexpected errors');
+  document.getElementById('result').textContent = 'PASS: real tag state/workflow/controller/view, exact tag rules and snapshots, keyboard/chip controls, prefix suggestions, anonymous/expired-session tagging, pending-editor draft preservation, delayed/stale query and blur guards, account/store cache isolation, No/Yes collection creation, encrypted empty-list payload, duplicate guards, AlreadyExists, stale-session rejection, visible failures and newer-selection preservation. Storage, encryption and sessions mocked; no external requests or file/storage writes.';
+  document.body.dataset.result = 'PASS';
+ } catch (error) {
+  console.error(error); document.getElementById('result').textContent = 'FAIL: ' + error.message;
+  document.body.dataset.result = 'FAIL';
+ }
+})();
+</script>

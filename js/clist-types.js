@@ -3,6 +3,22 @@
 // Read docs/data-contracts.md before extending these definitions.
 
 /**
+ * Global write-pane tags and session-scoped collection suggestions. No credentials/keys.
+ * @typedef {Object} CListWriteTagsState
+ * @property {string[]} selected Exact, case-preserving selected tags.
+ * @property {string[]|null} collections Null until a successful read; reset on storage/session changes.
+ * @property {string} query Unsubmitted global input draft.
+ * @property {boolean} dropdown
+ * @property {string|null} offer Captured candidate for optional collection creation.
+ * @property {number} version Control lifetime; replaced input/offer callbacks expire.
+ * @property {number} requestId Collection-read lifetime.
+ * @property {boolean} loading
+ * @property {boolean} creating
+ * @property {{name:string,status:('pending'|'created'|'exists'|'failed'),error:(string|null)}|null} creation
+ * @property {string|null} error
+ */
+
+/**
  * Reference panel lifecycle, separate from CList.state.references data.
  * @typedef {Object} CListReferencesPanelState
  * @property {number} generation Render/control lifetime; old rows cannot mutate a replacement list.

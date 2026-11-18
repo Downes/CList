@@ -743,3 +743,34 @@ Collection Save captures a detached list and original anchor for the existing
 blocked; no automatic retry is added. That helper still owns its picker and
 storage operations. Collaborative shared maps remain in their existing handlers;
 this refactor does not add edit/delete propagation or prove live connectivity.
+
+## Write-tag boundary
+
+| Module | Responsibility |
+|---|---|
+| `tags-state.js` | Exact tag selection, prefix suggestions and plain state initialization |
+| `tags-workflow.js` | Explicit collection-key listing and guarded key/encryption/add workflow |
+| `tags.js` | Compatibility APIs, session cache, input/blur lifetime and captured creation controller |
+| `tags-view.js` | Chips, input, fixed-position suggestion list, creation offer and feedback |
+
+`getWriteTags()` and `clearWriteTags()` retain their existing API. Global selected
+tags and unfinished input survive editor switches, including typing during a
+slow mount. `refreshWriteTags()` rebinds controls when mounting or beginning a
+file load; ordinary Save metadata updates do not erase the input. Replaced
+input/dropdown/offer callbacks and old blur timers cannot affect a newer render.
+Refocusing/input cancels a pending blur close. A late collection read uses the
+latest query and does not open a dropdown after the input loses focus.
+
+Collection names are cached by username/server/token/local mode. Old reads cannot
+populate another account's cache. Anonymous tagging works without collection
+requests or creation offers; token expiry while focused does not disable local
+tagging. Read failures remain visible and uncached, allowing an explicit refocus
+to retry rather than treating failure as an empty successful list.
+
+Create collection requires Yes and captures the name/session. It preserves the
+legacy encrypted JSON `[]` format and add-only key. AlreadyExists confirms cache
+membership without modifying that record. Check session ownership after key
+retrieval and encryption before add; an accepted add is not repeated. Duplicate
+creation clicks are blocked, failures preserve selected tags, and a late result
+cannot retarget a newer selection or erase a newer offer. Credentials and keys
+remain transient, outside `CList.state.writeTags`.

@@ -214,3 +214,15 @@ list changes; accepted inline fields retain the original reference-object
 identity for existing editor callbacks. Panel display models contain citation
 fields only; source records and callbacks remain transient controller captures.
 Annotation and collection dispatch clone their target/list before awaiting.
+
+## Write tags
+
+`CListWriteTagsState` documents `CList.state.writeTags`: selected strings, input
+draft, collection-name cache, dropdown/offer/control generations, read/creation
+status and errors. It contains no token, account record, crypto key or ciphertext.
+Selection keeps exact-case duplicate behavior, while suggestions use the existing
+case-insensitive prefix matching. Tags stay global across editors as before.
+`getWriteTags()` returns a copy. Optional collection creation retains the existing
+legacy `collection:<name>` key with encrypted JSON `[]`; it uses add-if-absent,
+not update/put, so existing collection content is preserved. Session checks and
+crypto/storage dependencies are transient workflow/controller inputs.
