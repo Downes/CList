@@ -139,15 +139,19 @@ function switchingFixture() {
     });
     f.ctx.window.CList={ui:{view:{writePaneContent:root}}};
     f.ctx.document.documentElement={classList:{contains:()=>false}};
-    const editors=fs.readFileSync('js/editors.js','utf8');
-    for(const [begin,end] of [
-        ['async function switchToEditor(', '// The one true'],
-        ['async function initializeEditor(', 'async function loadPredefinedContent('],
-        ['async function loadPredefinedContent(', '// Draft auto-save helpers'],
-    ]){
-        const start=editors.indexOf(begin),finish=editors.indexOf(end,start);
-        assert.ok(start>=0&&finish>start);vm.runInContext(editors.slice(start,finish),f.ctx);
+    f.ctx.window.CList.state = {};
+    f.ctx.window.CList.ui.editorSwitch = {
+        prepare: () => () => {}, close() {}, indicator() {}, choices() {},
+        error: error => errors.push(error.message),
+    };
+    f.ctx.EDITOR_TEST_VERSION = 'fixture';
+    for (const name of ['editor-state', 'editor-switch']) {
+        vm.runInContext(fs.readFileSync('js/' + name + '.js', 'utf8'), f.ctx);
     }
+    // Use the real mount/controller, suppress only picker rendering and metadata DOM.
+    f.ctx.populateEditorList = async () => {};
+    f.ctx._parkCurrentEditorState = () => {};
+    f.ctx._restoreEditorState = () => {};
     return {...f,root,errors,initializers,html:()=>html,flush:()=>new Promise(resolve=>setImmediate(resolve))};
 }
 
@@ -155,7 +159,7 @@ test('real editor switch waits for annotation TinyMCE readiness and consumes car
     const f=switchingFixture();
     const content={type:'text/html',value:'<p>Stephen Downes wrote: "Saved quote"</p>'};
     const switched=f.ctx.switchToEditor('annotate-edit',content);await f.flush();
-    assert.equal(f.initializers.length,1);assert.equal(f.html(),'');assert.equal(f.ctx.pendingContent,content);
+    assert.equal(f.initializers.length,1);assert.equal(f.html(),'');assert.deepEqual(plain(f.ctx.pendingContent),content);
     f.initializers[0].resolve();await switched;
     assert.match(f.html(),/Stephen Downes wrote/);assert.match(f.html(),/<p>/);
     assert.equal(f.ctx.pendingContent,null);const loaded=f.html();
@@ -167,7 +171,7 @@ test('annotation initialization failure retains pending file and retries the exi
     const f=switchingFixture(),content={type:nativeType,value:annotation('<p>Retained file</p>',{url:'',title:'File title'})};
     const first=f.ctx.switchToEditor('annotate-edit',content);await f.flush();
     f.initializers[0].reject(Error('startup failed'));await first;
-    assert.equal(f.ctx.pendingContent,content);assert.equal(f.errors.length,1);
+    assert.deepEqual(plain(f.ctx.pendingContent),content);assert.equal(f.errors.length,1);
     const retry=f.ctx.switchToEditor('annotate-edit');await f.flush();assert.equal(f.initializers.length,2);
     f.initializers[1].resolve();await retry;
     assert.equal(f.html(),'<p>Retained file</p>');assert.equal(f.ctx.pendingContent,null);

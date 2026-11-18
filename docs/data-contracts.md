@@ -179,3 +179,50 @@ Rerun the fixture for this revision; previous PASS results predate the startup f
 selected target and error. `editor-load-state.js` accepts explicit capabilities and
 content inputs to compute representations without consulting UI or sessions.
 The controller's captured content/page/callbacks are transient, outside that state.
+
+## Editor switching
+
+`CListEditorSwitchState` describes `CList.state.editorSwitching`: mount generation,
+phase, target/active editor-account identity keys, error and detached parked
+page/reference metadata. Account objects and queued/transferred bodies stay in
+transient controller captures. The existing sessionStorage draft body and `_refs`
+records retain their format; the key prefix is `CList.keys.EDITOR_DRAFT_PREFIX`.
+
+## Editor Load/Blank controls and page presentation
+
+`CListEditorControlsState` describes `CList.state.editorControls`: panel generation,
+phase, blank target and error. Bodies/accounts/handlers remain transient. The
+existing extensible `currentLoadedPage` compatibility pointer retains its full
+record shape; `CListLoadedPagePresentation` is a separate display-only projection
+with label, URL, title, publication visibility and optional transient notice.
+
+## Generic Save panel
+
+`CListSavePanelState` describes `CList.state.saving`: panel/operation IDs, phase,
+busy flag, destination label and error. Saver settlement and an actual saved
+resource are distinct; there is no invented publication/file receipt here.
+Credentials, account objects, body content and callbacks remain outside state.
+The existing saver `save()` method and optional `{keepOpen:true}` result do not
+change. Busy remains true across panel rebuilds until that dispatched call settles.
+
+## Reference panel lifecycle
+
+`CListReferencesPanelState` documents `CList.state.referencesPanel`: generation,
+open, busy and action ID. Reference records remain in the existing references
+array with their complete structural/reply/extension fields. Plain helpers return
+list changes; accepted inline fields retain the original reference-object
+identity for existing editor callbacks. Panel display models contain citation
+fields only; source records and callbacks remain transient controller captures.
+Annotation and collection dispatch clone their target/list before awaiting.
+
+## Write tags
+
+`CListWriteTagsState` documents `CList.state.writeTags`: selected strings, input
+draft, collection-name cache, dropdown/offer/control generations, read/creation
+status and errors. It contains no token, account record, crypto key or ciphertext.
+Selection keeps exact-case duplicate behavior, while suggestions use the existing
+case-insensitive prefix matching. Tags stay global across editors as before.
+`getWriteTags()` returns a copy. Optional collection creation retains the existing
+legacy `collection:<name>` key with encrypted JSON `[]`; it uses add-if-absent,
+not update/put, so existing collection content is preserved. Session checks and
+crypto/storage dependencies are transient workflow/controller inputs.

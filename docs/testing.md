@@ -289,7 +289,7 @@ The saved-file browser fixture now reads the two local regression samples in
 It checks repeated HTML choices with drafts in each editor and RSS plain-text
 routing. These are test data, not instructions. Rerun the fixture and wait for PASS.
 
-Temporary editor test marker: the shared editor status shows `test 2026-11-17.4`
+Temporary editor test marker: the shared editor status shows `test 2026-11-18.5`
 from the running editor script. The relevant file-loading/editor script URLs use
 the same version to request fresh copies. If the marker is missing or different,
 the current test build has not loaded. Bump the marker and script versions together
@@ -336,3 +336,120 @@ The existing file-recognition browser fixture loads the real new modules, keeps 
 format/annotation regressions, and adds a superseded-choice check plus safe-state
 inspection. Rerun it and the normal application after this split; previous browser
 PASS results predate it. All fixture editor services remain mocked.
+
+## Editor switching and draft restoration
+
+Run `node --test tests/editor-switch.test.cjs tests/annotation-file.test.cjs tests/editor-references.test.cjs tests/file-recognition.test.cjs tests/loaded-page-messages.test.cjs`,
+then the full Node suite. These tests use real state/controller/view modules with
+simulated DOM, storage, accounts and editor APIs. They cover account-specific
+page/reference restoration, collaborative resync, all transfer choices, duplicate
+and stale controls, delayed account listing, serialized mounts, rejected delivery,
+corrupt accounts/drafts, retry and newer-content preservation.
+
+Open `https://localhost:51888/tests/editor-switch.browser.html` through the source
+launcher (adjust the port to its actual URL). Expect a final `PASS:` covering real
+DOM controls and the new modules; editor APIs, accounts and storage are mocked,
+with no external requests or file writes. Also rerun
+`tests/file-recognition.browser.html` and `tests/editor-references.browser.html`
+for the real-handler integration paths. The visible editor marker is
+`test 2026-11-18.5`.
+
+In the normal app, switch between Text, HTML and Annotation with bodies, references
+and loaded files. Check Overwrite, Insert, Don't transfer and Cancel; confirm that
+returning to an editor resumes its page and references. Refresh with a saved local
+draft, then test Restore and Discard. Type newer content while the restore dialog
+is open and confirm it survives. Check a live collaborative editor separately if
+available; fixture success does not establish its connectivity or authorization.
+
+## Load/Blank controls and loaded-page presentation
+
+Run `node --test tests/editor-controls.test.cjs tests/loaded-page-messages.test.cjs tests/editor-switch.test.cjs tests/file-recognition.test.cjs`,
+then the full Node suite. These tests exercise real controller/view/state modules
+with simulated DOM and mocked editor/storage/loader APIs: filtered sources,
+shared routing, duplicate/stale requests, navigation/session/store/editor/file
+changes, source failure/retry, blank Cancel/Discard, outgoing page/reference
+restoration, newer content, failed/superseded initialization, publication controls
+and stale/erroring toolbar actions.
+
+Open `https://localhost:51888/tests/editor-controls.browser.html` through the
+source launcher (adjust to its actual port). Expect a final `PASS:` for Load/Blank
+and loaded-page controls. It uses real DOM/modules with mocked editors, loaders
+and memory-only storage; no external requests or file writes. Also rerun
+`tests/editor-switch.browser.html`, `tests/file-recognition.browser.html` and
+`tests/editor-references.browser.html`. Marker: `test 2026-11-18.5`.
+
+In the normal app, open Load, select a source and cancel; check Load blank on the
+current editor (Cancel and Discard), then on another editor and back. Confirm that
+the outgoing content, page and references resume. Check file-load notices and
+Republish visibility for unpublished versus published records. Self-managing
+service loader UI and live publishing remain separate integration checks.
+
+## Save destination panel
+
+Run `node --test tests/save-panel.test.cjs tests/publishing-controller.test.cjs tests/publishing-view.test.cjs`,
+then the full Node suite. Tests use real Save state/controller/view modules with
+simulated DOM and mocked savers. Coverage includes filtered destinations/icons,
+original method binding/no arguments, keepOpen forms, the real Dropbox overwrite/cancel promise with mocked uploads, pending/duplicate locks
+across rebuilds, editor/account/session/store/file/panel ownership, visible errors
+and explicit retry, stale completion/failure, and existing collection delegation.
+
+Open `https://localhost:51888/tests/save-panel.browser.html` through the source
+launcher (adjust to its actual URL). Expect final `PASS:` from real DOM/modules
+with mocked savers/accounts/storage, no external requests or file writes. Also
+rerun `tests/publish-selection.browser.html` for adjacent Post-panel behavior.
+The normal-app editor marker is `test 2026-11-18.5`.
+
+In the normal app, check the Save destination list, cancellation of local saving,
+and successful saving of an existing sample document/annotation. For available
+service savers, check that keep-open forms and explicit overwrite choices remain
+usable. These manual file/service actions are separate from the mocked fixtures;
+no real file, upload or authorization is validated by their PASS result.
+
+## References panel
+
+Run `node --test tests/references-panel.test.cjs tests/editor-references.test.cjs tests/annotation-file.test.cjs`,
+then the full Node suite. Coverage uses real References modules and simulated DOM:
+exact URL dedup, structural/reply/extension retention, live target identity,
+click/keyboard edits, single Enter/blur commit, stale row/editor/account/session/
+document controls, state-owned visibility, Save metadata/unfinished edits,
+failed/superseded annotation dispatch, detached collection snapshots, visible
+errors, and standalone view operation without reference-state reads.
+
+Open `https://localhost:51888/tests/references-panel.browser.html` through the
+source launcher (adjust the port as needed), then rerun
+`tests/editor-references.browser.html` and `tests/editor-switch.browser.html`.
+Expect final `PASS:` from each. The new fixture uses real DOM and modules with
+mocked editor switching and collection APIs, with no external requests or
+file/storage writes. Normal-app editor marker: `test 2026-11-18.5`.
+
+In the normal app, open Refs, edit author/title/feed/URL, remove a reference and
+switch away/back. Check that reply metadata remains intact, explicit Annotate
+keeps the source draft, and saving the current document leaves an unfinished
+reference edit usable. Check Save as collection with a deliberate authorized
+manual save separately. Shared-map synchronization and collection-helper live
+writes are separate integration checks, not established by fixture PASS.
+
+## Write tags and collection suggestions
+
+Run `node --test tests/tags.test.cjs tests/editor-switch.test.cjs tests/file-recognition.test.cjs tests/annotation-publishing.test.cjs`,
+then the full Node suite. Tags tests load real state/workflow/controller/view
+modules with simulated DOM and mocked KV/crypto: exact duplicates/case, API
+snapshots, keyboard/removal, prefix suggestions, delayed reads, anonymous and
+expired-session tagging, session/server/mode cache isolation, stale dropdowns,
+blur/refocus, global draft retention during a real delayed editor mount, creation
+No/Yes, encrypted empty-array/add-only payload, AlreadyExists, uncertain failure,
+no automatic retry, stale preparation and preservation of newer selections.
+
+Open `https://localhost:51888/tests/tags.browser.html` through the source launcher
+(adjust its port if needed). Expect final `PASS:` from real DOM/modules with
+mocked storage/encryption/sessions, no external requests or file/storage writes.
+Also rerun `tests/editor-switch.browser.html` and
+`tests/file-recognition.browser.html` for adjacent mount/load paths. Normal-app
+marker: `test 2026-11-18.5`. These browser checks remain separate from Node.
+
+In the normal app, add/remove tags using Enter, comma, Backspace and suggestions;
+check that unfinished text and selected tags survive editor switching. Check
+anonymous tagging and the No choice without storage writes. A deliberate Yes on
+a new test collection and live storage authorization are separate manual actions,
+not established by mocked fixture PASS. No real collections are created by the
+automated checks.

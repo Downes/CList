@@ -1,0 +1,205 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CList Load and blank-editor controls regression</title>
+<h1>Load and blank-editor controls</h1>
+<pre id="result">Checking...</pre>
+<div id="editor-status"></div><div id="editor-instructions"></div>
+<div id="load-instructions"><div id="load-options"></div></div>
+<div id="write-tags"></div><div id="write-title-row"></div>
+<select id="write-format"></select><div id="editor-menu"></div>
+<div id="write-title"></div><div id="fixture-editors"></div>
+<div id="loaded-page-indicator"><span id="loaded-page-filename"></span></div>
+<button id="republish-button">Republish</button><span id="republish-status"></span>
+<div id="fixture-errors"></div>
+<script>
+window.CList = {state: {}, accounts: [], keys: {EDITOR_DRAFT_PREFIX: 'clist_draft_'}, ui: {view: {
+ loadOptions: document.getElementById('load-options'), writeTitle: document.getElementById('write-title'),
+ writePaneContent: document.getElementById('fixture-editors')}}};
+const controlsMemory = new Map(), controlsMessages = [], controlsErrors = [];
+let controlsReferences = [], controlsTagsCleared = 0;
+Object.defineProperty(window, 'sessionStorage', {configurable: true, value: {
+ getItem: key => controlsMemory.has(key) ? controlsMemory.get(key) : null,
+ setItem: (key, value) => controlsMemory.set(key, String(value)), removeItem: key => controlsMemory.delete(key),
+}});
+window.fetch = () => Promise.reject(Error('Unexpected external request'));
+window.getReferences = () => controlsReferences;
+window.setReferences = references => { controlsReferences = structuredClone(references); };
+window.pushReference = reference => { if (!controlsReferences.some(item => item.url === reference.url)) controlsReferences.push(structuredClone(reference)); };
+window.clearReferences = () => { controlsReferences = []; };
+window.closeReferencesPanel = () => {};
+window.clearWriteTags = () => { controlsTagsCleared++; };
+window.showStatusMessage = message => controlsMessages.push(message);
+window.showErrorModal = (message, options) => {
+ controlsErrors.push({message, options}); const element = document.createElement('p');
+ element.className = 'error-message'; element.textContent = message;
+ document.getElementById('fixture-errors').appendChild(element);
+};
+window.openRightPane = () => { document.getElementById('load-instructions').hidden = false; };
+window.openRightInterface = panel => {
+ if (panel !== 'load-instructions' && typeof invalidateEditorControls === 'function') invalidateEditorControls();
+ if (panel !== 'editor-instructions' && typeof invalidateEditorPicker === 'function') invalidateEditorPicker();
+ document.getElementById(panel).hidden = false;
+};
+window.closeRightPane = (options = {}) => {
+ if (!options.preserveEditorControls && typeof invalidateEditorControls === 'function') invalidateEditorControls();
+ if (typeof invalidateEditorPicker === 'function') invalidateEditorPicker();
+ document.getElementById('load-instructions').hidden = true;
+};
+window.isRegistered = () => false;
+window.ensureAccountsLoaded = async () => {};
+window.parseAccountValue = account => JSON.parse(account.value);
+window.CList.ui.isHandlerVisible = handler => handler.visible !== false && !handler.requiresLogin;
+window.removeHtml = value => String(value).replace(/<[^>]*>/g, '');
+window.makeEditorButton = (label, icon, select) => {
+ const button = document.createElement('button'); button.className = 'account-button';
+ const symbol = document.createElement('span'); symbol.className = 'material-icons'; symbol.textContent = icon || 'edit';
+ const text = document.createElement('span'); text.textContent = label;
+ button.append(symbol, text); button.onclick = select; return button;
+};
+</script>
+<script src="../js/editors.js?v=2026-11-18.2"></script>
+<script src="../js/editor-state.js?v=2026-11-18.2"></script>
+<script src="../js/editor-switch-view.js?v=2026-11-18.2"></script>
+<script src="../js/editor-switch.js?v=2026-11-18.2"></script>
+<script src="../js/editor-controls-state.js?v=2026-11-18.2"></script>
+<script src="../js/editor-controls-view.js?v=2026-11-18.2"></script>
+<script src="../js/editor-controls.js?v=2026-11-18.2"></script>
+<script src="../js/editor-load-state.js?v=2026-11-18.2"></script>
+<script src="../js/editor-load-view.js?v=2026-11-18.2"></script>
+<script src="../js/editor-load.js?v=2026-11-18.2"></script>
+<script>
+(async () => {
+ const check = (condition, message) => { if (!condition) throw Error(message); };
+ const equal = (actual, expected, message) => check(JSON.stringify(actual) === JSON.stringify(expected), message);
+ const bodies = new Map(), builtinLoaders = [...CList.loaders];
+ const reference = name => ({url: 'https://source.invalid/' + name, title: name, replyToken: {type: 'Mastodon', statusId: name}});
+ const sourcePage = {kind: 'file', title: 'Source.txt', documentTitle: 'Source document', mimeType: 'text/plain', references: [reference('source')]};
+ const handler = (key, label) => ({label, icon: 'edit', requiresAccount: false, contentTypes: ['text/plain'],
+  initialize: async () => {
+   currentEditor = key;
+   let element = document.getElementById('fixture-' + key);
+   if (!element) { element = document.createElement('div'); element.id = 'fixture-' + key;
+    document.getElementById('fixture-editors').appendChild(element); }
+   element.style.display = ''; await loadPredefinedContent(key);
+  },
+  getContent: () => bodies.get(key) || '', setContent: value => bodies.set(key, value),
+  loadContent: ({value}) => bodies.set(key, (bodies.get(key) || '') + value),
+ });
+ const installHandlers = () => {
+  for (const key of Object.keys(editorHandlers)) delete editorHandlers[key];
+  Object.assign(editorHandlers, {source: handler('source', 'Source'), target: handler('target', 'Target')});
+ };
+ const reset = () => {
+  invalidateEditorControls(); invalidateEditorPicker(); installHandlers();
+  currentEditor = 'source'; currentEditorAccount = null; currentLoadedPage = null; pendingContent = null;
+  CList.state.editorSwitching = undefined; CList.state.editorLoading = undefined;
+  CList.loaders = [...builtinLoaders]; controlsMemory.clear(); bodies.clear(); controlsReferences = [];
+  controlsMessages.length = 0; controlsErrors.length = 0; controlsTagsCleared = 0;
+  document.getElementById('fixture-errors').replaceChildren();
+  document.getElementById('editor-menu').replaceChildren();
+ };
+ const button = label => {
+  const found = [...document.querySelectorAll('#load-options button')].find(element => element.textContent === label || element.textContent.endsWith(label));
+  check(found, 'Rendered control: ' + label); return found;
+ };
+ const sourceContent = value => ({recognized: true, chosenEditor: 'source', type: 'text/plain', value,
+  page: {kind: 'file', title: 'Loaded.txt', documentTitle: 'Loaded document', references: [reference('loaded')]}});
+ const realLoadSavedPage = loadSavedPage; let routed = [];
+ loadSavedPage = async (...args) => { routed.push(args); return realLoadSavedPage(...args); };
+ try {
+  reset(); routed = [];
+  CList.loaders = [
+   {label: 'Visible source', logoSrc: 'data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22/%3E', load: async () => sourceContent('Loaded body')},
+   {label: 'Hidden source', visible: false, load: async () => { throw Error('Hidden source invoked'); }},
+   {label: 'Login source', requiresLogin: true, load: async () => { throw Error('Unavailable source invoked'); }},
+  ];
+  await playLoad();
+  check(document.querySelectorAll('#load-options button').length === 1, 'Load list filters unavailable sources');
+  check(document.querySelector('#load-options .service-icon-img'), 'Source logo uses the existing masked-icon rendering');
+  await button('Visible source').onclick();
+  check(routed.length === 1 && routed[0][2] === CList.ui.view.loadOptions, 'Visible source delegates to the shared saved-page routing controller');
+  check(typeof routed[0][3] === 'function', 'Shared routing receives a return-to-sources callback');
+  check(bodies.get('source') === 'Loaded body', 'Real shared routing loads the chosen editor');
+  equal(getReferences(), [reference('loaded')], 'Shared routing restores incoming references');
+  check(currentLoadedPage.title === 'Loaded.txt', 'Shared routing retains incoming page identity');
+
+  reset(); CList.loaders = [{label: 'Failing source', load: async () => { throw Error('Synthetic load failure'); }}];
+  populateLoadOptions(); await button('Failing source').onclick();
+  check(CList.state.editorControls.phase === 'failed', 'Load failure records a failed operation');
+  check(document.getElementById('fixture-errors').textContent.includes('Synthetic load failure'), 'Load failure is visibly reported');
+
+  reset(); routed = []; let finish, calls = 0;
+  CList.loaders = [{label: 'Pending source', load: () => { calls++; return new Promise(resolve => { finish = resolve; }); }}];
+  populateLoadOptions(); const pendingButton = button('Pending source'), pending = pendingButton.onclick();
+  await pendingButton.onclick(); check(calls === 1, 'Duplicate source clicks start one request');
+  finish(sourceContent('One request')); await pending;
+  check(routed.length === 1 && bodies.get('source') === 'One request', 'One successful pending source routes once');
+
+  reset(); routed = []; let finishOld;
+  CList.loaders = [{label: 'Old pending source', load: () => new Promise(resolve => { finishOld = resolve; })}];
+  populateLoadOptions(); const oldSource = button('Old pending source'), oldPending = oldSource.onclick();
+  populateLoadOptions(); finishOld(sourceContent('Obsolete body')); await oldPending; await oldSource.onclick();
+  check(routed.length === 0 && !bodies.get('source'), 'Rebuilt source list rejects stale pending results and old callbacks');
+
+  reset(); bodies.set('source', 'Keep source'); setLoadedPage(sourcePage); setReferences(sourcePage.references);
+  saveDraft('source', 'Saved source draft'); playLoadBlank(); await button('Source').onclick();
+  check(document.getElementById('load-options').textContent.includes('Discard unsaved content?'), 'Blanking the current nonempty editor asks for confirmation');
+  await button('Cancel').onclick();
+  check(bodies.get('source') === 'Keep source' && currentLoadedPage.title === 'Source.txt', 'Cancel preserves current content and page');
+  equal(getReferences(), sourcePage.references, 'Cancel preserves references');
+  check(controlsMemory.has('clist_draft_source'), 'Cancel preserves the saved draft');
+  await button('Source').onclick(); const discard = button('Discard and continue').onclick;
+  await discard(); await discard();
+  check(bodies.get('source') === '' && currentLoadedPage === null && getReferences().length === 0, 'Confirmed blank clears body, page and references once');
+  check(!controlsMemory.has('clist_draft_source') && !controlsMemory.has('clist_draft_source_refs'), 'Confirmed blank clears draft and saved citations');
+  check(CList.state.editorControls.phase === 'complete' && controlsTagsCleared === 1, 'Blank records completion and clears tags once');
+  check(controlsMessages.includes('Blank editor loaded.'), 'Blank completion uses standard visible feedback');
+
+  reset(); bodies.set('source', 'Outgoing body'); bodies.set('target', 'Destination body');
+  setLoadedPage(sourcePage); setReferences(sourcePage.references); playLoadBlank(); await button('Target').onclick();
+  check(currentEditor === 'target' && bodies.get('target') === '', 'Blanking a different editor clears that destination');
+  check(bodies.get('source') === 'Outgoing body', 'Blanking a different editor retains the outgoing body');
+  await switchToEditor('source'); equal(currentLoadedPage, sourcePage, 'Returning to outgoing editor restores its full page metadata');
+  equal(getReferences(), sourcePage.references, 'Returning to outgoing editor restores its references');
+
+  playLoadBlank(); const oldBlank = button('Target').onclick;
+  await switchToEditor('target'); bodies.set('target', 'Manual destination content');
+  await oldBlank(); check(bodies.get('target') === 'Manual destination content', 'Old blank button cannot clear a manually switched editor');
+
+  reset(); bodies.set('source', 'Preserved source'); setLoadedPage(sourcePage); setReferences(sourcePage.references);
+  editorHandlers.target.initialize = async () => { currentEditor = 'target'; throw Error('Synthetic initialization failure'); };
+  playLoadBlank(); await button('Target').onclick();
+  check(currentEditor === 'source' && bodies.get('source') === 'Preserved source', 'Failed target initialization retains the original editor and body');
+  equal(currentLoadedPage, sourcePage, 'Failed target initialization retains full source identity');
+  equal(getReferences(), sourcePage.references, 'Failed target initialization retains source references');
+  check(CList.state.editorControls.phase !== 'complete' && !controlsMessages.includes('Blank editor loaded.'), 'Failed initialization cannot claim blank completion');
+  check(document.getElementById('fixture-errors').textContent.includes('Synthetic initialization failure'), 'Initialization failure is visibly reported');
+
+  reset(); setLoadedPage(sourcePage); const noticeCount = controlsMessages.length; updateLoadedPageUI();
+  check(controlsMessages.length === noticeCount && controlsMessages.includes('Loaded file: Source.txt'), 'Loaded files use one transient notice without repeated refresh notices');
+  check(document.getElementById('loaded-page-indicator').style.display === 'none' && document.getElementById('republish-button').style.display === 'none', 'File source identity does not display publication controls');
+  check(document.getElementById('write-title').textContent === 'Source document', 'Loaded document title reaches the shared title control');
+  equal(currentLoadedPage, sourcePage, 'Loaded-file metadata remains complete');
+  const publication = {kind: 'page', id: 'publication-id', title: 'Published document', service: 'CListBin',
+   serviceId: 'remote-resource', accountInstance: 'https://store.invalid', mimeType: 'text/html', format: 'html',
+   publicationUrl: 'https://published.invalid/document', references: [reference('publication')], extra: {retained: true}};
+  document.getElementById('republish-status').textContent = 'Old result'; document.getElementById('republish-status').dataset.state = 'success';
+  setLoadedPage(publication);
+  check(document.getElementById('loaded-page-indicator').style.display === '' && document.getElementById('republish-button').style.display === '', 'Publication identity displays Republish controls');
+  check(document.getElementById('loaded-page-filename').title === publication.publicationUrl, 'Publication label retains its target URL');
+  check(document.getElementById('republish-status').textContent === '' && !document.getElementById('republish-status').hasAttribute('data-state'), 'New source clears old publication result state');
+  equal(currentLoadedPage, publication, 'Publication source retains all resource/account/format/extension metadata');
+
+  reset(); let menuCalls = 0;
+  editorHandlers.source.editorFunctions = {Action: () => { menuCalls++; }}; setupEditorButtons('source');
+  const menuAction = document.querySelector('#editor-menu button').onclick; await menuAction(); check(menuCalls === 1, 'Current toolbar callback runs');
+  await switchToEditor('target'); await menuAction(); check(menuCalls === 1, 'Old toolbar callback cannot act after editor switching');
+  check(controlsErrors.length === 0, 'Final toolbar scenario has no unexpected errors');
+  document.getElementById('result').textContent = 'PASS: real Load/Blank state/controller/view, filtered sources and shared file routing, visible failures, duplicate/stale loader guards, blank Cancel/Discard, outgoing draft/page/reference preservation, stale blank and toolbar callbacks, initialization failure handling, transient file notices and publication controls. Editor APIs, accounts and storage mocked; no external requests or file writes.';
+  document.body.dataset.result = 'PASS';
+ } catch (error) {
+  console.error(error); document.getElementById('result').textContent = 'FAIL: ' + error.message;
+  document.body.dataset.result = 'FAIL';
+ }
+})();
+</script>

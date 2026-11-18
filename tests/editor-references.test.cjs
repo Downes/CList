@@ -42,7 +42,7 @@ function fixture() {
         authorID:'fixture-author', referenceDisplayName: ref => ref.author_name || 'Author',
         showErrorModal: message => { throw Error(message); }, tinymce: {get:()=>tinymceEditor},
     });
-    for (const name of ['references', 'editors', 'tinymce', 'etherpad']) vm.runInContext(source(name), ctx);
+    for (const name of ['references-state', 'references-view', 'references', 'editors', 'tinymce', 'etherpad']) vm.runInContext(source(name), ctx);
     const maps = {};
     // Inject editor API/shared-map fakes into the real collaborative handlers' closures.
     for (const [name, variable, api] of [['collab', 'tiptapEditor', { commands: {insertContent() {}} }],

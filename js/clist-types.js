@@ -3,6 +3,42 @@
 // Read docs/data-contracts.md before extending these definitions.
 
 /**
+ * Global write-pane tags and session-scoped collection suggestions. No credentials/keys.
+ * @typedef {Object} CListWriteTagsState
+ * @property {string[]} selected Exact, case-preserving selected tags.
+ * @property {string[]|null} collections Null until a successful read; reset on storage/session changes.
+ * @property {string} query Unsubmitted global input draft.
+ * @property {boolean} dropdown
+ * @property {string|null} offer Captured candidate for optional collection creation.
+ * @property {number} version Control lifetime; replaced input/offer callbacks expire.
+ * @property {number} requestId Collection-read lifetime.
+ * @property {boolean} loading
+ * @property {boolean} creating
+ * @property {{name:string,status:('pending'|'created'|'exists'|'failed'),error:(string|null)}|null} creation
+ * @property {string|null} error
+ */
+
+/**
+ * Reference panel lifecycle, separate from CList.state.references data.
+ * @typedef {Object} CListReferencesPanelState
+ * @property {number} generation Render/control lifetime; old rows cannot mutate a replacement list.
+ * @property {boolean} open Controller-owned visibility, not inferred from DOM classes.
+ * @property {boolean} busy One controller Annotate/collection-helper dispatch at a time.
+ * @property {number} actionId Monotonic asynchronous action identity.
+ */
+
+/**
+ * Generic Save destination panel state. Saver/account/content captures are transient.
+ * @typedef {Object} CListSavePanelState
+ * @property {number} panelId Monotonic destination-list generation.
+ * @property {number} operationId Monotonic save-dispatch generation.
+ * @property {boolean} busy Retained across list rebuilds until the dispatched saver settles.
+ * @property {'ready'|'saving'|'complete'|'failed'} phase Saver settlement, not proof of a remote write.
+ * @property {string|null} destination Selected destination label, never credentials or body content.
+ * @property {string|null} error
+ */
+
+/**
  * Captured loaded-page properties used by page/collection publication; extensible.
  * @typedef {Object.<string, *> & {kind: string, id?: string, pageKey?: string,
  * service?: string, accountInstance?: string, serviceId?: string, url?: string,
@@ -497,5 +533,34 @@
  * @property {number} id Monotonic operation generation.
  * @property {'recognizing'|'choosing-editor'|'choosing-collection'|'reviewing'|'loading'|'complete'|'cancelled'|'failed'} phase
  * @property {string|null} target Selected editor key, or collection.
+ * @property {string|null} error
+ */
+
+/**
+ * Load source/blank control state. Handler, account and body captures are transient.
+ * @typedef {Object} CListEditorControlsState
+ * @property {number} id Monotonic panel generation.
+ * @property {'sources'|'loading-source'|'routing'|'template'|'blank-choices'|'blank-check'|'blank-review'|'blanking'|'complete'|'cancelled'|'failed'} phase
+ * @property {string|null} target Selected blank editor key, if any.
+ * @property {string|null} error
+ */
+/**
+ * Display values for the existing loaded-page/publication controls.
+ * @typedef {Object} CListLoadedPagePresentation
+ * @property {string|undefined} documentTitle
+ * @property {string} label
+ * @property {string} url
+ * @property {boolean} hasPublicationLocation
+ * @property {string|null} notice Transient load confirmation, emitted by the controller.
+ */
+
+/**
+ * In-memory switch state. Credentials and queued/transferred bodies remain transient.
+ * @typedef {Object} CListEditorSwitchState
+ * @property {number} id Monotonic mount request generation.
+ * @property {'idle'|'pending'|'mounting'|'complete'|'failed'} phase
+ * @property {string|null} target Editor/account identity key requested.
+ * @property {string|null} active Last successfully mounted editor/account identity key.
+ * @property {Object.<string, {page: CListWebPageSource|null, references: CListReference[]}>} parked Detached metadata; never editor bodies.
  * @property {string|null} error
  */

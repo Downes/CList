@@ -124,15 +124,15 @@ fetched URL straight into an editor) now do this too.
 
 Each editor keeps its own independent "page" and "references" state, so switching away from
 an editor and back resumes exactly what was there before — switching editors no longer wipes
-anything. This is tracked in `editors.js` by:
+anything. This is coordinated by `editor-switch.js`, using plain transitions in `editor-state.js`:
 
-- **`editorStates`** — a plain object keyed by `editorStateKey(editorType, account)`
+- **`CList.state.editorSwitching.parked`** — a plain object keyed by `editorStateKey(editorType, account)`
   (`` `${editorType}:${account.key}` `` for account-backed editors, so two different accounts
   on the same editor type — e.g. two Etherpad logins — get separate entries; otherwise just the
   bare `editorType`). Each entry holds `{ page, references }`. **In-memory only** — lost on
   reload, same as `currentEditor`/`currentLoadedPage` always have been.
 - **`_parkCurrentEditorState()`** — snapshots `currentLoadedPage` and the current references
-  list (`getReferences().slice()`) into `editorStates` under the *outgoing* editor's key.
+  list (a detached structured clone) into the parked map under the *outgoing* editor's key.
 - **`_restoreEditorState(editorType, account)`** — looks up the *target* editor's entry and
   calls `setLoadedPage(parked.page)`, or resets it to `null` if the target has never been
   visited. For references, it defaults to `setReferences(parked.references)` (or `[]` if never
@@ -152,7 +152,7 @@ and the `#clist-references-panel` DOM stay a single global array/panel, exactly 
 eight existing call sites of `pushReference()`/`getReferences()`/`clearReferences()`
 (`tinymce.js`, `ui.js`, `publish.js`, `hypothesis.js`, `dynamicp2p.js`, `annotate.js`,
 `collab.js`, `collections.js`) are untouched and have no editor-awareness at all. Instead,
-`editors.js` swaps the array's *contents* wholesale via a new function:
+`editor-switch.js` swaps the array's *contents* wholesale via a new function:
 
 ```js
 setReferences(list)   // references.js — replaces window.CList.state.references,
@@ -501,13 +501,13 @@ loadPredefinedContent('myeditor');
 if (!hasPending) offerDraftRestore('myeditor', 'text/plain');
 ```
 
-`offerDraftRestore()` checks `sessionStorage`, prompts the user ("A draft was saved from your last session. Restore it?"), and loads the content if confirmed. If declined, it discards the draft. If there is no draft, it does nothing.
+`offerDraftRestore()` captures the sessionStorage body/references and destination handler, then asks through the shared dialog view. Restore loads that captured editor and its references once; Discard removes the unchanged stored draft. A newer switch, file load, saved record or typed body prevents stale restoration. Malformed stored references and storage failures produce visible feedback. If there is no draft, it does nothing. The storage format and editor-name keys are unchanged; the prefix is `CList.keys.EDITOR_DRAFT_PREFIX`.
 
 **3. Clear on Load blank** — handled centrally
 
 `clearDraft(targetKey)` is called automatically in `_doLoadBlank()` when the user picks "Load blank" (via `playLoadBlank()` → `_confirmAndLoadBlank()` → `_doLoadBlank()`). No per-editor code needed.
 
-### Draft helpers (defined in `editors.js`)
+### Draft helpers (defined in `editor-switch.js`)
 
 | Function | Description |
 |----------|-------------|
@@ -629,7 +629,13 @@ URL/author, absence of fabricated feed metadata, and native JSON feed retention.
 | `editor-load-state.js` | Plain phase/generation transitions, representation variants and emptiness decisions with explicit inputs |
 | `editor-load.js` | Shared `loadSavedPage` controller, payload/page capture, operation lifetime, selected handler inspection and application |
 | `editor-load-view.js` | Editor/collection choices, existing-draft review, close/navigation surfaces and visible errors |
-| `editors.js` | Editor registry, mounting/switching, parked metadata, queued-content delivery and existing editor controls |
+| `editors.js` | Editor registry, plain-text handler and existing feed-content insertion helpers |
+| `editor-controls-state.js` | Plain Load/Blank phases and loaded-page presentation decisions |
+| `editor-controls.js` | Captured loader/blank operations, loaded-page pointer, toolbar callbacks and compatibility entry points |
+| `editor-controls-view.js` | Load/Blank/template/back controls, loaded-page/Republish display, toolbar buttons and close/error surfaces |
+| `editor-state.js` | Plain switch phases, detached parked metadata, identity keys and reference merge rules |
+| `editor-switch.js` | Picker/account capture, serialized mounts, transfer, queued content and guarded draft storage/restoration |
+| `editor-switch-view.js` | Picker, transfer and draft controls, shared mount chrome, status indicator and error feedback |
 
 `CList.state.editorLoading` holds only id, phase, selected target and error. Incoming
 content/page records are cloned into a transient operation; neither body content nor
@@ -645,4 +651,126 @@ contents or executing writes. It reuses the existing collection-choice helper.
 The controller preserves New/Replace/Insert behavior and native annotation/pending
 content handling. Generation guards stop obsolete controller actions and metadata
 updates; they do not cancel the existing service handlers' asynchronous DOM mounting.
-Those mounting/park-restore lifecycles remain a separate refactor slice.
+Switching now uses the modules above. Mount requests are serialized; superseded
+requests that have not started are skipped. A running legacy handler is allowed to
+settle before the next mount, with metadata restored to that handler before it is
+parked again. Failed initialization does not apply a transfer; failed queued-body
+delivery retains the body for retry at its original target. Changing targets drops
+the old queued body rather than delivering it to an unrelated editor.
+
+Direct `initializeEditor()` calls retain their existing mount-only semantics and
+preserve the selected account when reinitializing the same editor. Handler-owned
+background work (including callbacks after initialize returns) remains outside
+mount serialization. This does not establish cancellation of service DOM writes
+or live collaborative connectivity. Load/Blank and loaded-page controls now use the controls modules above.
+
+`CList.state.editorControls` contains only generation, phase, target and error.
+Handlers, accounts and body snapshots stay transient. Loader buttons claim their
+stage before awaiting and pass returned content to `loadSavedPage`. Rebuilding or
+closing the panel, starting another file load, or changing editor/account/session
+expires old callbacks and returned content. Existing self-managing service loaders
+still render their own controls; their internal asynchronous work is not cancelled.
+
+Blanking another editor first parks the outgoing page/references through the
+existing switch controller. Blanking the current editor reviews its body and
+metadata; newer typing/references/page state require another review. Cancel leaves
+the draft intact; confirmed blanking clears its draft/tags/references/page and
+reinitializes the target. Failed or superseded mounts cannot announce completion.
+Internal switch closes preserve the owning blank operation; user pane closes do not.
+
+`setLoadedPage`/`updateLoadedPageUI` remain compatibility entry points in
+`editor-controls.js`. They retain the full extensible `currentLoadedPage` record,
+use a pure presentation model and ask the view to render. File notices remain
+transient; the existing publication-location fields govern Republish visibility.
+Toolbar actions capture their editor/account/mount generation and reject stale
+buttons. Generic registry/text-handler/feed insertion helpers remain in `editors.js`.
+
+## Generic Save panel boundary
+
+| Module | Responsibility |
+|---|---|
+| `save-state.js` | Plain destination-list and in-flight operation transitions |
+| `save-panel.js` | `playSave`/`populateSaveOptions`, owner capture, guarded saver invocation and completion |
+| `save-view.js` | Destination labels/icons/logos, busy controls and feedback |
+
+`CList.state.saving` holds panel/operation generations, busy/phase, destination
+label and error. Account objects, callbacks and service data stay out of that
+state. Rebuilding or closing a panel expires its controls without releasing a
+pending operation's lock. A late completion cannot close a newer panel/editor or
+file load. Pending choices remain disabled across rebuilds and are enabled again
+when the one dispatched saver settles. While busy, the view replaces only its
+own destination list and preserves pending service controls, including the real
+Dropbox overwrite/cancel prompt that resolves its save promise. A rejected saver is reported once; retry
+requires another explicit user action.
+
+The existing `handler.save()` method call retains its `this` binding and receives
+no arguments, preserving file-picker user gestures and current service APIs.
+`{keepOpen:true}` leaves service-rendered forms intact; other settled results close
+only the original owned panel. This phase records promise settlement, not proof
+of a download/remote write. Service savers still own their internal export,
+account lookup, modal/status UI and writes; those paths are not migrated by this
+menu extraction. Collection Save continues through `playCollectionSave`.
+
+## References panel boundary
+
+| Module | Responsibility |
+|---|---|
+| `references-state.js` | Plain URL-dedup/list edits/removals and panel lifecycle transitions |
+| `references.js` | Existing get/push/set/clear APIs, row ownership, safe inline commits, Annotate and collection-helper dispatch |
+| `references-view.js` | Citation/date fields, editable inputs, visibility and action controls |
+
+Data remains in `CList.state.references`. `CList.state.referencesPanel` contains
+render generation, open, busy and action ID only. Accounts, source rows, handlers
+and callbacks stay transient. Panel visibility follows state rather than DOM
+classes. Closing/rebuilding or a replaced editor/account/session/document expires
+old field commits and row actions. Owner checks use actual load/mount generations
+and live document IDs; replacing saved-page metadata alone keeps the current
+panel and unfinished edits intact.
+
+Only author, title, feed and URL can be edited. Structural fields, reply tokens
+and service extensions survive. The controller validates through plain helpers
+and applies the accepted field to the existing reference object, preserving the
+live identity retained by Annotation's input callbacks. The view uses explicit
+read/edit callbacks and local display values, never reference state directly.
+Inline commits do not rebuild other fields; Enter plus blur commits once. Exact
+URL deduplication on push and wholesale setReferences semantics stay unchanged;
+editing a URL does not introduce new deduplication rules.
+
+Annotate captures a detached full target and nulls its reply token, awaits the
+existing switch, and rejects failed/superseded completion before insertion.
+Collection Save captures a detached list and original anchor for the existing
+`importCollectionFromChat` helper. Pending duplicate controller actions are
+blocked; no automatic retry is added. That helper still owns its picker and
+storage operations. Collaborative shared maps remain in their existing handlers;
+this refactor does not add edit/delete propagation or prove live connectivity.
+
+## Write-tag boundary
+
+| Module | Responsibility |
+|---|---|
+| `tags-state.js` | Exact tag selection, prefix suggestions and plain state initialization |
+| `tags-workflow.js` | Explicit collection-key listing and guarded key/encryption/add workflow |
+| `tags.js` | Compatibility APIs, session cache, input/blur lifetime and captured creation controller |
+| `tags-view.js` | Chips, input, fixed-position suggestion list, creation offer and feedback |
+
+`getWriteTags()` and `clearWriteTags()` retain their existing API. Global selected
+tags and unfinished input survive editor switches, including typing during a
+slow mount. `refreshWriteTags()` rebinds controls when mounting or beginning a
+file load; ordinary Save metadata updates do not erase the input. Replaced
+input/dropdown/offer callbacks and old blur timers cannot affect a newer render.
+Refocusing/input cancels a pending blur close. A late collection read uses the
+latest query and does not open a dropdown after the input loses focus.
+
+Collection names are cached by username/server/token/local mode. Old reads cannot
+populate another account's cache. Anonymous tagging works without collection
+requests or creation offers; token expiry while focused does not disable local
+tagging. Read failures remain visible and uncached, allowing an explicit refocus
+to retry rather than treating failure as an empty successful list.
+
+Create collection requires Yes and captures the name/session. It preserves the
+legacy encrypted JSON `[]` format and add-only key. AlreadyExists confirms cache
+membership without modifying that record. Check session ownership after key
+retrieval and encryption before add; an accepted add is not repeated. Duplicate
+creation clicks are blocked, failures preserve selected tags, and a late result
+cannot retarget a newer selection or erase a newer offer. Credentials and keys
+remain transient, outside `CList.state.writeTags`.

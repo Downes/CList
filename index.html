@@ -52,6 +52,7 @@
                 TOKEN_EXPIRES:         'token_expires',
                 OAUTH_CALLBACK_RESULT: 'oauth_callback_result',
                 KVSTORE_URL:           'clist_kvstore_url',
+                EDITOR_DRAFT_PREFIX:   'clist_draft_',
             }
         };
         // Launcher's configured default applies first; an explicit saved user choice
@@ -318,7 +319,9 @@
 <script src="js/utilities.js?v=1" defer></script>
 <script src="js/ui.js?v=12" defer></script>
 <script src="js/account-transfer.js" defer></script>  <!-- Export/import account data (Local or hosted); calls window.CList.storage.kv.* (storage.js + adapters below), crypto_utils.js, ui.js, kvstore.js's getEncKey -- all resolved by call time since nothing here runs until a button click, well after every deferred script has executed -->
-<script src="js/references.js" defer></script>
+<script src="js/references-state.js?v=2026-11-18.5" defer></script>
+<script src="js/references-view.js?v=2026-11-18.5" defer></script>
+<script src="js/references.js?v=2026-11-18.5" defer></script>
 <script src="js/crypto_utils.js" defer></script>
 <script src="js/storage.js" defer></script>          <!-- window.CList.storage.kv.* facade; defines KvStoreError, must load before the two adapters below -->
 <script src="js/kvstore-remote.js" defer></script>  <!-- storage.js facade: HTTP adapter -->
@@ -327,10 +330,16 @@
 <script src="js/account-form.js" defer></script>
 <script src="js/account-panel.js" defer></script>
 <script src="js/kvstore.js?v=8" defer></script>     <!-- Loads usere and account data -->
-<script src="js/editors.js?v=2026-11-17.4" defer></script>
-<script src="js/editor-load-state.js?v=2026-11-17.4" defer></script>
-<script src="js/editor-load-view.js?v=2026-11-17.4" defer></script>
-<script src="js/editor-load.js?v=2026-11-17.4" defer></script>   <!-- Major function handlers-->
+<script src="js/editors.js?v=2026-11-18.5" defer></script>
+<script src="js/editor-state.js?v=2026-11-18.5" defer></script>
+<script src="js/editor-switch-view.js?v=2026-11-18.5" defer></script>
+<script src="js/editor-switch.js?v=2026-11-18.5" defer></script>
+<script src="js/editor-controls-state.js?v=2026-11-18.5" defer></script>
+<script src="js/editor-controls-view.js?v=2026-11-18.5" defer></script>
+<script src="js/editor-controls.js?v=2026-11-18.5" defer></script>
+<script src="js/editor-load-state.js?v=2026-11-18.5" defer></script>
+<script src="js/editor-load-view.js?v=2026-11-18.5" defer></script>
+<script src="js/editor-load.js?v=2026-11-18.5" defer></script>   <!-- Major function handlers-->
 <script src="js/reader-state.js" defer></script>
 <script src="js/reader-view.js" defer></script>
 <script src="js/reader.js?v=7" defer></script>
@@ -371,8 +380,8 @@
 
 <script src="js/page-store-idb.js" defer></script>  <!-- Save / Load --> <!-- Local IndexedDB layer for PageStore -->
 <script src="js/page-store.js" defer></script>      <!-- PageStore public API + its savers/loaders registry entries -->
-<script src="js/file-recognition.js?v=2026-11-17.4" defer></script>
-<script src="js/files.js?v=2026-11-17.4" defer></script>
+<script src="js/file-recognition.js?v=2026-11-18.5" defer></script>
+<script src="js/files.js?v=2026-11-18.5" defer></script>
 
 <script src="js/wordpress.js?v=5" defer></script>      <!-- Posts -->
 <script src="js/blogger.js?v=1" defer></script>
@@ -382,17 +391,20 @@
 <script src="js/collab_account.js" defer></script>
 <script src="js/latex.js?v=4" defer></script>
 <script src="js/slides.js?v=14" defer></script>
-<script src="js/tags.js" defer></script>         <!-- Write-pane tag field -->
+<script src="js/tags-state.js?v=2026-11-18.5" defer></script>
+<script src="js/tags-workflow.js?v=2026-11-18.5" defer></script>
+<script src="js/tags-view.js?v=2026-11-18.5" defer></script>
+<script src="js/tags.js?v=2026-11-18.5" defer></script>         <!-- Write-pane tag field -->
 <script src="js/annotation-workflow.js" defer></script>
 <script src="js/annotation-view.js" defer></script>
 <script src="js/annotation-publishing.js" defer></script>
 <script src="js/annotate_publish.js" defer></script>
 <script src="js/annotate.js?v=8" defer></script>   <!-- Annotation store -->
 <script src="js/annotate_account.js" defer></script>
-<script src="js/annotate-editor.js?v=2026-11-17.4" defer></script>   <!-- Dedicated annotation editor -->
-<script src="js/collection-formats.js?v=2026-11-17.4" defer></script> <!-- Collection format interpreters -->
-<script src="js/collections.js?v=2026-11-17.4" defer></script> <!-- Collections -->
-<script src="js/collection-editor.js?v=2026-11-17.4" defer></script>
+<script src="js/annotate-editor.js?v=2026-11-18.5" defer></script>   <!-- Dedicated annotation editor -->
+<script src="js/collection-formats.js?v=2026-11-18.5" defer></script> <!-- Collection format interpreters -->
+<script src="js/collections.js?v=2026-11-18.5" defer></script> <!-- Collections -->
+<script src="js/collection-editor.js?v=2026-11-18.5" defer></script>
 <script src="js/collection-publishing-workflow.js" defer></script>
 <script src="js/collection-publishing-view.js" defer></script>
 <script src="js/collection-publishing.js" defer></script>
@@ -401,7 +413,7 @@
 <script src="js/gist.js" defer></script>
 <script src="js/0x0.js" defer></script>
 <script src="js/clistbin.js" defer></script>
-<script src="js/dropbox.js?v=2026-11-17.4" defer></script>
+<script src="js/dropbox.js?v=2026-11-18.5" defer></script>
 <script src="js/dropbox_account.js?v=2" defer></script>
 <script src="js/hypothesis.js?v=2" defer></script>
 <script src="js/hypothesis_publish.js" defer></script>
@@ -420,9 +432,12 @@
 <script src="js/web-page-workflow.js" defer></script>
 <script src="js/web-page-view.js" defer></script>
 <script src="js/web-page-publishing.js" defer></script>
-<script src="js/publish.js?v=15" defer></script>
+<script src="js/save-state.js?v=2026-11-18.5" defer></script>
+<script src="js/save-view.js?v=2026-11-18.5" defer></script>
+<script src="js/save-panel.js?v=2026-11-18.5" defer></script>
+<script src="js/publish.js?v=2026-11-18.5" defer></script>
 <script src="js/webmention.js" defer></script>
-<script src="js/interface.js?v=2"></script>
+<script src="js/interface.js?v=2026-11-18.5"></script>
 
 <!-- Login / Register modal -->
 <div id="authModal" style="display:none; position:fixed; inset:0; background:var(--bg-modal-overlay); z-index:9999; align-items:center; justify-content:center;">

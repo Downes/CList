@@ -30,207 +30,138 @@
 //    Bluesky:   { type: 'Bluesky', uri: string, cid: string }
 //
 
-window.CList.state.references = window.CList.state.references || [];
-
-// Add a reference if it isn't already in the list (deduplicated by URL).
-// Returns true if added, false if duplicate.
-/**
- * @param {CListReference} ref
- * @returns {boolean} Whether the reference was added.
- */
+// Controller and compatibility API. The view receives display values and callbacks.
+window.CList.state.references ||= [];
+let _referencesAction = null;
+function referencesPanelState() {
+    return window.CList.state.referencesPanel ||= nextReferencesPanel(null);
+}
+function updateReferencesPanel(changes, render = false) {
+    return window.CList.state.referencesPanel = nextReferencesPanel(referencesPanelState(), changes, render);
+}
+function referencePanelOwner() {
+    const editor = typeof currentEditor === 'undefined' ? null : currentEditor;
+    const handler = typeof editorHandlers === 'undefined' ? null : editorHandlers[editor];
+    return { editor, account: typeof currentEditorAccount === 'undefined' ? null : currentEditorAccount,
+        // Save/publication can replace currentLoadedPage metadata without loading
+        // another document. Actual loads/mounts and live document IDs own expiry.
+        switchId: window.CList.state.editorSwitching?.id, loadId: window.CList.state.editorLoading?.id,
+        username: window.CList.state.username, storeUrl: window.CList.config?.flaskSiteUrl,
+        docId: handler?.getDocId?.() || null };
+}
+function referenceOwnerMatches(owner) {
+    const now = referencePanelOwner();
+    return Object.keys(now).every(key => now[key] === owner[key]);
+}
+function referenceRowCurrent(row) {
+    return row.generation === referencesPanelState().generation && referenceOwnerMatches(row.owner)
+        && getReferences()[row.index] === row.reference;
+}
+/** @param {CListReference} ref @returns {boolean} */
 function pushReference(ref) {
-    if (!ref || !ref.url) return false;
-    const isDuplicate = window.CList.state.references.some(r => r.url === ref.url);
-    if (isDuplicate) return false;
-    window.CList.state.references.push(ref);
-    _renderReferencesPanel();
-    const refsBtn = window.CList.ui.view.referencesButton;
-    if (refsBtn) refsBtn.style.display = '';
-    return true;
+    const next = appendPanelReference(getReferences(), ref);
+    if (next === getReferences()) return false;
+    window.CList.state.references = next; _renderReferencesPanel(); return true;
 }
-
-// Return the current reference list.
 /** @returns {CListReference[]} */
-function getReferences() {
-    return window.CList.state.references;
-}
-
-// Close the references panel (slides it back down over write-pane-content). Shared by
-// playRefs()'s close branch and switchToEditor() (editors.js), which calls this
-// unconditionally on every editor switch so a panel left open doesn't turn into a dead end —
-// the target editor may have zero references, which hides the Refs toggle button entirely,
-// leaving no way to close a panel that's still showing.
+function getReferences() { return window.CList.state.references; }
 function closeReferencesPanel() {
-    const panel = document.getElementById('clist-references-panel');
-    if (panel) panel.classList.remove('open');
+    updateReferencesPanel({open:false}, true);
+    window.CList.ui.references.visibility(false);
 }
-
-// Toggle the references panel — slides it up over write-pane-content as an overlay,
-// without reflowing write-tags-bar underneath.
 window.playRefs = function() {
-    const panel = document.getElementById('clist-references-panel');
-    if (!panel) {
-        if (typeof showErrorModal === 'function') showErrorModal('No references yet.', { title: 'No references' });
-        return;
-    }
-    panel.classList.toggle('open');
+    if (referencesPanelState().open) { closeReferencesPanel(); return; }
+    if (!getReferences().length) { showErrorModal('No references yet.', {title:'No references'}); return; }
+    updateReferencesPanel({open:true}); _renderReferencesPanel();
 };
-
-// Clear all references and hide the panel.
 function clearReferences() {
     window.CList.state.references = [];
-    const panel = document.getElementById('clist-references-panel');
-    if (panel) { panel.innerHTML = ''; panel.classList.remove('open'); }
-    const refsBtn = window.CList.ui.view.referencesButton;
-    if (refsBtn) refsBtn.style.display = 'none';
+    updateReferencesPanel({open:false}, true);
+    if (_referencesAction) _referencesAction.cancelled = true;
+    window.CList.ui.references.clear();
 }
-
-// Replace the entire reference list wholesale and re-render — used by editors.js's
-// per-editor state park/restore (switching editors) and content-transfer prompt
-// (Overwrite/Insert), where the caller has already built the exact list it wants
-// (parked state, or a deduped union) rather than appending one deduped-by-url entry
-// the way pushReference() does.
+/** @param {CListReference[]} list */
 function setReferences(list) {
     window.CList.state.references = Array.isArray(list) ? list : [];
     _renderReferencesPanel();
-    const refsBtn = window.CList.ui.view.referencesButton;
-    if (refsBtn) refsBtn.style.display = window.CList.state.references.length ? '' : 'none';
 }
-
-// Render the references panel in the write pane: one row per reference, with
-// author_name/title/feed/url editable in place and a delete button; created_at/service/
-// replyToken/id/author_id stay read-only (derived/structural, or not meaningful to edit).
-function _renderReferencesPanel() {
-    const refs = window.CList.state.references;
-    let panel = document.getElementById('clist-references-panel');
-    if (!panel) {
-        panel = document.createElement('div');
-        panel.id = 'clist-references-panel';
-        panel.className = 'allReferences';
-        const writeEditorArea = window.CList.ui.view.writeEditorArea;
-        if (writeEditorArea) writeEditorArea.appendChild(panel);
+function editReferenceRow(row, key, value) {
+    if (!referenceRowCurrent(row)) return false;
+    const next = editPanelReference(getReferences(), row.index, row.reference, key, value);
+    if (next === getReferences()) return false;
+    if (_referencesAction) _referencesAction.cancelled = true;
+    // Existing editor field handlers (notably Annotation) retain this reference
+    // object. Apply the validated field only, keeping that legacy live identity.
+    row.reference[key] = next[row.index][key]; next[row.index] = row.reference;
+    window.CList.state.references = next;
+    return true; // The view updates only this field, preserving focus in other rows.
+}
+function removeReferenceRow(row) {
+    if (!referenceRowCurrent(row)) return;
+    if (_referencesAction) _referencesAction.cancelled = true;
+    window.CList.state.references = removePanelReference(getReferences(), row.index, row.reference);
+    _renderReferencesPanel();
+}
+function beginReferenceAction() {
+    const state = referencesPanelState();
+    if (state.busy) return null;
+    const action = _referencesAction = {id:state.actionId + 1, cancelled:false};
+    updateReferencesPanel({busy:true, actionId:action.id}); window.CList.ui.references.busy(true);
+    return action;
+}
+function finishReferenceAction(action) {
+    if (_referencesAction !== action) return;
+    _referencesAction = null; updateReferencesPanel({busy:false}); window.CList.ui.references.busy(false);
+}
+async function annotateReferenceRow(row) {
+    if (!referenceRowCurrent(row)) return;
+    const action = beginReferenceAction(); if (!action) return;
+    let switchId;
+    try {
+        const target = structuredClone({...row.reference, replyToken:null});
+        const switching = switchToEditor('annotate-edit');
+        switchId = window.CList.state.editorSwitching?.id;
+        const switched = await switching;
+        if (switched === false || action.cancelled || _referencesAction !== action || currentEditor !== 'annotate-edit'
+            || switchId !== window.CList.state.editorSwitching?.id
+            || row.owner.username !== window.CList.state.username || row.owner.storeUrl !== window.CList.config?.flaskSiteUrl
+            || row.owner.loadId !== window.CList.state.editorLoading?.id) return;
+        pushReference(target);
+        _refreshAnnotateSendControls(); _refreshAnnotateRefFields();
+    } catch (error) {
+        const sameSession = row.owner.username === window.CList.state.username && row.owner.storeUrl === window.CList.config?.flaskSiteUrl;
+        const ownedTarget = typeof currentEditor !== 'undefined' && currentEditor === 'annotate-edit'
+            && switchId === window.CList.state.editorSwitching?.id && row.owner.loadId === window.CList.state.editorLoading?.id;
+        if (sameSession && (referenceOwnerMatches(row.owner) || ownedTarget)) window.CList.ui.references.error(error, 'Could not annotate reference');
+        else window.CList.ui.references.staleError(error);
     }
-
-    panel.innerHTML = '';
-
-    const headerRow = document.createElement('div');
-    headerRow.className = 'modal-header-row';
-    const header = document.createElement('h2');
-    header.textContent = 'References';
-    const closeBtn = document.createElement('button');
-    closeBtn.textContent = 'X';
-    closeBtn.title = 'Close';
-    closeBtn.addEventListener('click', closeReferencesPanel);
-    headerRow.appendChild(header);
-    headerRow.appendChild(closeBtn);
-    panel.appendChild(headerRow);
-
-    refs.forEach((ref, i) => {
-        const row = document.createElement('div');
-        row.className = 'status-box';
-
-        // One clickable span per editable field, built inline into a single citation
-        // line (e.g. "Author unknown. Cited on 2026-11-09. Title. (Feed). [url].")
-        // rather than a label/value grid or separate boxes — reads like normal reference
-        // text, with each part editable in place, flowing inside one contained unit.
-        const makeEditableField = (key, placeholder) => {
-            const display = document.createElement('span');
-            display.className = 'ref-field-text';
-            display.tabIndex = 0;
-            display.textContent = ref[key] || placeholder;
-            const startEditing = () => {
-                const input = document.createElement('input');
-                input.type = 'text';
-                input.value = ref[key] || '';
-                input.placeholder = placeholder;
-                input.className = 'collection-editor-input ref-field-input';
-                const finishEditing = () => {
-                    ref[key] = input.value;
-                    display.textContent = input.value || placeholder;
-                    input.replaceWith(display);
-                };
-                input.addEventListener('blur', finishEditing);
-                input.addEventListener('keydown', (e) => { if (e.key === 'Enter') input.blur(); });
-                display.replaceWith(input);
-                input.focus();
-            };
-            display.addEventListener('click', startEditing);
-            display.addEventListener('keydown', (e) => { if (e.key === 'Enter') startEditing(); });
-            return display;
-        };
-
-        const line = document.createElement('div');
-        line.className = 'ref-citation-line';
-
-        line.appendChild(makeEditableField('author_name', 'Author unknown'));
-        line.appendChild(document.createTextNode('. '));
-
-        // Publication date of the source item (if known) — distinct from cited_at below.
-        if (ref.created_at) {
-            const pubDateSpan = document.createElement('span');
-            pubDateSpan.className = 'ref-citation-date';
-            pubDateSpan.textContent = ref.created_at.slice(0, 10);
-            line.appendChild(pubDateSpan);
-            line.appendChild(document.createTextNode('. '));
-        }
-
-        line.appendChild(makeEditableField('title', 'Untitled'));
-        line.appendChild(document.createTextNode('. ('));
-        line.appendChild(makeEditableField('feed', 'Unknown source'));
-        line.appendChild(document.createTextNode('). ['));
-        line.appendChild(makeEditableField('url', 'No URL'));
-        line.appendChild(document.createTextNode(']. '));
-
-        // Date this reference was captured/cited into CList — normally always known (set
-        // at reference-creation time), separate from the source item's own publication date.
-        if (ref.cited_at) {
-            const citedSpan = document.createElement('span');
-            citedSpan.className = 'ref-citation-date';
-            citedSpan.textContent = `Cited on ${ref.cited_at.slice(0, 10)}`;
-            line.appendChild(citedSpan);
-            line.appendChild(document.createTextNode('.'));
-        }
-
-        row.appendChild(line);
-
-        const annotateBtn = document.createElement('button');
-        annotateBtn.className = 'clist-action-btn';
-        annotateBtn.title     = 'Annotate this reference';
-        annotateBtn.innerHTML = '<span class="material-icons md-18 md-light">edit</span>';
-        annotateBtn.addEventListener('click', async () => {
-            // Treated like a regular annotation no matter where it came from — strip any
-            // service-specific reply-threading token so it never posts as a threaded reply.
-            const target = { ...ref, replyToken: null };
-            await switchToEditor('annotate-edit');
-            pushReference(target);
-            _refreshAnnotateSendControls();
-            _refreshAnnotateRefFields();
-        });
-        row.appendChild(annotateBtn);
-
-        const removeBtn = document.createElement('button');
-        removeBtn.className = 'clist-action-btn';
-        removeBtn.title     = 'Remove reference';
-        removeBtn.innerHTML = '<span class="material-icons md-18 md-light">remove_circle_outline</span>';
-        removeBtn.addEventListener('click', () => {
-            refs.splice(i, 1);
-            setReferences(refs);
-        });
-        row.appendChild(removeBtn);
-
-        panel.appendChild(row);
+    finally { finishReferenceAction(action); }
+}
+async function saveReferenceCollection(generation, owner, anchor) {
+    if (generation !== referencesPanelState().generation || !referenceOwnerMatches(owner)) return;
+    const action = beginReferenceAction(); if (!action) return;
+    try {
+        if (typeof window.importCollectionFromChat !== 'function') throw new Error('Collection import not available.');
+        // The existing helper owns its asynchronous picker and storage actions.
+        // Capture the list; this controller does not cancel that legacy workflow.
+        await window.importCollectionFromChat(structuredClone(getReferences()), anchor);
+    } catch (error) {
+        if (referenceOwnerMatches(owner)) window.CList.ui.references.error(error, 'Could not save references as collection');
+        else window.CList.ui.references.staleError(error);
+    }
+    finally { finishReferenceAction(action); }
+}
+function _renderReferencesPanel() {
+    const state = updateReferencesPanel({}, true), owner = referencePanelOwner();
+    const rows = getReferences().map((reference, index) => {
+        const row = {reference, index, owner, generation:state.generation};
+        return { reference: {
+            author_name:reference.author_name, title:reference.title, feed:reference.feed, url:reference.url,
+            created_at:reference.created_at, cited_at:reference.cited_at,
+        }, read:key=>({current:referenceRowCurrent(row), value:row.reference[key]}),
+        edit:(key,value)=>editReferenceRow(row,key,value), remove:()=>removeReferenceRow(row), annotate:()=>annotateReferenceRow(row) };
     });
-
-    const saveBtn = document.createElement('button');
-    saveBtn.className = 'btn';
-    saveBtn.textContent = 'Save as collection';
-    saveBtn.style.margin = '8px 4px 4px 10px';
-    saveBtn.addEventListener('click', () => {
-        if (typeof window.importCollectionFromChat === 'function') {
-            window.importCollectionFromChat([...refs], saveBtn);
-        } else {
-            showErrorModal('Collection import not available.', { title: 'Import unavailable' });
-        }
-    });
-    panel.appendChild(saveBtn);
+    window.CList.ui.references.mount(rows, {open:state.open, busy:state.busy,
+        close:()=>{if (state.generation === referencesPanelState().generation && referenceOwnerMatches(owner)) closeReferencesPanel();},
+        save:anchor=>saveReferenceCollection(state.generation,owner,anchor)});
 }

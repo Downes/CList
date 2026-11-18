@@ -183,8 +183,57 @@ feedback). `CList.state.editorLoading` contains only generation/phase/target/err
 file bodies, page records and callbacks remain in transient operation captures.
 Keep representation choice before draft review, expire old callbacks, and preserve
 recognition, native annotation loading and collection-versus-text behavior. Editor
-mounting/park-restore and queued content still belong to `editors.js` and handlers.
+mounting/park-restore and queued content use `editor-switch.js` and existing handlers.
 Do not claim that generation checks cancel a service editor's asynchronous mounting.
+
+Editor switching uses `editor-state.js` (plain metadata/phase transitions),
+`editor-switch.js` (captured picker, queued mounts, transfers and draft storage),
+and `editor-switch-view.js` (picker/transfer/draft controls and shared mount chrome).
+`CList.state.editorSwitching` holds public identity keys, phases and detached
+parked page/reference metadata, never accounts or bodies. Serialize mounts and
+expire stale picker/draft controls. Live collaborative handlers resync references
+instead of restoring stale snapshots. Direct `initializeEditor` callers retain
+mount-only semantics; service handlers still own their mounting lifecycle.
+
+Load source/blank controls use `editor-controls-state.js` (plain phase and
+loaded-page presentation rules), `editor-controls.js` (captured loader/blank
+operations and compatibility entry points), and `editor-controls-view.js` (Load,
+Blank, template/back, loaded-page/Republish display and toolbar rendering).
+`CList.state.editorControls` contains phases/target/error only. Keep returned
+loader content on the shared `loadSavedPage` path; self-managing service loaders
+still own their internal UI and cannot be cancelled by these guards. Expire old
+controls on panel navigation and reject stale editor/account/session/file-load
+owners. Preserve full loaded-page metadata and existing publication visibility.
+
+Generic Save destinations use `save-state.js` (panel/in-flight transitions),
+`save-panel.js` (captured dispatch/completion controller), and `save-view.js`
+(destination rendering/busy/error feedback). `CList.state.saving` contains only
+panel/operation IDs, phase, busy, destination label and error. Retain the pending
+lock across panel rebuilds, preserve `save()` method binding/no arguments and
+`{keepOpen:true}` service forms and pending service prompts during list rebuilds,
+and never automatically retry writes. Collection
+Save still delegates to its existing controller. These guards do not capture or
+cancel a legacy saver's internal content/account reads, UI or service writes.
+
+References use `references-state.js` (plain list/panel transitions),
+`references.js` (compatibility API, captured row/action ownership), and
+`references-view.js` (citation editing and panel controls). Data stays in
+`CList.state.references`; visibility/generation/busy lives in `referencesPanel`.
+Keep URL deduplication, structural/reply metadata and legacy live reference-object
+identity on inline edits. Expire stale row/document controls; normal Save metadata
+updates alone do not represent another document or discard unfinished edits.
+Collaborative map synchronization remains handler-owned. The existing collection
+picker/storage helper is not migrated or cancelled by this panel extraction.
+
+Write tags use `tags-state.js` (plain selection/suggestion rules),
+`tags-workflow.js` (explicit KV/encryption operations), `tags.js` (controller),
+and `tags-view.js` (chips/input/dropdown/creation choices). Tags and unsubmitted
+input remain global across editor switches; rebind replaced controls without
+losing text typed during an asynchronous mount. Collection caches are scoped by
+user/server/token/local mode; never store credentials or encryption keys in
+`CList.state.writeTags`. Creation preserves the legacy encrypted empty-array
+record and add-if-absent semantics. Check the captured session before each
+asynchronous preparation/write boundary; never retry an uncertain write.
 
 ## Reader dispatch
 
@@ -255,6 +304,7 @@ See `docs/adding-a-service.md` for the complete pattern.
 | `window.CList.keys.TOKEN_EXPIRES` | `'token_expires'` | token expiry timestamp (site-specific cookie) |
 | `window.CList.keys.OAUTH_CALLBACK_RESULT` | `'oauth_callback_result'` | OAuth popup result (localStorage) |
 | `window.CList.keys.KVSTORE_URL` | `'clist_kvstore_url'` | selected kvstore server URL (localStorage) |
+| `window.CList.keys.EDITOR_DRAFT_PREFIX` | `'clist_draft_'` | per-editor draft body and `_refs` sessionStorage keys |
 
 These constants are declared in the inline `<script>` block in `index.html` and are available before any deferred script loads. Using them ensures a rename is a one-line change and prevents typo-silent bugs.
 

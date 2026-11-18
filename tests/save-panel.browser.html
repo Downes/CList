@@ -1,0 +1,178 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CList Save panel regression</title>
+<h1>Save destinations and operation state</h1>
+<pre id="result">Checking...</pre>
+<div id="save-instructions" hidden><div id="save-options"></div></div>
+<div id="other-instructions" hidden></div>
+<div id="fixture-errors"></div>
+<script>
+let currentEditor = 'texteditor', currentEditorAccount = null;
+window.CList = {state: {username: 'fixture-user'}, config: {flaskSiteUrl: 'https://store.invalid'},
+ accounts: [], savers: [], ui: {isHandlerVisible: handler => handler.hidden !== true && !handler.requiresLogin}};
+const saveMemory = new Map(), saveMessages = [], saveErrors = [];
+let saveCloseCount = 0, saveOpenCount = 0, collectionSaveCount = 0;
+Object.defineProperty(window, 'sessionStorage', {configurable: true, value: {
+ getItem: key => saveMemory.get(key) ?? null, setItem: (key, value) => saveMemory.set(key, String(value)),
+ removeItem: key => saveMemory.delete(key),
+}});
+window.fetch = () => Promise.reject(Error('Unexpected external request'));
+window.showStatusMessage = message => saveMessages.push(message);
+window.showErrorModal = (message, options) => {
+ saveErrors.push({message, options}); const paragraph = document.createElement('p');
+ paragraph.className = 'error-message'; paragraph.textContent = message;
+ document.getElementById('fixture-errors').appendChild(paragraph);
+};
+window.openRightInterface = panel => {
+ if (panel !== 'save-instructions') invalidateSavePanel();
+ document.getElementById('save-instructions').hidden = panel !== 'save-instructions';
+ document.getElementById('other-instructions').hidden = panel !== 'other-instructions'; saveOpenCount++;
+};
+window.closeRightPane = () => {
+ invalidateSavePanel(); document.getElementById('save-instructions').hidden = true;
+ document.getElementById('other-instructions').hidden = true; saveCloseCount++;
+};
+window.playCollectionSave = async () => { collectionSaveCount++; };
+</script>
+<script src="../js/save-state.js?v=2026-11-18.3"></script>
+<script src="../js/save-view.js?v=2026-11-18.3"></script>
+<script src="../js/save-panel.js?v=2026-11-18.3"></script>
+<script src="../js/dropbox.js?v=2026-11-18.3"></script>
+<script>
+(async () => {
+ const check = (condition, message) => { if (!condition) throw Error(message); };
+ const root = document.getElementById('save-options');
+ const button = label => {
+  const result = [...root.querySelectorAll('button')].find(element => element.textContent.endsWith(label));
+  check(result, 'Rendered destination: ' + label); return result;
+ };
+ const reset = () => {
+  invalidateSavePanel(); currentEditor = 'texteditor'; currentEditorAccount = null;
+  CList.state = {username: 'fixture-user'}; CList.config.flaskSiteUrl = 'https://store.invalid'; CList.savers = [];
+  saveMemory.clear(); saveMessages.length = 0; saveErrors.length = 0;
+  saveCloseCount = 0; saveOpenCount = 0; collectionSaveCount = 0;
+  document.getElementById('save-instructions').hidden = true;
+  document.getElementById('other-instructions').hidden = true;
+  document.getElementById('fixture-errors').replaceChildren(); root.replaceChildren();
+ };
+ const logo = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"%3E%3Cpath d="M2 2h12v12H2z"/%3E%3C/svg%3E';
+ try {
+  reset(); let calledThis = null, argumentCount = -1;
+  const iconSaver = {label: 'Icon destination', icon: 'download', save: function () {
+   calledThis = this; argumentCount = arguments.length;
+  }};
+  CList.savers = [iconSaver, {label: 'Logo destination', logoSrc: logo, save: async () => ({keepOpen: true})},
+   {label: 'Hidden destination', hidden: true, save: () => { throw Error('Hidden saver invoked'); }},
+   {label: 'Login destination', requiresLogin: true, save: () => { throw Error('Unavailable saver invoked'); }}];
+  await playSave();
+  check(root.querySelectorAll('button').length === 2, 'Save destinations are filtered by availability');
+  check(button('Icon destination').querySelector('.material-icons').textContent === 'download', 'Destination label and Material Icon are rendered');
+  const logoElement = button('Logo destination').querySelector('.service-icon-img');
+  check(logoElement && (logoElement.style.mask || logoElement.style.webkitMask).includes('data:image/svg+xml'), 'Destination logo retains masked SVG rendering');
+  await button('Icon destination').onclick();
+  check(calledThis === iconSaver && argumentCount === 0, 'Saver receives its original this and zero arguments');
+  check(saveCloseCount === 1 && document.getElementById('save-instructions').hidden, 'Normal save result closes the panel');
+  check(CList.state.saving.phase === 'complete' && !CList.state.saving.busy, 'Normal save records completed state');
+
+  reset();
+  CList.savers = [{label: 'Configure destination', save() {
+   const form = document.createElement('form'); form.id = 'service-save-form';
+   const input = document.createElement('input'); input.value = 'Service draft'; form.appendChild(input);
+   root.replaceChildren(form); return {keepOpen: true};
+  }}];
+  await playSave(); await button('Configure destination').onclick();
+  check(document.getElementById('service-save-form')?.querySelector('input').value === 'Service draft', 'keepOpen preserves the service-rendered save form');
+  check(saveCloseCount === 0 && !document.getElementById('save-instructions').hidden, 'keepOpen leaves the current save interface open');
+
+  reset(); let finish, calls = 0;
+  CList.savers = [{label: 'Pending destination', save() { calls++; return new Promise(resolve => { finish = resolve; }); }}];
+  await playSave(); const firstButton = button('Pending destination'), first = firstButton.onclick();
+  check(firstButton.disabled && CList.state.saving.busy, 'Pending save disables destination controls');
+  await firstButton.onclick(); populateSaveOptions(); const rebuiltButton = button('Pending destination');
+  check(rebuiltButton.disabled && CList.state.saving.busy, 'Rebuilt Save panel retains the in-flight busy state');
+  await rebuiltButton.onclick(); check(calls === 1, 'Duplicate and rebuilt buttons cannot dispatch a second save');
+  finish({keepOpen: true}); await first;
+  check(!rebuiltButton.disabled && !CList.state.saving.busy, 'Completion releases the rebuilt panel controls');
+  check(saveCloseCount === 0, 'Earlier completion cannot close the rebuilt save panel');
+
+  for (const change of ['rebuild', 'editor', 'file', 'session', 'store', 'account', 'close-and-reopen', 'other-panel']) {
+   reset(); let complete;
+   CList.savers = [{label: 'Delayed destination', save: () => new Promise(resolve => { complete = resolve; })}];
+   await playSave(); const pending = button('Delayed destination').onclick();
+   if (change === 'editor') { currentEditor = 'other-editor'; CList.state.editorSwitching = {id: 1}; }
+   if (change === 'file') CList.state.editorLoading = {id: 1};
+   if (change === 'session') CList.state.username = 'different-user';
+   if (change === 'store') CList.config.flaskSiteUrl = 'https://other-store.invalid';
+   if (change === 'account') currentEditorAccount = {key: 'other-account', value: '{"token":"private-fixture-token"}'};
+   if (change === 'close-and-reopen') closeRightPane();
+   if (change === 'other-panel') openRightInterface('other-instructions');
+   else await playSave();
+   const beforeCloseCount = saveCloseCount, currentRoot = root.firstChild;
+   complete(); await pending;
+   check(saveCloseCount === beforeCloseCount, change + ': late completion does not close the new interface');
+   check(root.firstChild === currentRoot, change + ': late completion does not replace the new controls');
+   check(!CList.state.saving.busy, change + ': settled save releases the global busy guard');
+   if (change === 'other-panel') check(!document.getElementById('other-instructions').hidden, 'Another panel stays visible after late save completion');
+   check(!JSON.stringify(CList.state.saving).includes('private-fixture-token'), 'Save state contains no account credentials');
+  }
+
+  // Use the actual Dropbox choice promise: its buttons must remain reachable
+  // while the generic panel is reopened, with uploads replaced by a counter.
+  for (const choice of ['Cancel', 'Overwrite']) {
+   reset(); let uploads = 0;
+   CList.savers = [{label:'Dropbox prompt', save() {
+    const status=document.createElement('div'); status.id='dropbox-save-status'; root.appendChild(status);
+    return _promptDropboxOverwrite(status,'existing.html',async()=>{ uploads++; return {path_display:'existing.html'}; });
+   }}];
+   await playSave(); const promptPending=button('Dropbox prompt').onclick();
+   closeRightPane(); await playSave();
+   check(button('Dropbox prompt').disabled, 'Reopened pending Dropbox destination stays disabled');
+   check(document.getElementById('dropbox-save-status'), 'Reopen preserves the pending Dropbox status and buttons');
+   await button(choice).onclick(); await promptPending;
+   check(uploads === (choice === 'Overwrite' ? 1 : 0), choice + ' executes only the explicit mock upload');
+   check(!CList.state.saving.busy && !button('Dropbox prompt').disabled, choice + ' settles the original promise and unlocks Save');
+   check(saveCloseCount === 1, 'Dropbox completion leaves the reopened panel visible');
+  }
+
+  reset(); let attempts = 0;
+  CList.savers = [{label: 'Retry destination', save: async () => { if (++attempts === 1) throw Error('Synthetic save failure'); }}];
+  await playSave(); const retry = button('Retry destination'); await retry.onclick();
+  check(CList.state.saving.phase === 'failed' && !CList.state.saving.busy && !retry.disabled, 'Failed save releases busy state for explicit retry');
+  check(document.getElementById('fixture-errors').textContent.includes('Synthetic save failure'), 'Save failure produces visible feedback');
+  await Promise.resolve(); check(attempts === 1, 'Failed save is not retried automatically');
+  await retry.onclick(); check(attempts === 2 && saveCloseCount === 1, 'A second explicit click retries and completes the save');
+
+  reset(); let oldButtonCalls = 0;
+  CList.savers = [{label: 'Current destination', save: () => { oldButtonCalls++; }}];
+  await playSave(); const oldButton = button('Current destination'); closeRightPane();
+  await oldButton.onclick(); check(oldButtonCalls === 0, 'Closed-panel callback cannot dispatch a save');
+  await playSave(); await oldButton.onclick(); check(oldButtonCalls === 0, 'Old-panel callback cannot dispatch after the panel is rebuilt');
+  await button('Current destination').onclick(); check(oldButtonCalls === 1, 'The current panel callback remains usable');
+
+  reset(); currentEditor = 'collection'; await playSave();
+  check(collectionSaveCount === 1 && saveOpenCount === 0, 'Collection editor delegates to its existing collection-save controller');
+  CList.state.collectionPublishing = {busy: true}; await playSave();
+  check(collectionSaveCount === 1 && saveMessages.includes('Wait for collection publication to finish.'), 'Collection publication busy state blocks collection Save');
+  currentEditor = 'texteditor'; await playSave(); check(saveOpenCount === 0, 'Collection publication also blocks opening the generic Save panel');
+
+  reset(); let guardedCalls = 0;
+  CList.savers = [{label: 'Guarded destination', save: () => { guardedCalls++; }}];
+  await playSave(); const guarded = button('Guarded destination'); CList.state.collectionPublishing = {busy: true};
+  await guarded.onclick(); check(guardedCalls === 0 && !CList.state.saving.busy, 'Publication starting after render prevents saver dispatch');
+  check(saveMessages.includes('Wait for collection publication to finish.'), 'Blocked destination provides visible feedback');
+
+  reset(); let release;
+  CList.savers = [{label: 'Outstanding save', save: () => new Promise(resolve => { release = resolve; })}];
+  await playSave(); const outstanding = button('Outstanding save').onclick(); currentEditor = 'collection'; await playSave();
+  check(collectionSaveCount === 0 && saveMessages.includes('Wait for the current save to finish.'), 'An outstanding generic save prevents a competing collection-save flow');
+  release({keepOpen: true}); await outstanding;
+  check(saveMemory.size === 0, 'Fixture performs no storage writes');
+  check(saveErrors.length === 0, 'Final collection isolation check has no unexpected errors');
+  document.getElementById('result').textContent = 'PASS: real Save state/controller/view, destination filtering/icons/logos, no-argument saver contract, keepOpen service forms and preserved pending Dropbox choices, normal completion, duplicate and rebuilt-panel busy guards, stale completion/editor/file/session isolation, visible failure and explicit retry, expired callbacks and collection-save/publication guards. All savers, accounts and storage mocked; no external requests or file writes.';
+  document.body.dataset.result = 'PASS';
+ } catch (error) {
+  console.error(error); document.getElementById('result').textContent = 'FAIL: ' + error.message;
+  document.body.dataset.result = 'FAIL';
+ }
+})();
+</script>

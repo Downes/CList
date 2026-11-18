@@ -7,8 +7,10 @@ test('loaded-file notices use transient status without an extra row; publication
     const elements = Object.fromEntries(['loaded-page-indicator','loaded-page-filename','republish-button','republish-status'].map(id => [id, { style: {}, removeAttribute() {} }]))
     const messages = []
     const context = vm.createContext({ currentLoadedPage: null, document: { getElementById: id => elements[id] }, showStatusMessage: text => messages.push(text) })
-    const source = readFileSync('js/editors.js','utf8')
-    vm.runInContext(source.slice(source.indexOf('function setLoadedPage('), source.indexOf('// Function to initialize an editor by type.')),context)
+    context.window = { CList: { state: {}, loaders: [], ui: {view: {}} } };
+    for (const name of ['editor-controls-state', 'editor-controls-view', 'editor-controls']) {
+        vm.runInContext(readFileSync('js/' + name + '.js', 'utf8'), context);
+    }
     const file = { kind: 'file', title: 'Presentation.pptx' }
     context.setLoadedPage(file)
     assert.equal(messages[0], 'Loaded file: Presentation.pptx')

@@ -11,6 +11,7 @@ async function loadSavedPage(content, page, renderTarget, onCancel) {
     const state = window.CList.state.editorLoading = beginEditorLoad(editorLoadState());
     const operation = _editorLoadOperation = { id: state.id, renderTarget, onCancel };
     return runEditorLoadStep(operation, () => {
+        window.refreshWriteTags?.();
         operation.content = structuredClone(content);
         operation.page = page ? structuredClone(page) : null;
         return prepareEditorLoad(operation);
