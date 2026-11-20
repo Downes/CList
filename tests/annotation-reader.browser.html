@@ -1,0 +1,63 @@
+<!doctype html>
+<meta charset="utf-8"><title>CList annotation reader regression</title>
+<h1>Annotation reader and row actions</h1>
+<p>Real annotation transport/discovery/controller/view. HTTP, encryption, storage, reader surfaces and sharing are mocked. No external requests or writes.</p>
+<style>#feed-container{height:80px;overflow:auto}</style>
+<pre id="result">Checking annotation reading…</pre><div id="feed-container"></div>
+<script>
+const records=new Map(),writes=[],messages=[],errors=[],shares=[];let token='fixture-token',behavior={};
+window.CList={state:{username:'alice',reader:{requestId:1,mode:'account',accountKey:'original'}},config:{flaskSiteUrl:'https://store.invalid'},keys:{ACCESS_TOKEN:'access_token'},defaults:{LOCALRSS:'https://rss.invalid'},schemas:{},
+ accounts:[{key:'annotations',value:JSON.stringify({type:'Annotate',instance:'https://annotations.invalid',permissions:'r'})}],ui:{view:{feedContainer:document.getElementById('feed-container')}}};
+window.escapeHtml=value=>String(value||'').replaceAll('&','&amp;').replaceAll('<','&lt;');
+window.createUniqueIdFromUrl=value=>'anno-'+String(value).replaceAll(/[^a-z0-9]/gi,'-');
+window.getSiteSpecificCookie=()=>token;window.getEncKey=async()=>behavior.key?behavior.key(): 'fixture-key';
+window.encryptWithKey=async(key,value)=>value;window.decryptKVJson=async(key,value)=>JSON.parse(value);
+window.parseAccountValue=record=>JSON.parse(record.value);
+CList.storage={kv:{list:async()=>[...records].map(([key,value])=>({key,value})),put:async(key,value)=>{writes.push({key,value});records.set(key,value);},remove:async key=>{writes.push({key});records.delete(key);}}};
+window.captureReaderSurface=mode=>{const own=++CList.state.reader.requestId;CList.state.reader.mode=mode;return{isCurrent:()=>CList.state.reader.requestId===own};};
+window.showStatusMessage=text=>messages.push(text);window.showErrorModal=text=>errors.push(text);
+window.sendShareMessage=(...args)=>shares.push(args);window.collectItem=()=>{};window.openInBrowser=()=>{};
+window.captureAnnotationSession=()=>({storeUrl:CList.config.flaskSiteUrl,token});
+const annotation=(id='one',creator='did:web:store.invalid:users:alice')=>({id:'https://annotations.invalid/'+id,creator:{id:creator,name:'Alice'},target:{source:'https://source.invalid',selector:{title:'Source'}},body:{value:'<p>Original note</p>'},created:'2026-11-20',tag:[]});
+window.fetch=async(url,options={})=>{
+ if(url.includes('/annotations/batch-check')){if(behavior.batch)return behavior.batch(url,options);return{ok:true,json:async()=>({results:{'https://source.invalid':2}})};}
+ if(url.includes('/annotations?')){if(behavior.read)return behavior.read(url,options);return{ok:true,json:async()=>({items:[annotation()]})};}
+ if(url.includes('/feed_meta?'))return{ok:true,json:async()=>({ok:true,author_did:null})};
+ if(url.endsWith('/did.json'))return{ok:true,json:async()=>({service:[]})};
+ throw Error('Unexpected external request: '+url);
+};
+</script>
+<script src="../js/annotate.js"></script><script src="../js/annotate_requests.js"></script><script src="../js/annotate_view.js"></script><script src="../js/annotate_reader.js"></script>
+<script>
+(async()=>{
+ let checks=0;const check=(ok,label)=>{if(!ok)throw Error(label);checks++;};const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
+ const until=async fn=>{for(let i=0;i<30&&!fn();i++)await tick();if(!fn())throw Error('Async fixture boundary reached');};
+ const root=CList.ui.view.feedContainer;
+ const source=(id='original')=>{const row=document.createElement('article');row.className='status-box';const node=document.createElement('div');node.className='statusSpecific';node.id=id;node.textContent='Original reading item';node.reference={url:'https://source.invalid',title:'Source'};
+  const content=document.createElement('div');content.className='status-content';content.style.minHeight='200px';const actions=document.createElement('div');actions.className='status-actions';content.append(node,actions);row.append(content);const clist=document.createElement('div');clist.className='clist-actions';row.appendChild(clist);root.replaceChildren(row);return node;};
+ try{
+ await showAnnotations('all');check(root.querySelector('.annotation-body').textContent.includes('Original note'),'Real annotation row rendered');
+ check(root.querySelector('.statusSpecific').reference.isAnnotation,'Structural annotation reference retained');
+ const share=root.querySelector('[title="Share to chat"]');share.click();check(shares.length===1&&shares[0][1]==='https://source.invalid','Captured annotation share payload');
+ const oldRow=root.querySelector('.status-box');await showAnnotations('all');share.click();check(shares.length===1&&!oldRow.isConnected,'Detached old row share rejected');
+ CList.accounts.push({key:'failed',value:JSON.stringify({type:'Annotate',instance:'https://failed.invalid',permissions:'r'})});
+ behavior.read=async url=>url.startsWith('https://failed.invalid')?{ok:false,status:503}:{ok:true,json:async()=>({items:[annotation()]})};
+ await showAnnotations('all');check(root.querySelector('.error-message').textContent.includes('503'),'Partial source failure visible');check(root.querySelector('.annotation-body'),'Successful annotations retained beside failure');
+ CList.accounts.pop();behavior={};let original=source();root.scrollTop=7;const scroll=root.scrollTop;
+ await showAnnotationsForItem(original.id);check(root.querySelector('.annotation-thread'),'Thread owns real view');check(!original.isConnected,'Original feed parked with node identity');
+ const close=root.querySelector('[title="Close annotations"]');close.click();check(document.getElementById(original.id)===original,'Close restores exact original node');
+ check(root.scrollTop===scroll,'Close restores scroll position');
+ await showAnnotationsForItem(original.id);const staleClose=root.querySelector('[title="Close annotations"]');await showAnnotations('all');staleClose.onclick();
+ check(!document.getElementById('original')&&root.querySelector('.annotation-body'),'Stale thread close cannot overwrite new feed');
+ original=source('same');let release;behavior.batch=()=>new Promise(resolve=>release=resolve);const pending=checkAnnotationsBatch();await until(()=>release);
+ const replacement=original.cloneNode(true);replacement.reference={url:'https://replacement.invalid'};original.replaceWith(replacement);
+ release({ok:true,json:async()=>({results:{'https://source.invalid':10}})});await pending;
+ check(!replacement.parentElement.querySelector('.anno-read-btn'),'Late count cannot attach to same-ID replacement');behavior={};
+ let releaseKey;behavior.key=()=>new Promise(resolve=>releaseKey=resolve);const follow=document.createElement('button');root.appendChild(follow);
+ const writing=_followUser('did:web:person.invalid:users:other',token,follow);token='new-session';releaseKey('fixture-key');
+ try{await writing;}catch(error){check(error.message.includes('no longer current'),'Expired follow preparation rejected');}
+ check(writes.length===0,'Expired follow never writes credentials under another session');token='fixture-token';behavior={};
+ document.getElementById('result').textContent='PASS: real annotation discovery/requests/controller/view, structural references, captured share/stale rows, partial failure visibility, original-node/scroll thread restoration, stale close and same-ID batch protection, scoped follow preparation and no stale writes. '+checks+' checks. HTTP, encryption, storage, reader surfaces and sharing mocked; no external requests or writes.';
+ }catch(error){console.error(error);document.getElementById('result').textContent='FAIL: '+error.message+'\n'+error.stack;}
+})();
+</script>

@@ -1,0 +1,170 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CList Dropbox saving regression</title>
+<h1>Dropbox saving</h1>
+<p>Real export, save workflow/controller/session/view and Dropbox transport. HTTP, accounts and storage mocked; no external requests, file or storage writes.</p>
+<pre id="result">Checking Dropbox saving…</pre>
+<div id="write-title">Original title</div><div id="writeReferences"><p>Original reference</p></div>
+<div id="save-options"></div>
+<script>
+window.CList = { state: { username: 'fixture' }, config: { flaskSiteUrl: 'https://storage.invalid' },
+ keys: { ACCESS_TOKEN: 'access_token' }, accounts: [], savers: [], loaders: [],
+ ui: { view: { writeTitle: document.getElementById('write-title') } } };
+let currentEditor = 'texteditor', currentEditorAccount = null, currentLoadedPage = null;
+let body = 'Literal <xml> & text', references = [], token = 'fixture-token', behavior = {}, pendingExport;
+const editorHandlers = { texteditor: { contentTypes: ['text/plain'], getContent: async () => pendingExport ? pendingExport.promise : body } };
+const uploads = [], checks = [], refreshes = [], persists = [], notices = [], errors = [];
+window.OAuthClient = { onCallback() {}, login: async () => { throw Error('Unexpected OAuth'); }, saveAccount: async () => { throw Error('Unexpected legacy account write'); } };
+window.getSiteSpecificCookie = () => token;
+window.getEncKey = async () => 'fixture-key';
+window.getReferences = () => references;
+window.escapeHtml = text => String(text ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+window.parseAccountValue = account => JSON.parse(account.value);
+window.findAccountByType = (type, options = {}) => {
+ for (const account of CList.accounts) {
+  const parsedValue = parseAccountValue(account);
+  if (parsedValue.type === type && (!options.permission || (parsedValue.permissions || '').includes(options.permission))) return { account, parsedValue };
+ }
+ return null;
+};
+window.isRegistered = () => !!CList.state.username;
+window.showStatusMessage = text => notices.push(text);
+window.showErrorModal = text => errors.push(text);
+window.slugify = (text, { fallback }) => String(text || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || fallback;
+window.saveAccount = async (request, session) => {
+ session.isCurrent?.();
+ if (behavior.persistFailure) throw Error('Account storage offline');
+ persists.push(structuredClone(request)); return structuredClone(request);
+};
+const response = (status, value) => ({ status, ok: status >= 200 && status < 300,
+ json: async () => value, text: async () => JSON.stringify(value) });
+window.fetch = async (url, options) => {
+ if (url.endsWith('/files/get_metadata')) {
+  checks.push({ path: JSON.parse(options.body).path, authorization: options.headers.Authorization });
+  if (behavior.authRejected && checks.length === 1) return response(401, { error_summary: 'expired_access_token' });
+  return behavior.exists ? response(200, { '.tag': 'file' }) : response(409, { error: { '.tag': 'path', path: { '.tag': 'not_found' } } });
+ }
+ if (url.endsWith('/files/upload')) {
+  const target = JSON.parse(options.headers['Dropbox-API-Arg']); uploads.push({ ...target, content: options.body, authorization: options.headers.Authorization });
+  if (behavior.uploadPending) return behavior.uploadPending.promise;
+  if (behavior.uncertain) throw Error('Connection lost');
+  if (behavior.conflict && target.mode === 'add') return response(409, { error: { '.tag': 'path', path: { '.tag': 'conflict' } } });
+  return response(200, { path_display: target.path, id: 'dropbox-file', rev: 'fixture-revision' });
+ }
+ if (url.endsWith('/oauth2/token')) { refreshes.push(options.body.toString()); return behavior.refreshPending ? behavior.refreshPending.promise : response(200, { access_token: 'fresh-access-token' }); }
+ throw Error('Unexpected network request: ' + url);
+};
+</script>
+<script src="../js/collection-formats.js?v=2026-11-19.3"></script>
+<script src="../js/files.js?v=2026-11-19.3"></script>
+<script src="../js/file-save-workflow.js?v=2026-11-19.3"></script>
+<script src="../js/dropbox.js?v=2026-11-19.3"></script>
+<script src="../js/dropbox_session.js?v=2026-11-19.3"></script>
+<script src="../js/dropbox_save_workflow.js?v=2026-11-19.3"></script>
+<script src="../js/dropbox_save_view.js?v=2026-11-19.3"></script>
+<script src="../js/dropbox_save.js?v=2026-11-19.3"></script>
+<script>
+(async () => {
+ let count = 0;
+ const check = (ok, label) => { if (!ok) throw Error(label); count++; };
+ const tick = () => new Promise(resolve => setTimeout(resolve, 0));
+ const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
+ const reset = () => {
+  CList.state = { username: 'fixture' }; CList.config.flaskSiteUrl = 'https://storage.invalid';
+  CList.accounts = [{ key: 'dropbox-fixture', value: JSON.stringify({ type: 'Dropbox', permissions: 'b', folder: '/Captured', id: 'old-access-token', refresh: 'fixture-refresh', appKey: 'fixture-app', custom: 'retained' }) }];
+  currentEditor = 'texteditor'; currentEditorAccount = null; currentLoadedPage = null; pendingExport = null;
+  body = 'Literal <xml> & text'; references = []; token = 'fixture-token'; behavior = {};
+  editorHandlers.texteditor = { contentTypes: ['text/plain'], getContent: async () => pendingExport ? pendingExport.promise : body };
+  document.getElementById('write-title').textContent = 'Original title';
+  document.getElementById('writeReferences').innerHTML = '<p>Original reference</p>';
+  document.getElementById('save-options').replaceChildren();
+  for (const list of [uploads, checks, refreshes, persists, notices, errors]) list.length = 0;
+ };
+ const waitChoice = async () => {
+  for (let i = 0; i < 20; i++) {
+   const button = [...document.querySelectorAll('#dropbox-save-status button')].find(item => item.textContent === 'Overwrite');
+   if (button) return button;
+   await tick();
+  }
+  throw Error('Overwrite choice rendered');
+ };
+ try {
+  reset(); const saved = await saveToDropbox();
+  check(saved.status === 'saved' && uploads.length === 1 && uploads[0].mode === 'add', 'New file adds once');
+  check(uploads[0].path === '/Captured/original-title.html', 'Captured folder and generated filename');
+  const exported = new DOMParser().parseFromString(uploads[0].content, 'text/html');
+  const metadata = JSON.parse(exported.getElementById('clist-file-metadata').textContent);
+  check(metadata.content.value === body && metadata.editor === 'texteditor' && metadata.title === 'Original title', 'Exact text and document metadata exported');
+  check(saved.receipt.path === '/Captured/original-title.html' && !JSON.stringify(CList.state.dropboxSaving).includes('access-token'), 'Safe confirmed receipt');
+
+  reset(); currentLoadedPage = { kind: 'file', title: 'original.xml' }; body = '<unrecognized>exact source</unrecognized>';
+  await saveToDropbox(); check(uploads[0].path === '/Captured/original.xml' && uploads[0].content === body, 'Raw loaded file exact filename and contents');
+
+  reset(); currentEditor = 'annotation';
+  const native = JSON.stringify({ format: 'clist-annotation-v1', body: '<p>Note</p>', target: { url: 'https://target.invalid' } });
+  editorHandlers.annotation = { contentTypes: ['text/html'], getFileContent: async () => ({ type: 'application/vnd.clist.annotation+json', value: native }) };
+  await saveToDropbox(); check(uploads[0].path === '/Captured/annotation.json' && uploads[0].content === native, 'Native annotation saved without HTML wrapping');
+
+  reset(); let prepared = 0;
+  editorHandlers.texteditor.getContent = () => { throw Error('Collection save must use its captured formatter'); };
+  const collection = { title: 'Captured collection', id: 'urn:uuid:collection', items: [{ title: 'Entry', url: 'https://entry.invalid', summary: 'Exact & content' }] };
+  await saveToDropbox({ prepare: async () => {
+   prepared++; return { name: collection.title + '.xml', value: collectionFormats.rss.serialize(collection.title, collection.items, collection.id) };
+  } });
+  const rss = new DOMParser().parseFromString(uploads[0].content, 'application/xml');
+  check(prepared === 1 && uploads[0].path === '/Captured/Captured collection.xml' && rss.querySelector('item > link').textContent === 'https://entry.invalid', 'Custom collection save uses the real RSS serializer and original filename');
+  check(rss.getElementsByTagNameNS('http://purl.org/dc/elements/1.1/', 'identifier')[0].textContent === collection.id, 'Collection identity retained in formatted export');
+
+  reset(); behavior.exists = true; const cancelPending = saveToDropbox(); await waitChoice();
+  const cancelledButton = [...document.querySelectorAll('#dropbox-save-status button')].find(item => item.textContent === 'Cancel');
+  const duplicate = await saveToDropbox(); check(CList.state.dropboxSaving.busy && checks.length === 1 && duplicate.keepOpen, 'Pending overwrite blocks duplicate dispatch');
+  cancelledButton.click(); const cancelled = await cancelPending;
+  check(cancelled.status === 'cancelled' && !CList.state.dropboxSaving.busy && !uploads.length, 'Cancel releases busy without upload');
+
+  reset(); behavior.exists = true; const overwritePending = saveToDropbox(), overwrite = await waitChoice();
+  overwrite.click(); overwrite.click(); await overwritePending;
+  check(uploads.length === 1 && uploads[0].mode === 'overwrite', 'Explicit overwrite uploads only once');
+
+  reset(); behavior.conflict = true; const conflictPending = saveToDropbox(), conflict = await waitChoice();
+  check(uploads.length === 1 && uploads[0].mode === 'add', 'Rejected add conflict requires explicit choice');
+  conflict.click(); await conflictPending;
+  check(uploads.length === 2 && uploads[1].mode === 'overwrite', 'Conflict overwrite follows only explicit choice');
+
+  reset(); behavior.uncertain = true; const uncertain = await saveToDropbox();
+  check(uncertain.status === 'failed' && uploads.length === 1 && /could not be confirmed/.test(document.getElementById('dropbox-save-status').textContent), 'Uncertain upload is visible and never repeated');
+
+  reset(); behavior.exists = true; const stalePending = saveToDropbox(), staleButton = await waitChoice();
+  CList.accounts = []; staleButton.click(); await stalePending;
+  check(!uploads.length && !CList.state.dropboxSaving.busy, 'Removed account rejects retained overwrite callback');
+
+  reset(); behavior.exists = true; const removedPending = saveToDropbox(), removedButton = await waitChoice();
+  document.getElementById('dropbox-save-status').remove(); await removedPending; removedButton.click();
+  check(!uploads.length && !CList.state.dropboxSaving.busy, 'Removed picker releases choice and rejects detached callback');
+
+  reset(); pendingExport = deferred(); const exporting = saveToDropbox();
+  currentEditor = 'other'; pendingExport.resolve('Captured original text'); await exporting;
+  check(!checks.length && !uploads.length, 'Changed editor during export cannot start remote operation');
+
+  reset(); behavior.uploadPending = deferred(); const completedLate = saveToDropbox();
+  for (let i = 0; i < 20 && !uploads.length; i++) await tick();
+  check(uploads.length === 1, 'Captured upload started'); currentEditor = 'other';
+  behavior.uploadPending.resolve(response(200, { path_display: '/Captured/original-title.html', id: 'accepted' }));
+  await completedLate;
+  check(CList.state.dropboxSaving.phase === 'saved' && CList.state.dropboxSaving.receipt.id === 'accepted' && notices.includes('An earlier Dropbox save completed.'), 'Late accepted upload retains receipt without altering new editor');
+
+  reset(); behavior.authRejected = true; await saveToDropbox();
+  check(refreshes.length === 1 && persists.length === 1 && uploads[0].authorization === 'Bearer fresh-access-token', 'Definite rejection refreshes captured account once');
+  check(persists[0].data.custom === 'retained' && JSON.parse(CList.accounts[0].value).id === 'fresh-access-token', 'Refresh preserves account fields and reconciles original account');
+
+  reset(); behavior.authRejected = true; behavior.refreshPending = deferred(); const refreshExpired = saveToDropbox();
+  for (let i = 0; i < 20 && !refreshes.length; i++) await tick();
+  check(refreshes.length === 1, 'Refresh began for captured save'); currentEditor = 'other';
+  behavior.refreshPending.resolve(response(200, { access_token: 'refreshed-after-switch' })); await refreshExpired;
+  check(!uploads.length && CList.state.dropboxSaving.phase === 'failed', 'Editor expiry during refresh blocks the replayed upload');
+
+  reset(); behavior.authRejected = true; behavior.persistFailure = true; await saveToDropbox();
+  check(refreshes.length === 1 && !uploads.length && CList.state.dropboxSaving.phase === 'failed', 'Refresh persistence failure is visible before upload');
+  document.getElementById('result').textContent = `PASS: real Dropbox save state/controller/workflow/view, native/raw/document exports, captured destinations, overwrite Cancel/duplicate/conflict guards, stale account/editor/removed controls, accepted receipts, token refresh and visible failures (${count} checks). All HTTP, file and storage writes mocked; no external requests.`;
+ } catch (error) { console.error(error); document.getElementById('result').textContent = 'FAIL: ' + error.message; }
+})();
+</script>

@@ -14,7 +14,7 @@ function localrssToggleRead(id, button) { return runLocalrssToggle(id, 'read', b
 function localrssToggleBookmark(id, button) { return runLocalrssToggle(id, 'bookmark', button); }
 async function runLocalrssToggle(id, action, button) {
     const target = _localrssActions.get(id);
-    const current = () => _localrssActions.get(id) === target && target.isCurrent();
+    const current = () => _localrssActions.get(id) === target && target.isCurrent() && button?.isConnected !== false;
     if (!target || !current() || target.pending.has(action)) return;
     target.pending.add(action);
     const view = window.CList.ui.localrssReader;

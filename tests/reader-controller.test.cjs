@@ -99,3 +99,25 @@ test('a non-Error initializer rejection still leaves failed state and useful fee
     assert.equal(f.CList.state.reader.status, 'failed'); assert.equal(f.CList.state.reader.error, 'service rejected');
     assert.deepEqual(f.errors, ['service rejected']);
 });
+
+
+test('captured row navigation survives pagination but cannot navigate a different account or session', async () => {
+    const f=fixture();await f.ctx.switchReaderAccount('a');const context=f.contexts[0].context;
+    await context.next(async()=>{});assert.equal(context.isCurrent(),false);assert.equal(context.isAccountCurrent(),true);
+    let calls=0;await context.navigate(async next=>{calls++;assert.equal(next.account.id,'private-credential');},'Thread');
+    assert.equal(calls,1);assert.equal(f.CList.state.reader.feedName,'Thread');
+    await f.ctx.switchReaderAccount('b');await context.navigate(async()=>{calls++;});assert.equal(calls,1);
+});
+
+test('external reader surfaces share invalidation, capture session and do not restore after another reader starts', async () => {
+    const f=fixture();f.CList.ui.view={feedContainer:{}};
+    const first=f.ctx.captureReaderSurface('public');await first.render(['public'],{});assert.equal(first.isCurrent(),true);
+    await f.ctx.switchReaderAccount('a');assert.equal(first.isCurrent(),false);assert.equal(first.signal.aborted,true);
+    const second=f.ctx.captureReaderSurface('annotations');f.setToken('another-session');assert.equal(second.isCurrent(),false);
+});
+
+
+test('initial account selection chooses a reading feed instead of a registry UI action', async () => {
+ const f=fixture();f.CList.readers.Test.uiActions=['Post','Search'];f.CList.readers.Test.feedFunctions={Post(){},Timeline(){},Search(){}};
+ await f.ctx.switchReaderAccount('a');assert.equal(f.CList.state.reader.feedName,'Timeline');
+});

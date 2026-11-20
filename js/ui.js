@@ -448,6 +448,8 @@ window.CList.ui.listing = function makeListing(
     full_content
 ) {
     let item;
+    // Private rendering context is separate from normalized/persistable item data.
+    const rowContext = itemOrService && typeof itemOrService === 'object' ? url?.rowContext : null;
 
     // If the first parameter is an object, treat it as the complete 'item'
     if (
@@ -516,7 +518,15 @@ window.CList.ui.listing = function makeListing(
     if (feedHandler) {
         feedEl.href = '#';
         feedEl.title = 'Show only items from this feed';
-        feedEl.onclick = (e) => { e.preventDefault(); feedHandler(item); };
+        feedEl.onclick = (e) => {
+            e.preventDefault();
+            if (!statusBox.isConnected || (rowContext?.isAccountCurrent && !rowContext.isAccountCurrent())) return;
+            return Promise.resolve().then(() => {
+                if (rowIsCurrent()) return feedHandler(item, rowContext);
+            }).catch(error => {
+                console.error('Could not open source feed:', error); showStatusMessage('Could not open source feed: ' + (error?.message || String(error)));
+            });
+        };
     }
     feedEl.textContent = itemFeed || 'Unknown Source';
     summaryDiv.appendChild(feedEl);
@@ -528,7 +538,15 @@ window.CList.ui.listing = function makeListing(
             const authorEl = document.createElement('a');
             authorEl.href = '#';
             authorEl.title = 'Show items by this author';
-            authorEl.onclick = (e) => { e.preventDefault(); authorHandler(item); };
+            authorEl.onclick = (e) => {
+                e.preventDefault();
+                if (!statusBox.isConnected || (rowContext?.isAccountCurrent && !rowContext.isAccountCurrent())) return;
+                return Promise.resolve().then(() => {
+                    if (rowIsCurrent()) return authorHandler(item, rowContext);
+                }).catch(error => {
+                    console.error('Could not open author feed:', error); showStatusMessage('Could not open author feed: ' + (error?.message || String(error)));
+                });
+            };
             authorEl.textContent = itemAuthor;
             summaryDiv.appendChild(authorEl);
         }
@@ -556,11 +574,11 @@ window.CList.ui.listing = function makeListing(
         // status-action button, same itemID passed through for reference attribution.
         const titleLinkSafe = /^https?:\/\//i.test(itemUrl) ? itemUrl.replace(/'/g, '%27') : null;
         const postTitleHtml = titleLinkSafe
-            ? `<h2 class='post-title post-title-link' title="Open in browser" onclick="openInBrowser('${titleLinkSafe}', '${itemID}');">${_he(itemTitle)}</h2>`
+            ? `<h2 class='post-title post-title-link' title="Open in browser">${_he(itemTitle)}</h2>`
             : `<h2 class='post-title'>${_he(itemTitle)}</h2>`;
         contentDiv.innerHTML = `
             <div class='status-actions'>
-            <button class="clist-action-btn" title="Collapse" onclick="toggleEntryExpanded('${itemID}');"><span class="material-icons md-18 md-light">zoom_in_map</span></button>
+            <button class="clist-action-btn" title="Collapse"><span class="material-icons md-18 md-light">zoom_in_map</span></button>
             </div>
             <div class='post'>
                 ${postTitleHtml}
@@ -584,13 +602,13 @@ window.CList.ui.listing = function makeListing(
     statusSpecific.id = itemID;
 
     // Assemble statusSpecific: title, then DOM-built summary, then content
-    const titleHtmlStr = item.titleHtml || `<a onclick="${service}Search('${_heJs(itemTitle || '')}');">${_he(itemTitle)}</a>`;
+    const titleHtmlStr = item.titleHtml || _he(itemTitle || '');
     // Services that render plain (non-interactive) titleHtml can opt into
     // click-to-expand by setting item.expandOnTitleClick — left out for
     // services whose titleHtml already has its own click behavior (search,
     // open link, view user feed, etc.) so this doesn't collide with it.
     const titleWrapperHtml = item.expandOnTitleClick
-        ? `<span class="entry-title-toggle" onclick="toggleEntryExpanded('${itemID}');">${titleHtmlStr}</span>`
+        ? `<span class="entry-title-toggle">${titleHtmlStr}</span>`
         : titleHtmlStr;
     statusSpecific.innerHTML = `${titleWrapperHtml}<br>`;
     statusSpecific.appendChild(summaryDiv);
@@ -646,7 +664,7 @@ window.CList.ui.listing = function makeListing(
 
     // Create status actions
     const statusActions = document.createElement('div');
-    statusActions.classList.add('status-actions');
+    statusActions.classList.add('status-actions', 'service-status-actions');
 
     // Tell the service's statusActions handler whether there's actually
     // expandable content, so it can skip rendering the Expand button when
@@ -658,23 +676,44 @@ window.CList.ui.listing = function makeListing(
         console.error('makeListing: no statusActions handler for service', service);
     }
     statusActions.innerHTML = _statusActionsHtml || '';
-    statusActions.insertAdjacentHTML('beforeend', `
-      <button class="clist-action-btn login-only-btn" id="collect-btn-${itemID}" onclick="collectItem('${itemID}');" title="Add to collection"><span class="material-icons md-18 md-light">library_add</span></button>
-      <button class="clist-action-btn chat-only-btn" onclick="shareToChat('${itemID}');" title="Share to chat"><span class="material-icons md-18 md-light">chat_bubble_outline</span></button>
-    `);
 
     // Create CList Actions
     const clistActions = document.createElement('div');
     clistActions.classList.add('clist-actions');
-    clistActions.innerHTML = `
-      <button class="clist-action-btn" id="anno-btn-${itemID}" onclick="clistAnnotate('${itemID}');" title="Write about this"><span class="material-icons md-18 md-light">arrow_forward</span></button>
-    `;
 
     // Assemble
     statusContent.appendChild(statusSpecific);
     statusContent.appendChild(statusActions);
     statusBox.appendChild(statusContent);
     statusBox.appendChild(clistActions);
+
+    const rowIsCurrent = () => statusBox.isConnected && (!rowContext?.isAccountCurrent || rowContext.isAccountCurrent());
+    const titleToggle = statusSpecific.querySelector('.entry-title-toggle');
+    if (titleToggle) titleToggle.onclick = () => { if (rowIsCurrent()) toggleEntryExpanded(itemID); };
+    if (contentDiv) {
+        const collapse = contentDiv.querySelector('button');
+        if (collapse) collapse.onclick = () => { if (rowIsCurrent()) toggleEntryExpanded(itemID); };
+        const open = contentDiv.querySelector('.post-title-link');
+        if (open) open.onclick = () => { if (rowIsCurrent()) openInBrowser(itemUrl,itemID); };
+    }
+
+    window.CList.readers[service]?.bindRow?.(item, statusBox, rowContext);
+
+    // Add shared controls after service binding so a service replacing its own
+    // action bar cannot accidentally remove Collect/Share. State stays captured
+    // in callbacks rather than serialized into onclick attributes.
+    const actionButton = (root, label, icon, action, className = '', id = null) => {
+        const button = document.createElement('button'); button.className = 'clist-action-btn' + (className ? ' ' + className : '');
+        button.title = label; if (id) button.id = id;
+        button.innerHTML = `<span class="material-icons md-18 md-light">${icon}</span>`;
+        button.onclick = () => Promise.resolve().then(() => {
+            if (statusBox.isConnected && (!rowContext?.isAccountCurrent || rowContext.isAccountCurrent())) return action();
+        }).catch(error => { console.error(label + ' failed:', error); showStatusMessage(label + ' failed: ' + (error?.message || String(error))); });
+        root.appendChild(button);
+    };
+    actionButton(statusActions, 'Add to collection', 'library_add', () => collectItem(itemID), 'login-only-btn', `collect-btn-${itemID}`);
+    actionButton(statusActions, 'Share to chat', 'chat_bubble_outline', () => shareToChat(itemID), 'chat-only-btn');
+    actionButton(clistActions, 'Write about this', 'arrow_forward', () => clistAnnotate(itemID), '', `anno-btn-${itemID}`);
 
     return statusBox;
 };
@@ -712,7 +751,7 @@ window.CList.ui.feedHeader = function(type, typevalue) {
         actions.className = "clist-actions";
         actions.innerHTML = `
             <button class="clist-action-btn" title="Summarize thread" onClick="handleSummarize('feed-container','feed-summary','thread')"><span class="material-icons md-18 md-light">play_for_work</span></button>
-            <button class="clist-action-btn" title="Load thread into editor" onClick="handleMastodonAction('thread', 'load',this.parentElement.parentElement)"><span class="material-icons md-18 md-light">arrow_right</span></button>
+            <button class="clist-action-btn" title="Load thread into editor" onClick="loadContentToEditor('thread')"><span class="material-icons md-18 md-light">arrow_right</span></button>
             `;
         feedHeaderDiv.appendChild(actions);
     } else if (type === 'Bluesky Thread') {
@@ -768,6 +807,7 @@ window.CList.ui.renderFeed = async function(rawItems, container, {
     onLoadMore    = null,
     loadMoreBtnId = 'loadMoreButton',
     isCurrent     = () => true,
+    rowContext    = null,
 } = {}) {
     if (!isCurrent()) return;
     if (!append) {
@@ -782,7 +822,7 @@ window.CList.ui.renderFeed = async function(rawItems, container, {
         if (!isCurrent()) return;
         const item = await normalize(rawItem);
         if (!isCurrent()) return;
-        container.appendChild(makeListing(item));
+        container.appendChild(makeListing(item, { rowContext }));
     }
 
     if (!isCurrent()) return;

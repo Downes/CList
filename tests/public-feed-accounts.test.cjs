@@ -10,7 +10,7 @@ function setup() {
     let discoveryFails = false;
     let requestedUrl;
     const element = () => ({ appendChild() {}, set innerHTML(value) {} });
-    const context = {
+    const context = { structuredClone, URLSearchParams,
         window: { CList: {
             defaults: { LOCALRSS: 'https://rss.example' },
             config: { flaskSiteUrl: 'local' },
@@ -42,8 +42,11 @@ function setup() {
             return { ok: true, json: async () => [{ id: 1, title: 'An item', link: 'https://example.org' }] };
         },
     };
+    context.captureReaderSurface = () => ({ isCurrent: () => true, isAccountCurrent: () => true, commit: callback => callback(),
+        render: async (items, options) => { for (const item of items) context.makeListing(await options.normalize(item)); } });
     vm.createContext(context);
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../js/public-feeds.js'), 'utf8'), context);
+    for (const name of ['public-feed-requests','public-feed-view','public-feed-reader']) vm.runInContext(fs.readFileSync('js/' + name + '.js', 'utf8'), context);
     return { context, records, listings, failDiscovery: () => { discoveryFails = true; }, url: () => requestedUrl };
 }
 

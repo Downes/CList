@@ -1,0 +1,75 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CList Discord and public readers regression</title>
+<h1>Discord and public collection readers</h1>
+<p>Real reader controllers, request modules and views. Shared reader context/listing chrome, HTTP and identity storage are mocked. No external requests or writes.</p>
+<pre id="result">Checking readers…</pre>
+<div id="feed"></div><div id="picker"></div>
+<script>
+window.CList={state:{username:'fixture'},config:{flaskSiteUrl:'https://storage.invalid'},defaults:{LOCALRSS:'https://rss.invalid'},schemas:{},readers:{},publishers:{},ui:{view:{feedContainer:document.getElementById('feed')}}};
+const requests=[],errors=[],opened=[],expanded=[],rendered=[];
+let token='fixture-token',generation=0,handler;
+const feed=document.getElementById('feed'),picker=document.getElementById('picker');
+window.SafeHtml=class{constructor(value){this.value=value;}toString(){return this.value;}};
+window.escapeHtml=value=>String(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+window.kvstoreAuthHeader=()=>({Authorization:'Bearer '+token});
+window._localrssAuthHeaders=()=>({Authorization:'Bearer '+token,'X-Kvstore-Url':CList.config.flaskSiteUrl});
+window.base64UrlEncode=value=>'encoded-'+encodeURIComponent(value);
+window.openInBrowser=url=>opened.push(url);window.toggleEntryExpanded=id=>expanded.push(id);
+window.showServiceError=(container,title,message)=>{errors.push({title,message});const root=typeof container==='string'?feed:container;const p=document.createElement('p');p.className='error-message';p.textContent=title+': '+message;root.appendChild(p);};
+window.readerSession=()=>({token,username:CList.state.username,storeUrl:CList.config.flaskSiteUrl});
+const response=(data,status=200)=>({ok:status>=200&&status<300,status,json:async()=>data});
+window.fetch=async(url,options={})=>{requests.push({url,options});if(!handler)throw Error('Unexpected request: '+url);return handler(url,options);};
+function context(account={}){
+ const id=++generation,session=JSON.stringify(readerSession());const current=()=>id===generation&&session===JSON.stringify(readerSession());
+ const captured={account,signal:new AbortController().signal,isCurrent:current,isAccountCurrent:current,commit:fn=>{if(current())fn();},render:async(items,options)=>{
+  const normalized=[];for(const item of items){normalized.push(await options.normalize(item));if(!current())return;}
+  if(!current())return;feed.replaceChildren();rendered.push({normalized,options});
+  for(const item of normalized){const row=document.createElement('article'),specific=document.createElement('div'),actions=document.createElement('div');
+   specific.className='statusSpecific';specific.id='item-'+(item.guid||'row');specific.textContent=item.title+' · '+item.feed+' · '+item.desc;actions.className='status-actions';row.append(specific,actions);
+   CList.readers[item.service]?.bindRow?.({...item,_hasExpandableContent:true},row,captured);feed.appendChild(row);}
+ }};return captured;
+}
+window.captureReaderSurface=()=>context();
+</script>
+<script src="../js/discord.js"></script>
+<script src="../js/discord_reader.js"></script>
+<script src="../js/discord_view.js"></script>
+<script src="../js/public-feeds.js"></script>
+<script src="../js/public-feed-requests.js"></script>
+<script src="../js/public-feed-view.js"></script>
+<script src="../js/public-feed-reader.js"></script>
+<script>
+(async()=>{
+ let checks=0;const check=(ok,label)=>{if(!ok)throw Error(label);checks++;};const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
+ const item={id:1,link:'https://source.invalid',title:'Literal <b>title</b>',content_html:'<b>Body</b>',feed_title:'Feed',author:'Author'};
+ try{
+  handler=async()=>response([{id:'one',content:'Hello',author:'Author'}]);const discord=context({channel:'Original channel'});await CList.readers.Discord.initialize(discord.account,discord);
+  check(requests.at(-1).url.includes('channel=Original%20channel')&&requests.at(-1).options.headers.Authorization==='Bearer fixture-token','Discord initializes by fetching captured channel with captured login');
+  check(feed.textContent.includes('Original channel')&&feed.textContent.includes('Hello'),'Discord channel normalization is explicit');
+  let finish;handler=url=>url.includes('channel=A')?new Promise(resolve=>finish=resolve):Promise.resolve(response([{id:'b',content:'New channel'}]));
+  const a=context({channel:'A'}),pending=CList.readers.Discord.initialize(a.account,a);await tick();const b=context({channel:'B'});await CList.readers.Discord.initialize(b.account,b);
+  finish(response([{id:'a',content:'Stale channel'}]));await pending;check(feed.textContent.includes('New channel')&&!feed.textContent.includes('Stale channel'),'Late A response cannot replace B');
+  const empty=context({channel:''});await CList.readers.Discord.initialize(empty.account,empty);check(feed.textContent.includes('No channel selected'),'Empty Discord channel feedback visible');
+  window._launcherConfig={proxyBase:'https://proxy.invalid'};handler=async()=>response([item]);
+  const own=context({collectionSlug:'news',title:'Private',serviceUrl:'https://remote.invalid',database:'own-db'});await CList.readers.PublicFeed.initialize(own.account,own);
+  check(requests.at(-1).url.startsWith('https://proxy.invalid/encoded-')&&requests.at(-1).url.includes('db=own-db'),'Private collection uses captured proxy/database');
+  check(requests.at(-1).options.headers.Authorization==='Bearer fixture-token','Private collection uses captured auth');
+  check(feed.textContent.includes('Literal <b>title</b>')&&!feed.querySelector('b'),'Titles render safely in shared listing chrome');
+  await loadPublicFeed('news','Public','https://rss.invalid');check(requests.at(-1).url.includes('/api/collections/news/items')&&!requests.at(-1).options.headers,'Public request omits account credentials');
+  const row=feed.firstElementChild;row.querySelector('button[title="Expand"]').onclick();row.querySelector('button[title="Open in browser"]').onclick();
+  check(expanded.length===1&&opened.at(-1)==='https://source.invalid','Stateless row controls use original target');
+  const old=row.querySelector('button[title="Open in browser"]');feed.replaceChildren();old.onclick();check(opened.length===1,'Detached public row callbacks reject');
+  handler=async url=>url.includes('/CList/')?response([{sha:'commit',html_url:'https://commit.invalid',commit:{message:'Changelog',author:{date:'2026-11-20'}}}]):response({},503);
+  await loadPublicFeed('clist-changelog','Changelog');check(feed.textContent.includes('Changelog')&&errors.some(error=>error.title.startsWith('Could not load')),'Changelog partial failures remain visible alongside successful data');
+  handler=async()=>response([{slug:'literal',title:'Collection <b>literal</b>'}]);await renderPublicFeedsList(picker);
+  check(picker.textContent.includes('Collection <b>literal</b>')&&!picker.querySelector('b'),'Public picker labels stay literal');
+  const choice=[...picker.querySelectorAll('button')].at(-1),before=requests.length;picker.replaceChildren();await choice.onclick();check(requests.length===before,'Replaced source rejects retained picker callback');
+  await renderPublicFeedsList(picker);const stale=[...picker.querySelectorAll('button')].at(-1),sessionBefore=requests.length;token='changed-login';await stale.onclick();token='fixture-token';
+  check(requests.length===sessionBefore,'Changed session rejects public source callback');
+  let release;handler=()=>new Promise(resolve=>release=resolve);const late=loadPublicFeed('news','Late');token='changed-owner';release(response([item]));await late;token='fixture-token';
+  check(!feed.textContent.includes('Literal <b>title</b>'),'Late public read cannot replace expired surface');
+  document.getElementById('result').textContent='PASS: real Discord/PublicFeed request/controller/view modules, first-load channel capture, stale account reads, private/public URL and header separation, safe titles, stateless row actions, partial changelog failures and expired public picker/session guards. '+checks+' checks. HTTP, identity state and shared listing/context APIs mocked; no external requests or writes.';
+ }catch(error){console.error(error);document.getElementById('result').textContent='FAIL: '+error.message+'\n'+error.stack;}
+})();
+</script>

@@ -226,3 +226,127 @@ case-insensitive prefix matching. Tags stay global across editors as before.
 legacy `collection:<name>` key with encrypted JSON `[]`; it uses add-if-absent,
 not update/put, so existing collection content is preserved. Session checks and
 crypto/storage dependencies are transient workflow/controller inputs.
+
+## Find
+
+`CListFindState` and `CListFindContext` live in `reader-types.js`, already referenced
+by the shared contract index. State contains panel/request IDs, current input,
+captured query, provider key, status and error. Tokens/provider objects/AbortController
+and captured feed elements remain transient. `supportsFindContext` providers
+receive explicit query/context arguments; legacy no-argument providers remain
+supported. Aborting is cooperative, and direct legacy DOM writes remain outside
+the guarded rendering contract.
+
+
+## Local file saves and My Pages
+
+`CListLocalFileOutput` describes an explicit serialized export, while
+`CListLocalFileReceipt` distinguishes a confirmed native write, browser download
+handoff and cancellation. `CListLocalFileSaveState` stores progress and safe
+receipt/error summaries in `CList.state.fileSave`; captures, credentials, encryption
+keys and cached file handles remain transient. Handles are isolated by the
+captured username, storage server and authentication session. Metadata indexing
+runs after a successful write/handoff; failures retain the receipt without
+repeating the file write. Native annotations are indexed with their native MIME
+and filename rather than as HTML documents.
+
+`CListMyPagesState` owns presentation and busy/error state under
+`CList.state.myPages`. Published page records and collection publications retain
+the existing storage shapes. Private row captures and deletion receipts bind
+actions to the original session/destination; metadata cleanup after a confirmed
+remote deletion can be retried without repeating that deletion. Views own controls
+and inline feedback; workflows receive explicit storage/transport dependencies.
+
+
+My Pages passes a transient fifth `isCurrent` callback to
+`loadSavedPage(content, page, renderTarget, onCancel, isCurrent)`. Shared editor
+choices/reviews keep checking this guard after the original modal is replaced.
+Collection loading uses `openParsedAsCollection(parsed, page, isCurrent)` to retain
+the captured collection key/publication metadata and restore the previous active
+collection after a failed/expired mount, provided no newer load replaced it.
+Legacy collections without an embedded ID keep their original storage key while
+a missing ID is minted. The standalone delete workflow rechecks the current
+resource/destination before remote deletion and metadata removal; the storage API
+has no compare-and-swap guarantee for concurrent changes between these steps.
+
+
+## Dropbox file operations
+
+`CListDropboxSession` is a transient capture: username, storage URL/token, original
+account key/JSON, a detached `CListAccountData` and required permission. It never
+enters shared state. `data.id` is the Dropbox access token; the capture's `token`
+is the storage login token. Definite authentication rejection refreshes and saves
+the original account through `saveAccount` with an explicit guarded session,
+retaining extensions and reconciling only the unchanged account. Initial OAuth
+creation is separate and retains its existing controller.
+
+`CListDropboxSaveState` and `CListDropboxLoadState` contain only progress,
+filename/count, safe receipts and errors. `CListDropboxSaveReceipt` retains the
+confirmed path/id/revision independently of panel lifetime. File bodies, account
+records, keys, token values, callbacks and transport clients stay private.
+Local exports reuse `CListLocalFileOutput`; collection exports supply their own
+captured serialized file through `saveToDropbox({found,target,isCurrent,prepare})`.
+Both paths share the explicit exists/add/conflict/overwrite workflow. The picker
+uses the shared `loadSavedPage` guard through later representation/draft choices.
+
+Folder pages follow the ordered continuation protocol in the
+[Dropbox List Folder reference](https://docs.dropboxapi.com/dropbox-api/api-reference/user-endpoints/files/list-folder):
+latest case-insensitive path updates win and deleted paths disappear. HTTP errors
+carry numeric `status`, `missingScope` and structured `conflict` flags; upload
+network/receipt failures are uncertain and never trigger automatic replay.
+
+
+## Collection browsing, importing and memberships
+
+`CListCollectionSession` captures storage URL, username, token, encryption key and
+an optional ownership predicate. It stays outside shared state. The explicit
+`collectionDependencies(session)` adapter is the storage/encryption boundary;
+DOM-free workflows receive these operations rather than reading global selection.
+`CListCollectionBrowseRecord` normalizes current objects and legacy bare arrays,
+retaining extension properties and adding storage `key` plus a `name` alias for
+`title`. Aliases are excluded from stored values. Legacy IDs may be null; adding
+to a legacy target keeps its original storage key while assigning a durable ID.
+
+`CListCollectionBrowseState`, `CListCollectionImportState`,
+`CListCollectionMembershipState` and `CListCollectionOpeningState` describe safe
+phase/generation/busy/error fields under their matching CList.state properties.
+Selected records, members, draft bodies, references, account snapshots and choice
+callbacks remain transient controller captures.
+
+Membership removal uses the selected membershipId and verifies that member still
+matches. Legacy members require an unchanged list and selected ordinal. Neither
+operation removes all copies sharing a URL. Add/remove preserve latest siblings,
+record extensions and publication metadata; failed writes do not mutate the
+captured source list. Storage has no compare-and-swap API, so checks do not provide
+transactional protection against another client writing between read and write.
+
+Import recognition reuses the shared content detector, preserves recognized
+identity and valid JSON extensions, and captures its new identity once for retry.
+Existing targets require explicit Overwrite/Merge; commits recheck the captured
+destination. Merge retains existing members and deduplicates leaves by URL while
+preserving nested/local memberships by membership or collection identity. Existing
+publication metadata survives overwrite/merge. New records use add-if-absent.
+
+Opening captures the original editor/account/page and draft before awaits. Member
+fetches route through `loadSavedPage` with a continued lifetime guard. Owned pages
+and local blobs remain distinct. Failed/expired collection mounts restore only
+their own active target; newer loads and drafts are not reconciled over.
+
+
+Shared JSON collection parsing retains open member properties (including
+membershipId and extension metadata), normalizes title/URL/author/summary aliases,
+and retains role:contains members with a collectionId even without a leaf URL.
+Native author_name takes precedence over the legacy author alias. Collection
+identity continues through the existing validated UUID parser.
+
+Reader row bindings receive `rowContext` separately from normalized/reference
+objects. It may carry a captured account/session and must never be serialized or
+logged. `bindRow(item, row, context)` owns closures; DOM attributes/classes reflect
+presentation only. `context.navigate` starts an owned feed from a live row while
+`next` retains paging semantics. Find contexts provide the same selection lifetime
+through `isAccountCurrent` and capture the original query for mode navigation.
+`CListReaderSurfaceContext` captures accountless public/annotation reader lifetime.
+Mastodon safe read state stores `{kind, value}`; annotation read state stores only
+`{generation, phase, error}`. Service sessions, forms, bodies and credentials remain
+transient. `CListPublisherOptions.assertCurrent` is an optional Mastodon form guard
+checked before its write, not a general cancellation guarantee for other publishers.

@@ -23,7 +23,7 @@ function fixture() {
         rendered.push({ items: structuredClone(items), title: options.title, append: options.append, more: options.onLoadMore, normalize: options.normalize });
     };
     CList.ui.renderLoadMoreButton = (_, more) => rendered.push({ retry: more });
-    for (const name of ['localrss', 'localrss_requests', 'localrss_view', 'localrss_reader', 'localrss_actions', 'localrss_feeds_view', 'localrss_feeds', 'localrss_opml_requests', 'localrss_opml_view', 'localrss_opml']) vm.runInContext(source(name), f.ctx);
+    for (const name of ['localrss', 'localrss_requests', 'localrss_view', 'localrss_row_view', 'localrss_reader', 'localrss_actions', 'localrss_feeds_view', 'localrss_feeds', 'localrss_opml_requests', 'localrss_opml_view', 'localrss_opml']) vm.runInContext(source(name), f.ctx);
     f.ctx._localrssProbeLocal = async () => false;
     f.ctx.fetch = async (url, options) => {
         calls.push({ url, options });
@@ -157,7 +157,7 @@ test('late audio-majority metadata cannot update the account after switching dat
 
 test('LocalRSS new scripts remain below 500 lines and load after their registered service and reader dependencies', () => {
     const html = fs.readFileSync('index.html', 'utf8');
-    for (const name of ['localrss_requests', 'localrss_view', 'localrss_reader', 'localrss_actions', 'localrss_options_view', 'localrss_options', 'localrss_opml_requests', 'localrss_opml_view', 'localrss_opml']) {
+    for (const name of ['localrss_requests', 'localrss_view', 'localrss_row_view', 'localrss_reader', 'localrss_actions', 'localrss_options_view', 'localrss_options', 'localrss_opml_requests', 'localrss_opml_view', 'localrss_opml']) {
         new vm.Script(source(name)); assert.ok(source(name).split('\n').length < 500);
         assert.ok(html.indexOf('js/' + name + '.js') > html.indexOf('js/localrss.js'));
         assert.ok(html.indexOf('js/' + name + '.js') < html.indexOf('js/interface.js'));
@@ -533,11 +533,11 @@ test('browser fixture listing renders registered feed actions and their captured
     f.ctx.CList = f.CList;
     vm.runInContext(html.slice(start, end), f.ctx);
     const item = await f.rendered.at(-1).normalize({id:7, title:'Feed "quoted" <tags>', url:'https://feed'});
-    const row = f.ctx.window.makeListing(item);
+    const row = f.ctx.window.makeListing(item, {rowContext: vm.runInContext('_readerContext', f.ctx)});
     const showPosts = row.querySelectorAll('button').find(button => button.title === 'Show posts');
     assert.ok(showPosts, 'fixture exposes the real registered feed Show posts action');
-    assert.equal(showPosts.onclick, `localrssShowBoundFeedPosts(${item.localrssFeedPostsId})`);
-    await f.ctx.localrssShowBoundFeedPosts(item.localrssFeedPostsId);
+    assert.equal(typeof showPosts.onclick, 'function');
+    await showPosts.click();
     assert.equal(f.CList.state.localrssReading.selection.feedId, 7);
     assert.equal(f.rendered.at(-1).title, 'Feed "quoted" <tags>');
 });
@@ -878,4 +878,27 @@ test('merge and replace import expire captured editor ownership without overwrit
         assert.match(root.querySelector('#localrss-feed-editor-status').textContent,/draft text is retained/);
         assert.equal(root.querySelectorAll('button').find(button=>button.textContent==='Save').disabled,true);
     }
+});
+
+
+test('detached LocalRSS controls cannot send a toggle or apply late feedback', async () => {
+    const f = fixture(); await f.ctx.switchReaderAccount('a'); const id = bindAction(f), button = actionButton();
+    let calls = 0, finish; f.ctx.fetch = () => { calls++; return new Promise(resolve => finish = resolve); };
+    button.isConnected = false; await f.ctx.localrssToggleRead(id, button); assert.equal(calls, 0);
+    button.isConnected = true; const pending = f.ctx.localrssToggleRead(id, button); assert.equal(calls, 1);
+    button.isConnected = false; finish(response({read: 1})); await pending;
+    assert.equal(button.icon.textContent, 'visibility'); assert.equal(button.disabled, false);
+});
+
+test('LocalRSS row callbacks capture audio and navigation and expire detached or changed-account rows', async () => {
+    const f = fixture(); await f.ctx.switchReaderAccount('a');
+    const context = vm.runInContext('_readerContext', f.ctx), row = new Element('div'); row.id = 'captured-row';
+    const actions = new Element('div'); actions.className = 'service-status-actions'; row.appendChild(actions);
+    const played = []; f.ctx.playAudio = index => played.push(index);
+    const item = {service:'LOCALRSS', audioIndex:3, localrssActionId:bindAction(f)};
+    f.ctx.bindLocalrssRow(item, row, context); item.audioIndex = 9;
+    const audio = actions.children.find(button => button.title === 'Play audio');
+    await context.next(async () => {}); await audio.click(); assert.deepEqual(played, [3]);
+    row.isConnected = false; await audio.click(); assert.deepEqual(played, [3]); row.isConnected = true;
+    await f.ctx.switchReaderAccount('b'); await audio.click(); assert.deepEqual(played, [3]);
 });

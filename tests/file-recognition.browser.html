@@ -37,9 +37,12 @@ window.sanitizeHtml=html=>{const doc=new DOMParser().parseFromString(html,'text/
 <script src="../js/editor-load-state.js"></script>
 <script src="../js/editor-load-view.js"></script>
 <script src="../js/editor-load.js"></script>
-<script src="../js/collection-formats.js"></script>
-<script src="../js/file-recognition.js"></script>
+<script src="../js/collection-formats.js?v=2026-11-19.5"></script>
+<script src="../js/file-recognition.js?v=2026-11-19.5"></script>
 <script src="../js/files.js"></script>
+<script src="../js/file-save-workflow.js"></script>
+<script src="../js/file-save-view.js"></script>
+<script src="../js/file-save.js"></script>
 <script src="../js/annotate-editor.js"></script>
 <script>
 (async()=>{
@@ -163,7 +166,7 @@ window.sanitizeHtml=html=>{const doc=new DOMParser().parseFromString(html,'text/
   annotationBody='';refs=[];currentEditor='texteditor';await load(JSON.stringify(native),'application/xml','wrong.xml');
   check(currentEditor==='annotate-edit'&&annotationBody===native.body,'Native annotation loads into annotation editor');
   check(JSON.parse(editorHandlers['annotate-edit'].getFileContent().value).target.title===target.title,'Annotation target restored');
-  _writeLocalFile=async content=>{saved=content;};await saveContent();
+  _writeLocalFile=async content=>{saved=content;return {status:'saved'};};await saveContent();
   check(JSON.parse(saved).format==='clist-annotation-v1'&&JSON.parse(saved).references.length===2&&JSON.parse(saved).target.feed==='CList Changelog','Logged-out annotation save retains native fields and references');
   annotationBody='<p>Existing draft</p>';await load(JSON.stringify(native),'text/plain','wrong.txt');
   check(annotationBody==='<p>Existing draft</p>','Existing annotation draft waits for choice');

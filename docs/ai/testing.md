@@ -38,6 +38,7 @@ the Node suite. Do not use a green build, push or release as proof tests passed.
 | Service publisher | Selected-account payload/authentication, API/network failures, optional links and callbacks; no adapter-owned publication UI |
 | View/panel | Correct controls, accessible state, rendering and action callbacks; selection must not be inferred from DOM attributes |
 | Editor/content export | Real editor API use, HTML/native/viewable format differences, snapshots and newer-draft preservation |
+| Local files / My Pages | Cancelled/failed writes never indexed, browser handoff distinct from native writes, stale filename/row/load callbacks, original destination checks and metadata-only delete retry; mock all filesystem and service writes |
 | Collection/metadata | Identity, raw membership versus flattened export, correct destination overwrite, session switches and metadata-only failure |
 | Slides/recovery | Affected Node tests plus relevant real-browser editor/worker/download fixtures; rebuild embedded source when necessary |
 
@@ -106,9 +107,10 @@ serves (normally `https://localhost:55888`, with HTTP fallback). Do not assume
 assets and deferred/module loading order, including new scripts, before reporting
 integration success. Preserve `interface.js` ordering.
 
-If a browser capability is available, use it for affected fixtures and record
-what the page actually reports. If unavailable, give the human the specific
-fixture URL and expected result, and state that it is unrun. Wait for an explicit
+The user performs browser tests. Give them the affected fixture URLs and expected
+results, and ask them to run the checks. Leave browser checks pending until they
+report their results; use browser tools only when explicitly delegated. Record
+what the user or delegated browser actually reports. Wait for an explicit
 final PASS/FAIL: a blank page, timeout, missing module or partial progress is not
 a pass. Keep the console error when a fixture fails. Do not infer that all
 browsers pass from one tested browser, or that fixture success proves live OAuth.
@@ -148,3 +150,29 @@ preflight through the source launcher and a finished executable where available.
 Do not call a mocked import check proof of a working packaged backend. The
 preflight does not start LocalRSS or exercise authentication. Source Python runs
 need requirements installed; packaged users must not need pip.
+
+
+Dropbox file-operation regressions are in `tests/dropbox-save.test.cjs`,
+`dropbox-save-view.test.cjs`, `dropbox-picker.test.cjs`, plus the generic Save panel
+and collection-export bridge checks in `public-feed-editor.test.cjs`. Run the
+matching browser pages with all HTTP and credential persistence mocked. Preserve
+ordered continuation updates/deletes, captured refresh writes and definite-401
+versus uncertain-upload behavior. Do not use live OAuth or upload files as an
+incidental refactor check.
+
+
+Collection browsing/import/membership/opening checks use the `collection-browser`,
+`collection-import`, `collection-members`, `collection-opening` and
+`collection-entry` Node fixtures plus `public-feed-editor.test.cjs`. Their four
+browser pages are prepared for the user; do not run them without delegation.
+Retain latest-record/legacy duplicate ordinal assertions, no optimistic source
+mutation after write failure, delayed encryption with same-container row replacement,
+cycle guards, explicit import choices, native member routing and unsaved draft
+restoration. A prepared browser page is pending evidence, not a pass.
+
+Service-reader checks and six browser handoff pages are catalogued in
+`tests/README.md` under "Service readers and row actions". Preserve the distinction
+between shared-context real-renderer coverage and service fixtures that mock shared
+chrome. Run targeted Node checks, then one full suite after the final functional
+change. Browser checks remain the user's responsibility unless delegated. Scope
+follow-up work to one small slice; do not expand the migration during final checks.

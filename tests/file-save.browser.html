@@ -1,0 +1,98 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CList local file saving regression</title>
+<h1>Local file saving</h1>
+<pre id="result">Checking...</pre>
+<div id="write-title">Original title</div><div id="writeReferences"><p>Original reference</p></div>
+<script>
+window.CList={state:{},config:{flaskSiteUrl:'https://storage.invalid'},keys:{ACCESS_TOKEN:'access_token'},
+ ui:{view:{writeTitle:document.getElementById('write-title')}},loaders:[],savers:[]};
+let currentEditor='texteditor', currentLoadedPage=null, currentEditorAccount=null;
+let refs=[], body='Literal <xml> & text';
+const editorHandlers={texteditor:{contentTypes:['text/plain'],getContent:async()=>body}};
+const writes=[],indexes=[],messages=[],errors=[],loaded=[];
+window.fetch=()=>Promise.reject(Error('Unexpected network request'));
+window.getReferences=()=>refs;
+window.getSiteSpecificCookie=()=> 'fixture-token'; window.getEncKey=async()=> 'fixture-key';
+window._currentAuthorDid=()=> 'did:web:fixture';
+window.assertAccountSession=session=>{session.isCurrent?.();};
+window._saveWebPageRecord=async record=>{indexes.push(structuredClone(record));return 'page:'+record.id;};
+window._touchOrForkWebPageRecord=async(key,id)=>({pageKey:key,id,forked:false});
+window.setLoadedPage=page=>{loaded.push(structuredClone(page));currentLoadedPage=page;};
+window.showStatusMessage=message=>messages.push(message);window.showErrorModal=message=>errors.push(message);
+window.downloadBlob=(blob,name)=>writes.push({blob,name,kind:'download'});
+window.buildDialogModal=(title,input,specs)=>{
+ document.getElementById('fixture-dialog')?.remove();
+ const root=document.createElement('div');root.id='fixture-dialog';
+ const heading=document.createElement('h2');heading.textContent=title;root.append(heading,input);
+ const close=()=>root.remove();const buttons=specs.map(spec=>{const button=document.createElement('button');
+  button.className=spec.secondary?'btn btn-secondary':'btn';button.textContent=spec.label;
+  button.onclick=()=>spec.onClick(close);root.append(button);return button;});
+ document.body.append(root);return {close,buttons};
+};
+</script>
+<script src="../js/files.js"></script>
+<script src="../js/file-save-workflow.js"></script>
+<script src="../js/file-save-view.js"></script>
+<script src="../js/file-save.js"></script>
+<script>
+(async()=>{
+ let checks=0;const check=(ok,label)=>{if(!ok)throw Error(label);checks++;};
+ const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
+ const waitDialog=async()=>{for(let i=0;i<10&&!document.querySelector('#fixture-dialog input');i++)await tick();
+  const input=document.querySelector('#fixture-dialog input');if(!input)throw Error('Filename choice rendered');return input;};
+ const picker=value=>Object.defineProperty(window,'showSaveFilePicker',{configurable:true,value});
+ try{
+  picker(undefined);
+  let pending=saveContent();let input=await waitDialog();
+  check(CList.state.fileSave.busy,'Save remains pending during filename choice');
+  check(await saveContent()===null,'Duplicate Save rejected');
+  document.querySelectorAll('#fixture-dialog button')[0].click();await pending;
+  check(writes.length===0&&indexes.length===0,'Cancel neither downloads nor indexes');
+  pending=saveContent();input=await waitDialog();
+  const detachedSave=document.querySelectorAll('#fixture-dialog button')[1];
+  document.getElementById('fixture-dialog').remove();
+  const replacement=document.createElement('div');replacement.id='replacement-panel';document.body.append(replacement);
+  detachedSave.click();await pending;
+  check(writes.length===0&&!CList.state.fileSave.busy&&replacement.isConnected,'Detached Save neither downloads nor closes replacement panel');
+  replacement.remove();
+  pending=saveContent();await waitDialog();document.getElementById('fixture-dialog').remove();await pending;
+  check(writes.length===0&&!CList.state.fileSave.busy&&CList.state.fileSave.status==='cancelled','Removing filename modal cancels pending Save through MutationObserver');
+  pending=saveContent();input=await waitDialog();input.value='renamed.xml';
+  const oldSave=document.querySelectorAll('#fixture-dialog button')[1];
+  input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));await pending;oldSave.click();
+  check(writes.length===1&&writes[0].name==='renamed.xml','Enter submits exact filename only once');
+  const packed=await writes[0].blob.text();const parsed=new DOMParser().parseFromString(packed,'text/html');
+  const metadata=JSON.parse(parsed.querySelector('#clist-file-metadata').textContent);
+  check(metadata.content.value==='Literal <xml> & text'&&metadata.title==='Original title','Real HTML packager retains exact text and captured title');
+  check(indexes.length===0,'Logged-out download skips My Pages');
+  check(messages.some(message=>message.includes('download requested')),'Download feedback describes browser handoff');
+  CList.state.username='alice';
+  picker(async()=>{throw new DOMException('Cancelled','AbortError');});await saveContent();
+  check(indexes.length===0&&CList.state.fileSave.status==='cancelled','Native picker cancellation never indexes');
+  const stream={write:async value=>writes.push({value,kind:'native'}),close:async()=>writes.push({kind:'closed'})};
+  picker(async()=>({name:'native.txt',queryPermission:async()=> 'granted',createWritable:async()=>stream}));
+  currentLoadedPage={kind:'file',title:'original.xml'};body='Raw original';await saveContent();
+  check(writes.at(-2).value==='Raw original'&&writes.at(-1).kind==='closed','Native write closes before success');
+  check(indexes.length===1&&indexes[0].mimeType==='text/plain'&&indexes[0].title==='original.xml','Successful raw write indexes its captured filename and MIME');
+  check(currentLoadedPage.savedLocally&&currentLoadedPage.kind==='file','Successful write reconciles file identity');
+  currentLoadedPage=null;
+  _saveWebPageRecord=async()=>{throw Error('Fixture metadata failure');};
+  await saveContent();
+  check(CList.state.fileSave.status==='metadata-failed'&&CList.state.fileSave.result.receipt.status==='saved','Metadata failure preserves successful file receipt');
+  check(errors.some(message=>message.includes('My Pages could not be updated')),'Metadata-only failure has visible feedback');
+  let resolveBody;editorHandlers.texteditor.getContent=()=>new Promise(resolve=>{resolveBody=resolve;});
+  const beforeWrites=writes.length;pending=saveContent();CList.state.username='bob';resolveBody('Old session body');
+  await pending.then(()=>{throw Error('Session save must reject');},()=>{});
+  check(writes.length===beforeWrites&&!CList.state.fileSave.busy,'Session change rejects pending write and releases lock');
+  CList.state.username=undefined;
+  const native=JSON.stringify({format:'clist-annotation-v1',body:'<p>Note</p>',target:{url:'https://target.invalid'}});
+  editorHandlers.annotation={getFileContent:async()=>({type:'application/vnd.clist.annotation+json',value:native})};
+  currentEditor='annotation';currentLoadedPage=null;picker(undefined);
+  pending=saveContent();input=await waitDialog();check(input.value==='annotation.json','Native annotation suggests JSON filename');
+  document.querySelectorAll('#fixture-dialog button')[1].click();await pending;
+  check(await writes.at(-1).blob.text()===native,'Native annotation export retains complete JSON');
+  document.body.dataset.result='PASS';document.getElementById('result').textContent=`PASS: real local-save controller/workflow/view and HTML packaging, native annotation/raw exports, filename Cancel/Enter/duplicate guards, picker cancellation, write-before-index ordering, metadata-only receipts and session isolation (${checks} checks). All file, storage and service writes mocked.`;
+ }catch(error){console.error(error);document.body.dataset.result='FAIL';document.getElementById('result').textContent='FAIL: '+error.message;}
+})();
+</script>

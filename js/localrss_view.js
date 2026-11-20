@@ -23,7 +23,7 @@ async function normalizeLocalrssItem(raw) {
     if (raw.audio_url) {
         audioFiles.push({ src: raw.audio_url, title: raw.title });
         const idx = audioFiles.length - 1;
-        item.audioIcon = `<button class="clist-action-btn" title="Play audio" onclick="playAudio(${idx});"><span class="material-icons md-18 md-light">play_arrow</span></button>`;
+        item.audioIndex = idx;
     }
     return item;
 }

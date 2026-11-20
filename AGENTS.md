@@ -14,6 +14,11 @@ Maintain the [human testing guide](docs/testing.md), AI instructions, and detail
 Distinguish Node, browser, manual and live-service evidence; never equate a build
 or a subset of tests with full validation.
 
+The user performs browser tests. Prepare the affected fixture URLs and expected
+results, then ask the user to run them; do not run browser checks yourself unless
+the user explicitly delegates them. Record their reported PASS/FAIL separately
+from automated Node results.
+
 ## Publishing changes
 
 Before writing or changing code that supports or impacts publishing, read
@@ -235,6 +240,15 @@ user/server/token/local mode; never store credentials or encryption keys in
 record and add-if-absent semantics. Check the captured session before each
 asynchronous preparation/write boundary; never retry an uncertain write.
 
+Find uses `find-state.js` (draft/request state), `find.js` (registry/controller and
+captured session/request lifetime), and `find-view.js` (controls/feed feedback).
+`supportsFindContext: true` opts `search(query, context)` into explicit queries,
+signal, guarded render/empty/fail and pagination. OpenAlex/Commons adopt it.
+Legacy search providers keep no-argument `search()` and the state-backed
+`finderString()` helper; their internal DOM writes are not newly protected.
+Reuse reader invalidation, preserve Google feed-button compatibility, and keep
+closing Find controls separate from ownership of visible feed pagination.
+
 ## Reader dispatch
 
 The central boundary uses `reader.js` (controller), `reader-state.js` (pure
@@ -325,3 +339,78 @@ checks to work around missing imports. Run Python tests with
 `python -m unittest discover -s tests -p 'localrss_*test.py' -v` for bundle/backend
 changes; report these separately from Node. Source-launch dependency requirements
 are distinct from frozen builds, which must work without end-user pip installs.
+
+
+## Local file saves and My Pages
+
+Local file saving uses `file-save.js` (captured controller),
+`file-save-workflow.js` (explicit export/write/index operations), and
+`file-save-view.js` (filename choice and feedback). `files.js` retains shared
+serialization/loading and saver registration. Index only after successful write
+or browser download handoff; cancellation/failure must not create a saved record.
+Keep native/raw filenames and formats, exact document metadata, session-scoped
+file handles and safe reconciliation with the original editor/page.
+
+My Pages uses `my-pages-state.js`, `my-pages-workflow.js`, `my-pages.js` and
+`my-pages-view.js`; collection browsing remains separate. Preserve captured
+session/destination, stale-row/load guards, original identity and native content
+routing. Remote deletion uncertainty keeps metadata. Retain accepted deletion
+receipts for explicit metadata-only retry; never automatically repeat the delete.
+Dropbox file operations use `dropbox_session.js` (captured account/session and
+explicit refresh persistence), `dropbox_save_workflow.js` (export/save decisions),
+`dropbox_save.js` (controller), `dropbox_save_view.js` (overwrite/feedback), and
+`dropbox_picker.js` / `dropbox_picker_view.js` (listing/load state and UI).
+`dropbox.js` retains initial OAuth setup and explicit transport. Collection Dropbox
+exports delegate to the same captured save controller. Reuse `prepareLocalFile`
+for native/raw/document formats. Only definite HTTP 401 rejection permits a single
+refresh/retry; never replay an uncertain upload. Preserve explicit overwrite,
+accepted receipts, original folders/account/session and the shared content-first
+loader guard through editor choices. Apply all folder continuation updates/deletes
+in order; cancel expired picker/choice promises so Save/Load can be reopened.
+
+
+## Collection browsing and membership operations
+
+Collection browser list/detail/My Collections uses `collection-browser.js` and
+`collection-browser-view.js`. Imports use `collection-import-workflow.js`,
+`collection-import.js` and `collection-import-view.js`; imported identity collisions
+require an explicit Overwrite/Merge choice, and newer destination changes expire it.
+`collection-session.js` owns transient captured storage credentials;
+`collection-workflow.js` owns explicit record/membership operations. Presentation
+state contains no credentials, encryption keys or bodies. Preserve unknown stored
+extensions, publication metadata, stable storage keys and legacy records.
+
+Membership pickers/rows use `collection-members.js` / `collection-members-view.js`.
+Remove one durable membership ID or one selected legacy ordinal; never remove by
+URL. Read latest stored siblings before mutation and reconcile only after accepted
+writes. A replaced row must invalidate pending preparation/writes even when its
+container remains connected; release replacement controls when an old operation
+settles. Keep cycle rejection and add-if-absent creation; no automatic write retry.
+
+Collection/member opening uses `collection-opening-workflow.js`,
+`collection-opening.js`, `collection-opening-view.js`. Draft file/existing-resource
+additions use the analogous `collection-entry-*` modules. Keep original draft/page/
+account/session captures, shared content-first routing, explicit Open/Insert/Cancel,
+owned-page restrictions, anonymous local blobs and failed-mount rollback that does
+not overwrite a newer load. Nested file imports are add-only; conflicts are visible.
+The remaining editor row widgets and collection Save/publication paths stay separate.
+
+## Migrated service readers and row bindings
+
+Mastodon uses `mastodon_requests.js`, `mastodon_reader.js`, `mastodon_actions.js`
+and `mastodon_view.js`; Bluesky uses corresponding requests/reader/view modules.
+Discord and public feeds use their captured reader/view modules. Annotations use
+`annotate_requests.js`, `annotate_reader.js`, `annotate_view.js`. Keep selected
+accounts, sessions, cursors and targets in transient captures. Reuse existing
+publisher/annotation workflows for writes; views own feedback.
+
+`bindRow(item, row, context)` receives private context outside serialized item and
+reference data. Use `.service-status-actions` for service controls; shared actions
+are appended afterward. Preserve connected earlier-page rows with
+`isAccountCurrent`; use `context.navigate` for captured row navigation and `next`
+for pagination. Reject detached/replaced rows and stale account/session callbacks.
+LocalRSS row binding is in `localrss_row_view.js`. Google/DDG/OASIS now use captured
+Find contexts, explicit request functions and `search-provider-view.js` row controls.
+Google modes/pagination retain the original query and credential snapshot; reject
+changed accounts and stale menus. OpenAlex/Commons already use Find contexts but
+their stateless inline row controls remain a separate cleanup.

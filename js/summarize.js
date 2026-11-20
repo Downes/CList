@@ -89,7 +89,7 @@ async function handleSummarize(input,output,type) {
 
     const clistActions = document.createElement("div");
     clistActions.className = "clist-actions";
-    clistActions.innerHTML = `<button class="clist-action-btn" title="Load into editor" onClick="handleMastodonAction('summary', 'load',this.parentElement.parentElement)"><span class="material-icons md-18 md-light">arrow_right</span></button>`;
+    clistActions.innerHTML = `<button class="clist-action-btn" title="Load into editor" onClick="loadContentToEditor('summary')"><span class="material-icons md-18 md-light">arrow_right</span></button>`;
 
     summaryText.appendChild(statusContent);
     summaryText.appendChild(clistActions);

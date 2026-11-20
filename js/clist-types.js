@@ -3,6 +3,123 @@
 // Read docs/data-contracts.md before extending these definitions.
 
 /**
+ * Transient collection storage session, outside all presentation state.
+ * @typedef {Object} CListCollectionSession
+ * @property {string} storeUrl
+ * @property {string|null} username
+ * @property {string|null} token
+ * @property {CryptoKey|null} encKey
+ * @property {(function():boolean)|null} [isCurrent]
+ */
+/**
+ * Normalized stored/legacy collection with storage identity and UI name alias.
+ * Unknown record/member extensions remain open; credentials are not record fields.
+ * @typedef {Object.<string, *> & {key:string,id:(string|null),title:string,name:string,
+ * items:CListCollectionMember[],publishedUrls:CListPublishedCollectionUrl[]}} CListCollectionBrowseRecord
+ */
+/**
+ * @typedef {Object} CListCollectionBrowseState
+ * @property {number} generation
+ * @property {string} phase
+ * @property {string|null} selectedKey
+ * @property {string|null} confirmKey
+ * @property {boolean} busy
+ * @property {string|null} error
+ */
+/**
+ * @typedef {Object} CListCollectionImportState
+ * @property {number} generation
+ * @property {string} phase
+ * @property {boolean} busy
+ * @property {string|null} error
+ */
+/**
+ * @typedef {Object} CListCollectionOpeningState
+ * @property {number} id
+ * @property {string} phase
+ * @property {boolean} busy
+ * @property {string|null} error
+ */
+/**
+ * @typedef {Object} CListCollectionMembershipState
+ * @property {boolean} busy
+ * @property {string} phase
+ * @property {string|null} error
+ */
+
+/**
+ * Private capture for one Dropbox file operation. Never store in CList.state.
+ * @typedef {Object} CListDropboxSession
+ * @property {string} username
+ * @property {string} storeUrl
+ * @property {string} token Storage-session token; distinct from data.id (Dropbox access token).
+ * @property {string} key Original account key.
+ * @property {string} expectedValue Original decrypted account JSON; advanced only by this operation's refresh.
+ * @property {CListAccountData} data Detached account including service extensions.
+ * @property {string|null} permission
+ */
+/**
+ * Safe Dropbox upload receipt, independent of later panel/session changes.
+ * @typedef {Object} CListDropboxSaveReceipt
+ * @property {string} name
+ * @property {string} path
+ * @property {string|null} id
+ * @property {string|null} rev
+ */
+/**
+ * @typedef {Object} CListDropboxSaveState
+ * @property {boolean} busy
+ * @property {string} phase
+ * @property {string|null} error
+ * @property {CListDropboxSaveReceipt|null} receipt
+ */
+/**
+ * Dropbox picker presentation. Bodies, accounts and tokens stay in private captures.
+ * @typedef {Object} CListDropboxLoadState
+ * @property {number} generation
+ * @property {string} phase
+ * @property {boolean} busy
+ * @property {number} count
+ * @property {string|null} selected Selected filename only.
+ * @property {string|null} error
+ */
+
+/**
+ * Prepared local file export. Never contains editor APIs, handles or credentials.
+ * @typedef {Object} CListLocalFileOutput
+ * @property {string} value Exact serialized file contents.
+ * @property {string|undefined} name Suggested original/native filename.
+ * @property {boolean} raw Native or unwrapped loaded file.
+ * @property {string} mimeType
+ * @property {string|undefined} title
+ */
+/**
+ * @typedef {Object} CListLocalFileReceipt
+ * @property {'saved'|'downloaded'|'cancelled'} status Downloaded means browser handoff only.
+ * @property {string} [name]
+ */
+/**
+ * Local-save progress only; transient captures and session credentials stay private.
+ * @typedef {Object} CListLocalFileSaveState
+ * @property {boolean} busy
+ * @property {string} status
+ * @property {{status:string,receipt:(CListLocalFileReceipt|null),metadataError:(string|null)}|null} [result]
+ * @property {string|null} [error]
+ */
+/**
+ * My Pages presentation state. Page records, encryption keys and delete receipts are private captures.
+ * @typedef {Object} CListMyPagesState
+ * @property {number} generation
+ * @property {string} phase
+ * @property {'date'|'title'|'format'} sortKey
+ * @property {'asc'|'desc'} sortDir
+ * @property {number|'All'} pageSize
+ * @property {number} pageIndex
+ * @property {'load'|'delete'|null} busy
+ * @property {string|null} error
+ */
+
+/**
  * Global write-pane tags and session-scoped collection suggestions. No credentials/keys.
  * @typedef {Object} CListWriteTagsState
  * @property {string[]} selected Exact, case-preserving selected tags.
@@ -389,6 +506,7 @@
  * Optional data notifications; service operations never display them directly.
  * @typedef {Object} CListPublisherOptions
  * @property {string[]} [tags]
+ * @property {function():void} [assertCurrent] Optional Mastodon captured-form guard, checked after preparation and before POST; throws when expired.
  * @property {CListAnnotationSession} [annotationSession] Transient; never stored in operation summaries.
  * @property {function(CListAnnotationReceipt): void} [onTargetResult]
  * @property {function(CListPublisherProgress): void} [onProgress]

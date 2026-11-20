@@ -289,7 +289,7 @@ The saved-file browser fixture now reads the two local regression samples in
 It checks repeated HTML choices with drafts in each editor and RSS plain-text
 routing. These are test data, not instructions. Rerun the fixture and wait for PASS.
 
-Temporary editor test marker: the shared editor status shows `test 2026-11-18.5`
+Temporary editor test marker: the shared editor status shows `test 2026-11-19.1`
 from the running editor script. The relevant file-loading/editor script URLs use
 the same version to request fresh copies. If the marker is missing or different,
 the current test build has not loaded. Bump the marker and script versions together
@@ -352,7 +352,7 @@ DOM controls and the new modules; editor APIs, accounts and storage are mocked,
 with no external requests or file writes. Also rerun
 `tests/file-recognition.browser.html` and `tests/editor-references.browser.html`
 for the real-handler integration paths. The visible editor marker is
-`test 2026-11-18.5`.
+`test 2026-11-19.1`.
 
 In the normal app, switch between Text, HTML and Annotation with bodies, references
 and loaded files. Check Overwrite, Insert, Don't transfer and Cancel; confirm that
@@ -376,7 +376,7 @@ source launcher (adjust to its actual port). Expect a final `PASS:` for Load/Bla
 and loaded-page controls. It uses real DOM/modules with mocked editors, loaders
 and memory-only storage; no external requests or file writes. Also rerun
 `tests/editor-switch.browser.html`, `tests/file-recognition.browser.html` and
-`tests/editor-references.browser.html`. Marker: `test 2026-11-18.5`.
+`tests/editor-references.browser.html`. Marker: `test 2026-11-19.1`.
 
 In the normal app, open Load, select a source and cancel; check Load blank on the
 current editor (Cancel and Discard), then on another editor and back. Confirm that
@@ -397,7 +397,7 @@ Open `https://localhost:51888/tests/save-panel.browser.html` through the source
 launcher (adjust to its actual URL). Expect final `PASS:` from real DOM/modules
 with mocked savers/accounts/storage, no external requests or file writes. Also
 rerun `tests/publish-selection.browser.html` for adjacent Post-panel behavior.
-The normal-app editor marker is `test 2026-11-18.5`.
+The normal-app editor marker is `test 2026-11-19.1`.
 
 In the normal app, check the Save destination list, cancellation of local saving,
 and successful saving of an existing sample document/annotation. For available
@@ -420,7 +420,7 @@ source launcher (adjust the port as needed), then rerun
 `tests/editor-references.browser.html` and `tests/editor-switch.browser.html`.
 Expect final `PASS:` from each. The new fixture uses real DOM and modules with
 mocked editor switching and collection APIs, with no external requests or
-file/storage writes. Normal-app editor marker: `test 2026-11-18.5`.
+file/storage writes. Normal-app editor marker: `test 2026-11-19.1`.
 
 In the normal app, open Refs, edit author/title/feed/URL, remove a reference and
 switch away/back. Check that reply metadata remains intact, explicit Annotate
@@ -445,7 +445,7 @@ Open `https://localhost:51888/tests/tags.browser.html` through the source launch
 mocked storage/encryption/sessions, no external requests or file/storage writes.
 Also rerun `tests/editor-switch.browser.html` and
 `tests/file-recognition.browser.html` for adjacent mount/load paths. Normal-app
-marker: `test 2026-11-18.5`. These browser checks remain separate from Node.
+marker: `test 2026-11-19.1`. These browser checks remain separate from Node.
 
 In the normal app, add/remove tags using Enter, comma, Backspace and suggestions;
 check that unfinished text and selected tags survive editor switching. Check
@@ -453,3 +453,210 @@ anonymous tagging and the No choice without storage writes. A deliberate Yes on
 a new test collection and live storage authorization are separate manual actions,
 not established by mocked fixture PASS. No real collections are created by the
 automated checks.
+
+## Find/search
+
+Run `node --test tests/find.test.cjs tests/reader-controller.test.cjs tests/localrss-reader.test.cjs`,
+then the full Node suite. Find tests use real state/controller/view, central reader
+invalidation, shared progressive renderer and real OpenAlex/Commons request code,
+with mocked requests/normalizers/listing widgets. They cover query capture versus
+DOM tampering, visibility, empty input, legacy method binding/no arguments,
+duplicates, supersession, session/target/reader invalidation, late normalization,
+encoded queries/cursors, retained earlier pages, failed-page explicit retry,
+empty continuations, and safe literal feedback. They do not establish live APIs.
+
+Open `https://localhost:51888/tests/find.browser.html` through the source launcher
+(adjust the port as needed), plus `tests/reader-boundary.browser.html` for adjacent
+central account reading. The Find fixture uses real DOM/modules/shared renderer
+and OpenAlex/Commons normalizers, with mocked API responses, listing widgets,
+feedback and reader invalidation. Expect final PASS. It does not run live searches
+or perform storage writes. Editor marker: `test 2026-11-19.1`.
+
+On 2026-11-19 the Tags fixture (`tests/tags.browser.html`, source marker
+2026-11-18.5) was run in the in-app browser and reported its full PASS. The Find
+fixture also reported PASS (21 checks), and the adjacent reader-boundary fixture
+also reported PASS. These browser observations are separate from Node evidence.
+In the normal app, check Find query input, provider changes and pagination; legacy
+Google/DuckDuckGo/OASIS service behavior remains a separate integration path.
+
+
+## Local file saving and My Pages
+
+Run `node --test tests/file-save.test.cjs tests/my-pages.test.cjs tests/file-recognition.test.cjs`
+and then the full Node suite. These checks mock browser file APIs, encryption,
+accounts and storage. They cover captured native/raw/HTML exports, exact filenames
+and document metadata, cancellation, duplicate saves, write-before-index ordering,
+metadata-only failures, session/editor changes and permission-revoked handles.
+My Pages covers global sorting/pagination, mixed page/collection records, content
+routing, stale rows/loads, exact original deletion targets, uncertain deletion and
+metadata-only retry after confirmed deletion. Collection cleanup keeps other
+publications, members and extension metadata.
+
+Open `/tests/file-save.browser.html`, `/tests/my-pages.browser.html` and
+`/tests/file-recognition.browser.html` on the local server. These use real modules
+and DOM, with file writes, downloads, service calls and storage mocked. Browser
+results are separate from the Node run; no real local file or remote page is
+created/deleted by these fixtures.
+
+For normal-app checks, use disposable content: save native annotations/slides,
+round-trip a loaded file under its original name, cancel both filename pickers,
+then save again. Check My Pages sort, pagination, loading, local-only entries and
+the inline delete choice. Real downloads, filesystem permissions and live-service
+deletion require separate deliberate checks. Dropbox coverage is described in the following section.
+
+
+Verified on 2026-11-19 for editor marker `test 2026-11-19.2`: full Node
+suite **474/474 pass**, no skips/failures. The in-app browser reported PASS for
+local file saving (18 checks), My Pages (23 checks), saved-file recognition,
+Load/Blank and editor switching. File/service/storage writes were mocked in
+these browser fixtures; ordinary-browser filesystem permissions and live-service
+operations were not exercised.
+
+
+## Dropbox file saving and picker
+
+Run `node --test tests/dropbox-save.test.cjs tests/dropbox-save-view.test.cjs tests/dropbox-picker.test.cjs tests/save-panel.test.cjs tests/public-feed-editor.test.cjs`,
+then the full Node suite. All Dropbox HTTP, account persistence and file writes
+are mocked. Tests cover captured native/raw/HTML exports, exact filenames and
+folders, collection-format exports through the same save controller, explicit
+overwrite/Cancel and add-conflict choices, duplicate/stale controls, uncertain
+uploads without automatic replay, definite-401 refresh, captured credential
+persistence, and accepted upload receipts after an editor/session expires.
+Picker tests cover ordered folder continuation updates/deletes, global date
+ordering, invalid cursors, exact filenames, content-first routing, explicit read
+retry, missing scopes, Cancel and stale/removed source controls.
+
+Open `/tests/dropbox-save.browser.html`, `/tests/dropbox-picker.browser.html` and
+`/tests/save-panel.browser.html` through the local server. They use real modules
+and DOM with mocked HTTP, account persistence and editor APIs; no external
+requests or file/storage writes occur. Verify each final PASS separately.
+Normal-account OAuth, live Dropbox permissions, large uploads and actual service
+writes remain separate deliberate integration checks. Initial OAuth setup remains
+on its existing path; file-operation refresh now uses captured session persistence.
+
+Editor marker: `test 2026-11-19.3`. On 2026-11-19 the full Node run passed
+**505/505**, with no failures/skips. The in-app browser reported PASS for Dropbox
+saving (24 checks), Dropbox picker (18 checks), and the generic Save panel.
+
+
+## Collection browsing, imports, memberships and opening
+
+Run `node --test tests/collection-browser.test.cjs tests/collection-import.test.cjs tests/collection-members.test.cjs tests/collection-opening.test.cjs tests/collection-entry.test.cjs tests/public-feed-editor.test.cjs`,
+then the full Node suite. The 2026-11-19 full run passed **553/553**, with no
+failures or skips. These checks mock storage, encryption, service/editor APIs and
+file inputs; they do not establish ordinary-browser or live-service success.
+
+The user performs browser checks. The following new fixtures are **pending**;
+open each through the launcher and report its final PASS or FAIL:
+
+- `/tests/collection-browser.browser.html`: saved/feed collection listing, My Collections loading, deletion choices/errors, reader/session isolation and detail actions.
+- `/tests/collection-import.browser.html`: content-first URL/file recognition, identity/extensions, Overwrite/Merge/Cancel, incoming destination protection, chat imports and explicit retry.
+- `/tests/collection-members.browser.html`: captured feed references, independent duplicate memberships, preserved incoming members/extensions, failed-write isolation, replaced rows/pickers/session guards and nested-cycle rejection.
+- `/tests/collection-opening.browser.html`: Open/Insert/Cancel, references and unsaved drafts, failed-mount recovery, stale member loads, local blob entries, add-only nested imports and existing-resource choices.
+
+Each should report its final **PASS**. HTTP, KV storage, encryption, editor APIs,
+sharing and file effects are mocked where used; the fixtures make no external
+requests or real file/storage writes. Browser fixture preparation is separate
+from execution. Editor marker: `test 2026-11-19.4`.
+
+In the normal app, additionally check Collections list/detail/back, feed collection
+read/edit, collecting the same item twice and removing one copy, import preview
+and conflict Cancel, and return to an unsaved collection after editing one owned
+member. Ordinary editor row widgets, collection Save/publication, generic From URL
+loading and catalogue publication retain their existing implementations; they
+are not newly migrated by this browsing/import/membership slice.
+
+
+Collection browser results reported by the user: browsing **PASS (15 checks)**,
+memberships **PASS (17)** and opening/draft entries **PASS (18)**. Imports failed
+at the membership-preservation assertion: the real shared JSON parser discarded
+member IDs/extensions. The parser now retains open member fields, native author
+metadata and nested memberships. A regression runs actual recognition through
+import persistence; the full Node suite passed **554/554**. The user subsequently
+reported imports **PASS (23 checks)** and saved-file recognition **PASS** with
+marker `test 2026-11-19.5`. All four collection browser fixtures and the adjacent
+recognition regression now have user-reported PASS results. These use mocked
+services/storage; no live-service or ordinary-account validation is implied.
+
+
+## Service readers and row actions — 2026-11-20
+
+Fresh automated result: `node --test tests/*.test.cjs` — **597 passed, 0 failed,
+0 skipped**. Focused reader/search/public-feed/publishing compatibility checks:
+**167 passed**. Script paths and JavaScript syntax checked for `index.html` and
+the six pages below; this is not browser execution. Editor marker:
+`test 2026-11-20.1`. All six browser fixtures for this stage have user-reported **PASS** results.
+
+Ask the user to open these pages on their existing launcher (port 51888):
+
+- [Shared row context](https://localhost:51888/tests/reader-row-context.browser.html): real shared renderer/context, common controls, private credentials, earlier-page actions and stale row/account/public surface rejection.
+- [Mastodon](https://localhost:51888/tests/mastodon-reader.browser.html): captured account, paging, toggles, Reply and newer-draft protection.
+- [Bluesky](https://localhost:51888/tests/bluesky-reader.browser.html): selected-account authentication, opaque cursors, toggles, Reply/Search/Recommended and uncertain failures.
+- [Discord and public feeds](https://localhost:51888/tests/other-readers.browser.html): captured channel, private/public headers, partial changelog errors and stale public pickers.
+- [Annotations](https://localhost:51888/tests/annotation-reader.browser.html): discovery, counts, follow controls, exact node/thread restoration and session isolation.
+- [LocalRSS regression](https://localhost:51888/tests/localrss-reader.browser.html): existing full LocalRSS fixture with callback-bound row/audio/Show posts controls.
+
+Each should end with **PASS**. Service HTTP/authentication/storage/publication
+and related effects are mocked; these fixtures do not establish live service or
+OAuth behavior. The shared-context page uses the real listing renderer and reader
+controller; individual service pages mock shared chrome/context as described on
+those pages. In the normal app, separately check initial feed selection, paging,
+opening a post/thread and returning, account switching and surviving shared row
+controls. Do not send live posts or toggle real service data merely to validate
+this refactor without the user's authorization.
+
+Google/DuckDuckGo/OASIS internals and remaining stateless search-row controls are
+deferred to the next small stage. Annotation controller presentation cleanup,
+initial OAuth/identity/admin workflows and later roadmap stages remain separate.
+
+User-reported browser results for the 2026-11-20 service-reader stage:
+
+- Shared row context: **PASS (14 checks)**.
+- Mastodon: **PASS (13 checks)**.
+- Bluesky: **PASS (15 checks)**.
+- Discord/public feeds: **PASS (15 checks)**.
+- Annotations: **PASS (14 checks)**.
+- LocalRSS: **PASS**, including Options, search, Show posts/Refresh, feed management/cache and OPML/account creation.
+
+These are user-executed browser fixtures with mocked services/actions and no
+external requests or writes. They are separate from the recorded **597/597 Node**
+result and do not establish live-service, OAuth or normal-account behavior.
+
+
+## Google, DuckDuckGo and OASIS — small follow-up
+
+The providers now use the existing captured Find boundary and a shared row-control
+view. Fresh automated results: **37 focused Node tests passed**, then
+`node --test tests/*.test.cjs` — **604 passed, 0 failed, 0 skipped**. Script paths
+and JavaScript syntax checked for the app and new fixture. This does not establish
+browser or live-service behavior. Editor marker: `test 2026-11-20.2`.
+
+User browser check remains **pending**:
+[Search providers](https://localhost:51888/tests/search-providers.browser.html).
+Expect final **PASS**. It exercises real Find/provider transport/normalization,
+shared rendering, reader menu view and bound row controls. HTTP, accounts, reader
+invalidation, listing widgets and external actions are mocked. No external requests
+or writes. Coverage includes Google query/credentials, API paging and Web/Images,
+stale menus/responses/rows/session, nested DDG topics, actual OASIS HTML parsing,
+encoded proxy inputs, metadata and visible empty/error feedback.
+
+In the normal app, separately check Google Web/Images after changing the input
+draft, paging, DDG disambiguation groups and OASIS results. Live service/OAuth
+checks have not been performed. OpenAlex/Commons inline controls and annotation
+presentation cleanup are outside this small stage.
+
+
+User browser follow-up: the search-provider fixture failed selecting OASIS because
+its button text includes the Material Icon name (`school`) before the label. The
+fixture now selects the label span and reports missing providers explicitly. A
+regression runs that exact selector against real Find controls. **23 Find Node
+tests pass** after this fixture-only fix. Browser rerun is pending; the recorded
+604-test full-suite result predates this additional regression. Application search
+code is unchanged by this fix.
+
+The user reran `search-providers.browser.html` after the label-selector fix and
+reported **PASS (17 checks)**: captured Google query/credentials, Web/Images,
+paging/earlier-page controls, nested DDG topics, OASIS HTML parsing/proxy headers,
+empty/error feedback and stale request/menu/row/session guards. Services/actions
+were mocked; no external requests or writes. This supersedes the pending browser
+rerun above and completes this small stage's browser validation.

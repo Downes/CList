@@ -1,0 +1,95 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CList collection opening and draft entries regression</title>
+<h1>Collection opening and draft entries</h1>
+<p>Real collection opening/entry workflows, controllers and views. Editor APIs, HTTP, credentials and storage are mocked. No external requests or file/storage writes.</p>
+<pre id="result">Checking collection opening…</pre>
+<div id="write-title">Draft title</div><div id="collectionEditorDiv"></div><div id="entry-anchor"><button id="add-existing">Add existing</button></div>
+<script>
+window.CList={state:{username:'fixture'},config:{flaskSiteUrl:'https://storage.invalid'},keys:{ACCESS_TOKEN:'access_token'},ui:{}};
+let currentEditor='texteditor',currentEditorAccount=null,currentLoadedPage=null,_activeCollection={col:{id:'previous'}},_draftItems=[];
+let token='fixture-token',hasContent=true,initializeFailure=false,download,detected={type:'text/plain'},cycle=false;
+const references=[],inserted=[],loaded=[],notices=[],errors=[],writes=[],blobs=[];
+const editorHandlers={texteditor:{label:'Text'},collection:{label:'Collection'}};
+window.getSiteSpecificCookie=()=>token;
+window.editorHasActiveContent=()=>hasContent;
+window.initializeEditor=async key=>{if(initializeFailure)return false;currentEditor=key;CList.state.editorSwitching={id:(CList.state.editorSwitching?.id||0)+1};return true;};
+window.showCollectionEditorPanel=async()=>true;
+window.setLoadedPage=page=>{currentLoadedPage=page;};
+window.loadContent=async content=>inserted.push(structuredClone(content));
+window.pushReference=reference=>{references.push(structuredClone(reference));return true;};
+window.escapeHtml=value=>String(value).replaceAll('&','&amp;').replaceAll('<','&lt;');
+window._flattenForExport=async items=>structuredClone(items);
+window._resolveCollectionById=async id=>({key:'collection:'+id,id,title:'Nested',items:[]});
+window._resolveCollectionIdentity=(key,id)=>({key:key||'collection:'+(id||'new'),id:id||'new'});
+window.fetch=async url=>{if(!download)throw Error('Unexpected HTTP request');return download(url);};
+window.loadSavedPage=async(...args)=>loaded.push(args);
+window._showCollectionReturnBar=show=>notices.push(['return',show]);
+window.readActiveCollectionDraft=()=>currentEditor==='collection'?{name:document.getElementById('write-title').textContent,items:_draftItems}:null;
+window.showStatusMessage=text=>notices.push(text);window.showErrorModal=text=>errors.push(text);
+window.buildDialogModal=(title,body,specs)=>{
+ document.getElementById('fixture-dialog')?.remove();const root=document.createElement('div');root.id='fixture-dialog';
+ const heading=document.createElement('h2');heading.textContent=title;root.append(heading,body);
+ const close=()=>root.remove();const buttons=specs.map(spec=>{const button=document.createElement('button');button.className=spec.secondary?'btn btn-secondary':'btn';
+ button.textContent=spec.label;button.onclick=()=>spec.onClick(close);root.append(button);return button;});document.body.append(root);return{close,buttons};
+};
+window.dismissOnOutsideClick=()=>{};
+window.beginCollectionSession=options=>({...options,originalToken:token});
+window.assertCollectionSession=session=>{if(session.originalToken!==token||session.token!==token||!session.isCurrent())throw Error('Session changed');};
+window.collectionDependencies=session=>({session});
+window.saveCollectionRecord=async(...args)=>{writes.push(args);return args[1];};
+window.recognizeSavedContent=()=>structuredClone(detected);
+window._fetchAllCollections=async()=>[{id:'child',title:'Child',items:[]}];
+window._fetchAllPublishedPages=async()=>[{id:'page',title:'Saved page',url:'https://page.invalid',mimeType:'text/html'}];
+window._wouldCreateCycle=async()=>cycle;
+Object.defineProperty(URL,'createObjectURL',{configurable:true,value:file=>{blobs.push(file.name);return'blob:fixture';}});
+</script>
+<script src="../js/collection-opening-workflow.js"></script>
+<script src="../js/collection-opening-view.js"></script>
+<script src="../js/collection-opening.js"></script>
+<script src="../js/collection-entry-workflow.js"></script>
+<script src="../js/collection-entry-view.js"></script>
+<script src="../js/collection-entry.js"></script>
+<script>
+(async()=>{
+ let checks=0;const check=(value,label)=>{if(!value)throw Error(label);checks++;};
+ const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
+ const button=label=>[...document.querySelectorAll('button')].find(element=>element.textContent===label);
+ const col=()=>({key:'collection:original',id:'original',name:'Original',items:[{membershipId:'m1',url:'https://entry.invalid',author_name:'Author',summary:'<Body>'}]});
+ try{
+  const previous=_activeCollection;let source=col();let pending=_loadCollectionIntoEditor(source,token,'key');await tick();
+  check(button('Insert as text')&&button('Open in Collection editor'),'Real explicit opening choices rendered');
+  source.name='Changed after capture';button('Cancel').click();await pending;check(_activeCollection===previous,'Cancel preserves source collection');
+  pending=_loadCollectionIntoEditor(col(),token,'key');await tick();button('Insert as text').click();await pending;
+  check(inserted.at(-1).value.includes('Author wrote'),'Insert uses captured data workflow');check(references.at(-1).membershipId==='m1','Structural reference fields retained');
+  pending=_loadCollectionIntoEditor(col(),token,'key');await tick();const oldOpen=button('Open in Collection editor');oldOpen.click();oldOpen.click();await pending;
+  check(currentEditor==='collection'&&_activeCollection.col.id==='original','Collection mounts captured identity');check(CList.state.collectionOpening.phase==='complete','Duplicate choice commits once');
+  const preserved=_activeCollection;currentEditor='texteditor';hasContent=false;initializeFailure=true;
+  await _loadCollectionIntoEditor(col(),token,'key');check(_activeCollection===preserved,'Failed mount restores prior collection');initializeFailure=false;
+  currentEditor='collection';_draftItems=[{title:'Unsaved',url:'https://draft.invalid'}];document.getElementById('write-title').textContent='Unsaved draft';
+  download=async()=>({ok:true,text:async()=>'<p>Exact page</p>'});
+  await _openEntryForEdit({url:'https://page.invalid'},token,'key',{id:'page',pageKey:'page:one',mimeType:'text/html'});
+  check(_activeCollection.col.name==='Unsaved draft'&&_activeCollection.col.items[0].title==='Unsaved','Member opening captures unsaved draft');
+  check(loaded.at(-1)[1].pageKey==='page:one'&&loaded.at(-1)[0].value==='<p>Exact page</p>','Member uses shared loading with exact metadata');
+  const guard=loaded.at(-1)[4];token='new-session';check(!guard(),'Later shared editor choices expire across login sessions');token='fixture-token';
+  let finish;download=()=>new Promise(resolve=>{finish=resolve;});const before=loaded.length;
+  pending=_openEntryForEdit({url:'blob:private',localOnly:true},token,'key');await tick();
+  CList.state.editorControls={id:2};finish({ok:true,text:async()=> 'Late'});await pending;check(loaded.length===before,'Late member download rejected after Blank/load lifetime changes');
+  _draftItems=[];detected={type:'text/plain'};const targets={collections:new Set(),pages:new Map()};
+  await _addEntryFromFile(new File(['Exact bytes'],'wrong.xml',{type:'application/xml'}),_draftItems,{},null,null,()=>{},targets);
+  check(_draftItems[0].title==='wrong.xml'&&_draftItems[0].mimeType==='text/plain'&&_draftItems[0].localOnly,'File entry keeps filename and detected MIME');
+  check(blobs.length===1&&!writes.length,'Ordinary file entry creates only a mocked local blob');
+  detected={collection:{id:'imported',title:'Imported',items:[],custom:{retained:true}}};
+  await _addEntryFromFile(new File(['{}'],'collection.wrong'),_draftItems,{id:'parent'},token,'key',()=>{},targets);
+  check(writes.at(-1)[3].createOnly&&writes.at(-1)[1].custom.retained,'Nested imports use add-only persistence and preserve extensions');
+  check(targets.collections.has('imported'),'Saved nested member becomes editable');
+  const anchor=document.getElementById('add-existing');
+  await _showAddEntryFromExistingPicker(_draftItems,{id:'parent'},token,'key',()=>{},anchor,targets);
+  check(button('Saved page')&&button('Child (collection)'),'Existing-resource picker renders real buttons');
+  button('Saved page').click();await tick();check(_draftItems.at(-1).url==='https://page.invalid'&&targets.pages.has('https://page.invalid'),'Existing page metadata retained for edit routing');
+  cycle=true;await _showAddEntryFromExistingPicker(_draftItems,{id:'parent'},token,'key',()=>{},anchor,targets);
+  const count=_draftItems.length;button('Child (collection)').click();await tick();check(_draftItems.length===count,'Cycle rejection keeps draft unchanged');
+  document.getElementById('result').textContent='PASS: real collection opening/entry state, workflows, controllers and views; explicit Open/Insert/Cancel, exact references, captured identity/drafts, failed mount rollback, stale member/choice guards, local files, add-only nested imports and existing resource/cycle choices. '+checks+' checks. Editor APIs, HTTP, credentials, blobs and storage mocked; no external requests or file/storage writes.';
+ }catch(error){console.error(error);document.getElementById('result').textContent='FAIL: '+error.stack;}
+})();
+</script>

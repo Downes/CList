@@ -106,11 +106,13 @@ test('collection controller errors are visible and shared save state contains no
 test('reopening a pending real Dropbox overwrite prompt retains its resolving controls and unlocks on Cancel/Overwrite',async()=>{
  for(const mode of ['Cancel','Overwrite']){
   const f=fixture();let writes=0;
-  const source=fs.readFileSync('js/dropbox.js','utf8'),start=source.indexOf('function _promptDropboxOverwrite(');
-  vm.runInContext(source.slice(start,source.indexOf('(function () {',start)),f.ctx);
-  f.ctx.window.CList.savers.push({label:'Dropbox',save(){
-   const status=new Element();status.id='dropbox-save-status';f.root.appendChild(status);
-   return f.ctx._promptDropboxOverwrite(status,'existing.html',async()=>{writes++;return{path_display:'existing.html'};});
+  vm.runInContext(fs.readFileSync('js/dropbox_save_view.js','utf8'),f.ctx);
+  f.ctx.window.CList.savers.push({label:'Dropbox',async save(){
+   const ui=f.ctx.window.CList.ui.dropboxSave,view=ui.mount(f.root);
+   const choice=await ui.chooseOverwrite(view,'existing.html');
+   if(choice==='overwrite'){writes++;ui.saved(view,{path_display:'existing.html'});}
+   else ui.progress(view,'Cancelled.');
+   return {keepOpen:true};
   }});
   f.ctx.populateSaveOptions();const pending=f.button('Dropbox').onclick();
   f.ctx.invalidateSavePanel();await f.ctx.playSave();

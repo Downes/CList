@@ -180,31 +180,30 @@ Resolve on success and throw on failure. PublicFeed and LOCALRSS share the exist
 status and state reconciliation; the invoking view presents errors and success.
 Readers without these optional operations retain their existing behaviour.
 
-### statusActions
+### Captured row controls
 
-Returns an HTML string of **service-specific** buttons only. `makeListing()` always appends the collect (library_add) and share (chat_bubble_outline) buttons after these — do not include them in `statusActions`.
+Prefer `supportsRequestContext: true`, `initialize(account, context)` and feed
+functions receiving that context. Fetch with the captured account/signal and
+return the load promise. Render through `context.render`; guard non-render effects
+with `context.commit`. Mark forms/navigation-only menu entries in `uiActions` so
+initial account selection chooses a reading feed. See `docs/reader-workflow.md`.
 
-Use `_he(val)` for values in HTML content or attribute context, and `_heJs(val)` for values inside `onclick` JS string literals (i.e. inside `'...'` delimiters). Both are defined in `reader.js` and available in all service files. See the Icon Button Pattern in `CLAUDE.md` for the button markup.
+Register `statusActions: () => ''` and `bindRow(item, row, context)` for new row
+controls. `makeListing` passes context separately from item data and invokes the
+binder before appending common Collect/Share/Write-about buttons. Use the outer
+`.service-status-actions` container, standard titled icon buttons, and closure-owned
+captured targets/action state. Never read credentials or action selection from DOM
+attributes. Public references must not contain the context or credentials.
 
-Per-post state (IDs, URIs, flags) should be stored on a service-specific sub-object by the normalizer (see below) and destructured in `statusActions`:
+Check `row.isConnected` and `context.isAccountCurrent()` before actions and again
+after asynchronous preparation. `context.navigate(load, feedName)` starts a new
+captured feed from earlier-page rows; `context.next(load)` owns pagination. Use
+`isCurrent()` for read commits, not for earlier-page action lifetime. Busy/uncertain
+write state belongs to the controller. Never automatically replay toggles.
 
-```javascript
-statusActions: (item, _itemID, _itemUrl) => {
-    const { postId, isLiked } = item.myservice || {};
-    return `
-        <button class="clist-action-btn${isLiked ? ' action-active' : ''}" title="Like"
-                onclick="handleMyServiceAction('${_heJs(postId)}', 'like', this)">
-            <span class="material-icons md-18 md-light">favorite</span>
-        </button>
-        <button class="clist-action-btn" title="Open in browser"
-                onclick="openInBrowser('${_heJs(_itemUrl)}', '${_heJs(_itemID)}')">
-            <span class="material-icons md-18 md-light">launch</span>
-        </button>
-    `;
-},
-```
-
-The `action-active` class goes on the **outer button**, not the icon span — see the CSS conventions section below.
+`statusActions(item, itemID, itemUrl)` remains an HTML-returning compatibility hook
+for existing callers. Do not add new authenticated inline `onclick` handlers. The
+`action-active` class reflects state on the outer button, never the icon span.
 
 ### Normalization function
 
@@ -618,3 +617,20 @@ is selected. UI-only feed-menu actions may declare their labels in `uiActions`;
 these receive the current context without invalidating the displayed feed or its
 pagination. LocalRSS uses this for Options. Service option controls can use
 `reloadReader(type, load, feedName)` to request an explicitly named view.
+
+## Find providers
+
+Register a `search` method on the existing `CList.readers` entry with the usual
+label/icon/logo and visibility flags. Legacy methods receive no arguments and
+can call `finderString()` for the current state-owned term. New providers should
+set `supportsFindContext: true` and implement `async search(query, context)`.
+Use the explicit query; pass `context.signal` to fetch, route results through
+`context.render(items, {normalize, title, ...})`, empty feedback through
+`context.empty(title)` and caught failures through `context.fail(title, error)`.
+`context.next(nextContext => fetchPage(capturedQuery, cursor, nextContext))`
+provides guarded pagination. Preserve captures rather than re-reading the input.
+
+The context checks request/session/provider/reader/feed-target ownership and the
+shared renderer checks between asynchronous normalization steps. It does not
+cancel arbitrary direct DOM writes. Keep credentials out of `CList.state.find`.
+This search capability is separate from account readers' `supportsRequestContext`.

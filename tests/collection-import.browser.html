@@ -1,0 +1,87 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CList collection import regression</title>
+<h1>Collection imports</h1>
+<p>Real import workflow/controller/view, shared storage workflow and content recognition. HTTP, encryption and storage mocked; no external requests or file/storage writes.</p>
+<pre id="result">Checking collection imports…</pre>
+<div id="feed-container"></div>
+<script>
+window.CList={state:{username:'fixture',reader:{requestId:1}},config:{flaskSiteUrl:'https://storage.invalid'},keys:{ACCESS_TOKEN:'access_token'},
+ ui:{view:{feedContainer:document.getElementById('feed-container')}},storage:{kv:{}}};
+const _COLLECTION_NAME_RE=/^[a-zA-Z0-9#\-_ ]+$/;
+window.dismissOnOutsideClick=()=>{};
+const records=new Map(),writes=[],messages=[],errors=[];let token='fixture-token',serial=0,failWrite=false,request;
+window.getSiteSpecificCookie=()=>token;window.getEncKey=async()=> 'fixture-key';
+window.encryptWithKey=async(key,value)=>value;window.decryptKVJson=async(key,value)=>JSON.parse(value);
+window._parseCollectionData=raw=>Array.isArray(raw)?{items:raw}:raw;
+window._newCollectionIdentity=()=>({key:'collection:fixture-'+ ++serial,id:'urn:uuid:fixture-'+serial});
+window._resolveCollectionIdentity=(key,id)=>id?{key:key||'collection:'+id.replace(/^urn:uuid:/,''),id}:_newCollectionIdentity();
+CList.storage.kv={list:async()=>[...records].map(([key,value])=>({key,value})),get:async key=>records.has(key)?{value:records.get(key)}:null,
+ add:async(key,value)=>{if(records.has(key))throw Error('Already exists');if(failWrite)throw Error('Storage offline');records.set(key,value);writes.push({key,value:JSON.parse(value)});},
+ put:async(key,value)=>{if(failWrite)throw Error('Storage offline');records.set(key,value);writes.push({key,value:JSON.parse(value)});}};
+window.showSavedCollections=async()=>{CList.ui.view.feedContainer.replaceChildren();messages.push('list');};
+window.showStatusMessage=message=>messages.push(message);window.showErrorModal=message=>errors.push(message);
+window.fetch=async(url)=>{if(!request)throw Error('Unexpected external request: '+url);return request(url);};
+</script>
+<script src="../js/collection-formats.js?v=2026-11-19.5"></script>
+<script src="../js/file-recognition.js?v=2026-11-19.5"></script>
+<script src="../js/collection-session.js"></script>
+<script src="../js/collection-workflow.js"></script>
+<script src="../js/collection-import-workflow.js"></script>
+<script src="../js/collection-members-view.js"></script>
+<script src="../js/collection-import-view.js"></script>
+<script src="../js/collection-import.js"></script>
+<script>
+(async()=>{
+ let checks=0;const check=(ok,label)=>{if(!ok)throw Error(label);checks++;};
+ const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
+ const button=name=>[...document.querySelectorAll('#feed-container button')].find(button=>button.textContent===name);
+ const click=async name=>{const control=button(name);if(!control)throw Error('Missing button '+name);await control.onclick();};
+ const value={id:'urn:uuid:12345678-1234-1234-1234-123456789abc',title:'Imported',custom:{keep:true},items:[{membershipId:'incoming',title:'Entry',url:'https://entry.invalid',extension:true}]};
+ try{
+  await _importCollectionFromFile(new File([JSON.stringify(value)],'misleading.xml',{type:'text/plain'}),'fixture-token','fixture-key');
+  check(document.querySelector('#feed-container h3').textContent==='Import preview','Wrong filename JSON collection preview');
+  check(writes.length===0,'Preview never writes');await click('Save as collection');
+  check(writes.length===1&&writes[0].key==='collection:12345678-1234-1234-1234-123456789abc','Recognized identity retained');
+  check(writes[0].value.custom.keep&&writes[0].value.items[0].membershipId==='incoming','Extensions and membership retained');
+  records.set('collection:12345678-1234-1234-1234-123456789abc',JSON.stringify({...value,publishedUrls:[{url:'https://published.invalid'}]}));
+  await _showCollectionImportPreview({...value,items:[{url:'https://new.invalid'}]},'fixture-token','fixture-key');
+  await click('Save as collection');check(button('Overwrite')&&button('Merge')&&writes.length===1,'Existing identity requires choice');
+  const stale=button('Overwrite');await click('Cancel');check(button('Save as collection'),'Cancel returns to preview');
+  await stale.onclick();check(writes.length===1,'Stale conflict callback rejected');
+  await click('Save as collection');await click('Merge');
+  const merged=JSON.parse(records.get('collection:12345678-1234-1234-1234-123456789abc'));check(merged.items.length===2,'Merge preserves existing members');
+  check(merged.publishedUrls[0].url==='https://published.invalid','Merge retains publication metadata');
+  await _showCollectionImportPreview(value,'fixture-token','fixture-key');await click('Save as collection');
+  records.set('collection:12345678-1234-1234-1234-123456789abc',JSON.stringify({...merged,custom:{newer:true}}));await click('Overwrite');
+  check(document.querySelector('#feed-container .error-message').textContent.includes('destination collection changed'),'Newer destination protected');
+  check(writes.length===2,'Conflict failure never writes');
+  const rss='<?xml version="1.0"?><rss version="2.0"><channel><title>RSS collection</title><item><title>A</title><link>https://rss.invalid</link></item></channel></rss>';
+  request=async()=>({ok:true,headers:{get:()=> 'application/json'},text:async()=>rss});
+  await _importCollectionFromUrl('https://source.invalid/wrong.json','fixture-token','fixture-key');
+  check(document.querySelector('#feed-container input').value==='RSS collection','RSS recognized before MIME/extension');
+  const oldSave=button('Save as collection');token='new-session';await oldSave.onclick();check(writes.length===2,'Expired login choice rejected');token='fixture-token';
+  let finish;request=()=>new Promise(resolve=>finish=resolve);const pending=_importCollectionFromUrl('https://source.invalid/slow','fixture-token','fixture-key');await tick();
+  await _showCollectionImportPreview({...value,title:'Newer preview'},'fixture-token','fixture-key');
+  finish({ok:true,headers:{get:()=>''},text:async()=>JSON.stringify(value)});await pending;
+  check(document.querySelector('#feed-container input').value==='Newer preview','Old URL response cannot replace preview');
+  await click('Cancel');check(writes.length===2&&messages.at(-1)==='list','Preview Cancel preserves storage');
+  await _showCollectionImportPreview({title:'Retry',items:[]},'fixture-token','fixture-key');failWrite=true;await click('Save as collection');
+  check(document.querySelector('#feed-container .error-message').textContent.includes('offline'),'Write failure visible');
+  check(!button('Save as collection').disabled,'Explicit retry available');failWrite=false;await click('Save as collection');
+  check(writes.length===3&&writes.at(-1).value.items.length===0,'Empty collection saves on explicit retry');
+  const chatAnchor=document.createElement('button');chatAnchor.textContent='Synthetic chat import';document.body.appendChild(chatAnchor);
+  await importCollectionFromChat([{url:'https://chat.invalid',title:'Chat entry'}],chatAnchor);
+  const chatPicker=document.querySelector('.collection-picker');
+  const target=[...chatPicker.querySelectorAll('button')].find(control=>control.textContent==='Imported');
+  check(target,'Chat import lists actual existing destination controls');target.click();
+  for(let i=0;i<20&&CList.state.collectionImport.phase!=='conflict';i++)await tick();
+  const merge=[...chatPicker.querySelectorAll('button')].find(control=>control.textContent==='Merge');
+  check(merge&&writes.length===3,'Chat import offers explicit conflict choice without writing');
+  await merge.onclick();check(writes.length===4&&!chatPicker.isConnected,'Chat merge completes and closes only its picker');
+  check(JSON.parse(records.get('collection:12345678-1234-1234-1234-123456789abc')).items.some(item=>item.url==='https://chat.invalid'),'Chat merge retains incoming member');
+  check(!JSON.stringify(CList.state.collectionImport).includes('fixture-key'),'Shared state excludes credentials');
+  document.getElementById('result').textContent='PASS: real collection import recognition/workflow/controller/view, misleading JSON/XML claims, identity/extensions/members/publications, preview/Overwrite/Merge/Cancel, stale and duplicate choices, newer destination protection, expired login and old URL guards, visible failure and explicit retry. '+checks+' checks. HTTP, encryption and storage mocked; no external requests or file/storage writes.';
+ }catch(error){console.error(error);document.getElementById('result').textContent='FAIL: '+error.message+'\n'+error.stack;}
+})();
+</script>

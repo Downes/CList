@@ -27,6 +27,7 @@ window.fetch = () => { throw Error('Unexpected network request'); };
 <script src="../js/localrss.js"></script>
 <script src="../js/localrss_requests.js"></script>
 <script src="../js/localrss_view.js"></script>
+<script src="../js/localrss_row_view.js?v=2026-11-20.1"></script>
 <script src="../js/localrss_reader.js"></script>
 <script src="../js/localrss_actions.js"></script>
 <script src="../js/localrss_options_view.js"></script>
@@ -49,9 +50,9 @@ window.fetch = () => { throw Error('Unexpected network request'); };
   window.showStatusMessage = () => {};
   window.openLeftPane = () => {}; window.showLeftOverlaySection = () => {};
   window.buildDialogModal = (title, message, buttons) => { window.fixtureConfirm = () => buttons[0].onClick(() => {}); };
-  window.makeListing = item => { const row = document.createElement('article'); row.className = 'status-box'; row.textContent = item.feed + ': ' + item.title;
-   const statusActions = CList.readers[item.service]?.statusActions;
-   if (statusActions) { const actions = document.createElement('div'); actions.innerHTML = statusActions(item, 'fixture-row'); row.appendChild(actions); } return row; };
+  window.makeListing = (item,{rowContext}={}) => { const row = document.createElement('article'); row.className = 'status-box'; row.id='fixture-row'; row.textContent = item.feed + ': ' + item.title;
+   const actions=document.createElement('div');actions.className='status-actions service-status-actions';row.appendChild(actions);
+   CList.readers[item.service]?.bindRow?.(item,row,rowContext);return row; };
   window.createFeedHeader = title => { const el = document.createElement('h2'); el.textContent = title; return el; };
   _localrssProbeLocal = async () => false;
   window.fetch = async (url, options) => {

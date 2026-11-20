@@ -1,0 +1,152 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CList My Pages boundary regression</title>
+<h1>My Pages boundary</h1>
+<p>Real My Pages state, workflow, controller and view. Accounts, encryption, HTTP, editor mounting and KV storage are mocked. No external requests or file/storage writes.</p>
+<pre id="result">Checking My Pages…</pre>
+<div id="load-options"></div>
+<script>
+window.CList = { state: { username: 'fixture' }, config: { flaskSiteUrl: 'https://fixture.invalid' }, keys: { ACCESS_TOKEN: 'access_token' }, ui: {},
+ accounts: [{ value: JSON.stringify({ type: 'Bin', instance: 'original', permissions: 'b' }) }], binPublishers: {} };
+let token = 'fixture-token', records = [], fetchResponse, removeFailure = false, remoteFailure = false;
+let currentEditor = 'texteditor', currentEditorAccount = null, currentLoadedPage = null;
+const fetched = [], removed = [], remoteDeletes = [], loads = [], messages = [];
+window.getSiteSpecificCookie = () => token;
+window.getEncKey = async () => 'fixture-key';
+window.assertAccountSession = session => { if (!session.encKey || session.token !== token) throw Error('Session changed'); };
+window.decryptKVJson = async (key, value) => JSON.parse(value);
+window.encryptWithKey = async (key, value) => value;
+window.parseAccountValue = record => JSON.parse(record.value);
+window._parseCollectionData = raw => Array.isArray(raw) ? { items: raw, publishedUrls: [] } : { ...raw, publishedUrls: raw.publishedUrls || [] };
+CList.storage = { kv: {
+ list: async () => structuredClone(records),
+ remove: async key => { removed.push(key); if (removeFailure) throw Error('Metadata offline'); records = records.filter(item => item.key !== key); },
+ update: async (key, value) => { records.find(item => item.key === key).value = value; },
+} };
+CList.binPublishers.Bin = { delete: async (id, account) => { remoteDeletes.push({ id, account }); if (remoteFailure) throw Error('Remote result unknown'); } };
+window.fetch = async url => { fetched.push(url); if (fetchResponse) return fetchResponse(); return { ok: true, text: async () => '<p>Page</p>' }; };
+window.showModal = content => { document.getElementById('generic-modal')?.remove(); const modal = document.createElement('div'); modal.id = 'generic-modal'; modal.append(content); document.body.append(modal); };
+window.showErrorModal = message => { throw Error('Unexpected modal replacement: ' + message); };
+window.showStatusMessage = message => messages.push(message);
+window.loadSavedPage = async (...args) => loads.push(args);
+window.initializeEditor = async key => { currentEditor = key; return true; };
+window.setLoadedPage = page => { currentLoadedPage = page; };
+window.closeLoadSurfaces = () => {};
+window.copyToClipboard = value => messages.push(value);
+window.open = value => messages.push(value);
+let collectionDraft = '', textDraft = '', htmlDraft = '';
+const editorHandlers = {
+ collection: { getContent: () => collectionDraft },
+ texteditor: { label: 'Text', contentTypes: ['text/plain'], initialize() {}, getContent: () => textDraft,
+  setContent: value => { textDraft = value; }, loadContent: content => { textDraft += content.value; } },
+ tinymce: { label: 'HTML', contentTypes: ['text/html'], initialize() {}, getContent: () => htmlDraft,
+  setContent: value => { htmlDraft = value; }, loadContent: content => { htmlDraft += content.value; } },
+};
+window.switchToEditor = async (key, content) => { currentEditor = key; if (content) await editorHandlers[key].loadContent(content); return true; };
+window.openRightPane = () => {};
+window.closeRightPane = () => {};
+window.removeHtml = value => String(value).replace(/<[^>]*>/g, '');
+window.setReferences = () => {};
+window.pushReference = () => {};
+window.buildDialogModal = (title, content, buttons) => {
+ const root = document.createElement('div'); root.append(content);
+ const close = () => root.closest('#generic-modal')?.remove();
+ for (const item of buttons) { const button = document.createElement('button'); button.textContent = item.label;
+  button.onclick = () => item.onClick(close); root.append(button); }
+ showModal(root); return { close };
+};
+CList.ui.view = { loadOptions: document.getElementById('load-options') };
+</script>
+<script src="../js/collection-formats.js?v=2026-11-19.2"></script>
+<script src="../js/collections.js?v=2026-11-19.2"></script>
+<script src="../js/editor-load-state.js?v=2026-11-19.2"></script>
+<script src="../js/editor-load-view.js?v=2026-11-19.2"></script>
+<script src="../js/editor-load.js?v=2026-11-19.2"></script>
+<script>
+const realLoadSavedPage = loadSavedPage;
+window.loadSavedPage = async (...args) => loads.push(args);
+_collectionFormatParsers.RSS = text => ({ title: text, items: [{ url: 'https://entry.invalid' }] });
+</script>
+<script src="../js/web-page-workflow.js?v=2026-11-19.2"></script>
+<script src="../js/my-pages-state.js?v=2026-11-19.2"></script>
+<script src="../js/my-pages-workflow.js?v=2026-11-19.2"></script>
+<script src="../js/my-pages-view.js?v=2026-11-19.2"></script>
+<script src="../js/my-pages.js?v=2026-11-19.2"></script>
+<script>
+(async () => {
+ let checks = 0;
+ const assert = (value, message) => { if (!value) throw Error(message); checks++; };
+ const rec = (key, page) => ({ key, value: JSON.stringify(page) });
+ const page = overrides => ({ id: 'id', title: 'A Page', url: 'https://page.invalid', mimeType: 'text/html', publishedAt: '2026-11-19', ...overrides });
+ const button = title => [...document.querySelectorAll('#generic-modal button')].find(item => item.title === title || item.textContent === title);
+ const row = title => [...document.querySelectorAll('tbody tr')].find(item => item.lastChild.textContent === title);
+ const action = (rowTitle, title) => { const buttons = [...row(rowTitle).querySelectorAll('button')]; return (buttons.find(item => item.textContent === title) || buttons.find(item => item.title === title)).onclick(); };
+ records = [rec('page:local', page({ title: 'Local', url: undefined, savedLocally: true })), rec('page:a', page()),
+  rec('collection:c', { id: 'cid', title: 'Collection', items: [], publishedUrls: [{ url: 'https://rss.invalid', format: 'RSS' }] })];
+ await showMyPages();
+ assert(document.querySelectorAll('tbody tr').length === 3, 'All page kinds rendered');
+ assert(row('Local').textContent.includes('Local only') && !row('Local').querySelector('[title="Load into editor"]'), 'Local-only entries are labelled and have no invalid load button');
+ await action('A Page', 'Load into editor');
+ assert(loads.length === 1 && loads[0][1].pageKey === 'page:a' && loads[0][0].type === 'text/html', 'Shared saved-content routing keeps page identity');
+ await action('Collection', 'Load into collection editor');
+ assert(loads[1][0].collection.items.length === 1 && loads[1][1].id === 'cid' && loads[1][1].collectionKey === 'collection:c', 'Collection shared routing retains publication identity');
+ currentEditor = 'texteditor'; currentLoadedPage = null;
+ records = Array.from({ length: 45 }, (_, i) => rec('page:' + i, page({ id: String(i), title: String(i).padStart(2, '0') })));
+ await showMyPages();
+ const titleHeader = [...document.querySelectorAll('th')].find(item => item.textContent === 'Title'); titleHeader.onclick();
+ assert(row('00') && document.querySelectorAll('tbody tr').length === 40, 'Whole-list title sort and default page size');
+ button('Next').onclick(); assert(row('44') && document.querySelectorAll('tbody tr').length === 5, 'Next page shows remaining sorted rows');
+ const oldNext = button('Next'); button('Prev').onclick(); oldNext.onclick(); assert(row('00'), 'Expired pagination callback ignored');
+ let finish; fetchResponse = () => new Promise(resolve => finish = resolve);
+ const loading = action('00', 'Load into editor'); currentEditor = 'other';
+ finish({ ok: true, text: async () => 'late' }); await loading;
+ assert(loads.length === 2, 'Late fetch cannot replace another editor'); fetchResponse = null;
+ records = [rec('page:remote', page({ service: 'Bin', serviceId: 'remote', accountInstance: 'original' }))];
+ await showMyPages(); await action('A Page', 'Delete');
+ assert(row('A Page').textContent.includes('Delete this page?'), 'Inline delete confirmation displayed');
+ removeFailure = true; await action('A Page', 'Delete');
+ assert(remoteDeletes.length === 1 && removed.length === 1, 'Remote deletion accepted before failed metadata cleanup');
+ assert(document.querySelector('.error-message').textContent.includes('Remote page deleted') && row('A Page'), 'Failure remains visible without destroying My Pages or receipt');
+ removeFailure = false; await action('A Page', 'Delete');
+ assert(remoteDeletes.length === 1 && removed.length === 2 && !document.querySelector('tbody tr'), 'Explicit retry cleans metadata without repeating remote deletion');
+ records = [rec('page:uncertain', page({ service: 'Bin', serviceId: 'uncertain', accountInstance: 'original' }))];
+ remoteFailure = true; await showMyPages(); await action('A Page', 'Delete'); await action('A Page', 'Delete');
+ assert(remoteDeletes.length === 2 && records.length === 1 && document.querySelector('.error-message'), 'Uncertain remote delete keeps index');
+ await action('A Page', 'Delete');
+ assert(remoteDeletes.length === 2 && document.querySelector('.error-message').textContent.includes('could not be confirmed'), 'Blind repeat of uncertain remote write blocked');
+ const staleDelete = row('A Page').querySelector('[title="Delete"]'); button('Close My Pages').onclick(); staleDelete.onclick();
+ assert(!document.getElementById('generic-modal'), 'Closed panel callbacks stay expired');
+ assert(!JSON.stringify(CList.state.myPages).includes('fixture-token'), 'Public state excludes credentials');
+ // Use the real editor-load choices/review and actual collection bridge as well.
+ loadSavedPage = realLoadSavedPage; remoteFailure = false;
+ const clickText = async label => {
+  const target = [...document.querySelectorAll('button')].find(item => item.textContent.endsWith(label));
+  if (!target) throw Error('Missing shared load button: ' + label);
+  target.click(); await new Promise(resolve => setTimeout(resolve, 0));
+ };
+ records = [rec('collection:c', { id: 'cid', title: 'Collection', items: [], publishedUrls: [{ url: 'https://rss.invalid', format: 'RSS', serviceId: 'sid' }] })];
+ currentEditor = 'texteditor'; currentLoadedPage = null; collectionDraft = 'Existing collection draft';
+ _activeCollection = { col: { id: 'previous' } };
+ await showMyPages(); await action('Collection', 'Load into collection editor');
+ assert(document.body.textContent.includes('Open as Collection') && _activeCollection.col.id === 'previous', 'Representation choice precedes draft review');
+ await clickText('Open as Collection');
+ assert(document.body.textContent.includes('already has content') && _activeCollection.col.id === 'previous', 'Existing collection draft is reviewed before replacement');
+ await clickText('Cancel');
+ assert(_activeCollection.col.id === 'previous' && currentLoadedPage === null, 'Cancel leaves collection draft and identity unchanged');
+ await action('Collection', 'Load into collection editor'); await clickText('Open as Collection'); await clickText('Open collection');
+ assert(_activeCollection.col.id === 'cid' && _activeCollection.col.key === 'collection:c' && currentLoadedPage.serviceId === 'sid', 'Accepted collection replacement retains original publication identity');
+ // A collection's text representation must review in a connected panel after its modal closes.
+ currentEditor = 'tinymce'; currentLoadedPage = null; textDraft = 'Existing text draft';
+ await showMyPages(); await action('Collection', 'Load into collection editor'); await clickText('Open as plain text');
+ assert(document.getElementById('load-options').textContent.includes('This editor already has content.'), 'Text draft review remains visible after editor switch removes the My Pages modal');
+ await clickText('Replace');
+ assert(currentEditor === 'texteditor' && textDraft === '<p>Page</p>', 'Plain text representation reaches text editor');
+ // A delayed review button cannot cross a session boundary.
+ currentEditor = 'texteditor'; collectionDraft = 'Draft'; currentLoadedPage = null;
+ await showMyPages(); await action('Collection', 'Load into collection editor'); await clickText('Open as Collection');
+ const staleOpen = [...document.querySelectorAll('button')].find(item => item.textContent === 'Open collection');
+ const previous = _activeCollection; token = 'new-session'; staleOpen.click(); await new Promise(resolve => setTimeout(resolve, 0));
+ assert(_activeCollection === previous && currentLoadedPage === null, 'Shared collection review expires when session changes');
+ document.getElementById('result').textContent = `PASS: real My Pages state/workflow/controller/view and shared editor load choices/review/collection bridge, listing, local-only metadata, collection identity, whole-list sort/pagination, stale controls/loading/session, overwrite Cancel/Open, visible text review, delete confirmation, remote uncertainty and metadata-only retry. ${checks} checks. Accounts, HTTP, encryption, editor mounting and storage mocked; no external requests or file/storage writes.`;
+})().catch(error => { console.error(error); document.getElementById('result').textContent = 'FAIL: ' + error.message; });
+</script>

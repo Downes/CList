@@ -1,149 +1,48 @@
-
-
-// Handler
-
-(function () {
-    const ddgHandler = {
-        label: 'DuckDuckGo',
-        logoSrc: 'assets/icons/duckduckgo.svg',
-        requiresLogin:   false,
-        requiresAccount: false,
-        statusActions: (item,itemID,itemLink) => {
-            const expandBtn = item._hasExpandableContent
-                ? `<button class="clist-action-btn" title="Expand" onClick="toggleEntryExpanded('${itemID}');"><span class="material-icons md-18 md-light">zoom_out_map</span></button>`
-                : '';
-            return `
-            ${expandBtn}
-            ${openInBrowserButton(itemLink, itemID)}`;
-        },
-        search: async (baseURL, accessToken) => {
-            searchString = finderString();
-            await duckduckgoSearch(searchString);
-        }
-    };
-
-    // Ensure readerHandlers exists
-    if (typeof window.CList.readers === 'undefined') {
-    window.CList.readers = {}; // Create it if it doesn't exist
-    }
-
-    // Add the handler
-    window.CList.readers['duckduckgo'] = ddgHandler;
- })();
-
-
-
-
-
-// Functions
-
-
-async function duckduckgoSearch(q) {
-
-    const URL = `https://api.duckduckgo.com/?q=${encodeURIComponent(q)}&t=h_&format=json`;
-    const feedContainer = window.CList.ui.view.feedContainer;
-    const dateString = new Date().toISOString();
-    let data;
-    try {
-        const response = await fetch(URL);
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! Status: ${response.status}`);
-        }
-
-
-        data = await response.json();
-        console.log("Data received:", data);
-
-    } catch (error) {
-        console.error("Error accessing the URL:", error.message);
-        showServiceError(feedContainer, 'Search failed', 'Could not reach DuckDuckGo. Try again in a moment.');
-        return;
-    }
-
-    let ddgHeading = data.Heading || "No heading found";
-    let ddgAbstract = data.Abstract || "";
-    let listing;
-
-    // If there's no abstract, check if we have a disambiguation page
-    if (!ddgAbstract && data.RelatedTopics && data.RelatedTopics.length > 0) {
-        // Mark the heading as disambiguation
-        ddgHeading += " (Disambiguation)";
-        if (ddgHeading != null) {  // First page will have a title, but not subsequent pages
-            feedContainer.innerHTML = '';                         // Clear previous content
-            feedContainer.appendChild(createFeedHeader(ddgHeading));   // Header
-        }
-
-        // Loop through related topics to find titles & descriptions
-        data.RelatedTopics.forEach((item) => {
-        // Some related topic items have the shape:
-        // {
-        //   "FirstURL": "https://duckduckgo.com/...",
-        //   "Text": "Topic Title - short description"
-        // }
-        //
-        // Others might be sub-group items with a "Topics" array. We'll handle both cases:
-
-            if (item.Topics && Array.isArray(item.Topics)) {
-                // It's a subgroup
-                item.Topics.forEach((subItem) => {
-                    const { title, description } = getDDGTitleAndDescription(subItem.FirstURL,subItem.Result);
-                    listing = makeListing({ service: 'duckduckgo', url: subItem.FirstURL, title, desc: description, feed: data.AbstractSource, date: dateString, full_content: subItem.AbstractText ? new SafeHtml(escapeHtml(subItem.AbstractText)) : null });
-                });
-
-            } else if (item.Text) {
-                // It's a direct item
-
-                const { title, description } = getDDGTitleAndDescription(item.FirstURL,item.Result);
-
-                listing = makeListing({ service: 'duckduckgo', url: item.FirstURL, title, desc: description, feed: data.AbstractSource, date: dateString, full_content: item.AbstractText ? new SafeHtml(escapeHtml(item.AbstractText)) : null });
-            }
-            feedContainer.appendChild(listing);
-        });
-    
-        // Since there's no actual abstract, set a default
-        ddgAbstract = "No abstract found (Disambiguation page).";
-    } else if (!ddgAbstract) {
-        // There's no abstract and no disambiguation
-        feedContainer.innerHTML = '';                         // Clear previous content
-        feedContainer.appendChild(createFeedHeader("No Result"));   // Header
-        const statusBox = document.createElement('div');
-        statusBox.classList.add('status-box');  // Add a class for styling
-        statusBox.innerHTML = `Duck Duck Go does not have a full search API. Results are generated from a 'fastAPI' that returns results from specific sources such as Wikipedia. This search is not
-        found in any of these sources. A full search service is recommended. Open 'accounts' and create a 'search' account.`
-        feedContainer.appendChild(statusBox);
-
-    } else {
-
-        if (ddgHeading != null) {  // First page will have a title, but not subsequent pages
-            feedContainer.innerHTML = '';                         // Clear previous content
-            feedContainer.appendChild(createFeedHeader(ddgHeading));   // Header
-        }
-        console.log("ddg-abstract:", ddgAbstract);
-        listing = makeListing({ service: 'duckduckgo', url: data.AbstractURL, title: ddgHeading, desc: ddgAbstract, feed: data.AbstractSource, date: dateString, full_content: data.AbstractText ? new SafeHtml(escapeHtml(data.AbstractText)) : null });
-        feedContainer.appendChild(listing);
-
-    }
-    window.checkAnnotationsBatch?.();
+/// <reference path="./reader-types.js" />
+window.CList.readers.duckduckgo = {
+    label:'DuckDuckGo',logoSrc:'assets/icons/duckduckgo.svg',requiresLogin:false,requiresAccount:false,
+    supportsFindContext:true,statusActions:()=>'',bindRow:(item,row,context)=>bindSearchProviderRow(item,row,context),
+    search:(query,context)=>duckduckgoSearch(query,context),
+};
+async function requestDuckduckgoSearch(query,{fetch,signal}) {
+    const url = new URL('https://api.duckduckgo.com/');
+    url.search = new URLSearchParams({q:query,t:'h_',format:'json'});
+    const response = await fetch(url.toString(),{signal});
+    if (!response.ok) throw new Error(`DuckDuckGo returned HTTP ${response.status}.`);
+    return response.json();
 }
-
-// Helper function to extract title and description from text
-function getDDGTitleAndDescription(url, fullText) {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(fullText, "text/html");
-
-    // Extract the <a> tag and its text
-    const linkTag = doc.querySelector("a");
-    if (!linkTag) {
-        console.log("Could not parse link/tag in Result:", fullText);
-        return { title: "(no title)", description: "(no description)" };
-    }
-    const title = linkTag.textContent.trim();
-
-    // The rest of the string after the link is the description
-    let leftoverHtml = doc.body.innerHTML.replace(linkTag.outerHTML, "").trim();
-    leftoverHtml = leftoverHtml.replace(/<br\s*\/?>/gi, "").trim();
-    const description = leftoverHtml || "(no description)";
-
-    return { title, description };
+function duckduckgoSearchItems(data) {
+    if (data.Abstract) return [{url:data.AbstractURL,title:data.Heading || 'No heading found',desc:data.Abstract,fullText:data.AbstractText}];
+    const result = [];
+    const visit = topics => { for (const topic of topics || []) {
+        if (Array.isArray(topic.Topics)) visit(topic.Topics);
+        else if (topic.FirstURL) {
+            const parsed = getDDGTitleAndDescription(topic.FirstURL,topic.Result,topic.Text);
+            result.push({url:topic.FirstURL,title:parsed.title,desc:parsed.description,fullText:topic.AbstractText});
+        }
+    }};
+    visit(data.RelatedTopics); return result;
+}
+function normalizeDuckduckgoItem(item,source) {
+    return {service:'duckduckgo',url:item.url,title:item.title,desc:item.desc,feed:source,date:new Date().toISOString(),
+        full_content:item.fullText ? new SafeHtml(escapeHtml(item.fullText)) : null};
+}
+/** @param {CListFindContext} context */
+async function duckduckgoSearch(query,context) {
+    if (!context?.isCurrent()) return;
+    try {
+        const data = await requestDuckduckgoSearch(query,{fetch,signal:context.signal});
+        if (!context.isCurrent()) return;
+        const items = duckduckgoSearchItems(data);
+        if (!items.length) { context.empty('DuckDuckGo: '+query); return; }
+        await context.render(items,{title:data.Heading || 'DuckDuckGo: '+query,
+            normalize:item=>normalizeDuckduckgoItem(item,data.AbstractSource)});
+    } catch (error) { context.fail('DuckDuckGo search error',error); }
+}
+// HTML parsing is isolated from transport; no insertion of remote Result markup.
+function getDDGTitleAndDescription(url,html,text='') {
+    const doc = new DOMParser().parseFromString(html || '', 'text/html'), link = doc.querySelector('a');
+    if (!link) return {title:text || url,description:text || ''};
+    const title = link.textContent.trim(), all = doc.body.textContent.trim();
+    return {title,description:all.startsWith(title)?all.slice(title.length).trim():all};
 }

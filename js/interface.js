@@ -180,6 +180,7 @@ function openRightPane() {
 }
 
 function closeLeftPane() {
+    if(typeof invalidateFindPanel==='function')invalidateFindPanel();
     leftPane.classList.remove('pane-open');
     leftPane.style.width = '0';
     currentPane = 'read-pane';
@@ -266,6 +267,7 @@ document.addEventListener("mouseup", () => {
 // ============================================================================
 
 function openLeftInterface(content) {
+    if(content?.id!=='find-section'&&typeof invalidateFindPanel==='function')invalidateFindPanel();
     openLeftPane();
     hideLeftOverlaySections();
     const leftContent = document.getElementById('left-content');

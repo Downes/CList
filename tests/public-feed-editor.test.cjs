@@ -6,8 +6,10 @@ const vm = require('node:vm');
 const { webcrypto } = require('node:crypto');
 
 class Element {
-    constructor(tag) { this.tagName = tag; this.children = []; this.value = ''; this.style = {}; this.listeners = {}; }
+    constructor(tag) { this.tagName = tag; this.children = []; this.value = ''; this.style = {}; this.listeners = {}; this.isConnected = true; }
     appendChild(child) { child.parent = this; this.children.push(child); return child; }
+    replaceChildren(...children) { this.children.forEach(child => { child.isConnected = false; }); this.children = []; this.text = ''; this.append(...children); }
+    get parentElement() { return this.parent; }
     append(...children) { children.forEach(child => this.appendChild(child)); }
     insertBefore(child, before) { child.parent = this; this.children.splice(this.children.indexOf(before), 0, child); }
     setAttribute(name, value) { this[name] = value; }
@@ -52,15 +54,16 @@ function fixture() {
     const dom = { collectionEditorDiv: editor, 'save-options': saveOptions, 'write-title': writeTitle, 'write-format': { value: 'opml' } };
     const listings = [], openedWebsites = [], ownedPages = [], loadedPages = [];
     const context = {
-        URL, Uint8Array, TextEncoder, FormData, Blob, DOMParser: FixtureParser, crypto: webcrypto, structuredClone,
-        _activeCollection: null, currentEditor: 'collection', editorHandlers: {},
+        URL, URLSearchParams, Uint8Array, TextEncoder, FormData, Blob, DOMParser: FixtureParser, crypto: webcrypto, structuredClone,
+        _activeCollection: null, currentLoadedPage: null, currentEditor: 'collection', editorHandlers: {},
         console: { error: (...args) => errors.push(args) },
         document: { createElement: tag => new Element(tag), getElementById: id => dom[id] || null },
         window: { crypto: webcrypto, CList: {
+            state: { get username() { return user; } },
             defaults: { LOCALRSS: 'https://rss.example' }, config: { flaskSiteUrl: 'https://kv.example' }, keys: { ACCESS_TOKEN: 'access_token' },
             accounts: [{ key, value: JSON.stringify(metadata) }],
             ui: { view: { feedContainer: fc } },
-            storage: { kv: { remove: async key => records.delete(`${user}:${key}`), get: async key => records.has(`${user}:${key}`) ? { value: records.get(`${user}:${key}`) } : null, update: async (key, value) => {
+            storage: { kv: { list: async () => [...records.entries()].filter(([recordKey]) => recordKey.startsWith(user + ':')).map(([recordKey, value]) => ({ key: recordKey.slice(user.length + 1), value })), remove: async key => records.delete(`${user}:${key}`), get: async key => records.has(`${user}:${key}`) ? { value: records.get(`${user}:${key}`) } : null, update: async (key, value) => {
                 if (failSave) { failSave = false; throw new Error('Storage unavailable'); }
                 assert.ok(records.has(`${user}:${key}`));
                 records.set(`${user}:${key}`, value);
@@ -132,14 +135,20 @@ function fixture() {
             return { ok: true, json: async () => data };
         },
     };
+    context.captureReaderSurface = () => ({ isCurrent: () => true, isAccountCurrent: () => true, commit: callback => callback(),
+        render: async (items, options) => { for (const item of items) context.makeListing(await options.normalize(item)); } });
+    context._localrssAuthHeaders = () => ({ Authorization: 'Bearer ' + user, 'X-Kvstore-Url': 'https://kv.example' });
     vm.createContext(context);
     for (const file of ['collection-formats.js', 'public-feeds.js', 'public-feed-editor.js', 'collection-editor.js']) {
         vm.runInContext(fs.readFileSync(path.join(__dirname, '../js/', file), 'utf8'), context);
     }
+    for (const name of ['public-feed-requests','public-feed-view','public-feed-reader']) vm.runInContext(fs.readFileSync('js/' + name + '.js', 'utf8'), context);
+    const utilitiesSource = fs.readFileSync('js/utilities.js', 'utf8');
+    vm.runInContext(utilitiesSource.slice(utilitiesSource.indexOf('function _parseCollectionData('), utilitiesSource.indexOf('// Lists kvstore records')), context);
+    vm.runInContext(fs.readFileSync('js/account-state.js', 'utf8'), context);
     const collectionSource = fs.readFileSync(path.join(__dirname, '../js/collections.js'), 'utf8');
-    vm.runInContext(collectionSource.slice(collectionSource.indexOf('async function _fetchReadCollections('), collectionSource.indexOf('window.showSavedCollections =')), context);
     vm.runInContext(collectionSource.slice(collectionSource.indexOf('function _newCollectionIdentity()'), collectionSource.indexOf('// Fetches and decrypts all of the user')), context);
-    vm.runInContext(collectionSource.slice(collectionSource.indexOf('async function _loadCollectionIntoEditor('), collectionSource.indexOf('// Remove one membership from a collection')), context);
+    for (const name of ['collection-session', 'collection-workflow', 'collection-opening-workflow', 'collection-opening-view', 'collection-opening', 'collection-browser-view', 'collection-browser']) vm.runInContext(fs.readFileSync('js/' + name + '.js', 'utf8'), context);
     vm.runInContext(collectionSource.slice(collectionSource.indexOf('function captureCollectionSaveRequest('), collectionSource.indexOf('window.republishCollection =')), context);
     return { context, key, account, publicFeeds, owned, records, requests, errors, listings, editor, saveOptions, writeTitle, openedWebsites, ownedPages, loadedPages,
         setUser: value => { user = value; }, imports: () => imports,
@@ -287,7 +296,7 @@ test('ordinary collections retain the existing Save to CList destination', async
     const f = fixture(), c = f.context;
     let saved;
     c._kvSaveItems = async (...args) => { saved = args; };
-    await c._loadCollectionIntoEditor({ name: 'Ordinary collection', items: [{ title: 'A page', url: 'https://page.example' }] }, 'token', 'key');
+    await c._loadCollectionIntoEditor({ name: 'Ordinary collection', items: [{ title: 'A page', url: 'https://page.example' }] }, 'alice', 'key');
     await c.window.playCollectionSave();
     await find(f.saveOptions, node => node.tagName === 'button' && node.textContent.endsWith('Save to CList')).click();
     assert.equal(saved[2], 'Ordinary collection');
@@ -360,7 +369,7 @@ test('owned HTML members open through the existing page loader with HTML MIME an
     const page = { pageKey: 'page:mine', kind: 'page', title: 'My HTML page', url: 'https://mine.example/page', mimeType: 'text/html', service: 'CListBin' };
     f.ownedPages.push(page);
     c.editorHandlers.tinymce = { initialize: async () => {}, contentTypes: ['text/html'] };
-    await c._loadCollectionIntoEditor({ name: 'Reading', items: [{ title: page.title, url: page.url }] }, 'token', 'key');
+    await c._loadCollectionIntoEditor({ name: 'Reading', items: [{ title: page.title, url: page.url }] }, 'alice', 'key');
     const edit = find(f.editor, node => node.title === 'Edit this page');
     assert.ok(edit);
     await edit.click();
@@ -375,7 +384,7 @@ test('resource Edit availability follows the current member URL and registered e
     const page = { title: 'Mine', url: 'https://mine.example/page', mimeType: 'text/html' };
     f.ownedPages.push(page);
     c.editorHandlers.tinymce = { initialize: async () => {}, contentTypes: ['text/html'] };
-    await c._loadCollectionIntoEditor({ name: 'Reading', items: [{ title: 'External', url: 'https://external.example/' }] }, 'token', 'key');
+    await c._loadCollectionIntoEditor({ name: 'Reading', items: [{ title: 'External', url: 'https://external.example/' }] }, 'alice', 'key');
     assert.equal(find(f.editor, node => node.title === 'Edit this page'), undefined);
     const urlInput = find(f.editor, node => node.value === 'https://external.example/');
     urlInput.value = page.url; urlInput.listeners.input();
@@ -397,10 +406,9 @@ test('registered Read menu opens saved Collections and its edit action reveals t
     c.window.CList.isLocalMode = () => true;
     c.revealEditorPane = () => { revealed++; };
     c._collectionsPopstateHandler = null;
-    c._fetchAllCollections = async () => [{ key: 'collection:empty', id: 'urn:uuid:empty', title: 'Empty collection', items: [] }];
+    f.records.set('alice:collection:empty', JSON.stringify({ id: 'urn:uuid:empty', title: 'Empty collection', items: [], publishedUrls: [] }));
     const collectionSource = fs.readFileSync(path.join(__dirname, '../js/collections.js'), 'utf8');
-    const start = collectionSource.indexOf('async function _fetchReadCollections(');
-    vm.runInContext(collectionSource.slice(start, collectionSource.indexOf('\n(function () {', start)), c);
+
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../js/reader-view.js'), 'utf8'), c);
     c.invalidateReader = () => {};
     c.switchReaderAccount = () => {};
@@ -428,8 +436,7 @@ function loadCollectionsView(f) {
     c.revealEditorPane = () => {};
     c.updateUIVisibility = () => {};
     const source = fs.readFileSync(path.join(__dirname, '../js/collections.js'), 'utf8');
-    const start = source.indexOf('window.showSavedCollections =');
-    vm.runInContext(source.slice(start, source.indexOf('\n(function () {', start)), c);
+
 }
 
 test('Save to CList uses one captured request despite subsequent title, draft and publication edits', async () => {
@@ -440,7 +447,7 @@ test('Save to CList uses one captured request despite subsequent title, draft an
         key: 'collection:original', id: 'urn:uuid:original', name: 'Original title',
         items: [{ title: 'Original page', url: 'https://original.example' }],
         publishedUrls: [{ url: 'https://published.example' }],
-    }, 'token', 'key');
+    }, 'alice', 'key');
     await c.window.playCollectionSave();
     f.writeTitle.textContent = 'Later title';
     const pageTitle = find(f.editor, node => node.value === 'Original page');
@@ -459,7 +466,7 @@ test('collection save view displays a persistence failure once and permits an ex
     const f = fixture(), c = f.context;
     let attempts = 0;
     c._kvSaveItems = async () => { if (++attempts === 1) throw new Error('Storage unavailable'); };
-    await c._loadCollectionIntoEditor({ name: 'Retry collection', items: [] }, 'token', 'key');
+    await c._loadCollectionIntoEditor({ name: 'Retry collection', items: [] }, 'alice', 'key');
     await c.window.playCollectionSave();
     const save = find(f.saveOptions, node => node.tagName === 'button' && node.textContent.endsWith('Save to CList'));
     await save.click();
@@ -478,12 +485,12 @@ test('completion of an old save does not replace a new collection or close its p
     const gate = new Promise(resolve => { release = resolve; });
     c._kvSaveItems = async () => gate;
     c.closeRightPane = () => { closed++; };
-    await c._loadCollectionIntoEditor({ key: 'collection:old', id: 'urn:uuid:old', name: 'Old collection', items: [] }, 'token', 'key');
+    await c._loadCollectionIntoEditor({ key: 'collection:old', id: 'urn:uuid:old', name: 'Old collection', items: [] }, 'alice', 'key');
     await c.window.playCollectionSave();
     const save = find(f.saveOptions, node => node.tagName === 'button' && node.textContent.endsWith('Save to CList'));
     const pending = save.click();
     await Promise.resolve();
-    await c._loadCollectionIntoEditor({ key: 'collection:new', id: 'urn:uuid:new', name: 'New collection', items: [] }, 'token', 'key');
+    await c._loadCollectionIntoEditor({ key: 'collection:new', id: 'urn:uuid:new', name: 'New collection', items: [] }, 'alice', 'key');
     release();
     await pending;
     assert.equal(c._activeCollection.col.key, 'collection:new');
@@ -507,6 +514,8 @@ test('a user with only feed collections sees them in Collections and can edit or
     await find(container, node => node.title === 'Edit collection').click();
     assert.equal(f.writeTitle.textContent, 'My News');
     assert.equal(f.imports(), 1);
+    // Editing created a personal account; reopen to capture its current record before deletion.
+    await c.window.showSavedCollections();
     await find(container, node => node.title === 'Delete this collection').click();
     await find(container, node => node.tagName === 'button' && node.textContent === 'Delete').click();
     assert.equal(c.window.CList.accounts.length, 0);
@@ -524,8 +533,8 @@ test('Collections includes saved, public-feed and LocalRSS collections with regi
     f.owned.set('alice:local-db', f.publicFeeds.slice());
     c.window.CList.accounts.push({ key: 'local-feeds', value: JSON.stringify(local) });
     c.window.CList.accounts.push({ key: 'social', value: JSON.stringify({ type: 'Mastodon', title: 'Social' }) });
-    c._fetchAllCollections = async () => [{ key: 'collection:saved', title: 'Saved collection', items: [] }];
-    const collections = await c._fetchReadCollections('token', 'key', c.window.CList.accounts);
+    f.records.set('alice:collection:saved', JSON.stringify({ title: 'Saved collection', items: [] }));
+    const collections = await c._fetchReadCollections('alice', 'key', c.window.CList.accounts);
     assert.deepEqual(Array.from(collections, col => col.title), ['Saved collection', 'My News', 'Local Feeds']);
     loadCollectionsView(f);
     await c.window.showSavedCollections();
@@ -538,5 +547,26 @@ test('Collections includes saved, public-feed and LocalRSS collections with regi
     assert.equal(saved.type, 'LOCALRSS');
     assert.equal(saved.serviceUrl, 'https://configured.example', 'resolved local/proxy endpoint must not overwrite the configured service');
     assert.equal(JSON.parse(saved.collectionItems).length, 2);
+    assert.equal(f.errors.length, 0);
+});
+
+
+test('collection Dropbox button delegates its captured serialized export and original session to the shared save controller', async () => {
+    const f = fixture(), c = f.context;
+    const account = { key: 'Dropbox files', value: JSON.stringify({ type: 'Dropbox', id: 'token', permissions: 'b' }) };
+    c.findAccountByType = () => ({ account });
+    c.parseAccountValue = record => JSON.parse(record.value);
+    let captured;
+    c.saveToDropbox = async options => { captured = options; return { keepOpen: true, status: 'saved' }; };
+    await c._loadCollectionIntoEditor({ name: 'Collection export', items: [{ title: 'Entry', url: 'https://entry.example' }] }, 'alice', 'key');
+    await c.window.playCollectionSave();
+    const button = find(f.saveOptions, node => node.tagName === 'button' && node.textContent.endsWith('Save to Dropbox'));
+    await button.click();
+    assert.equal(captured.found.account, account); assert.equal(captured.target, f.saveOptions);
+    assert.equal(captured.isCurrent(), true);
+    const file = await captured.prepare();
+    assert.equal(file.name, 'Collection export.opml'); assert.match(file.value, /https:\/\/entry.example/);
+    assert.ok(file.value.includes('<id>' + c._activeCollection.col.id + '</id>')); assert.equal(button.disabled, false);
+    f.setUser('bob'); assert.equal(captured.isCurrent(), false);
     assert.equal(f.errors.length, 0);
 });
