@@ -19,7 +19,12 @@ async function normalizeLocalrssItem(raw) {
         bookmarked: raw.bookmarked,
     };
     if (raw.content_html) item.full_content = typeof window.sanitizeHtml === 'function' ? window.sanitizeHtml(raw.content_html) : raw.content_html;
-    if (raw.thumbnail) item.images = [{ url: raw.thumbnail }];
+    // Feed-level thumbnail (if any) first, then every inline <img> from the entry's own body —
+    // LocalRSS's backend only ever populates `thumbnail` from feed metadata (media:thumbnail,
+    // enclosures, itunes:image), never from images embedded in the article content itself.
+    const _localrssImageUrls = [...(raw.thumbnail ? [raw.thumbnail] : []), ...extractImageUrlsFromHtml(raw.content_html)];
+    const images = [...new Set(_localrssImageUrls)].map(url => ({ url }));
+    if (images.length) item.images = images;
     if (raw.audio_url) {
         audioFiles.push({ src: raw.audio_url, title: raw.title });
         const idx = audioFiles.length - 1;

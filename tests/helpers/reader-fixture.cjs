@@ -18,6 +18,7 @@ function fixture() {
         } } };
     const ctx = vm.createContext({ window: { CList }, structuredClone, AbortController,
         escapeHtml: x => String(x), parseAccountValue: record => JSON.parse(record.value),
+        extractImageUrlsFromHtml: () => [],
         getSiteSpecificCookie: () => token, setTimeout: fn => timers.push(fn), isRegistered: () => true,
         ensureAccountsLoaded: async () => CList.accounts,
     });

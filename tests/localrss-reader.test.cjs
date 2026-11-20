@@ -502,6 +502,19 @@ test('search rows use all-items toggle semantics and replacing search invalidate
     await f.ctx.localrssToggleBookmark(item.localrssActionId,button);
 });
 
+test('normalized LocalRSS items combine the feed thumbnail with every inline body image, deduplicated and thumbnail first', async()=>{
+    const f=fixture();await f.ctx.switchReaderAccount('a');await f.action('Bookmarked');
+    f.ctx.extractImageUrlsFromHtml=()=>['https://img/2','https://img/1','https://img/2'];
+    const withThumbnail=await f.rendered.at(-1).normalize({id:1,title:'With thumbnail',thumbnail:'https://img/1',content_html:'<p>body</p>'});
+    assert.deepEqual(Array.from(withThumbnail.images,i=>i.url),['https://img/1','https://img/2']);
+    f.ctx.extractImageUrlsFromHtml=()=>['https://img/a','https://img/b'];
+    const bodyOnly=await f.rendered.at(-1).normalize({id:2,title:'No thumbnail',content_html:'<p>body</p>'});
+    assert.deepEqual(Array.from(bodyOnly.images,i=>i.url),['https://img/a','https://img/b']);
+    f.ctx.extractImageUrlsFromHtml=()=>[];
+    const neither=await f.rendered.at(-1).normalize({id:3,title:'Plain'});
+    assert.equal('images' in neither,false);
+});
+
 test('empty search clears old results and audio, has a literal heading, and offers no Load more', async()=>{
     const f=fixture();await f.ctx.switchReaderAccount('a');const {target,statuses}=searchPanel(f,'<query>');
     f.ctx.audioFiles.push({src:'old audio'});f.ctx.fetch=async url=>response(url.includes('/api/stats')?{has_audio_majority:false}:[]);

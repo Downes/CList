@@ -102,6 +102,25 @@ function decodeHTML(html) {
         .body.textContent || html;
 }
 
+// Collects every <img> src embedded in an HTML fragment (e.g. a feed entry's body), for readers
+// whose entries carry images inline rather than (or in addition to) a feed-level thumbnail field.
+// Only absolute http(s) URLs are returned — same safety filter used elsewhere for candidate
+// images (see js/ui.js) — and duplicates are dropped while preserving first-seen order.
+function extractImageUrlsFromHtml(html) {
+    if (!html) return [];
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const seen = new Set();
+    const urls = [];
+    doc.querySelectorAll('img').forEach(img => {
+        const src = img.getAttribute('src') || '';
+        if (/^https?:\/\//i.test(src) && !seen.has(src)) {
+            seen.add(src);
+            urls.push(src);
+        }
+    });
+    return urls;
+}
+
 function truncateToGraphemeLimit(text, limit = 300) {
     const segmenter = new Intl.Segmenter('en', { granularity: 'grapheme' });
     const graphemes = Array.from(segmenter.segment(text), segment => segment.segment); // Extract grapheme strings
