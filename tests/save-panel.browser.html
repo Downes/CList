@@ -37,7 +37,7 @@ window.playCollectionSave = async () => { collectionSaveCount++; };
 <script src="../js/save-state.js?v=2026-11-18.3"></script>
 <script src="../js/save-view.js?v=2026-11-18.3"></script>
 <script src="../js/save-panel.js?v=2026-11-18.3"></script>
-<script src="../js/dropbox.js?v=2026-11-18.3"></script>
+<script src="../js/dropbox_save_view.js?v=2026-11-19.3"></script>
 <script>
 (async () => {
  const check = (condition, message) => { if (!condition) throw Error(message); };
@@ -120,9 +120,12 @@ window.playCollectionSave = async () => { collectionSaveCount++; };
   // while the generic panel is reopened, with uploads replaced by a counter.
   for (const choice of ['Cancel', 'Overwrite']) {
    reset(); let uploads = 0;
-   CList.savers = [{label:'Dropbox prompt', save() {
-    const status=document.createElement('div'); status.id='dropbox-save-status'; root.appendChild(status);
-    return _promptDropboxOverwrite(status,'existing.html',async()=>{ uploads++; return {path_display:'existing.html'}; });
+   CList.savers = [{label:'Dropbox prompt', async save() {
+    const ui=CList.ui.dropboxSave,view=ui.mount(root);
+    const choice=await ui.chooseOverwrite(view,'existing.html');
+    if(choice==='overwrite'){uploads++;ui.saved(view,{path_display:'existing.html'});}
+    else ui.progress(view,'Cancelled.');
+    return {keepOpen:true};
    }}];
    await playSave(); const promptPending=button('Dropbox prompt').onclick();
    closeRightPane(); await playSave();

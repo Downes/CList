@@ -1,7 +1,7 @@
 // Loading UI only. Controllers supply choices and action callbacks.
 window.CList.ui.editorLoad = {
     chooseEditor(options, target, select, cancel) {
-        const root = target || window.CList.ui.view.loadOptions;
+        const root = target && target.isConnected !== false ? target : window.CList.ui.view.loadOptions;
         if (!root) throw new Error('Editor choices are unavailable.');
         root.innerHTML = '';
         const tip = document.createElement('p'); tip.className = 'list-tip';
@@ -22,7 +22,7 @@ window.CList.ui.editorLoad = {
         _offerCollectionChoice(parsed, format, { renderTarget: target, onCollection: select, onNative: native, onCancel: cancel });
     },
     reviewEditor(canReplace, target, actions) {
-        const root = target || window.CList.ui.view.loadOptions;
+        const root = target && target.isConnected !== false ? target : window.CList.ui.view.loadOptions;
         if (!root) throw new Error('Editor review is unavailable.');
         root.innerHTML = '';
         const title = document.createElement('p'); title.className = 'list-tip-title';

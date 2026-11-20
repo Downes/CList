@@ -76,17 +76,20 @@ async function packagePost({
     forPublishing = false,
     title,
     referenceHtml,
-    fileMetadata = null
+    fileMetadata = null,
+    editorHandler = null,
+    content
 } = {}) {
     // Get title
 
     const titleValue = title ?? window.CList.ui.view.writeTitle.innerText;
 
     // Get editor content
-    const handler = editorHandlers[currentEditor];
+    const handler = editorHandler || editorHandlers[currentEditor];
     let contentValue;
     try {
-        if (forPublishing && typeof handler?.getPostContent === 'function') contentValue = await handler.getPostContent();
+        if (content !== undefined) contentValue = content;
+        else if (forPublishing && typeof handler?.getPostContent === 'function') contentValue = await handler.getPostContent();
         else if (typeof handler?.getContent === 'function') contentValue = await handler.getContent();
         else throw new Error('The editor content is unavailable.');
         if (typeof contentValue !== 'string') throw new Error('The editor did not return text content.');
@@ -207,165 +210,4 @@ function packageStatus(charlimit, input, publishedURL) {
 // don't persist file handles across reloads without IndexedDB-backed permission
 // storage, which isn't implemented here.
 const _localFileHandles = {};
-
-async function saveContent() {
-
-    // A loaded file (kind: 'file') with no references round-trips as raw,
-    // unwrapped content under its exact original filename — same rule as the
-    // Dropbox saver (js/dropbox.js). Anything else still gets packagePost()'s
-    // HTML wrapper.
-    const handler = editorHandlers[currentEditor];
-    const isNativeFile = !!handler?.fileExtension;
-    const isRawFileRoundTrip = isNativeFile || (currentLoadedPage?.kind === 'file' && getReferences().length === 0);
-    let content, nativeType = null;
-    if (typeof handler?.getFileContent === 'function') {
-        const native = await handler.getFileContent();
-        content = native.value; nativeType = native.type;
-    } else if (isRawFileRoundTrip) content = await handler.getContent();
-    else content = await packagePost({ fileMetadata: {
-        format: 'clist-post-v1', editor: currentEditor,
-        title: window.CList.ui.view.writeTitle?.textContent || '', references: structuredClone(getReferences()),
-    } });
-    if (content == null) return;
-    const fileContent = String(content);
-    const suggestedName = nativeType
-        ? (currentLoadedPage?.kind === 'file' ? currentLoadedPage.title : 'annotation.json')
-        : isNativeFile
-            ? (currentLoadedPage?.kind === 'file' ? currentLoadedPage.title : 'presentation.' + handler.fileExtension)
-            : (isRawFileRoundTrip ? currentLoadedPage.title : undefined);
-
-    const loggedIn = !!(window.CList.state && window.CList.state.username);
-    let targetId = null;
-
-    // If the resource is already identified (by urn:uuid), record the local
-    // save against its existing kvstore index entry — minting one now if it's
-    // never been indexed before. Not logged in: no kvstore to index into, so
-    // skip straight to the file write with no identity tracking at all.
-    if (loggedIn) {
-        const titleValue = window.CList.ui.view.writeTitle.innerText.trim();
-        const now = new Date().toISOString();
-
-        if (currentLoadedPage && currentLoadedPage.id && currentLoadedPage.pageKey) {
-            try {
-                const touched = await _touchOrForkWebPageRecord(currentLoadedPage.pageKey, currentLoadedPage.id, {
-                    savedLocally: true,
-                    savedLocallyAt: now,
-                });
-                targetId = touched.id;
-                currentLoadedPage.id = touched.id;
-                currentLoadedPage.pageKey = touched.pageKey;
-                if (touched.forked) {
-                    showStatusMessage('This page was authored by someone else — saved locally as a new, derived copy in My Pages.');
-                }
-            } catch (e) {
-                console.error('[saveContent] failed to update page record', e);
-                showErrorModal('Saved locally, but could not update My Pages: ' + e.message, { title: 'My Pages Update Failed' });
-            }
-        } else {
-            targetId = `urn:uuid:${crypto.randomUUID()}`;
-            // A raw file round-trip keeps its own kind/title/mimeType (the
-            // filename and its real content type) when indexed — it's still the
-            // same loaded file, just now also tracked in My Pages. Anything else
-            // (fresh content with no prior identity) is indexed as the HTML
-            // 'page' it's actually being saved as.
-            const indexTitle    = isRawFileRoundTrip ? suggestedName : titleValue;
-            const indexMimeType = isRawFileRoundTrip
-                ? ((editorHandlers[currentEditor]?.contentTypes || [])[0] || 'text/plain')
-                : 'text/html';
-            try {
-                const pageKey = await _saveWebPageRecord({
-                    id: targetId,
-                    title: indexTitle,
-                    mimeType: indexMimeType,
-                    authorDid: _currentAuthorDid(),
-                    savedLocally: true,
-                    savedLocallyAt: now,
-                });
-                setLoadedPage({
-                    kind: isRawFileRoundTrip ? 'file' : 'page',
-                    pageKey,
-                    id: targetId,
-                    format: isRawFileRoundTrip ? (indexMimeType.split('/')[1] || '').toUpperCase() : 'HTML',
-                    title: indexTitle,
-                    mimeType: indexMimeType,
-                    authorDid: _currentAuthorDid(),
-                    savedLocally: true,
-                    savedLocallyAt: now,
-                });
-            } catch (e) {
-                console.error('[saveContent] failed to index page record', e);
-                showErrorModal('Saved locally, but could not index in My Pages: ' + e.message, { title: 'My Pages Indexing Failed' });
-            }
-        }
-    }
-
-    await _writeLocalFile(fileContent, targetId, suggestedName);
-}
-
-async function _writeLocalFile(fileContent, id, suggestedName) {
-    const name = suggestedName || "content.txt";
-    const ext  = (name.match(/\.([^./]+)$/)?.[1] || 'txt').toLowerCase();
-    if (window.showSaveFilePicker) {
-        // Modern Browsers: File System Access API
-        try {
-            let fileHandle = id ? _localFileHandles[id] : null;
-            if (fileHandle) {
-                // Permission can be revoked by the browser after inactivity —
-                // re-request it before reusing a cached handle.
-                const granted = await fileHandle.queryPermission({ mode: 'readwrite' }) === 'granted'
-                    || await fileHandle.requestPermission({ mode: 'readwrite' }) === 'granted';
-                if (!granted) fileHandle = null;
-            }
-            if (!fileHandle) {
-                fileHandle = await window.showSaveFilePicker({
-                    suggestedName: name,
-                    types: [{ description: "Text Files", accept: { "text/plain": ['.' + ext] } }]
-                });
-                if (id) _localFileHandles[id] = fileHandle;
-            }
-
-            const writableStream = await fileHandle.createWritable();
-            await writableStream.write(fileContent);
-            await writableStream.close();
-            showStatusMessage('File saved successfully.');
-        } catch (err) {
-            if (err.name !== 'AbortError') {
-                console.error("Save failed:", err);
-                showErrorModal('Save failed: ' + err.message, { title: 'Save Failed' });
-            }
-        }
-    } else {
-        // Fallback for Unsupported Browsers (e.g. Firefox, which doesn't implement
-        // showSaveFilePicker) — a plain Blob download. The browser's own download
-        // manager decides whether to rename on conflict; there's no API here to
-        // control or override that.
-        fallbackDownload(fileContent, name);
-    }
-}
-
-function fallbackDownload(fileContent, suggestedName) {
-    // Ask for a filename via the app's own modal — prompt() is banned project-wide.
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.value = suggestedName || 'content.txt';
-    input.style.width = '100%';
-
-    const doDownload = (close) => {
-        const fileName = input.value.trim();
-        if (!fileName) return;
-
-        downloadBlob(new Blob([fileContent], { type: "text/plain" }), fileName);
-        close();
-        showStatusMessage('File downloaded — check your downloads folder.');
-    };
-
-    const { close } = buildDialogModal('Save file', input, [
-        { label: 'Cancel', secondary: true, onClick: (close) => close() },
-        { label: 'Save', onClick: doDownload }
-    ]);
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') doDownload(close); });
-
-    input.focus();
-    input.select();
-}
 

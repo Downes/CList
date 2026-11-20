@@ -1,3 +1,4 @@
+/// <reference path="./reader-types.js" />
 
 
 // Handler
@@ -15,10 +16,11 @@
             }
             return actions;
         },
-        search: async () => {
-            const searchString = finderString();
+        supportsFindContext: true,
+        search: async (query, context) => {
+            const searchString = query === undefined ? finderString() : query;
             if (!searchString) return;
-            await openalexSearch(searchString);
+            await openalexSearch(searchString, 1, context);
         }
     };
     // Ensure readerHandlers exists
@@ -36,7 +38,9 @@
 
 const OPENALEX_PER_PAGE = 25;
 
-async function openalexSearch(query, page = 1) {
+/** @param {string} query @param {number} [page] @param {CListFindContext} [context] */
+async function openalexSearch(query, page = 1, context) {
+    if (context && !context.isCurrent()) return;
     const feedContainer = window.CList.ui.view.feedContainer;
 
     const url = new URL('https://api.openalex.org/works');
@@ -46,7 +50,7 @@ async function openalexSearch(query, page = 1) {
 
     let data;
     try {
-        const response = await fetch(url);
+        const response = await fetch(url, context ? {signal:context.signal} : undefined);
         data = await response.json();
         // OpenAlex returns its own JSON error body (e.g. rate-limit exceeded)
         // even on a non-200 — surface its message rather than a bare status code.
@@ -54,13 +58,20 @@ async function openalexSearch(query, page = 1) {
             throw new Error(data.message || data.error || `HTTP error! Status: ${response.status}`);
         }
     } catch (error) {
+        if (context) { context.fail('OpenAlex search error', error); return; }
         console.error('OpenAlex search failed:', error);
         showServiceError(feedContainer, 'OpenAlex search error', error.message,
             'Could not reach OpenAlex. Try again in a moment.');
         return;
     }
 
+    if (context && !context.isCurrent()) return;
     if (!data.results || !data.results.length) {
+        if (context) {
+            if (page > 1) await context.render([], {normalize:normalizeOpenAlexWork,append:true,loadMoreBtnId:'openalex-load-more'});
+            else context.empty('OpenAlex: ' + query);
+            return;
+        }
         feedContainer.innerHTML = '';
         feedContainer.appendChild(createFeedHeader('OpenAlex: ' + query));
         feedContainer.insertAdjacentHTML('beforeend', '<p class="feed-status-message">No results found.</p>');
@@ -69,13 +80,15 @@ async function openalexSearch(query, page = 1) {
 
     const hasMore = (page * OPENALEX_PER_PAGE) < (data.meta?.count || 0);
 
-    await window.CList.ui.renderFeed(data.results, feedContainer, {
+    const options = {
         normalize:     normalizeOpenAlexWork,
         title:         page === 1 ? 'OpenAlex: ' + query : null,
         append:        page !== 1,
-        onLoadMore:    hasMore ? () => openalexSearch(query, page + 1) : null,
+        onLoadMore:    hasMore ? (context ? () => context.next(next => openalexSearch(query, page + 1, next)) : () => openalexSearch(query, page + 1)) : null,
         loadMoreBtnId: 'openalex-load-more',
-    });
+    };
+    if (context) await context.render(data.results, options);
+    else await window.CList.ui.renderFeed(data.results, feedContainer, options);
 }
 
 // Maps an OpenAlex "Work" object to the shape makeListing() expects.

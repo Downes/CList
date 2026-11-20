@@ -57,6 +57,7 @@ function fixture() {
         console: { error: (...args) => errors.push(args) },
         document: { createElement: tag => new Element(tag), getElementById: id => dom[id] || null },
         window: { crypto: webcrypto, CList: {
+            state: { get username() { return user; } },
             defaults: { LOCALRSS: 'https://rss.example' }, config: { flaskSiteUrl: 'https://kv.example' }, keys: { ACCESS_TOKEN: 'access_token' },
             accounts: [{ key, value: JSON.stringify(metadata) }],
             ui: { view: { feedContainer: fc } },
@@ -538,5 +539,26 @@ test('Collections includes saved, public-feed and LocalRSS collections with regi
     assert.equal(saved.type, 'LOCALRSS');
     assert.equal(saved.serviceUrl, 'https://configured.example', 'resolved local/proxy endpoint must not overwrite the configured service');
     assert.equal(JSON.parse(saved.collectionItems).length, 2);
+    assert.equal(f.errors.length, 0);
+});
+
+
+test('collection Dropbox button delegates its captured serialized export and original session to the shared save controller', async () => {
+    const f = fixture(), c = f.context;
+    const account = { key: 'Dropbox files', value: JSON.stringify({ type: 'Dropbox', id: 'token', permissions: 'b' }) };
+    c.findAccountByType = () => ({ account });
+    c.parseAccountValue = record => JSON.parse(record.value);
+    let captured;
+    c.saveToDropbox = async options => { captured = options; return { keepOpen: true, status: 'saved' }; };
+    await c._loadCollectionIntoEditor({ name: 'Collection export', items: [{ title: 'Entry', url: 'https://entry.example' }] }, 'alice', 'key');
+    await c.window.playCollectionSave();
+    const button = find(f.saveOptions, node => node.tagName === 'button' && node.textContent.endsWith('Save to Dropbox'));
+    await button.click();
+    assert.equal(captured.found.account, account); assert.equal(captured.target, f.saveOptions);
+    assert.equal(captured.isCurrent(), true);
+    const file = await captured.prepare();
+    assert.equal(file.name, 'Collection export.opml'); assert.match(file.value, /https:\/\/entry.example/);
+    assert.ok(file.value.includes('<id>' + c._activeCollection.col.id + '</id>')); assert.equal(button.disabled, false);
+    f.setUser('bob'); assert.equal(captured.isCurrent(), false);
     assert.equal(f.errors.length, 0);
 });

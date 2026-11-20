@@ -1,5 +1,41 @@
 # Separating CList application logic and UI
 
+## Current checkpoint — 2026-11-19
+
+This checkpoint supersedes the historical implementation notes below. Shared
+account management, publishing workflows (including collection publication),
+central reader dispatch and LocalRSS, editor load/switch/drafts/Load-Blank,
+Save panel, References and Tags now have extracted boundaries. Service-owned
+internals behind those boundaries still migrate individually. Tags browser
+verification passed on 2026-11-19. Find now separates query/request/controller/view
+and migrates OpenAlex/Commons to captured guarded search contexts; the Find browser
+fixture passed. Other Find provider internals remain legacy service work.
+Local file saving now separates captured export/controller, explicit write/index
+operations and filename/result UI. My Pages separates state, listing/loading/delete
+workflow, controller and view. Dropbox saving, collection uploads, token-refresh
+sessions and the file picker now have separated modules and mocked Node/browser
+checks; initial OAuth setup remains on its existing path.
+
+The user-approved remaining order is:
+
+1. Find/search — current slice implemented; retain legacy provider compatibility.
+2. File saving internals, My Pages and Dropbox save/picker — implemented and checked.
+3. Collection browsing, imports, membership operations and member-opening workflows.
+   Existing collection Save/publication boundaries remain in use.
+4. Remaining service readers and row actions, including legacy Find provider
+   internals and the migration away from action state stored in HTML/buttons.
+5. Authentication, identity/DID/migration and administrative settings.
+6. Pane persistence/navigation, keyboard/mobile state and reusable action/menu contracts.
+7. Collaboration/P2P chat session workflows, then remaining AI feature boundaries.
+
+For each slice: keep current behavior, reuse registries/helpers, capture inputs
+and operation lifetime, keep views free of writes, and test stale/duplicate/error
+paths. DOM in views/editor widgets and HTML output serializers remains legitimate.
+Commit/push only with the user's instruction. Detailed remaining scope was reviewed
+against the checkout; do not treat the earlier plan's completed items as a new todo.
+
+## Historical plan and implementation notes
+
 Architecture and migration plan dated 2026-11-11, with incremental implementation
 notes below. Each patch is reviewed separately; proposed contracts in the later
 sections are not all implemented APIs.

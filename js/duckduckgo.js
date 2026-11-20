@@ -17,7 +17,8 @@
             ${openInBrowserButton(itemLink, itemID)}`;
         },
         search: async (baseURL, accessToken) => {
-            searchString = finderString();
+            const searchString = finderString();
+            if (!searchString) return;
             await duckduckgoSearch(searchString);
         }
     };

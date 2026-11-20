@@ -42,19 +42,6 @@ function _heJs(s) {
 }
 
 
-// Builds and returns a styled account-list div.
-function finderString() {
-    const findInput = document.getElementById('find-input');
-    const searchString = findInput ? findInput.value.trim() : '';
-    if (!searchString) { showErrorModal('Please enter a search term.', { title: 'Search Term Required' }); return; }
-    return searchString;
-}
-
-
-
-
-
-
 // This function starts up the reader in the reader div 'read-section'
 //  (with some commands located in 'left-content')
 
@@ -70,6 +57,7 @@ function readerSession() {
         token: getSiteSpecificCookie(storeUrl, window.CList.keys.ACCESS_TOKEN) || '' };
 }
 function invalidateReader(mode = 'idle') {
+    if(typeof invalidateFindRequest==='function')invalidateFindRequest();
     _readerAbort?.abort(); _readerSelection = null; _readerContext = null; _readerPanelVersion++;
     window.CList.state.reader = resetReaderState(readerState(), mode);
     window.CList.ui.reader.reset();
@@ -94,68 +82,6 @@ async function playRead() {
         if (version === _readerPanelVersion && JSON.stringify(session) === JSON.stringify(readerSession())) view.accountsFailed(error);
     }
 }
-
-// playFind
-
-function playFind() {
-    openLeftInterface(findPanel());
-}
-
-// Returns the Find panel element (created on demand)
-function findPanel() {
-    const div = document.createElement('div');
-    div.id = 'find-section';
-
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.id = 'find-input';
-    input.className = 'find-input';
-    input.placeholder = 'Search term…';
-    div.appendChild(input);
-
-    const list = document.createElement('div');
-    list.className = 'account-list';
-
-    const tip = document.createElement('div');
-    tip.className = 'list-tip';
-    tip.textContent = 'Enter search term and select service';
-    list.appendChild(tip);
-
-    Object.entries(window.CList.readers).forEach(([key, handler]) => {
-        if (typeof handler.search !== 'function') return;
-        if (!window.CList.ui.isHandlerVisible(handler)) return;
-        const btn = document.createElement('button');
-        btn.className = 'account-button';
-        btn.addEventListener('click', () => {
-            Promise.resolve(handler.search()).catch(e => {
-                showErrorModal('Search failed: ' + e.message, { title: 'Search Failed' });
-                console.error('Search error:', e);
-            });
-        });
-
-        let iconEl;
-        if (handler.logoSrc) {
-            iconEl = document.createElement('span');
-            iconEl.className = 'service-icon-img';
-            iconEl.style.mask = `url('${handler.logoSrc}') no-repeat center / contain`;
-        } else {
-            iconEl = document.createElement('span');
-            iconEl.className = 'material-icons';
-            iconEl.textContent = handler.icon || 'search';
-        }
-
-        const nameEl = document.createElement('span');
-        nameEl.textContent = handler.label || key;
-
-        btn.appendChild(iconEl);
-        btn.appendChild(nameEl);
-        list.appendChild(btn);
-    });
-
-    div.appendChild(list);
-    return div;
-}
-
 
 // Compatibility entry point for account refreshes and existing callers.
 function populateReadAccountList(accounts) {
@@ -198,6 +124,7 @@ async function switchReaderAccount(key) {
 }
 async function runReaderRequest(selection, feedName, load, initialize = false) {
     if (!readerSelectionCurrent(selection)) return;
+    if(typeof invalidateFindRequest==='function')invalidateFindRequest();
     _readerAbort?.abort(); const abort = _readerAbort = new AbortController();
     const state = window.CList.state.reader = beginReaderRequest(readerState(), selection.key, selection.account.type, feedName);
     const requestId = state.requestId, view = window.CList.ui.reader;

@@ -14,6 +14,11 @@ Maintain the [human testing guide](docs/testing.md), AI instructions, and detail
 Distinguish Node, browser, manual and live-service evidence; never equate a build
 or a subset of tests with full validation.
 
+The user performs browser tests. Prepare the affected fixture URLs and expected
+results, then ask the user to run them; do not run browser checks yourself unless
+the user explicitly delegates them. Record their reported PASS/FAIL separately
+from automated Node results.
+
 ## Publishing changes
 
 Before writing or changing code that supports or impacts publishing, read
@@ -235,6 +240,15 @@ user/server/token/local mode; never store credentials or encryption keys in
 record and add-if-absent semantics. Check the captured session before each
 asynchronous preparation/write boundary; never retry an uncertain write.
 
+Find uses `find-state.js` (draft/request state), `find.js` (registry/controller and
+captured session/request lifetime), and `find-view.js` (controls/feed feedback).
+`supportsFindContext: true` opts `search(query, context)` into explicit queries,
+signal, guarded render/empty/fail and pagination. OpenAlex/Commons adopt it.
+Legacy search providers keep no-argument `search()` and the state-backed
+`finderString()` helper; their internal DOM writes are not newly protected.
+Reuse reader invalidation, preserve Google feed-button compatibility, and keep
+closing Find controls separate from ownership of visible feed pagination.
+
 ## Reader dispatch
 
 The central boundary uses `reader.js` (controller), `reader-state.js` (pure
@@ -325,3 +339,31 @@ checks to work around missing imports. Run Python tests with
 `python -m unittest discover -s tests -p 'localrss_*test.py' -v` for bundle/backend
 changes; report these separately from Node. Source-launch dependency requirements
 are distinct from frozen builds, which must work without end-user pip installs.
+
+
+## Local file saves and My Pages
+
+Local file saving uses `file-save.js` (captured controller),
+`file-save-workflow.js` (explicit export/write/index operations), and
+`file-save-view.js` (filename choice and feedback). `files.js` retains shared
+serialization/loading and saver registration. Index only after successful write
+or browser download handoff; cancellation/failure must not create a saved record.
+Keep native/raw filenames and formats, exact document metadata, session-scoped
+file handles and safe reconciliation with the original editor/page.
+
+My Pages uses `my-pages-state.js`, `my-pages-workflow.js`, `my-pages.js` and
+`my-pages-view.js`; collection browsing remains separate. Preserve captured
+session/destination, stale-row/load guards, original identity and native content
+routing. Remote deletion uncertainty keeps metadata. Retain accepted deletion
+receipts for explicit metadata-only retry; never automatically repeat the delete.
+Dropbox file operations use `dropbox_session.js` (captured account/session and
+explicit refresh persistence), `dropbox_save_workflow.js` (export/save decisions),
+`dropbox_save.js` (controller), `dropbox_save_view.js` (overwrite/feedback), and
+`dropbox_picker.js` / `dropbox_picker_view.js` (listing/load state and UI).
+`dropbox.js` retains initial OAuth setup and explicit transport. Collection Dropbox
+exports delegate to the same captured save controller. Reuse `prepareLocalFile`
+for native/raw/document formats. Only definite HTTP 401 rejection permits a single
+refresh/retry; never replay an uncertain upload. Preserve explicit overwrite,
+accepted receipts, original folders/account/session and the shared content-first
+loader guard through editor choices. Apply all folder continuation updates/deletes
+in order; cancel expired picker/choice promises so Save/Load can be reopened.

@@ -61,7 +61,7 @@ is cooperative; a signal does not cancel requests that ignore it.
 
 LocalRSS item/feed lists and their pagination now use explicit captured
 account/filter/offset inputs, data-returning operations and guarded rendering.
-Other services, search, annotations/collection-reader internals and
+Other services, legacy search providers, annotations/collection-reader internals and
 service-specific status/database-management actions still require their own review. Do not equate this
 first central boundary with completion of the reader refactor.
 
@@ -235,3 +235,34 @@ The optional Add Account seed control captures its exact form and controls, uses
 that form's explicit service URL and only fills the database if those original
 values remain unchanged. It reports the created database when newer edits are kept.
 Seeding does not save an account; the normal Save button still owns persistence.
+
+## Find/search boundary
+
+`find-state.js` owns plain draft/query/provider/request state. `find.js` owns
+provider registry dispatch, captured query/session/feed target, duplicate request
+suppression and operation lifetime. `find-view.js` builds controls and uses the
+existing progressive feed renderer. `playFind`, `findPanel` and `finderString`
+remain compatibility functions; the query now comes from input events/state,
+not a later DOM lookup. Opening Find starts a fresh input as before. Editing the
+query during a request does not alter that captured request or pagination.
+
+Providers opt into `supportsFindContext: true` and `search(query, context)`.
+OpenAlex and Wikimedia Commons pass the signal to fetch, guard errors/empty
+results and use `context.render` with the renderer's per-normalization ownership
+checks. Pagination retains the captured query and expires old controls. Failed
+continuations permit an explicit same-page retry without an automatic request;
+an empty continuation retains earlier results and removes Load More.
+
+Find invalidates account reading through the existing reader lifetime. Starting
+an account/feed request or changing session/provider/feed target expires Find
+results. Closing/replacing the Find panel expires its controls while owned feed
+pagination remains usable. A late obsolete completion cannot reset a newer
+request's busy state. Token expiry cleans up the old pending state; editing the
+live input rebinds a subsequent explicit search to the current session.
+
+Google, DuckDuckGo and OASIS keep their existing no-argument search contract and
+service-owned rendering. `finderString()` is state-backed and missing queries
+are rejected before these providers start. Google Web/Images compatibility stays
+in the existing feed-menu path. These legacy provider internals still need their
+service migration; the new panel/controller does not cancel their direct DOM
+writes. Direct calls to OpenAlex/Commons without context also retain legacy paths.

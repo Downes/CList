@@ -1,0 +1,91 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CList Dropbox picker regression</title>
+<h1>Dropbox file picker</h1>
+<pre id="result">Checking Dropbox picker…</pre>
+<div id="load-options"></div>
+<script>
+window.CList={state:{username:'fixture'},config:{flaskSiteUrl:'https://storage.invalid'},keys:{ACCESS_TOKEN:'access_token'},
+ accounts:[],loaders:[],savers:[],ui:{view:{loadOptions:document.getElementById('load-options')}}};
+let currentEditor='texteditor',currentEditorAccount=null,currentLoadedPage=null;
+let token='fixture-token',listResponse,continueResponse,downloadResponse;
+const loads=[],requests=[],messages=[],persisted=[];
+const data={type:'Dropbox',id:'expired',refresh:'refresh-token',appKey:'app',folder:'/CList',permissions:'b'};
+function resetAccount(){CList.accounts=[{key:'Dropbox',value:JSON.stringify(data)}];}
+resetAccount();
+window.getSiteSpecificCookie=()=>token;
+window.getEncKey=async()=> 'fixture-key';
+window.findAccountByType=()=>({account:CList.accounts[0],parsedValue:JSON.parse(CList.accounts[0].value)});
+window.saveAccount=async(request,session)=>{session.isCurrent();persisted.push(structuredClone(request));return request;};
+window._dropboxRefresh=async()=> 'refreshed';
+window._dropboxListFolder=async(...args)=>{requests.push(['list',...args]);return listResponse();};
+window._dropboxContinueFolder=async(...args)=>{requests.push(['next',...args]);return continueResponse();};
+window._dropboxDownloadFile=async(...args)=>{requests.push(['download',...args]);return downloadResponse();};
+window.loadSavedPage=async(...args)=>loads.push(args);
+window.populateLoadOptions=()=>{CList.ui.view.loadOptions.replaceChildren();CList.state.editorControls={id:(CList.state.editorControls?.id||0)+1};};
+window.isRegistered=()=>true;
+window.showStatusMessage=message=>messages.push(message);
+window.showErrorModal=message=>{throw Error(message);};
+window.escapeHtml=value=>String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;');
+window.fetch=()=>Promise.reject(Error('Unexpected network request'));
+</script>
+<script src="../js/collection-formats.js"></script>
+<script src="../js/file-recognition.js"></script>
+<script src="../js/files.js"></script>
+<script src="../js/dropbox_session.js"></script>
+<script src="../js/dropbox_picker_view.js"></script>
+<script src="../js/dropbox_picker.js"></script>
+<script>
+(async()=>{
+ let checks=0;const check=(value,label)=>{if(!value)throw Error(label);checks++;};
+ const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
+ const file=(name,date)=>({'.tag':'file',name,path_display:'/CList/'+name,server_modified:date||'2026-11-19'});
+ const buttons=()=>[...document.querySelectorAll('#load-options button')];
+ const label=item=>item.querySelector('span:last-child')?.textContent||item.textContent;
+ const button=name=>buttons().find(item=>label(item)===name);
+ const ready=async()=>{for(let i=0;i<15&&CList.state.dropboxLoading.busy;i++)await tick();};
+ const annotation=JSON.stringify({format:'clist-annotation-v1',body:'<p>Native note</p>',target:{url:'https://target.invalid'},references:[]});
+ try{
+  let listingCalls=0;
+  listResponse=async()=>{if(!listingCalls++)throw Object.assign(Error('Expired token'),{status:401});
+   return{entries:[file('older.xml','2025'),{'.tag':'folder',name:'Folder'}],has_more:true,cursor:'next'};};
+  continueResponse=async()=>({entries:[file('annotation.wrong','2026'),file('older.xml','2025')],has_more:false});
+  downloadResponse=async()=>annotation;
+  let settled=false;const first=loadDropboxFiles().then(()=>{settled=true;});await ready();
+  check(!settled,'Source remains pending while choosing a file');
+  check(button('annotation.wrong')&&button('older.xml'),'All folder pages rendered');
+  check(label(buttons()[0])==='annotation.wrong','Whole-list date ordering');
+  check(buttons().filter(item=>label(item)==='older.xml').length===1,'Duplicate paths omitted');
+  check(persisted.length===1&&JSON.parse(CList.accounts[0].value).id==='refreshed','Explicit 401 refresh persisted captured account');
+  check(requests.find(item=>item[0]==='next')[1]==='refreshed','Continuation uses refreshed token');
+  await button('annotation.wrong').onclick();await first;
+  check(loads.at(-1)[0].type==='application/vnd.clist.annotation+json','Content recognition wins over wrong filename');
+  check(loads.at(-1)[1].title==='annotation.wrong','Exact original filename retained');
+  const guard=loads.at(-1)[4];currentEditor='annotation';currentEditorAccount={key:'chosen'};
+  check(guard(),'Shared choice permits its intended editor switch');token='different';check(!guard(),'Shared choices expire with login session');
+  token='fixture-token';currentEditor='texteditor';currentEditorAccount=null;
+
+  listResponse=async()=>({entries:[file('retry.txt')],has_more:false});
+  const second=loadDropboxFiles();await ready();downloadResponse=async()=>{throw Object.assign(Error('No scope'),{missingScope:true});};
+  await button('retry.txt').onclick();check(document.querySelector('#load-options .error-message').textContent.includes('files.content.read'),'Scope failure visible');
+  check(!button('retry.txt').disabled,'Failed read offers explicit retry');
+  downloadResponse=async()=> 'Exact plain text';await button('retry.txt').onclick();await second;
+  check(loads.at(-1)[0].value==='Exact plain text','Explicit read retry succeeds');
+
+  let finish;downloadResponse=()=>new Promise(resolve=>{finish=resolve;});
+  const third=loadDropboxFiles();await ready();const stale=button('retry.txt'),before=loads.length;
+  const pending=stale.onclick();await stale.onclick();
+  check(button('Loading…').disabled,'Rows disabled during download');
+  token='expired-owner';finish('Old body');await pending;await third;
+  check(loads.length===before,'Stale-session download never routed');token='fixture-token';
+
+  const fourth=loadDropboxFiles();await ready();button('Cancel').onclick();await fourth;
+  check(CList.state.dropboxLoading.phase==='cancelled'&&!CList.state.dropboxLoading.busy,'Cancel releases pending source');
+  const fifth=loadDropboxFiles();await ready();CList.ui.view.loadOptions.replaceChildren();await fifth;
+  check(CList.state.dropboxLoading.phase==='cancelled','DOM source replacement settles pending picker');
+  check(!JSON.stringify(CList.state.dropboxLoading).includes('refreshed'),'Shared state excludes credentials');
+
+  document.getElementById('result').textContent='PASS: real Dropbox picker controller/view, common session and content recognition; complete folder listing, token refresh, exact filenames, wrong-extension native detection, pending choices, explicit read retry, duplicate/stale callbacks, scope feedback, Cancel and source replacement. '+checks+' checks. All HTTP, credential persistence and editor APIs mocked; no external requests or file/storage writes.';
+ }catch(error){console.error(error);document.getElementById('result').textContent='FAIL: '+error.stack;}
+})();
+</script>

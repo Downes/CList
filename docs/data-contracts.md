@@ -226,3 +226,71 @@ case-insensitive prefix matching. Tags stay global across editors as before.
 legacy `collection:<name>` key with encrypted JSON `[]`; it uses add-if-absent,
 not update/put, so existing collection content is preserved. Session checks and
 crypto/storage dependencies are transient workflow/controller inputs.
+
+## Find
+
+`CListFindState` and `CListFindContext` live in `reader-types.js`, already referenced
+by the shared contract index. State contains panel/request IDs, current input,
+captured query, provider key, status and error. Tokens/provider objects/AbortController
+and captured feed elements remain transient. `supportsFindContext` providers
+receive explicit query/context arguments; legacy no-argument providers remain
+supported. Aborting is cooperative, and direct legacy DOM writes remain outside
+the guarded rendering contract.
+
+
+## Local file saves and My Pages
+
+`CListLocalFileOutput` describes an explicit serialized export, while
+`CListLocalFileReceipt` distinguishes a confirmed native write, browser download
+handoff and cancellation. `CListLocalFileSaveState` stores progress and safe
+receipt/error summaries in `CList.state.fileSave`; captures, credentials, encryption
+keys and cached file handles remain transient. Handles are isolated by the
+captured username, storage server and authentication session. Metadata indexing
+runs after a successful write/handoff; failures retain the receipt without
+repeating the file write. Native annotations are indexed with their native MIME
+and filename rather than as HTML documents.
+
+`CListMyPagesState` owns presentation and busy/error state under
+`CList.state.myPages`. Published page records and collection publications retain
+the existing storage shapes. Private row captures and deletion receipts bind
+actions to the original session/destination; metadata cleanup after a confirmed
+remote deletion can be retried without repeating that deletion. Views own controls
+and inline feedback; workflows receive explicit storage/transport dependencies.
+
+
+My Pages passes a transient fifth `isCurrent` callback to
+`loadSavedPage(content, page, renderTarget, onCancel, isCurrent)`. Shared editor
+choices/reviews keep checking this guard after the original modal is replaced.
+Collection loading uses `openParsedAsCollection(parsed, page, isCurrent)` to retain
+the captured collection key/publication metadata and restore the previous active
+collection after a failed/expired mount, provided no newer load replaced it.
+Legacy collections without an embedded ID keep their original storage key while
+a missing ID is minted. The standalone delete workflow rechecks the current
+resource/destination before remote deletion and metadata removal; the storage API
+has no compare-and-swap guarantee for concurrent changes between these steps.
+
+
+## Dropbox file operations
+
+`CListDropboxSession` is a transient capture: username, storage URL/token, original
+account key/JSON, a detached `CListAccountData` and required permission. It never
+enters shared state. `data.id` is the Dropbox access token; the capture's `token`
+is the storage login token. Definite authentication rejection refreshes and saves
+the original account through `saveAccount` with an explicit guarded session,
+retaining extensions and reconciling only the unchanged account. Initial OAuth
+creation is separate and retains its existing controller.
+
+`CListDropboxSaveState` and `CListDropboxLoadState` contain only progress,
+filename/count, safe receipts and errors. `CListDropboxSaveReceipt` retains the
+confirmed path/id/revision independently of panel lifetime. File bodies, account
+records, keys, token values, callbacks and transport clients stay private.
+Local exports reuse `CListLocalFileOutput`; collection exports supply their own
+captured serialized file through `saveToDropbox({found,target,isCurrent,prepare})`.
+Both paths share the explicit exists/add/conflict/overwrite workflow. The picker
+uses the shared `loadSavedPage` guard through later representation/draft choices.
+
+Folder pages follow the ordered continuation protocol in the
+[Dropbox List Folder reference](https://docs.dropboxapi.com/dropbox-api/api-reference/user-endpoints/files/list-folder):
+latest case-insensitive path updates win and deleted paths disappear. HTTP errors
+carry numeric `status`, `missingScope` and structured `conflict` flags; upload
+network/receipt failures are uncertain and never trigger automatic replay.

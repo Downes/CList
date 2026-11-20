@@ -1085,416 +1085,6 @@ window.showSavedCollections = async function() {
     }
 };
 
-// ── My Pages loader ───────────────────────────────────────────────────────────
-(function () {
-    window.CList.loaders = window.CList.loaders || [];
-    window.CList.loaders.push({
-        label:   'My Pages',
-        icon:    'cloud_done',
-        requiresLogin:   true,
-        requiresAccount: false,
-        load:    async () => {
-            const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
-            if (!token) {
-                showErrorModal('Please log in to view your published pages.', { title: 'Login required' });
-                return null;
-            }
-
-            // Rendered in a wide, centered modal with its own header row (title +
-            // close button), matching the app's standard panel-header convention
-            // (#write-load-header) rather than showModal()'s generic Close button.
-            const optionsDiv = document.createElement('div');
-            optionsDiv.className = 'published-pages-modal';
-
-            const headerRow = document.createElement('div');
-            headerRow.className = 'modal-header-row';
-            const headerTitle = document.createElement('h2');
-            headerTitle.textContent = 'Published pages';
-            const headerCloseBtn = document.createElement('button');
-            headerCloseBtn.textContent = 'X';
-            headerCloseBtn.onclick = () => document.getElementById('generic-modal')?.remove();
-            headerRow.appendChild(headerTitle);
-            headerRow.appendChild(headerCloseBtn);
-            optionsDiv.appendChild(headerRow);
-
-            const body = document.createElement('div');
-            body.innerHTML = '<p class="list-tip">Loading published pages…</p>';
-            optionsDiv.appendChild(body);
-
-            showModal(optionsDiv, { wide: true, hideDefaultClose: true });
-
-            try {
-                const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
-                if (!encKey) throw new Error('Encryption key not available');
-
-                let kvs;
-                try {
-                    kvs = await window.CList.storage.kv.list();
-                } catch (err) {
-                    throw new Error(kvErrorMessage(err));
-                }
-
-                const pages = [];
-                for (const kv of (kvs || [])) {
-                    if (kv.key.startsWith('collection:')) {
-                        try {
-                            const raw = await decryptKVJson(encKey, kv.value);
-                            const col = _parseCollectionData(raw);
-                            if (!col.publishedUrls?.length) continue;
-                            const colName = col.title || kv.key.replace(/^collection:/, '');
-                            for (const pub of col.publishedUrls) {
-                                pages.push({ kind: 'collection', collectionKey: kv.key, id: col.id, title: colName, ...pub });
-                            }
-                        } catch { /* skip corrupt entries */ }
-                    } else if (kv.key.startsWith('page:')) {
-                        try {
-                            const rec = await decryptKVJson(encKey, kv.value);
-                            const format = (rec.mimeType || '').split('/')[1]?.toUpperCase() || '';
-                            pages.push({ kind: 'page', pageKey: kv.key, format, ...rec });
-                        } catch { /* skip corrupt entries */ }
-                    }
-                }
-
-                body.innerHTML = '';
-
-                if (!pages.length) {
-                    const empty = document.createElement('p');
-                    empty.className   = 'list-tip';
-                    empty.textContent = 'No published pages yet — publish a collection to get started.';
-                    body.appendChild(empty);
-                    return null;
-                }
-
-                // ── Sort + pagination state — sort reorders the whole `pages`
-                // array, not just the rows currently shown; pagination slices the
-                // sorted array per renderBody() call. ──
-                let sortKey  = 'date', sortDir = 'desc';
-                let pageSize = 40,     pageIndex = 0;
-
-                const columns = [
-                    { key: 'format', label: 'Format' },
-                    { key: 'date',   label: 'Date' },
-                    { key: null,     label: 'Buttons' },
-                    { key: 'title',  label: 'Title' },
-                ];
-
-                const table  = document.createElement('table');
-                table.className = 'published-pages-table';
-                const thead   = document.createElement('thead');
-                const headRow = document.createElement('tr');
-                const thEls   = {};
-
-                columns.forEach(col => {
-                    const th = document.createElement('th');
-                    th.textContent = col.label;
-                    if (!col.key) {
-                        th.className = 'no-sort';
-                    } else {
-                        thEls[col.key] = th;
-                        th.onclick = () => {
-                            if (sortKey === col.key) {
-                                sortDir = sortDir === 'asc' ? 'desc' : 'asc';
-                            } else {
-                                sortKey  = col.key;
-                                sortDir  = 'asc';
-                            }
-                            pageIndex = 0;
-                            renderBody();
-                        };
-                    }
-                    headRow.appendChild(th);
-                });
-                thead.appendChild(headRow);
-                table.appendChild(thead);
-
-                const tbody = document.createElement('tbody');
-                table.appendChild(tbody);
-                body.appendChild(table);
-
-                const pagination = document.createElement('div');
-                pagination.className = 'published-pages-pagination';
-                body.appendChild(pagination);
-
-                function getSortValue(page, key) {
-                    if (key === 'date')   return page.publishedAt || '';
-                    if (key === 'format') return (page.format || '').toLowerCase();
-                    if (key === 'title')  return (page.title || page.url || '').toLowerCase();
-                    return '';
-                }
-
-                function getSorted() {
-                    const sorted = [...pages].sort((a, b) => {
-                        const av = getSortValue(a, sortKey);
-                        const bv = getSortValue(b, sortKey);
-                        if (av < bv) return -1;
-                        if (av > bv) return 1;
-                        return 0;
-                    });
-                    if (sortDir === 'desc') sorted.reverse();
-                    return sorted;
-                }
-
-                function buildRow(page) {
-                    const tr = document.createElement('tr');
-
-                    const formatTd = document.createElement('td');
-                    if (page.format) {
-                        const fmt = document.createElement('span');
-                        fmt.className   = 'published-page-badge';
-                        fmt.textContent = page.format.toUpperCase();
-                        formatTd.appendChild(fmt);
-                    }
-                    if (page.service) {
-                        const svc = document.createElement('span');
-                        svc.className   = 'published-page-badge badge-service';
-                        svc.textContent = page.service;
-                        formatTd.appendChild(svc);
-                    }
-                    if (page.savedLocally && !page.url) {
-                        const local = document.createElement('span');
-                        local.className   = 'published-page-badge badge-service';
-                        local.textContent = 'Local only';
-                        formatTd.appendChild(local);
-                    }
-                    tr.appendChild(formatTd);
-
-                    const dateTd = document.createElement('td');
-                    if (page.publishedAt) {
-                        dateTd.className   = 'published-page-date';
-                        dateTd.textContent = page.publishedAt.slice(0, 10);
-                    }
-                    tr.appendChild(dateTd);
-
-                    // Action buttons
-                    const actionsTd = document.createElement('td');
-                    const actions = document.createElement('div');
-                    actions.className = 'published-page-actions';
-
-                    if (page.kind === 'page' && page.url) {
-                        const loadBtn = document.createElement('button');
-                        loadBtn.className = 'clist-action-btn';
-                        loadBtn.title     = 'Load into editor';
-                        loadBtn.innerHTML = '<span class="material-icons md-18 md-light">input</span>';
-                        loadBtn.onclick   = async () => {
-                            try {
-                                const fetched = await fetch(page.url);
-                                if (!fetched.ok) throw new Error(`fetch error ${fetched.status}`);
-                                const text = await fetched.text();
-                                if (typeof loadSavedPage === 'function') {
-                                    await loadSavedPage({ type: page.mimeType, value: text }, page, optionsDiv);
-                                }
-                            } catch (e) {
-                                console.error('[mypages] load into editor failed', e);
-                                showErrorModal('Could not load page: ' + e.message, { title: 'Load page failed' });
-                            }
-                        };
-                        actions.appendChild(loadBtn);
-                    }
-
-                    if (page.kind === 'collection' && _collectionFormatParsers[page.format]) {
-                        const loadBtn = document.createElement('button');
-                        loadBtn.className = 'clist-action-btn';
-                        loadBtn.title     = 'Load into collection editor';
-                        loadBtn.innerHTML = '<span class="material-icons md-18 md-light">input</span>';
-                        loadBtn.onclick   = async () => {
-                            try {
-                                const fetched = await fetch(page.url);
-                                if (!fetched.ok) throw new Error(`fetch error ${fetched.status}`);
-                                const text   = await fetched.text();
-                                const parsed = _collectionFormatParsers[page.format](text);
-                                _activeCollection = { col: { key: page.collectionKey, id: page.id, name: parsed.title, items: parsed.items }, token: null, encKey: null };
-                                if (typeof initializeEditor === 'function') await initializeEditor('collection');
-                                if (typeof setLoadedPage === 'function') setLoadedPage(page);
-                                if (typeof closeLoadSurfaces === 'function') closeLoadSurfaces();
-                            } catch (e) {
-                                console.error('[mypages] load collection into editor failed', e);
-                                showErrorModal('Could not load collection: ' + e.message, { title: 'Load collection failed' });
-                            }
-                        };
-                        actions.appendChild(loadBtn);
-                    }
-
-                    if (page.url) {
-                        const openBtn = document.createElement('button');
-                        openBtn.className = 'clist-action-btn';
-                        openBtn.title     = 'Open in new tab';
-                        openBtn.innerHTML = '<span class="material-icons md-18 md-light">open_in_new</span>';
-                        openBtn.onclick   = () => window.open(page.url, '_blank', 'noopener');
-                        actions.appendChild(openBtn);
-
-                        const copyBtn = document.createElement('button');
-                        copyBtn.className = 'clist-action-btn';
-                        copyBtn.title     = 'Copy URL';
-                        copyBtn.innerHTML = '<span class="material-icons md-18 md-light">content_copy</span>';
-                        copyBtn.onclick   = () => {
-                            copyToClipboard(page.url, { successMsg: 'URL copied.', failMsg: 'Could not copy URL.' });
-                        };
-                        actions.appendChild(copyBtn);
-                    }
-
-                    const delBtn = document.createElement('button');
-                    delBtn.className = 'clist-action-btn';
-                    delBtn.title     = 'Delete';
-                    delBtn.innerHTML = '<span class="material-icons md-18 md-light">delete_outline</span>';
-
-                    // Delete: two-step confirm rendered inline
-                    const confirmRow = document.createElement('div');
-                    confirmRow.className    = 'published-page-confirm';
-                    confirmRow.style.display = 'none';
-
-                    const yesBtn = document.createElement('button');
-                    yesBtn.className   = 'btn collection-confirm-btn';
-                    yesBtn.textContent = 'Delete';
-                    yesBtn.onclick     = async () => {
-                        // Optionally remove from remote bin service
-                        if (page.serviceId && page.service) {
-                            const adapter = window.CList.binPublishers?.[page.service];
-                            if (adapter?.delete) {
-                                const acct = (window.CList.accounts || [])
-                                    .map(a => parseAccountValue(a)).filter(Boolean)
-                                    .find(pv => pv.type === page.service && pv.instance === page.accountInstance);
-                                if (acct) {
-                                    try { await adapter.delete(page.serviceId, acct); }
-                                    catch (e) { console.error('[mypages] remote delete failed', e); }
-                                }
-                            }
-                        }
-                        if (page.kind === 'page') {
-                            // Standalone page — remove its own page:* kvstore entry.
-                            try {
-                                await window.CList.storage.kv.remove(page.pageKey);
-                                pages.splice(pages.indexOf(page), 1);
-                                renderBody();
-                                showStatusMessage('Page removed.');
-                            } catch (err) {
-                                console.error('[mypages] kvstore delete failed', err);
-                                showErrorModal('Could not remove: ' + (err.code === 'NotAuthenticated' ? 'Not logged in' : err.message), { title: 'Remove failed' });
-                            }
-                            return;
-                        }
-                        // Published collection — remove this URL from the collection's publishedUrls array
-                        try {
-                            const allKvs = await window.CList.storage.kv.list();
-                            const colKv  = (allKvs || []).find(k => k.key === page.collectionKey);
-                            if (colKv) {
-                                const raw = await decryptKVJson(encKey, colKv.value);
-                                const col = _parseCollectionData(raw);
-                                col.publishedUrls = (col.publishedUrls || []).filter(p => p.url !== page.url);
-                                const encrypted = await encryptWithKey(encKey, JSON.stringify({ id: col.id, title: col.title, items: col.items, publishedUrls: col.publishedUrls }));
-                                await window.CList.storage.kv.update(colKv.key, encrypted);
-                            }
-                            pages.splice(pages.indexOf(page), 1);
-                            renderBody();
-                            showStatusMessage('Page removed.');
-                        } catch (err) {
-                            console.error('[mypages] kvstore update failed', err);
-                            showErrorModal('Could not remove: ' + (err.code === 'NotAuthenticated' ? 'Not logged in' : err.message), { title: 'Remove failed' });
-                        }
-                    };
-
-                    const cancelBtn = document.createElement('button');
-                    cancelBtn.className   = 'btn btn-secondary collection-confirm-btn';
-                    cancelBtn.textContent = 'Cancel';
-                    cancelBtn.onclick     = () => {
-                        confirmRow.style.display = 'none';
-                        delBtn.style.display     = '';
-                    };
-
-                    delBtn.onclick = () => {
-                        delBtn.style.display      = 'none';
-                        confirmRow.style.display  = 'flex';
-                    };
-
-                    confirmRow.appendChild(document.createTextNode('Delete this page? '));
-                    confirmRow.appendChild(yesBtn);
-                    confirmRow.appendChild(cancelBtn);
-
-                    actions.appendChild(delBtn);
-                    actionsTd.appendChild(actions);
-                    actionsTd.appendChild(confirmRow);
-                    tr.appendChild(actionsTd);
-
-                    const titleTd = document.createElement('td');
-                    titleTd.innerHTML = `<span class="published-page-title"><a href="${escapeHtml(page.url)}" target="_blank" rel="noopener">${escapeHtml(page.title || page.url)}</a></span>`;
-                    tr.appendChild(titleTd);
-
-                    return tr;
-                }
-
-                function renderBody() {
-                    const sorted   = getSorted();
-                    const total    = sorted.length;
-                    const size     = pageSize === Infinity ? (total || 1) : pageSize;
-                    const maxIndex = Math.max(0, Math.ceil(total / size) - 1);
-                    if (pageIndex > maxIndex) pageIndex = maxIndex;
-                    const start = pageIndex * size;
-                    const end   = Math.min(start + size, total);
-
-                    tbody.innerHTML = '';
-                    sorted.slice(start, end).forEach(p => tbody.appendChild(buildRow(p)));
-
-                    columns.forEach(col => {
-                        if (!col.key) return;
-                        const th = thEls[col.key];
-                        th.classList.toggle('sort-active', sortKey === col.key);
-                        th.innerHTML = '';
-                        th.appendChild(document.createTextNode(col.label));
-                        if (sortKey === col.key) {
-                            const arrow = document.createElement('span');
-                            arrow.className   = 'sort-arrow';
-                            arrow.textContent = sortDir === 'asc' ? '▲' : '▼';
-                            th.appendChild(arrow);
-                        }
-                    });
-
-                    pagination.innerHTML = '';
-
-                    const rangeText = document.createElement('span');
-                    rangeText.textContent = total ? `${start + 1}-${end} of ${total}` : '0 of 0';
-                    pagination.appendChild(rangeText);
-
-                    const sizeSelect = document.createElement('select');
-                    [20, 40, 100, 'All'].forEach(opt => {
-                        const option = document.createElement('option');
-                        option.value       = opt;
-                        option.textContent = opt === 'All' ? 'All' : String(opt);
-                        if ((opt === 'All' && pageSize === Infinity) || opt === pageSize) option.selected = true;
-                        sizeSelect.appendChild(option);
-                    });
-                    sizeSelect.onchange = () => {
-                        pageSize  = sizeSelect.value === 'All' ? Infinity : parseInt(sizeSelect.value, 10);
-                        pageIndex = 0;
-                        renderBody();
-                    };
-                    pagination.appendChild(sizeSelect);
-
-                    const prevBtn = document.createElement('button');
-                    prevBtn.className   = 'btn btn-small';
-                    prevBtn.textContent = 'Prev';
-                    prevBtn.disabled    = pageIndex === 0;
-                    prevBtn.onclick     = () => { pageIndex--; renderBody(); };
-                    pagination.appendChild(prevBtn);
-
-                    const nextBtn = document.createElement('button');
-                    nextBtn.className   = 'btn btn-small';
-                    nextBtn.textContent = 'Next';
-                    nextBtn.disabled    = pageIndex >= maxIndex;
-                    nextBtn.onclick     = () => { pageIndex++; renderBody(); };
-                    pagination.appendChild(nextBtn);
-                }
-
-                renderBody();
-
-            } catch (e) {
-                console.error('[mypages] load failed', e);
-                body.innerHTML = `<p class="list-tip">Could not load pages: ${escapeHtml(e.message)}</p>`;
-            }
-
-            return null;
-        },
-    });
-})();
-
 // ── My Collections loader ───────────────────────────────────────────────────
 // Lets the Load panel pick one of the user's saved (kvstore) collections directly,
 // instead of only being reachable by round-tripping through a published page (My
@@ -1938,7 +1528,9 @@ window.playCollectionSave = async function playCollectionSave() {
     // nested role:'contains' members the same way the editor's own kvstore
     // record does — the export formats only care about items with a url.
     const token  = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
-    const encKey = token ? await getEncKey(window.CList.config.flaskSiteUrl).catch(() => null) : null;
+    const dropboxOwner = { username: window.CList.state.username, storeUrl: window.CList.config.flaskSiteUrl,
+        token, collection: _activeCollection };
+    const encKey = token ? await getEncKey(dropboxOwner.storeUrl).catch(() => null) : null;
 
     const saveOptionsDiv = document.getElementById('save-options');
     saveOptionsDiv.innerHTML = '';
@@ -1999,40 +1591,27 @@ window.playCollectionSave = async function playCollectionSave() {
         dbxBtn.innerHTML = '<span class="service-icon-img" style="-webkit-mask:url(\'assets/icons/dropbox.svg\') no-repeat center / contain;mask:url(\'assets/icons/dropbox.svg\') no-repeat center / contain"></span><span>Save to Dropbox</span>';
 
         dbxBtn.addEventListener('click', async () => {
+            if (dbxBtn.disabled) return;
             const fmt = collectionFormats[formatId];
             if (!fmt) { showErrorModal('Unknown format.', { title: 'Unknown format' }); return; }
             dbxBtn.disabled = true;
-
-            const statusEl = document.createElement('div');
-            statusEl.className = 'feed-status-message';
-            statusEl.style.cssText = 'margin:10px 8px 4px;font-size:0.85em;';
-            saveOptionsDiv.appendChild(statusEl);
-            statusEl.textContent = 'Checking Dropbox…';
-
             try {
-                const flatItems = encKey ? await _flattenForExport(items, identity.id, token, encKey) : items;
-                const content   = fmt.serialize(name, flatItems, identity.id);
-                const filename  = `${name}.${fmt.ext}`;
                 const accountData = parseAccountValue(dropboxAccount);
-
-                const _withRefresh = _dropboxWithRefresh(dropboxAccount, accountData, statusEl);
-
-                const exists = await _withRefresh(t => _dropboxFileExists(t, accountData.folder, filename));
-                const doOverwrite = () => _withRefresh(t => _dropboxUpload(t, accountData.folder, filename, content, 'overwrite'));
-
-                if (!exists) {
-                    statusEl.textContent = 'Saving…';
-                    const result = await _withRefresh(t => _dropboxUpload(t, accountData.folder, filename, content, 'add'));
-                    statusEl.textContent = 'Saved: ' + (result.path_display || filename);
-                } else {
-                    await _promptDropboxOverwrite(statusEl, filename, doOverwrite);
-                }
-            } catch (e) {
-                console.error('[collection save] Dropbox save failed', e);
-                statusEl.textContent = 'Save failed: ' + e.message;
-            } finally {
-                dbxBtn.disabled = false;
-            }
+                if (!accountData) throw new Error('The Dropbox account could not be read.');
+                await saveToDropbox({ found: { account: dropboxAccount, parsedValue: accountData }, target: saveOptionsDiv,
+                    isCurrent: () => _activeCollection === dropboxOwner.collection
+                        && window.CList.state.username === dropboxOwner.username
+                        && window.CList.config.flaskSiteUrl === dropboxOwner.storeUrl
+                        && getSiteSpecificCookie(dropboxOwner.storeUrl, window.CList.keys.ACCESS_TOKEN) === dropboxOwner.token,
+                    prepare: async () => {
+                        const flatItems = encKey ? await _flattenForExport(items, identity.id, token, encKey) : items;
+                        return { value: fmt.serialize(name, flatItems, identity.id), name: `${name}.${fmt.ext}` };
+                    },
+                });
+            } catch (error) {
+                console.error('[collection save] Dropbox save failed', error);
+                showErrorModal('Save failed: ' + error.message, { title: 'Save failed' });
+            } finally { dbxBtn.disabled = false; }
         });
 
         list.appendChild(dbxBtn);
@@ -2220,14 +1799,29 @@ function _generateCatalogAP(pages) {
 // external modules (e.g. collection-formats.js's _offerCollectionChoice,
 // dropbox.js) that cannot access module-private variables like
 // _activeCollection directly.
-window.openParsedAsCollection = async function (parsed) {
+window.openParsedAsCollection = async function (parsed, page = null, isCurrent = () => true) {
+    if (!isCurrent()) return false;
     // Reuse an identity already embedded in the file (Part B) instead of
     // discarding it on load.
-    const { key, id } = _resolveCollectionIdentity(null, parsed.id);
-    _activeCollection = { col: { key, id, name: parsed.title, items: parsed.items }, token: null, encKey: null };
-    if (typeof initializeEditor === 'function') await initializeEditor('collection');
-    if (typeof setLoadedPage === 'function') setLoadedPage(null);
-    if (typeof closeRightPane   === 'function') closeRightPane();
+    const publication = page?.kind === 'collection' ? structuredClone(page) : null;
+    const identity = _resolveCollectionIdentity(publication?.collectionKey, publication?.id || parsed.id);
+    const key = publication?.collectionKey || identity.key, id = identity.id;
+    if (publication && !publication.id) publication.id = id;
+    const previous = _activeCollection;
+    const target = { col: { key, id, name: parsed.title, items: parsed.items }, token: null, encKey: null };
+    _activeCollection = target;
+    const restore = () => { if (_activeCollection === target) _activeCollection = previous; };
+    try {
+        const mounting = typeof initializeEditor === 'function' ? initializeEditor('collection') : true;
+        const switchId = window.CList.state.editorSwitching?.id;
+        const initialized = await mounting;
+        if (!isCurrent() || switchId !== window.CList.state.editorSwitching?.id) { restore(); return false; }
+        if (initialized === false) throw new Error('Collection editor initialization failed.');
+        if (typeof setLoadedPage === 'function') setLoadedPage(publication);
+        if (publication && typeof closeLoadSurfaces === 'function') closeLoadSurfaces();
+        else if (typeof closeRightPane === 'function') closeRightPane();
+        return true;
+    } catch (error) { restore(); throw error; }
 };
 
 // Public bridge: parse text as OPML or RSS and open in the collection editor.

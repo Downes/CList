@@ -1,4 +1,4 @@
-// dropbox.js — Save content to Dropbox
+// Dropbox OAuth setup and explicit HTTP transport. File UI/workflows are separate.
 // Part of CList, the next generation of learning and connecting with your community
 //
 // Setup (one-time per user):
@@ -54,39 +54,14 @@ OAuthClient.onCallback('Dropbox', async data => {
     );
 });
 
-// Also called by the token-refresh path (_dropboxRefreshAndPersist below), which is why this
-// stays a named function rather than being inlined into the onCallback handler above.
+// Initial OAuth account creation. File-operation token refresh uses the captured
+// session in dropbox_session.js and the shared account persistence operation.
 async function _saveDropboxAccount(title, appKey, folder, permissions, accessToken, refreshToken) {
     const accountData = { type: 'Dropbox', appKey, folder, permissions, id: accessToken, refresh: refreshToken };
     await OAuthClient.saveAccount('Dropbox', title, accountData);
 }
 
 // ── Token refresh ─────────────────────────────────────────────────────────────
-
-// Refresh the access token and persist the new one to kvstore.
-async function _dropboxRefreshAndPersist(account, accountData) {
-    const newToken = await _dropboxRefresh(accountData.appKey, accountData.refresh);
-    accountData.id = newToken;
-    await _saveDropboxAccount(account.key, accountData.appKey, accountData.folder,
-        accountData.permissions, newToken, accountData.refresh);
-    return newToken;
-}
-
-// Shared by this file's saver and collections.js's "Save to Dropbox" button —
-// returns a call wrapper that retries once, silently, after refreshing the
-// token on a 401. Callers do: const withRefresh = _dropboxWithRefresh(account, accountData, statusEl);
-// await withRefresh(t => _dropboxUpload(t, ...));
-function _dropboxWithRefresh(account, accountData, statusEl) {
-    let token = accountData.id;
-    return async function withRefresh(fn) {
-        try { return await fn(token); } catch (err) {
-            if (!accountData.refresh || !err.message.includes('401')) throw err;
-            statusEl.textContent = 'Refreshing token…';
-            token = await _dropboxRefreshAndPersist(account, accountData);
-            return await fn(token);
-        }
-    };
-}
 
 async function _dropboxRefresh(appKey, refreshToken) {
     const resp = await fetch('https://api.dropboxapi.com/oauth2/token', {
@@ -108,7 +83,8 @@ async function _dropboxRefresh(appKey, refreshToken) {
 
 async function _dropboxUpload(accessToken, folder, filename, content, mode = 'add') {
     const path = (folder || '/CList').replace(/\/$/, '') + '/' + filename;
-    const resp = await fetch('https://content.dropboxapi.com/2/files/upload', {
+    let resp;
+    try { resp = await fetch('https://content.dropboxapi.com/2/files/upload', {
         method:  'POST',
         headers: {
             'Authorization':   'Bearer ' + accessToken,
@@ -116,12 +92,29 @@ async function _dropboxUpload(accessToken, folder, filename, content, mode = 'ad
             'Content-Type':    'application/octet-stream',
         },
         body: content,
-    });
-    if (!resp.ok) {
-        const text = await resp.text().catch(() => '');
-        throw new Error(`Dropbox upload failed (${resp.status}): ${text}`);
+    }); } catch (cause) {
+        const error = new Error('The Dropbox upload could not be confirmed. Check Dropbox before retrying.');
+        error.cause = cause; error.uncertain = true; throw error;
     }
-    return await resp.json();
+    if (!resp.ok) {
+        throw await _dropboxResponseError(resp, 'upload');
+    }
+    try { return await resp.json(); } catch (cause) {
+        const error = new Error('Dropbox accepted the upload, but its receipt could not be read. Check Dropbox before retrying.');
+        error.cause = cause; error.uncertain = true; throw error;
+    }
+}
+
+async function _dropboxResponseError(response, operation) {
+    const text = await response.text().catch(() => '');
+    let data = null;
+    try { data = JSON.parse(text); } catch { /* Unstructured service response remains visible below. */ }
+    const error = new Error(`Dropbox ${operation} failed (${response.status}): ${text}`);
+    error.status = response.status;
+    error.missingScope = text.includes('missing_scope');
+    error.conflict = response.status === 409 && data?.error?.['.tag'] === 'path'
+        && data.error.path?.['.tag'] === 'conflict';
+    return error;
 }
 
 async function _dropboxFileExists(accessToken, folder, filename) {
@@ -138,11 +131,11 @@ async function _dropboxFileExists(accessToken, folder, filename) {
         // logic sees it, instead of being read as a false "file doesn't exist".
         const data = await resp.json().catch(() => null);
         if (data?.error?.['.tag'] === 'path' && data.error.path?.['.tag'] === 'not_found') return false;
-        throw new Error(`Dropbox metadata check failed (409): ${JSON.stringify(data)}`);
+        const error = new Error(`Dropbox metadata check failed (409): ${JSON.stringify(data)}`);
+        error.status = 409; throw error;
     }
     if (!resp.ok) {
-        const text = await resp.text().catch(() => '');
-        throw new Error(`Dropbox metadata check failed (${resp.status}): ${text}`);
+        throw await _dropboxResponseError(resp, 'metadata check');
     }
     const data = await resp.json();
     return data['.tag'] === 'file';
@@ -158,12 +151,18 @@ async function _dropboxListFolder(token, folder) {
         body:    JSON.stringify({ path, recursive: false }),
     });
     if (!resp.ok) {
-        const text = await resp.text().catch(() => '');
-        const err = new Error(`Dropbox list failed (${resp.status}): ${text}`);
-        if (text.includes('missing_scope')) err.missingScope = true;
-        throw err;
+        throw await _dropboxResponseError(resp, 'list');
     }
     return await resp.json(); // { entries: [...], cursor, has_more }
+}
+
+async function _dropboxContinueFolder(token, cursor) {
+    const response = await fetch('https://api.dropboxapi.com/2/files/list_folder/continue', {
+        method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cursor }),
+    });
+    if (!response.ok) throw await _dropboxResponseError(response, 'list continuation');
+    return response.json();
 }
 
 async function _dropboxDownloadFile(token, path) {
@@ -175,315 +174,7 @@ async function _dropboxDownloadFile(token, path) {
         },
     });
     if (!resp.ok) {
-        const text = await resp.text().catch(() => '');
-        const err = new Error(`Dropbox download failed (${resp.status}): ${text}`);
-        if (text.includes('missing_scope')) err.missingScope = true;
-        throw err;
+        throw await _dropboxResponseError(resp, 'download');
     }
     return await resp.text();
 }
-
-// ── Saver registration ────────────────────────────────────────────────────────
-
-function _promptDropboxOverwrite(statusEl, filename, doOverwrite) {
-    return new Promise(resolve => {
-        statusEl.innerHTML = '';
-        const title = document.createElement('p');
-        title.className = 'list-tip-title';
-        title.textContent = `Overwrite "${filename}"?`;
-        statusEl.appendChild(title);
-
-        const msg = document.createElement('p');
-        msg.className = 'list-tip';
-        msg.textContent = `"${filename}" already exists in Dropbox.`;
-        statusEl.appendChild(msg);
-
-        const row = document.createElement('div');
-        row.style.cssText = 'display:flex;gap:6px';
-
-        const overwriteBtn = document.createElement('button');
-        overwriteBtn.className   = 'btn btn-small';
-        overwriteBtn.textContent = 'Overwrite';
-        overwriteBtn.onclick = async () => {
-            overwriteBtn.disabled = true;
-            cancelBtn.disabled    = true;
-            statusEl.textContent  = 'Saving…';
-            try {
-                const result = await doOverwrite();
-                statusEl.textContent = 'Saved: ' + (result.path_display || filename);
-            } catch (err) {
-                statusEl.textContent = 'Save failed: ' + err.message;
-                console.error('[Dropbox overwrite]', err);
-            }
-            resolve({ keepOpen: true });
-        };
-
-        const cancelBtn = document.createElement('button');
-        cancelBtn.className   = 'btn btn-small btn-secondary';
-        cancelBtn.textContent = 'Cancel';
-        cancelBtn.onclick = () => {
-            statusEl.textContent = 'Cancelled.';
-            resolve({ keepOpen: true });
-        };
-
-        row.appendChild(overwriteBtn);
-        row.appendChild(cancelBtn);
-        statusEl.appendChild(row);
-    });
-}
-
-(function () {
-    function _slug(title) {
-        return slugify(title, { maxLength: 60, fallback: 'clist-post' });
-    }
-
-    window.CList.savers = window.CList.savers || [];
-    window.CList.savers.push({
-        label:   'Save to Dropbox',
-        logoSrc: 'assets/icons/dropbox.svg',
-        // Declared for documentation; visible() below is the actual gate since it must
-        // also match the account TYPE (Dropbox specifically), which the flags alone can't express.
-        requiresLogin:   true,
-        requiresAccount: true,
-        visible: () => typeof isRegistered === 'function' && isRegistered() && !!findAccountByType('Dropbox', { permission: 'b' }),
-        save: async () => {
-            const found = findAccountByType('Dropbox', { permission: 'b' });
-            if (!found) {
-                showErrorModal('No Dropbox account configured. Add one in Accounts.', { title: 'No Dropbox account' });
-                return; // let publish.js close the pane as normal
-            }
-            const accountData = found.parsedValue;
-
-            // A loaded file (kind: 'file') with no references round-trips as raw,
-            // unwrapped content under its exact original filename — it never had
-            // an HTML "post" structure to begin with, so forcing one (and forcing
-            // a .html extension) would silently change the file's format. Any
-            // other source (a page/collection/local-page, or a file that picked up
-            // references while being edited) still gets packagePost()'s HTML wrapper.
-            const isRawFileRoundTrip = currentLoadedPage?.kind === 'file' && getReferences().length === 0;
-
-            let content, filename;
-            if (isRawFileRoundTrip) {
-                content  = await editorHandlers[currentEditor]?.getContent?.();
-                filename = currentLoadedPage.title; // exact original name, not slugified
-            } else {
-                content = await packagePost();
-                // The filename must come from the Editor States Array's own record for
-                // this editor (currentLoadedPage), not from the on-screen title field —
-                // a loaded file (kind: 'file') never populates the title field, so
-                // reading from there silently fell back to the generic 'clist-post'
-                // default instead of the loaded file's actual name.
-                const title    = (window.CList.ui.view.writeTitle?.innerText || '').trim();
-                const baseName = currentLoadedPage?.kind === 'file'
-                    ? currentLoadedPage.title.replace(/\.[^./]+$/, '')
-                    : (currentLoadedPage?.title || title);
-                filename = _slug(baseName) + '.html';
-            }
-            if (!content) return;
-
-            // Status area injected below the saver list — persists as long as pane stays open.
-            const saveOptions = document.getElementById('save-options');
-            let statusEl = document.getElementById('dropbox-save-status');
-            if (!statusEl) {
-                statusEl = document.createElement('div');
-                statusEl.id        = 'dropbox-save-status';
-                statusEl.className = 'feed-status-message';
-                statusEl.style.cssText = 'margin:10px 8px 4px;font-size:0.85em;';
-                saveOptions?.appendChild(statusEl);
-            }
-            statusEl.textContent = 'Checking Dropbox…';
-
-            // Ensure a valid token, refreshing silently if needed.
-            const _withRefresh = _dropboxWithRefresh(found.account, accountData, statusEl);
-
-            let exists;
-            try {
-                exists = await _withRefresh(t => _dropboxFileExists(t, accountData.folder, filename));
-            } catch (err) {
-                statusEl.textContent = 'Error: ' + err.message;
-                console.error('[Dropbox save]', err);
-                return { keepOpen: true };
-            }
-
-            const doOverwrite = () => _withRefresh(t => _dropboxUpload(t, accountData.folder, filename, content, 'overwrite'));
-
-            if (!exists) {
-                // File is new — upload immediately.
-                statusEl.textContent = 'Saving…';
-                try {
-                    const result = await _withRefresh(t => _dropboxUpload(t, accountData.folder, filename, content, 'add'));
-                    statusEl.textContent = 'Saved: ' + (result.path_display || filename);
-                    return { keepOpen: true };
-                } catch (err) {
-                    if (!err.message.includes('conflict')) {
-                        statusEl.textContent = 'Save failed: ' + err.message;
-                        console.error('[Dropbox save]', err);
-                        return { keepOpen: true };
-                    }
-                    // Dropbox says the file exists after all — the exists-check above
-                    // was stale or wrong (or another save landed in between). Fall back
-                    // to the same overwrite confirmation rather than just failing.
-                    console.error('[Dropbox save] add conflicted, falling back to overwrite prompt:', err);
-                }
-            }
-
-            // File already exists — ask the user.
-            return _promptDropboxOverwrite(statusEl, filename, doOverwrite);
-        },
-    });
-})();
-
-// ── Loader registration ───────────────────────────────────────────────────────
-
-(function () {
-
-    function _fileIcon(filename) {
-        const fmt = _detectFormat('', filename);
-        if (fmt === 'html')                                        return 'article';
-        if (fmt === 'opml' || fmt === 'rss' || fmt === 'json')      return 'list_alt';
-        return 'description';
-    }
-
-    async function _openInEditor(text, filename) {
-        const content = restorePostContent(text, '', filename);
-        await loadSavedPage(content, content.page, window.CList.ui.view.loadOptions, () => populateLoadOptions());
-    }
-
-    window.CList.loaders = window.CList.loaders || [];
-    window.CList.loaders.push({
-        label:   'Load from Dropbox',
-        logoSrc: 'assets/icons/dropbox.svg',
-        // Declared for documentation; visible() below is the actual gate since it must
-        // also match the account TYPE (Dropbox specifically), which the flags alone can't express.
-        requiresLogin:   true,
-        requiresAccount: true,
-        visible: () => typeof isRegistered === 'function' && isRegistered() && !!findAccountByType('Dropbox'),
-        load: () => new Promise(resolve => {
-            const optionsDiv = window.CList.ui.view.loadOptions;
-            optionsDiv.innerHTML = '<p class="list-tip">Loading Dropbox files…</p>';
-
-            (async () => {
-                const found = findAccountByType('Dropbox');
-                if (!found) {
-                    optionsDiv.innerHTML = '<p class="list-tip">No Dropbox account configured.</p>';
-                    return resolve(null);
-                }
-                const account     = found.account;
-                const accountData = found.parsedValue;
-
-                let listing;
-                try {
-                    listing = await _dropboxListFolder(accountData.id, accountData.folder);
-                } catch (err) {
-                    if (accountData.refresh && err.message.includes('401') && !err.missingScope) {
-                        try {
-                            const newToken = await _dropboxRefreshAndPersist(account, accountData);
-                            listing = await _dropboxListFolder(newToken, accountData.folder);
-                        } catch (err2) {
-                            optionsDiv.innerHTML = `<p class="list-tip">Token refresh failed: ${err2.message}</p>`;
-                            return resolve(null);
-                        }
-                    } else {
-                        optionsDiv.innerHTML = `<p class="list-tip">Could not list Dropbox files: ${err.message}</p>`;
-                        return resolve(null);
-                    }
-                }
-
-                const files = (listing.entries || [])
-                    .filter(e => e['.tag'] === 'file')
-                    .sort((a, b) => (b.server_modified || '').localeCompare(a.server_modified || ''));
-
-                if (!files.length) {
-                    optionsDiv.innerHTML = `<p class="list-tip">No files found in ${accountData.folder || '/CList'}.</p>`;
-                    return resolve(null);
-                }
-
-                optionsDiv.innerHTML = '';
-                const tip = document.createElement('p');
-                tip.className   = 'list-tip';
-                tip.textContent = 'Choose a file to load';
-                optionsDiv.appendChild(tip);
-
-                const list = document.createElement('div');
-                list.className = 'account-list';
-
-                // Persistent error area shown below the file list on download failure.
-                const loadErrEl = document.createElement('div');
-                loadErrEl.className   = 'error-message';
-                loadErrEl.style.cssText = 'margin:10px 8px 4px;font-size:0.82em;display:none;';
-
-                function _showLoadError(msg) {
-                    loadErrEl.textContent = msg;
-                    loadErrEl.style.display = 'block';
-                }
-
-                for (const file of files) {
-                    const btn = document.createElement('button');
-                    btn.className = 'account-button';
-
-                    const iconEl = document.createElement('span');
-                    iconEl.className   = 'material-icons';
-                    iconEl.textContent = _fileIcon(file.name);
-                    btn.appendChild(iconEl);
-
-                    const nameEl = document.createElement('span');
-                    nameEl.textContent = file.name;
-                    btn.appendChild(nameEl);
-
-                    btn.addEventListener('click', async () => {
-                        loadErrEl.style.display = 'none';
-                        btn.disabled = true;
-                        btn.innerHTML = '';
-                        const spinEl = document.createElement('span');
-                        spinEl.className   = 'material-icons';
-                        spinEl.textContent = 'hourglass_top';
-                        btn.appendChild(spinEl);
-                        const loadingEl = document.createElement('span');
-                        loadingEl.textContent = 'Loading…';
-                        btn.appendChild(loadingEl);
-
-                        function _resetBtn() {
-                            btn.disabled = false;
-                            btn.innerHTML = '';
-                            btn.appendChild(iconEl);
-                            btn.appendChild(nameEl);
-                        }
-
-                        try {
-                            let text = await _dropboxDownloadFile(accountData.id, file.path_display);
-                            await _openInEditor(text, file.name);
-                            resolve(null);
-                        } catch (err) {
-                            if (accountData.refresh && err.message.includes('401') && !err.missingScope) {
-                                try {
-                                    const newToken = await _dropboxRefreshAndPersist(account, accountData);
-                                    const text = await _dropboxDownloadFile(newToken, file.path_display);
-                                    await _openInEditor(text, file.name);
-                                    resolve(null);
-                                } catch (err2) {
-                                    console.error('[Dropbox load]', err2);
-                                    _showLoadError('Load failed: ' + err2.message);
-                                    _resetBtn();
-                                }
-                            } else {
-                                console.error('[Dropbox load]', err);
-                                const isScope = err.message.includes('scope') || err.message.includes('not permitted');
-                                const msg = isScope
-                                    ? 'Missing permission — go to your Dropbox App Console → Permissions tab, '
-                                      + 'enable files.content.read, click Submit, then re-authorize CList from Accounts.'
-                                    : 'Load failed: ' + err.message;
-                                _showLoadError(msg);
-                                _resetBtn();
-                            }
-                        }
-                    });
-
-                    list.appendChild(btn);
-                }
-
-                optionsDiv.appendChild(list);
-                optionsDiv.appendChild(loadErrEl);
-            })();
-        }),
-    });
-})();

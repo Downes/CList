@@ -1,0 +1,132 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CList Find boundary regression</title>
+<h1>Find search boundary</h1>
+<p>Real Find state/controller/view, shared feed renderer, and OpenAlex/Commons request and normalization code. API responses, listing widgets, feedback, and reader invalidation are mocked. No external API requests or storage writes; this does not verify live services or the full reader controller.</p>
+<pre id="result">Checking Find boundary…</pre>
+<div id="left-content"></div><div id="feed-container"></div>
+<script>
+window.CList = {config:{flaskSiteUrl:'https://fixture.invalid'}, keys:{ACCESS_TOKEN:'access_token'},
+ state:{username:'fixture',reader:{requestId:0}}, accounts:[],readers:{}};
+let fixtureToken = 'fixture-token';
+window.getSiteSpecificCookie = () => fixtureToken;
+window.isRegistered = () => true;
+window.openLeftInterface = panel => document.getElementById('left-content').replaceChildren(panel);
+window.invalidateReader = () => { invalidateFindRequest(); CList.state.reader.requestId++; };
+window.fetch = () => { throw Error('Unexpected API request'); };
+window.escapeHtml = value => String(value).replaceAll('&','&amp;').replaceAll('<','&lt;');
+</script>
+<script src="../js/ui.js?v=2026-11-19.1"></script>
+<script src="../js/find-state.js?v=2026-11-19.1"></script>
+<script src="../js/find-view.js?v=2026-11-19.1"></script>
+<script src="../js/find.js?v=2026-11-19.1"></script>
+<script src="../js/openalex.js?v=2026-11-19.1"></script>
+<script src="../js/commons.js?v=2026-11-19.1"></script>
+<script>
+(async () => {
+ const check = (value,message) => { if (!value) throw Error(message); };
+ const deferred = () => { let resolve,reject; const promise=new Promise((yes,no)=>{resolve=yes;reject=no;}); return {promise,resolve,reject}; };
+ const feed = document.getElementById('feed-container');
+ const errors = [], requests = [], responses = [];
+ let checks = 0;
+ const assert = (value,message) => { check(value,message); checks++; };
+ const query = value => { const input=document.getElementById('find-input'); input.value=value; input.dispatchEvent(new Event('input',{bubbles:true})); };
+ const button = label => [...document.querySelectorAll('#find-section .account-button')].find(el=>el.lastChild.textContent===label);
+ const select = label => button(label).onclick();
+ const open = () => playFind();
+ const settle = async () => { for(let i=0;i<30 && findState().status==='loading';i++) await new Promise(resolve=>setTimeout(resolve,0)); check(findState().status!=='loading','Search did not settle'); };
+ window.showErrorModal = (message,options) => errors.push({message,title:options.title});
+ window.showServiceError = (container,title,message) => { errors.push({title,message}); const el=document.createElement('p'); el.textContent=message; container.appendChild(el); };
+ // Keep the actual shared renderFeed and renderLoadMoreButton, with small safe listing widgets.
+ window.makeListing = item => { const el=document.createElement('article'); el.textContent=item.title; return el; };
+ window.fetch = async (input,options) => {
+  const url=new URL(input); requests.push({url,options});
+  if(!['api.openalex.org','commons.wikimedia.org'].includes(url.hostname)) throw Error('Unexpected API host');
+  if(!responses.length) throw Error('Unexpected API request: '+url);
+  const body=await responses.shift();
+  return {ok:true,json:async()=>body};
+ };
+ const work = title => ({id:'https://openalex.org/W1',display_name:title,publication_year:2026});
+ const image = title => ({pageid:1,title:'File:'+title,imageinfo:[{url:'https://fixture.invalid/image.jpg',descriptionurl:'https://fixture.invalid/File',extmetadata:{ObjectName:{value:title}}}]});
+ try {
+  CList.readers.hidden={label:'Hidden',visible:()=>false,search:()=>{throw Error('Hidden provider ran');}};
+  CList.readers.noSearch={label:'Not a search provider',requiresLogin:false,requiresAccount:false};
+  let legacyArgs,legacyQuery;
+  CList.readers.legacy={label:'<img src=x onerror=bad()>',requiresLogin:false,requiresAccount:false,
+   search:function(){legacyArgs=arguments.length;legacyQuery=finderString();}};
+  open();
+  assert(!button('Hidden')&&!button('Not a search provider'),'Provider availability filters controls');
+  assert(!document.querySelector('#find-section img'),'Provider labels are literal text');
+  await select('<img src=x onerror=bad()>');
+  assert(errors.at(-1).message==='Please enter a search term.'&&errors.at(-1).title==='Search Term Required','Empty query shows existing validation');
+  errors.length=0;
+  query(' captured query '); document.getElementById('find-input').value='DOM tamper';
+  await select('<img src=x onerror=bad()>');
+  assert(legacyArgs===0&&legacyQuery==='captured query','Legacy provider keeps no-argument call and reads query state');
+
+  const gates=[];
+  CList.readers.controlled={label:'Controlled',requiresLogin:false,requiresAccount:false,supportsFindContext:true,
+   search:(q,context)=>{const gate=deferred();gates.push({q,context,...gate});return gate.promise;}};
+  open(); query('first');
+  const first=select('Controlled'); await select('Controlled');
+  assert(gates.length===1,'Duplicate pending provider/query is ignored');
+  assert(button('Controlled').getAttribute('aria-busy')==='true'&&!button('Controlled').disabled,'Busy is accessible and permits superseding searches');
+  query('second'); const second=select('Controlled');
+  assert(gates.length===2&&gates[0].context.signal.aborted,'A changed query supersedes pending search');
+  await gates[1].context.render([{title:'Newest'}],{normalize:async item=>item,title:'Results'});
+  gates[1].resolve(); await second;
+  gates[0].context.fail('Stale',Error('Stale API failure')); gates[0].reject(Error('Stale rejection')); await first;
+  assert(feed.textContent.includes('Newest')&&errors.length===0,'Superseded results and failures cannot replace current feed');
+
+  query('late normalization'); const normalizing=select('Controlled');
+  const normalized=deferred(); const rendering=gates[2].context.render([{title:'Late normalization'}],{normalize:()=>normalized.promise,title:'Waiting'});
+  invalidateReader('account'); feed.textContent='Reader owns feed';
+  normalized.resolve({title:'Late normalization'}); await rendering; gates[2].resolve(); await normalizing;
+  assert(feed.textContent==='Reader owns feed','Reader changes reject completion after async normalization');
+  query('session'); const sessionSearch=select('Controlled'); fixtureToken='changed-token';
+  await gates[3].context.render([{title:'Wrong session'}],{normalize:async item=>item});
+  gates[3].context.fail('Session',Error('Wrong session')); gates[3].reject(Error('Wrong session')); await sessionSearch;
+  assert(feed.textContent==='Reader owns feed'&&errors.length===0,'Session changes suppress late render and errors');
+  fixtureToken='fixture-token';
+
+  open(); query('openalex captured');
+  responses.push({results:[work('OpenAlex first')],meta:{count:26}}); await select('OpenAlex');
+  const oldOpenAlexMore=document.getElementById('openalex-load-more').onclick;
+  assert(feed.textContent.includes('OpenAlex first')&&requests.at(-1).url.searchParams.get('search')==='openalex captured','Actual OpenAlex request and normalization render');
+  query('edited after request'); responses.push({results:[work('OpenAlex second')],meta:{count:26}});
+  await oldOpenAlexMore();
+  assert(requests.at(-1).url.searchParams.get('search')==='openalex captured'&&requests.at(-1).url.searchParams.get('page')==='2'&&feed.querySelectorAll('article').length===2,'OpenAlex pagination keeps captured query and appends');
+  const countBeforeStale=requests.length;
+  await oldOpenAlexMore(); assert(requests.length===countBeforeStale,'Old OpenAlex page callback expires after next request');
+
+  query('commons captured');
+  responses.push({query:{pages:{1:image('Commons first')}},continue:{gsroffset:20}}); await select('Wikimedia Commons');
+  const commonsMore=document.getElementById('commons-load-more').onclick;
+  assert(feed.textContent.includes('Commons first')&&requests.at(-1).url.searchParams.get('gsrsearch')==='commons captured','Actual Commons request and normalization render');
+  const obsoleteButton=button('Wikimedia Commons');
+  invalidateFindPanel(); document.getElementById('left-content').replaceChildren();
+  const beforeClose=requests.length; await obsoleteButton.onclick();
+  assert(requests.length===beforeClose,'Closing panel expires its provider controls');
+  responses.push({query:{pages:{2:image('Commons second')}}}); await commonsMore();
+  assert(requests.at(-1).url.searchParams.get('gsrsearch')==='commons captured'&&requests.at(-1).url.searchParams.get('gsroffset')==='20'&&feed.querySelectorAll('article').length===2,'Closing panel retains feed pagination with captured Commons query');
+  const beforeOldCallbacks=requests.length; await commonsMore(); await oldOpenAlexMore();
+  assert(requests.length===beforeOldCallbacks,'Replaced provider and page callbacks cannot fetch');
+
+  open(); query('<img src=x onerror=bad()>'); responses.push({results:[],meta:{count:0}}); await select('OpenAlex');
+  assert(feed.textContent.includes('<img src=x onerror=bad()>')&&!feed.querySelector('img')&&feed.textContent.includes('No results found.'),'Empty results render query/header safely');
+  query('real API failure'); responses.push({error:'API failed',message:'Fixture rejection'}); await select('OpenAlex');
+  assert(errors.at(-1).message==='Fixture rejection'&&findState().status==='failed','Current provider API error reaches visible view feedback');
+
+  open(); query('slow API'); const slow=deferred(); responses.push(slow.promise); const slowSearch=select('OpenAlex');
+  query('fast API'); responses.push({query:{pages:{1:image('Fast API winner')}}}); await select('Wikimedia Commons');
+  const errorsBefore=errors.length; slow.reject(Error('Obsolete network error')); await slowSearch;
+  assert(feed.textContent.includes('Fast API winner')&&errors.length===errorsBefore,'Actual provider stale network failure is suppressed');
+  await settle();
+  assert(responses.length===0,'Every mocked API response was consumed');
+  document.body.dataset.result='PASS';
+  document.getElementById('result').textContent=`PASS: ${checks} checks. Real Find controls/state/controller, shared progressive renderer, actual OpenAlex/Commons API construction and normalizers, captured pagination, stale work/session/reader guards, safe text, and legacy compatibility. API responses, listing widgets, reader invalidation and feedback are mocked; no live service or complete reader integration verified.`;
+ } catch(error) {
+  console.error(error); document.body.dataset.result='FAIL'; document.getElementById('result').textContent='FAIL: '+error.message;
+ }
+})();
+</script>

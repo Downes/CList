@@ -1,3 +1,4 @@
+/// <reference path="./reader-types.js" />
 
 
 // Handler
@@ -16,10 +17,11 @@
             ${expandBtn}
             ${openInBrowserButton(itemLink, itemID)}`;
         },
-        search: async () => {
-            const q = finderString();
+        supportsFindContext: true,
+        search: async (query, context) => {
+            const q = query === undefined ? finderString() : query;
             if (!q) return;
-            await commonsSearch(q);
+            await commonsSearch(q, 0, context);
         }
     };
 
@@ -45,7 +47,9 @@ const COMMONS_PAGE_SIZE = 20;
 // are searched (gsrnamespace=6), and everything in Commons' main namespace is
 // already under a free license by site policy, so there's no license
 // filtering to do (unlike Openverse's cross-source aggregation).
-async function commonsSearch(q, offset = 0) {
+/** @param {string} q @param {number} [offset] @param {CListFindContext} [context] */
+async function commonsSearch(q, offset = 0, context) {
+    if (context && !context.isCurrent()) return;
     const feedContainer = window.CList.ui.view.feedContainer;
     const params = new URLSearchParams({
         action: 'query',
@@ -63,7 +67,7 @@ async function commonsSearch(q, offset = 0) {
 
     let data;
     try {
-        const response = await fetch(`https://commons.wikimedia.org/w/api.php?${params}`);
+        const response = await fetch(`https://commons.wikimedia.org/w/api.php?${params}`, context ? {signal:context.signal} : undefined);
 
         if (!response.ok) {
             throw new Error(`HTTP error! Status: ${response.status}`);
@@ -74,17 +78,24 @@ async function commonsSearch(q, offset = 0) {
         if (data.error) throw new Error(data.error.info || data.error.code);
 
     } catch (error) {
+        if (context) { context.fail('Search failed', error); return; }
         console.error("Error accessing the URL:", error.message);
         showServiceError(feedContainer, 'Search failed', 'Could not reach Wikimedia Commons. Try again in a moment.');
         return;
     }
 
+    if (context && !context.isCurrent()) return;
     const pages = data.query && data.query.pages ? Object.values(data.query.pages) : [];
     // generator=search can surface a File: page with no imageinfo (e.g. one
     // that's since been deleted but still in the search index) — skip those.
     const results = pages.filter(p => Array.isArray(p.imageinfo) && p.imageinfo.length > 0);
 
     if (results.length === 0) {
+        if (context) {
+            if (offset > 0) await context.render([], {normalize:normalizeCommonsPage,append:true,loadMoreBtnId:'commons-load-more'});
+            else context.empty(`Wikimedia Commons: "${q}"`);
+            return;
+        }
         feedContainer.innerHTML = '';
         feedContainer.appendChild(createFeedHeader(`Wikimedia Commons: "${q}"`));
         const statusBox = document.createElement('div');
@@ -96,13 +107,15 @@ async function commonsSearch(q, offset = 0) {
 
     const nextOffset = data.continue ? data.continue.gsroffset : null;
 
-    await window.CList.ui.renderFeed(results, feedContainer, {
+    const options = {
         normalize: normalizeCommonsPage,
         title: offset === 0 ? `Wikimedia Commons: "${q}"` : null,
         append: offset > 0,
-        onLoadMore: nextOffset ? () => commonsSearch(q, nextOffset) : null,
+        onLoadMore: nextOffset ? (context ? () => context.next(next => commonsSearch(q, nextOffset, next)) : () => commonsSearch(q, nextOffset)) : null,
         loadMoreBtnId: 'commons-load-more',
-    });
+    };
+    if (context) await context.render(results, options);
+    else await window.CList.ui.renderFeed(results, feedContainer, options);
 }
 
 // Strips HTML out of a Commons extmetadata field — Artist/Credit/Attribution

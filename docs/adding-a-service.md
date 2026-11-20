@@ -618,3 +618,20 @@ is selected. UI-only feed-menu actions may declare their labels in `uiActions`;
 these receive the current context without invalidating the displayed feed or its
 pagination. LocalRSS uses this for Options. Service option controls can use
 `reloadReader(type, load, feedName)` to request an explicitly named view.
+
+## Find providers
+
+Register a `search` method on the existing `CList.readers` entry with the usual
+label/icon/logo and visibility flags. Legacy methods receive no arguments and
+can call `finderString()` for the current state-owned term. New providers should
+set `supportsFindContext: true` and implement `async search(query, context)`.
+Use the explicit query; pass `context.signal` to fetch, route results through
+`context.render(items, {normalize, title, ...})`, empty feedback through
+`context.empty(title)` and caught failures through `context.fail(title, error)`.
+`context.next(nextContext => fetchPage(capturedQuery, cursor, nextContext))`
+provides guarded pagination. Preserve captures rather than re-reading the input.
+
+The context checks request/session/provider/reader/feed-target ownership and the
+shared renderer checks between asynchronous normalization steps. It does not
+cancel arbitrary direct DOM writes. Keep credentials out of `CList.state.find`.
+This search capability is separate from account readers' `supportsRequestContext`.

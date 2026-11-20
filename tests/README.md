@@ -559,7 +559,7 @@ DOM controls and the new modules; editor APIs, accounts and storage are mocked,
 with no external requests or file writes. Also rerun
 `tests/file-recognition.browser.html` and `tests/editor-references.browser.html`
 for the real-handler integration paths. The visible editor marker is
-`test 2026-11-18.5`.
+`test 2026-11-19.1`.
 
 In the normal app, switch between Text, HTML and Annotation with bodies, references
 and loaded files. Check Overwrite, Insert, Don't transfer and Cancel; confirm that
@@ -583,7 +583,7 @@ source launcher (adjust to its actual port). Expect a final `PASS:` for Load/Bla
 and loaded-page controls. It uses real DOM/modules with mocked editors, loaders
 and memory-only storage; no external requests or file writes. Also rerun
 `tests/editor-switch.browser.html`, `tests/file-recognition.browser.html` and
-`tests/editor-references.browser.html`. Marker: `test 2026-11-18.5`.
+`tests/editor-references.browser.html`. Marker: `test 2026-11-19.1`.
 
 In the normal app, open Load, select a source and cancel; check Load blank on the
 current editor (Cancel and Discard), then on another editor and back. Confirm that
@@ -604,7 +604,7 @@ Open `https://localhost:51888/tests/save-panel.browser.html` through the source
 launcher (adjust to its actual URL). Expect final `PASS:` from real DOM/modules
 with mocked savers/accounts/storage, no external requests or file writes. Also
 rerun `tests/publish-selection.browser.html` for adjacent Post-panel behavior.
-The normal-app editor marker is `test 2026-11-18.5`.
+The normal-app editor marker is `test 2026-11-19.1`.
 
 In the normal app, check the Save destination list, cancellation of local saving,
 and successful saving of an existing sample document/annotation. For available
@@ -627,7 +627,7 @@ source launcher (adjust the port as needed), then rerun
 `tests/editor-references.browser.html` and `tests/editor-switch.browser.html`.
 Expect final `PASS:` from each. The new fixture uses real DOM and modules with
 mocked editor switching and collection APIs, with no external requests or
-file/storage writes. Normal-app editor marker: `test 2026-11-18.5`.
+file/storage writes. Normal-app editor marker: `test 2026-11-19.1`.
 
 In the normal app, open Refs, edit author/title/feed/URL, remove a reference and
 switch away/back. Check that reply metadata remains intact, explicit Annotate
@@ -652,7 +652,7 @@ Open `https://localhost:51888/tests/tags.browser.html` through the source launch
 mocked storage/encryption/sessions, no external requests or file/storage writes.
 Also rerun `tests/editor-switch.browser.html` and
 `tests/file-recognition.browser.html` for adjacent mount/load paths. Normal-app
-marker: `test 2026-11-18.5`. These browser checks remain separate from Node.
+marker: `test 2026-11-19.1`. These browser checks remain separate from Node.
 
 In the normal app, add/remove tags using Enter, comma, Backspace and suggestions;
 check that unfinished text and selected tags survive editor switching. Check
@@ -660,3 +660,87 @@ anonymous tagging and the No choice without storage writes. A deliberate Yes on
 a new test collection and live storage authorization are separate manual actions,
 not established by mocked fixture PASS. No real collections are created by the
 automated checks.
+
+## Find/search
+
+Run `node --test tests/find.test.cjs tests/reader-controller.test.cjs tests/localrss-reader.test.cjs`,
+then the full Node suite. Find tests use real state/controller/view, central reader
+invalidation, shared progressive renderer and real OpenAlex/Commons request code,
+with mocked requests/normalizers/listing widgets. They cover query capture versus
+DOM tampering, visibility, empty input, legacy method binding/no arguments,
+duplicates, supersession, session/target/reader invalidation, late normalization,
+encoded queries/cursors, retained earlier pages, failed-page explicit retry,
+empty continuations, and safe literal feedback. They do not establish live APIs.
+
+Open `https://localhost:51888/tests/find.browser.html` through the source launcher
+(adjust the port as needed), plus `tests/reader-boundary.browser.html` for adjacent
+central account reading. The Find fixture uses real DOM/modules/shared renderer
+and OpenAlex/Commons normalizers, with mocked API responses, listing widgets,
+feedback and reader invalidation. Expect final PASS. It does not run live searches
+or perform storage writes. Editor marker: `test 2026-11-19.1`.
+
+On 2026-11-19 the Tags fixture (`tests/tags.browser.html`, source marker
+2026-11-18.5) was run in the in-app browser and reported its full PASS. The Find
+fixture also reported PASS (21 checks), and the adjacent reader-boundary fixture
+also reported PASS. These browser observations are separate from Node evidence.
+In the normal app, check Find query input, provider changes and pagination; legacy
+Google/DuckDuckGo/OASIS service behavior remains a separate integration path.
+
+
+## Local file saving and My Pages
+
+Run `node --test tests/file-save.test.cjs tests/my-pages.test.cjs tests/file-recognition.test.cjs`
+and then the full Node suite. These checks mock browser file APIs, encryption,
+accounts and storage. They cover captured native/raw/HTML exports, exact filenames
+and document metadata, cancellation, duplicate saves, write-before-index ordering,
+metadata-only failures, session/editor changes and permission-revoked handles.
+My Pages covers global sorting/pagination, mixed page/collection records, content
+routing, stale rows/loads, exact original deletion targets, uncertain deletion and
+metadata-only retry after confirmed deletion. Collection cleanup keeps other
+publications, members and extension metadata.
+
+Open `/tests/file-save.browser.html`, `/tests/my-pages.browser.html` and
+`/tests/file-recognition.browser.html` on the local server. These use real modules
+and DOM, with file writes, downloads, service calls and storage mocked. Browser
+results are separate from the Node run; no real local file or remote page is
+created/deleted by these fixtures.
+
+For normal-app checks, use disposable content: save native annotations/slides,
+round-trip a loaded file under its original name, cancel both filename pickers,
+then save again. Check My Pages sort, pagination, loading, local-only entries and
+the inline delete choice. Real downloads, filesystem permissions and live-service
+deletion require separate deliberate checks. Dropbox coverage is described in the following section.
+
+
+Verified on 2026-11-19 for editor marker `test 2026-11-19.2`: full Node
+suite **474/474 pass**, no skips/failures. The in-app browser reported PASS for
+local file saving (18 checks), My Pages (23 checks), saved-file recognition,
+Load/Blank and editor switching. File/service/storage writes were mocked in
+these browser fixtures; ordinary-browser filesystem permissions and live-service
+operations were not exercised.
+
+
+## Dropbox file saving and picker
+
+Run `node --test tests/dropbox-save.test.cjs tests/dropbox-save-view.test.cjs tests/dropbox-picker.test.cjs tests/save-panel.test.cjs tests/public-feed-editor.test.cjs`,
+then the full Node suite. All Dropbox HTTP, account persistence and file writes
+are mocked. Tests cover captured native/raw/HTML exports, exact filenames and
+folders, collection-format exports through the same save controller, explicit
+overwrite/Cancel and add-conflict choices, duplicate/stale controls, uncertain
+uploads without automatic replay, definite-401 refresh, captured credential
+persistence, and accepted upload receipts after an editor/session expires.
+Picker tests cover ordered folder continuation updates/deletes, global date
+ordering, invalid cursors, exact filenames, content-first routing, explicit read
+retry, missing scopes, Cancel and stale/removed source controls.
+
+Open `/tests/dropbox-save.browser.html`, `/tests/dropbox-picker.browser.html` and
+`/tests/save-panel.browser.html` through the local server. They use real modules
+and DOM with mocked HTTP, account persistence and editor APIs; no external
+requests or file/storage writes occur. Verify each final PASS separately.
+Normal-account OAuth, live Dropbox permissions, large uploads and actual service
+writes remain separate deliberate integration checks. Initial OAuth setup remains
+on its existing path; file-operation refresh now uses captured session persistence.
+
+Editor marker: `test 2026-11-19.3`. On 2026-11-19 the full Node run passed
+**505/505**, with no failures/skips. The in-app browser reported PASS for Dropbox
+saving (24 checks), Dropbox picker (18 checks), and the generic Save panel.

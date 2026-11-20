@@ -101,8 +101,10 @@ test('native document envelope retains exact source and permits only known edito
 });
 
 function filesFixture(extra={}) {
-    const ctx=recognitionFixture({window:{CList:{state:{},ui:{view:{}},loaders:[],savers:[]}},...extra});
+    const ctx=recognitionFixture({window:{CList:{state:{},config:{},ui:{view:{}},loaders:[],savers:[]}},
+        document:{getElementById:()=>null},showStatusMessage(){},showErrorModal(message){throw Error(message);},...extra});
     vm.runInContext(source('files'),ctx);
+    for(const name of ['file-save-workflow','file-save-view','file-save']) vm.runInContext(source(name),ctx);
     return ctx;
 }
 test('local files always read bytes before classification and carry their actual filename', async()=>{
@@ -177,8 +179,9 @@ test('logged-out native annotation save uses the native snapshot without KV inde
         currentEditor:'annotate-edit',currentLoadedPage:null,getReferences:()=>[],
         _saveWebPageRecord:()=>{throw Error('anonymous save must not index accounts');},
     });
-    ctx._writeLocalFile=async(...args)=>writes.push(args);
-    await ctx.saveContent();assert.deepEqual(writes,[[snapshot,null,'annotation.json']]);
+    ctx._writeLocalFile=async(...args)=>{writes.push(args);return {status:'saved'};};
+    await ctx.saveContent();assert.deepEqual(writes.map(args=>args.slice(0,3)),[[snapshot,null,'annotation.json']]);
+    assert.equal(typeof writes[0][3],'function');
 });
 
 class SavedNode {

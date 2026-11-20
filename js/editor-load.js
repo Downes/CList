@@ -6,10 +6,10 @@ function _savedEditorIsEmpty(handler, value) {
     const plainText = value && handler.contentTypes?.[0] !== 'text/plain' ? removeHtml(value) : '';
     return editorLoadIsEmpty(handler.contentTypes, value, plainText);
 }
-async function loadSavedPage(content, page, renderTarget, onCancel) {
+async function loadSavedPage(content, page, renderTarget, onCancel, isCurrent) {
     window.CList.state ||= {};
     const state = window.CList.state.editorLoading = beginEditorLoad(editorLoadState());
-    const operation = _editorLoadOperation = { id: state.id, renderTarget, onCancel };
+    const operation = _editorLoadOperation = { id: state.id, renderTarget, onCancel, isCurrent };
     return runEditorLoadStep(operation, () => {
         window.refreshWriteTags?.();
         operation.content = structuredClone(content);
@@ -19,6 +19,7 @@ async function loadSavedPage(content, page, renderTarget, onCancel) {
 }
 function currentEditorLoad(operation) {
     return _editorLoadOperation === operation && editorLoadState().id === operation.id
+        && (!operation.isCurrent || operation.isCurrent())
         && !['complete', 'cancelled', 'failed'].includes(editorLoadState().phase);
 }
 function editorLoadPhase(operation, phase, target, error) {
@@ -38,6 +39,9 @@ function editorLoadCallback(operation, phase, action) {
     return () => runEditorLoadStep(operation, async () => {
         if (editorLoadState().phase !== phase) return;
         if (phase === 'reviewing' && operation.reviewOwner !== undefined && currentEditor !== operation.reviewOwner) {
+            editorLoadPhase(operation, 'cancelled'); return;
+        }
+        if (['reviewing', 'choosing-collection'].includes(phase) && operation.collectionOwner && !editorCollectionOwnerCurrent(operation)) {
             editorLoadPhase(operation, 'cancelled'); return;
         }
         editorLoadPhase(operation, 'loading'); // Claims the callback before its first await.
@@ -73,11 +77,15 @@ async function prepareEditorLoad(operation) {
     operation.content = content; operation.page = page;
     const view = window.CList.ui.editorLoad;
     if (content.collection) {
+        operation.collectionOwner = { editor: currentEditor,
+            account: typeof currentEditorAccount === 'undefined' ? null : currentEditorAccount,
+            switchId: window.CList.state.editorSwitching?.id };
         editorLoadPhase(operation, 'choosing-collection');
         return view.chooseCollection(content.collection, content.format, operation.renderTarget,
             editorLoadCallback(operation, 'choosing-collection', () => reviewEditorCollection(operation)),
             editorLoadCallback(operation, 'choosing-collection', () => {
                 const html = content.format === 'html';
+                delete operation.collectionOwner; // Native representation owns its normal editor switch/review.
                 operation.content = { type: html ? 'text/html' : 'text/plain', value: content.sourceText ?? content.value, recognized: true };
                 return selectEditorRepresentation(operation, html ? 'tinymce' : 'texteditor');
             }), () => cancelEditorLoad(operation));
@@ -93,17 +101,26 @@ async function prepareEditorLoad(operation) {
         () => cancelEditorLoad(operation));
 }
 async function reviewEditorCollection(operation) {
+    if (!editorCollectionOwnerCurrent(operation)) { editorLoadPhase(operation, 'cancelled'); return; }
     editorLoadPhase(operation, 'reviewing', 'collection');
     operation.reviewOwner = currentEditor;
     const existing = await editorHandlers.collection?.getContent?.();
-    if (!currentEditorLoad(operation)) return;
+    if (!currentEditorLoad(operation) || !editorCollectionOwnerCurrent(operation)) return;
     const open = async () => {
-        await window.openParsedAsCollection(operation.content.collection);
-        if (currentEditorLoad(operation)) editorLoadPhase(operation, 'complete');
+        if (!currentEditorLoad(operation) || !editorCollectionOwnerCurrent(operation)) return;
+        const opened = await window.openParsedAsCollection(operation.content.collection, operation.page,
+            () => currentEditorLoad(operation));
+        if (currentEditorLoad(operation)) editorLoadPhase(operation, opened === false ? 'cancelled' : 'complete');
     };
     if (existing && String(existing).trim()) return window.CList.ui.editorLoad.reviewCollection(
         editorLoadCallback(operation, 'reviewing', open), () => cancelEditorLoad(operation, 'collection'));
     return open();
+}
+function editorCollectionOwnerCurrent(operation) {
+    const owner = operation.collectionOwner;
+    return !owner || (owner.editor === currentEditor
+        && owner.account === (typeof currentEditorAccount === 'undefined' ? null : currentEditorAccount)
+        && owner.switchId === window.CList.state.editorSwitching?.id);
 }
 async function selectEditorRepresentation(operation, key, choices) {
     if (!currentEditorLoad(operation)) return;

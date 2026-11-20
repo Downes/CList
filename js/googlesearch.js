@@ -16,7 +16,8 @@
             'Images': function() { window.CList.readers['google'].search('image'); }
         },
         search: async (type) => {
-            searchString = finderString();
+            const searchString = finderString();
+            if (!searchString) return;
             await googleSearch(searchString,type);
         }
     };

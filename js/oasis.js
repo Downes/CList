@@ -16,7 +16,8 @@
             return oasisStatusActions;
         },
         search: async (baseURL, accessToken) => {
-            searchString = finderString();
+            const searchString = finderString();
+            if (!searchString) return;
             await oasisSearch(searchString);
         }
     };
