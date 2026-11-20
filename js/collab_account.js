@@ -96,3 +96,10 @@ async function registerCollabAccount(wsUrl, did, { token, encKey }) {
 
     return data;
 }
+
+// Captured default used by post-login setup; the generic workflow owns receipts/storage.
+function collabSetupAccount(defaults) {
+    if (!defaults.COLLAB) return null;
+    const base=defaults.COLLAB;const key=base.replace(/^http/,'ws');
+    return {key,label:'Collaborative editor',registerUrl:base.replace(/\/$/,'')+'/api/register',data:{type:'Collab',instance:key,title:'collab.mooc.ca',permissions:'e'}};
+}

@@ -459,3 +459,71 @@ metadata needs review. A hosted source must publish its matching identity before
 any copies; a Local source needs only its stored key. There is no source record
 delete or automatic account switch. Both key conflicts and identity publications
 remain explicit, captured operations; client checks are not atomic CAS.
+
+
+`CListAuthPanelState` contains form mode, modal/picker visibility, generation,
+pending/error state and selected/draft server URL. It contains no passwords,
+auth hashes, keys or tokens. `CListAuthInput` and `CListAuthAttempt` are private,
+transient submission captures; password text is cleared at settlement. The view
+reads inputs and renders explicit values; controller-owned mode and draft server
+determine actions rather than DOM attributes. Available server URLs are captured
+from the existing selector when the controller is created. Preference persistence
+precedes config replacement; reader/publishing invalidation follows only an actual
+server change. A refresh error after accepted selection is separate from failed
+persistence. Submission guards span rebuilt modals. `registration` in public form state is
+created/uncertain/rejected/null only. `CListAuthCredentialTarget` privately captures
+server, Local adapter, storage key constants and source cookie/key versions.
+`CListPreparedAuthCredentials` contains only transient derived auth hash/encryption
+key; `CListVerifiedAuthSession` is a validated matching username, opaque token and
+future parseable string expiry. None enter presentation state. Registration caches
+retain statuses keyed by server/mode/username/source token, not passwords or derived
+keys. Accepted and uncertain results survive replaced panels in this tab; they are
+not persistent across reload. Login/register compatibility helpers keep two-argument
+Promise contracts. Data operations propagate failures for controller-owned feedback.
+
+Session cookie names, 365-day cookie lifetime and `${server}_${username}_encKey`
+sessionStorage slots are unchanged. After all asynchronous export/ownership checks,
+installation synchronously saves key/username/expiry/token (token last) and verifies
+readback. Partial failures attempt reverse restoration of captured prior values;
+newer values are preserved and incomplete rollback is visible. This is not a browser
+storage transaction or remote session revocation. Registration acceptance is distinct
+from later login/storage failure; ordinary retries never resend creation. Post-login
+setup is now separately owned by `post-login-*` and is not established by the
+credential-only fixture.
+
+`CListPostLoginDescriptor` retains each service's existing account shape/key.
+`CListPostLoginStep` and `CListPostLoginPlan` are private captures with separate
+registration and encrypted-record receipts; generated ciphertext is retained for
+read-only reconciliation. Add conflicts preserve the existing record, including
+unknown extensions and unreadable values; no update/put is used. An accepted seed
+removed later is not recreated by recovery. Registration-only public subscriptions
+reuse `publicFeedSetupAccount`/`discoverPublicFeedSetup`; the standalone
+`seedPublicFeedAccounts` compatibility helper remains separate.
+
+`CListPostLoginState` exposes counts, errors and public retry labels/keys only.
+Accepted login is never rolled back due to setup or account-refresh failures.
+Recovery actions belong to the original source session, auth-panel generation
+and live results modal. They expire when that owner/session/modal is replaced.
+This is transient recovery, not reload-persistent receipts or server CAS. Unknown
+external registration cannot be checked by the KV list; it requires an explicit
+service retry after user review, while unknown KV writes reconcile by ciphertext.
+
+`CListSessionSnapshot` is a private source capture of server/Local mode, auth
+epoch, cookie token/username/expiry and encoded tab key. It never enters UI state.
+`CListSessionLifecycleState` contains generation/phase/error only. Restoration
+requires a nonempty tab key and a finite future expiry, then imports the key and
+reuses `loadAccountRecords` with a captured session guard. It never changes auth
+cookies, seeds accounts or replaces newer reader navigation. Local storage auth
+signals and the legacy `SESSION_SIGNAL` schedule captured, superseding reads;
+these tests do not prove real cross-tab event delivery.
+
+Auth attempts/credential targets now also capture `authEpoch`; new submissions
+and logout advance it. Logout cancels the current form attempt, expires reads,
+removes/verifies the original token first, then clears captured username/expiry,
+the selected user's key, its legacy slot and every `EDITOR_DRAFT_PREFIX` tab entry.
+Other server/user key slots and unrelated preferences remain. Existing names
+`clist_logout_message` and `kvstore` are declared as `LOGOUT_MESSAGE` and
+`SESSION_SIGNAL`. Logout notice consumption is one-time. Cleanup is not an atomic
+storage transaction: token-removal failure stops destructive cleanup; later
+failures are reported while proceeding to reload, with a scoped reload-only retry
+if navigation fails. No remote token revocation or Local account deletion occurs.

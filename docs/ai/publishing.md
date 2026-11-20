@@ -443,3 +443,47 @@ must not become success feedback. Recovery is tab/source-session scoped, not
 persistent across reload or a new login; expired destination authorization stops
 rather than silently changing credentials. Mock registration/login, copy/link
 writes, storage and crypto in regressions. No client-side reads provide server CAS.
+
+
+Auth form and account-server picker now use `auth-panel-*` state/controller/view.
+Capture form mode/credentials before dispatch; keep passwords and attempts out of
+UI state. Preserve registration validation, exact server choices/Local behavior,
+secret clearing and the shared pending-submission lock. Persist server preference
+before switching config, and distinguish a rejected preference write from accepted
+selection with a failed reader refresh. While credential work is pending, the UI
+blocks closing/reopening/changing servers because the existing auth helpers are
+not all cancellable. `submitAuthModal` bridges private attempts to captured
+`auth-credentials-*` and `auth-session-workflow.js`. Credentials use explicit
+transport/crypto/storage dependencies; captured server/mode/Local-adapter/source
+session guards apply before/after async boundaries. Registration receipts survive
+panel replacement and distinguish created/rejected/uncertain results. A normal retry
+checks login without resending an attempted registration; resending uncertain or
+rejected creation requires explicit Retry registration. Never retry accepted creation.
+Validate username/token/future expiry, export the encryption key before storage,
+write the token last and verify saved values. On failure restore only original or
+owned values and show incomplete-rollback feedback. Cookie helpers/key slots and
+Local direct-adapter routing remain compatible. Post-login setup now uses
+`post-login-*`, with service-specific descriptors in the existing service modules.
+Capture defaults, installed session and reader generation before awaits; register
+services and add encrypted records with separate accepted/uncertain receipts.
+Never overwrite an existing record or recreate accepted seeds during recovery.
+Public feeds seed only for registration; Local mode excludes hosted registration
+and CListBin. Await all attempts before refreshing account controls once. Refresh
+accounts and Check setup perform reads only; ordinary remaining-step retry must
+not resend unknown service registration. Its named retry action requires the
+user to check that service first. Keep late acceptance against the original
+target, reject stale panel/session/modal callbacks, preserve newer reader content,
+and report setup failure separately from the accepted login. Credential-only
+fixtures do not establish setup coverage. Startup/logout/storage-event restoration
+now uses `session-lifecycle-*`. Capture server, Local mode, cookie/tab-key values
+and auth epoch before asynchronous reads; reject missing/invalid/expired sessions
+without deleting their persisted values or seeding anything. Import/read failures
+are separate: keep a verified identity when only account loading failed. Expire
+old delayed callbacks, read completions and retry controls on source changes.
+New authentication attempts and logout advance the auth epoch so an old direct
+credential helper cannot install a session after logout, including an originally
+empty source. Logout verifies token removal before clearing the captured user key,
+legacy key and all tab draft-prefix entries. Preserve unrelated/other-server keys,
+avoid repeating accepted cleanup, scope reload-only retry and report partial
+cleanup without claiming remote session revocation. Legacy management `getAccounts`
+and administrative workflows remain separate from this restoration boundary.

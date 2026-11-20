@@ -69,8 +69,22 @@ The user-approved remaining order is:
    Per-step receipts, read-only reconciliation, explicit remaining-step retries and
    tab/source-session recovery pass 696/696 Node tests; the new migration-execution
    browser fixture passed user testing (35 checks; HTTP/storage/crypto mocked).
-   Remaining auth/admin work includes login,
-   registration, credential/server selection and administrative settings.
+   Login/register modal validation/navigation and account-server selection now use
+   state/controller/view boundaries (705/705 Node tests pass; `auth-panel.browser.html`
+   passed user testing, 21 checks with effects mocked). Credential verification/
+   registration and session installation now have captured explicit workflows,
+   registration receipts, response validation and token-last save/rollback
+   (714/714 Node tests pass; `auth-credentials.browser.html` passed user testing,
+   27 checks with effects mocked).
+   Post-login setup/seeding now has separate workflow/controller/view, captured
+   service descriptors, per-step receipts and explicit recovery (723/723 Node
+   tests pass; `post-login.browser.html` passed user testing, 22 checks with
+   effects mocked). Logout/startup/storage-event restoration now has captured
+   workflow/controller/view boundaries, auth epoch cancellation, validated
+   restoration, scoped token-first cleanup and reload recovery (733/733 Node
+   tests pass). The `session-lifecycle.browser.html` fixture passed user testing,
+   24 checks with effects mocked.
+   Administrative settings remain to separate.
 6. Pane persistence/navigation, keyboard/mobile state and reusable action/menu contracts.
 7. Collaboration/P2P chat session workflows, then remaining AI feature boundaries.
 

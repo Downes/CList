@@ -9,6 +9,8 @@ let token='fixture-token',behavior={},records=[],requests=[],writeAttempts=0,pub
 window.CList={config:{flaskSiteUrl:'https://store.invalid'},keys:{ACCESS_TOKEN:'access_token',USERNAME:'username',DID_IDENTITY_KEY:'_did_identity_key',PAGES_CATALOG:'clist:pages-catalog'},state:{username:'alice'},schemas:{},ui:{},accounts:[],isLocalMode:()=>!!behavior.local,storage:{get mode(){return behavior.local?'local':'remote';},kv:{}}};
 window.getSiteSpecificCookie=(url,key)=>key==='username'?'alice':token;
 window.openLeftInterface=panel=>document.getElementById('left-content').replaceChildren(panel);
+// Application startup restoration is outside the DID panel fixture.
+window.sessionLifecycle=()=>({restore:async()=>{}});
 Object.defineProperty(window,'sessionStorage',{value:{getItem:()=>null},configurable:true});
 window.showModal=root=>{document.getElementById('generic-modal')?.remove();const modal=document.createElement('div');modal.id='generic-modal';modal.appendChild(root);document.body.appendChild(modal);};
 CList.storage.kv.list=async()=>behavior.list?behavior.list():records;
@@ -26,7 +28,7 @@ window.fetch=async(url,options={})=>{if(options.method&&options.method!=='GET'){
  }requests.push({url:String(url),options});
  if(behavior.published&&String(url)===CList.config.flaskSiteUrl+'/users/'+encodeURIComponent(CList.state.username)+'/did.json')return{ok:true,json:async()=>structuredClone(behavior.published)};return behavior.http?behavior.http(url,options):{ok:true,json:async()=>({id:'did:web:store.invalid:users:alice',alsoKnownAs:['did:key:public']})};};
 </script>
-<script src="../js/kvstore.js?v=2026-11-20.15"></script>
+<script src="../js/kvstore.js?v=2026-11-20.19"></script>
 <script src="../js/did-identity-workflow.js?v=2026-11-20.13"></script><script src="../js/did-identity-view.js?v=2026-11-20.13"></script><script src="../js/did-identity.js?v=2026-11-20.13"></script>
 <script src="../js/did-proof-workflow.js?v=2026-11-20.11"></script><script src="../js/did-proof-view.js?v=2026-11-20.7"></script><script src="../js/did-proof.js?v=2026-11-20.11"></script>
 <script src="../js/did-publication-workflow.js?v=2026-11-20.11"></script><script src="../js/did-publication-view.js?v=2026-11-20.8"></script><script src="../js/did-publication.js?v=2026-11-20.12"></script>

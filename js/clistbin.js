@@ -61,3 +61,9 @@ window.CList.schemas['CListBin'] = {
         },
     };
 })();
+
+function clistbinSetupAccount(defaults) {
+    if (!defaults.PASTEBIN) return null;
+    const key=defaults.PASTEBIN;
+    return {key,label:'CListBin',data:{type:'CListBin',instance:key,title:'pastebin.mooc.ca',permissions:'b'}};
+}

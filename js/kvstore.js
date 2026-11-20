@@ -66,51 +66,12 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
 
-    // Check for access token + session encryption key.
-    // encKey is in sessionStorage (cleared on tab close) — if missing, user must log in again
-    // to re-derive the key even if the token cookie is still valid.
-    // Page load never nudges the user to log in — that only happens reactively, via
-    // loginRequired(), when they pick an action that actually requires an account.
-    if (hasValidSession()) {
-        loginNotRequired();
-    }
-
-    if (!window.CList.state.username || window.CList.state.username === "none") {
-        setLoggedOutUI();
-        // Show the one-time logout notice left by KVlogout() (survives its reload), then clear it.
-        const _logoutMsg = sessionStorage.getItem('clist_logout_message');
-        if (_logoutMsg) {
-            sessionStorage.removeItem('clist_logout_message');
-            identityDiv.textContent = _logoutMsg;
-        }
-    } else {
-        // Fetch accounts on reload so Read/Post buttons reflect the user's saved accounts.
-        // (accounts array is empty at page load; it's normally populated only after login)
-        getAccounts(window.CList.config.flaskSiteUrl).then(accts => {
-            if (accts) {
-                window.CList.accounts = accts;
-                if (typeof populateReadAccountList === 'function') populateReadAccountList(accts);
-                if (typeof populatePostOptions    === 'function') populatePostOptions(accts);
-                updateUIVisibility();
-            }
-        }).catch(e => console.warn('Could not fetch accounts on reload:', e));
-    }
-
-    displayUsername();
+    sessionLifecycle().restore().catch(error=>{console.error('Could not restore session controls:',error);showStatusMessage('Could not restore session controls. Please reopen Login.');});
 
 
 });
 
 // ── Auth-state helpers ────────────────────────────────────────────────────────
-
-// Checks the actual cookie/token/session-key state directly, independent of
-// window.CList.state.username — usable before kvstore.js's own boot handler has run
-// (e.g. by interface.js, which registers its DOMContentLoaded listener earlier).
-function hasValidSession() {
-    const _token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
-    return !!(_token && !isTokenExpired(_token)
-        && sessionStorage.getItem(`${window.CList.config.flaskSiteUrl}_${getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.USERNAME)}_encKey`));
-}
 
 function isRegistered() {
     return !!(window.CList.state.username && window.CList.state.username !== 'none' && window.CList.state.username !== '');
@@ -1099,198 +1060,29 @@ window.addEventListener('popstate', (e) => {
         function redirectToKVLogin()    { openAuthModal('login'); }
         function redirectToKVRegister() { openAuthModal('register'); }
 
-        // "Local" has no real hostname — new URL(url).hostname would show "local.clist", which is
-        // accurate but not clear to a user who never typed that in.
-        function serverDisplayName(url) {
-            return (window.CList.LOCAL_KVSTORE_URL && url === window.CList.LOCAL_KVSTORE_URL)
-                ? 'Local (this device only)'
-                : new URL(url).hostname;
-        }
-
-        function openAuthModal(mode) {
-            if (typeof endTour === 'function') endTour();
-            document.getElementById('authModalTitle').textContent = mode === 'login' ? 'Login' : 'Register';
-            document.getElementById('authSubmitBtn').textContent  = mode === 'login' ? 'Login' : 'Register';
-            document.getElementById('authSubmitBtn').disabled = false;
-            document.getElementById('authConfirmWrap').style.display  = mode === 'register' ? 'block' : 'none';
-            document.getElementById('authUsernameHint').style.display = mode === 'register' ? 'inline' : 'none';
-            document.getElementById('authUsernameRule').style.display = mode === 'register' ? 'block'  : 'none';
-            document.getElementById('authUsername').value  = '';
-            document.getElementById('authPassword').value  = '';
-            document.getElementById('authConfirm').value   = '';
-            document.getElementById('authError').style.display = 'none';
-            document.getElementById('authServerUrl').textContent = serverDisplayName(window.CList.config.flaskSiteUrl);
-            document.getElementById('authMainForm').style.display = 'block';
-            document.getElementById('authServerLine').style.display = 'block';
-            document.getElementById('changeServerPanel').style.display = 'none';
-            const modal = document.getElementById('authModal');
-            modal.dataset.mode = mode;
-            modal.style.display = 'flex';
-            document.getElementById('authUsername').focus();
-        }
-
-        function openChangeServerPanel() {
-            document.getElementById('authMainForm').style.display = 'none';
-            document.getElementById('authServerLine').style.display = 'none';
-            document.getElementById('changeServerPanel').style.display = 'block';
-            document.getElementById('authModalTitle').textContent = 'Change Account Server';
-            const sel = document.getElementById('serverSelect');
-            sel.value = window.CList.config.flaskSiteUrl;
-            if (!sel.value) sel.selectedIndex = 0;
-        }
-
-        function closeChangeServerPanel() {
-            document.getElementById('changeServerPanel').style.display = 'none';
-            document.getElementById('authMainForm').style.display = 'block';
-            document.getElementById('authServerLine').style.display = 'block';
-            const mode = document.getElementById('authModal').dataset.mode;
-            document.getElementById('authModalTitle').textContent = mode === 'login' ? 'Login' : 'Register';
-        }
-
-        function selectAccountServer() {
-            const url = document.getElementById('serverSelect').value;
-            if (url !== window.CList.config.flaskSiteUrl) {
-                window.CList.state.publishing.selectedAccountKeys = [];
-                if (typeof invalidateReader === 'function') invalidateReader();
-            }
-            window.CList.config.flaskSiteUrl = url;
-            localStorage.setItem(window.CList.keys.KVSTORE_URL, url);
-            document.getElementById('authServerUrl').textContent = serverDisplayName(url);
-            closeChangeServerPanel();
-        }
-
-        function closeAuthModal() {
-            document.getElementById('authModal').style.display = 'none';
-        }
-
-        function toggleAuthPassword(inputId, icon) {
-            const input = document.getElementById(inputId);
-            input.type = input.type === 'password' ? 'text' : 'password';
-            icon.textContent = input.type === 'password' ? '👁' : '🙈';
-        }
-
-        async function submitAuthModal() {
-            const mode = document.getElementById('authModal').dataset.mode;
-            const u = document.getElementById('authUsername').value.trim().toLowerCase();
-            const p = document.getElementById('authPassword').value;
-            const errDiv = document.getElementById('authError');
-            errDiv.style.display = 'none';
-
-            if (!u || !p) { errDiv.textContent = 'Username and password are required.'; errDiv.style.display = 'block'; return; }
-
-            if (mode === 'register') {
-                // Password never reaches the server in the clear (see KVregisterWithCredentials) - the
-                // server stores only a derived hash and so cannot enforce strength itself. This is the
-                // one place a weak password can be caught, and it matters more than usual here: the
-                // password is the sole protection for the user's encrypted credential vault.
-                if (p.length < 8) { errDiv.textContent = 'Password must be at least 8 characters.'; errDiv.style.display = 'block'; return; }
-                const p2 = document.getElementById('authConfirm').value;
-                if (p !== p2) { errDiv.textContent = 'Passwords do not match.'; errDiv.style.display = 'block'; return; }
-                if (!/^[a-z0-9][a-z0-9._-]{2,31}$/.test(u)) { errDiv.textContent = 'Username must be 3–32 characters, start with a letter or digit, and contain only letters, digits, dots, hyphens, and underscores.'; errDiv.style.display = 'block'; return; }
-            }
-
-            document.getElementById('authSubmitBtn').disabled = true;
-            document.getElementById('authSubmitBtn').textContent = 'Please wait\u2026';
+        async function submitAuthModal(retryRegistration = false) {
+            const panel = authPanelController(), attempt = panel.begin(retryRegistration);
+            if (!attempt) return;
             try {
-                if (mode === 'register') await KVregisterWithCredentials(u, p);
-                await KVloginWithCredentials(u, p);
-                closeAuthModal();
+                await authenticateAuthAttempt(attempt, panel, retryRegistration);
+                if (!panel.owns(attempt)) return;
+                panel.authenticated(attempt);
                 updateIdentityDiv();
                 acceptLogin();
-                if (mode === 'register') {
-                    try {
-                        await seedPublicFeedAccounts();
-                    } catch (error) {
-                        console.error('Could not add public feed subscriptions:', error);
-                        showErrorModal('Your account was created, but some public feed subscriptions could not be added: ' + error.message,
-                            { title: 'Public feed subscriptions incomplete' });
-                    }
-                }
-                window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl);
-                // Collab, Annotations, and CListBin are all external services that verify
-                // the kvstore-issued token against a real, network-reachable kvstore — a Local account's
-                // token has no such issuer, so seeding/registering these accounts would just produce
-                // accounts that always fail. Skip them entirely in Local mode.
-                if (!window.CList.isLocalMode || !window.CList.isLocalMode()) {
-                    if (mode === 'register') autoRegisterCollab().catch(e => console.warn('Collab auto-registration failed:', e));
-                    if (mode === 'register') autoRegisterAnnotations().catch(e => console.warn('Annotations auto-registration failed:', e));
-                    autoSeedCListBin().catch(e => console.warn('CListBin account seed failed:', e));
-                }
-                if (window.CList.accounts) {
-                    updateUIVisibility();
-                    await playRead();
-                    populateReadAccountList(window.CList.accounts);
-                }
-                if (mode === 'register') showOnboardingNudge();
+                await finishAuthSetup(attempt, panel);
             } catch (e) {
-                errDiv.textContent = (mode === 'register' ? 'Registration' : 'Login') + ' failed: ' + e.message;
-                errDiv.style.display = 'block';
-                document.getElementById('authSubmitBtn').disabled = false;
-                document.getElementById('authSubmitBtn').textContent = mode === 'login' ? 'Login' : 'Register';
+                console.error('Authentication flow failed:', e);
+                panel.failed(attempt, e);
+            } finally {
+                panel.settled(attempt);
             }
         }
-
-        function showOnboardingNudge() {
-            const container = window.CList.ui.view.feedContainer;
-            if (!container) return;
-            container.innerHTML = `
-                <div style="padding:8% 10%">
-                    <h3>You're in!</h3>
-                    <p style="margin:0.6em 0;">Your account is ready. Open Read to browse your subscribed feed collections, or open Accounts to manage subscriptions and connect more services.</p>
-                    <p style="margin:1em 0;">
-                        <button onclick="playAccounts()">Open Accounts &rarr;</button>
-                    </p>
-                    <p style="margin:0.8em 0 0; font-size:0.85em; color:#666;">
-                        You can add Mastodon, Bluesky, RSS feeds, WordPress, and more.<br>
-                        Not sure where to start? Check the
-                        <a href="https://github.com/Downes/CList/wiki" target="_blank">documentation</a>.
-                    </p>
-                </div>`;
-        }
-
-        // Function to handle logout — clears persistent auth state, then does a full
-        // page reload so every pane (feed, write/editor) and all in-memory state
-        // (account arrays, parked editor states, references, live Collab/LaTeX
-        // connections, etc.) starts clean, rather than trying to manually unwind
-        // each module's state one at a time. clist_logout_message survives the
-        // reload (sessionStorage) so the bootstrap handler can show the usual
-        // "logged out" notice once, then clears it.
-        function KVlogout() {
-
-            // Remove the token cookies and session encryption key
-            const _logoutUser = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.USERNAME);
-            deleteSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
-            deleteSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.USERNAME);
-            deleteSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.TOKEN_EXPIRES);
-            if (_logoutUser) sessionStorage.removeItem(`${window.CList.config.flaskSiteUrl}_${_logoutUser}_encKey`);
-            sessionStorage.removeItem(window.CList.config.flaskSiteUrl + '_encKey'); // clean up any legacy key
-
-            // Clear any editor drafts (saveDraft() in editors.js/tinymce.js) — these also live
-            // in sessionStorage, so they'd otherwise survive the reload below and get offered
-            // back via offerDraftRestore()'s "restore your last session?" prompt on next load.
-            Object.keys(sessionStorage)
-                .filter(k => k.startsWith('clist_draft_'))
-                .forEach(k => sessionStorage.removeItem(k));
-
-            sessionStorage.setItem('clist_logout_message', 'You have been logged out.');
-            window.location.reload();
-        };
 
         function displayUsername() {
             const usernameDisplay = document.getElementById('username-display');
             if (usernameDisplay) {
                 usernameDisplay.textContent = (window.CList.state.username && window.CList.state.username !== 'none') ? `Logged in as ${window.CList.state.username}!` : 'Welcome, guest!';
             }
-        }
-
-        function isTokenExpired(token) {
-            // Token is now an opaque string, not a JWT — check the stored expiry cookie.
-            if (!token) return true;
-            const expires = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.TOKEN_EXPIRES);
-            if (!expires) return true;
-            const expired = new Date(expires) < new Date();
-            if (expired) console.log("access token expired");
-            return expired;
         }
 
         async function getAccounts(siteUrl = window.CList.config.flaskSiteUrl, retryCount = 3, retryDelay = 500) {
@@ -1342,36 +1134,6 @@ window.addEventListener('popstate', (e) => {
             return accounts;
         }
 
-        // Event listener for changes in localStorage
-        // This happens when redirect.html sets the username in localStorage
-        // which only happens after a successful login
-
-        window.addEventListener('storage', (event) => {
-            if (event.key === 'kvstore') {
-                console.log('Detected change in kvstore:', event.newValue);
-                console.log('Getting accounts from KVStore...' + window.CList.config.flaskSiteUrl);
-                             
-                // Introduce a small delay to allow cookies to be set before calling getAccounts
-                setTimeout(async () => {
-                    try {
-                        console.log('Delaying getAccounts() call to ensure cookies are set...');
-                        window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl);
-                        console.log('Accounts:', window.CList.accounts);
-                        await playRead();
-                        console.log('PlayRead() run');
-                        populateReadAccountList(window.CList.accounts);
-                        
-                        updateIdentityDiv(); // Update the div when kvstore changes
-                        acceptLogin();
-                    } catch (error) {
-                        console.error('Error fetching accounts:', error);
-                        showErrorModal('Error fetching accounts: ' + error.message, { title: 'Account fetch failed' });
-                    }
-                }, 500); // Adjust delay time if needed (500ms should be sufficient)
-
-            }
-        });
-
         // Function to fetch cookies and update the div
         function updateIdentityDiv() {
             window.CList.state.username = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.USERNAME);
@@ -1394,88 +1156,6 @@ window.addEventListener('popstate', (e) => {
                accountButton.style.display="block";
                updateUIVisibility();
             }
-        }
-
-        // Silently register the current user on the default collab server and save
-        // a Collab account to kvstore if one doesn't already exist.
-        async function autoRegisterCollab() {
-            const base = window.CList.defaults.COLLAB;
-            const COLLAB_DEFAULT = base.replace(/^http/, 'ws');
-            const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
-            if (!token) return;
-
-            const resp = await fetch(`${base}/api/register`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
-            });
-            if (!resp.ok) throw new Error(`Collab registration failed (${resp.status})`);
-
-            // Don't add a duplicate account entry
-            const existing = (window.CList.accounts || []).find(a => {
-                const v = parseAccountValue(a);
-                return v && v.type === 'Collab' && v.instance === COLLAB_DEFAULT;
-            });
-            if (existing) return;
-
-            const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
-            if (!encKey) throw new Error('Encryption key not available');
-            const instanceData = { type: 'Collab', instance: COLLAB_DEFAULT, title: 'collab.mooc.ca', permissions: 'e' };
-            const encryptedValue = await encryptWithKey(encKey, JSON.stringify(instanceData));
-
-            await window.CList.storage.kv.add(COLLAB_DEFAULT, encryptedValue);
-        }
-
-        // Silently register the current user on the matching annotations server and save
-        // an Annotate account to kvstore if one doesn't already exist.
-        async function autoRegisterAnnotations() {
-            const annoUrl = window.CList.defaults.ANNOTATIONS;
-            if (!annoUrl) return;
-            const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
-            if (!token) return;
-
-            const resp = await fetch(`${annoUrl}/api/register`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
-            });
-            if (!resp.ok) throw new Error(`Annotations registration failed (${resp.status})`);
-
-            // Don't add a duplicate account entry
-            const existing = (window.CList.accounts || []).find(a => {
-                const v = parseAccountValue(a);
-                return v && v.type === 'Annotate' && v.instance === annoUrl;
-            });
-            if (existing) return;
-
-            const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
-            if (!encKey) throw new Error('Encryption key not available');
-            const instanceData = { type: 'Annotate', instance: annoUrl, title: annoUrl.replace('https://', ''), permissions: 'rw' };
-            const encryptedValue = await encryptWithKey(encKey, JSON.stringify(instanceData));
-
-            await window.CList.storage.kv.add(annoUrl, encryptedValue);
-
-            // Refresh accounts and update UI so the Post button appears immediately
-            window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl);
-            updateUIVisibility();
-            if (typeof populatePostOptions === 'function') populatePostOptions(window.CList.accounts);
-        }
-
-        async function autoSeedCListBin() {
-            const CLISTBIN_DEFAULT = window.CList.defaults.PASTEBIN;
-            const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
-            if (!token) return;
-
-            const existing = (window.CList.accounts || []).find(a => {
-                const v = parseAccountValue(a);
-                return v && v.type === 'CListBin' && v.instance === CLISTBIN_DEFAULT;
-            });
-            if (existing) return;
-
-            const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
-            if (!encKey) throw new Error('Encryption key not available');
-            const instanceData = { type: 'CListBin', instance: CLISTBIN_DEFAULT, title: 'pastebin.mooc.ca', permissions: 'b' };
-            const encryptedValue = await encryptWithKey(encKey, JSON.stringify(instanceData));
-
-            await window.CList.storage.kv.add(CLISTBIN_DEFAULT, encryptedValue);
         }
 
         // Re-register on all saved Collab servers to push an updated DID.
@@ -1527,88 +1207,4 @@ async function getEncKey(siteUrl) {
 
 // Shared password confirmation and compatibility verification: password-confirmation*.js.
 
-/**
- * Authenticate against the kvstore server using PBKDF2-derived credentials.
- * Derives encKey (stays in browser) and authHash (sent to server) from the password.
- * On success: stores token+expiry in site-specific cookies, encKey in sessionStorage.
- * @param {string} uname - lowercase username
- * @param {string} password
- * @returns {Promise<{token: string, username: string}>}
- */
-async function KVloginWithCredentials(uname, password) {
-    // Derive both keys in parallel (each runs 100k PBKDF2 iterations — takes ~2-3s)
-    const [encKey, authHash] = await Promise.all([
-        deriveEncKey(password, uname),
-        deriveAuthHash(password, uname)
-    ]);
-
-    let data;
-    if (window.CList.isLocalMode()) {
-        // Local mode: go straight to IndexedDB, never through the window.fetch sentinel
-        // interception (docs/storage-architecture-plan.md §8 step 5(b)).
-        try {
-            data = await window.CList._localKvStore.loginUser(uname, authHash);
-        } catch (err) {
-            throw new Error(err.message || 'Login failed');
-        }
-    } else {
-        const response = await fetch(`${window.CList.config.flaskSiteUrl}/auth/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: uname, auth_hash: authHash })
-        });
-
-        if (!response.ok) {
-            const err = await response.json().catch(() => ({}));
-            throw new Error(err.error || `Login failed (${response.status})`);
-        }
-
-        data = await response.json();
-    }
-
-    // Store token and expiry in persistent cookies (365-day lifetime matches server)
-    setSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN, data.token, 365);
-    setSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.USERNAME, data.username, 365);
-    setSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.TOKEN_EXPIRES, data.expires, 365);
-
-    // Export encKey to raw bytes and store in sessionStorage (cleared when tab closes)
-    const rawKey = await window.crypto.subtle.exportKey('raw', encKey);
-    const keyB64 = btoa(String.fromCharCode(...new Uint8Array(rawKey)));
-    sessionStorage.setItem(`${window.CList.config.flaskSiteUrl}_${data.username}_encKey`, keyB64);
-
-    return { token: data.token, username: data.username };
-}
-
-/**
- * Register a new account on the kvstore server.
- * Derives authHash client-side; server stores bcrypt(authHash).
- * Server never sees the raw password or the encryption key.
- * @param {string} uname - desired username (will be lowercased)
- * @param {string} password
- * @returns {Promise<void>}
- */
-async function KVregisterWithCredentials(uname, password) {
-    const authHash = await deriveAuthHash(password, uname.toLowerCase());
-
-    if (window.CList.isLocalMode()) {
-        // Local mode: go straight to IndexedDB, never through the window.fetch sentinel
-        // interception (docs/storage-architecture-plan.md §8 step 5(b)).
-        try {
-            await window.CList._localKvStore.registerUser(uname.toLowerCase(), authHash);
-        } catch (err) {
-            throw new Error(err.message || 'Registration failed');
-        }
-        return;
-    }
-
-    const response = await fetch(`${window.CList.config.flaskSiteUrl}/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: uname.toLowerCase(), auth_hash: authHash })
-    });
-
-    if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.error || `Registration failed (${response.status})`);
-    }
-}
+// Captured credential verification/registration/session installation: auth-credentials*.js and auth-session-workflow.js.

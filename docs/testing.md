@@ -1293,3 +1293,78 @@ crypto were mocked; no external requests or real writes were performed.
 Automated results: 26/26 focused Node tests; 696/696 full Node tests, zero
 failures/skips. Browser results for the earlier preparation (25) and DID (85)
 fixtures remain distinct, user-reported prior evidence.
+
+
+### Login/register panel and account-server selection — user-reported browser PASS
+
+Open `https://localhost:51888/tests/auth-panel.browser.html` and report the final
+PASS/FAIL. It runs real state/controller/view with the application modal shell.
+Preference writes, reader invalidation and submission outcomes are mocked. It
+checks form validation, private input capture, state-owned mode/server choice,
+Local labels, persistence/refresh failure separation, duplicate/pending/rebuilt
+and expired-picker guards, secret clearing and accepted-login feedback. It does
+not verify credential transport, session installation or post-login seeding. No
+external requests or real storage writes. Marker: `test 2026-11-20.16`.
+
+Node evidence: `node --test tests/auth-panel.test.cjs` passed 9/9, including two
+real `submitAuthModal` bridge cases with credential/setup dependencies mocked.
+The full `node --test tests/*.test.cjs` suite passed 705/705, zero failures/skips.
+The user reported browser PASS: 21 checks, with storage/reader effects and
+submission outcomes mocked; no external requests or real writes. Credential
+transport/session installation and normal-app/live-service checks remain outside
+this fixture evidence.
+
+### Credential verification/registration and session installation — user-reported browser PASS
+
+Open `https://localhost:51888/tests/auth-credentials.browser.html` and report final
+PASS/FAIL. It runs real credential/session workflows, compatibility helpers and the
+real form controller/view with the application modal shell. HTTP, Local auth,
+crypto, cookies and sessionStorage are mocked; no external requests or real writes.
+It checks hosted/Local routing, captured server/source session, matching response
+validation, accepted/uncertain registration and explicit retry, token-last session
+saving, key/partial/silent-cookie failure rollback, incomplete rollback feedback,
+stale panels, secret-free presentation and concurrent direct helper calls.
+Post-login seeding/setup and real cryptography are not exercised. Marker:
+`test 2026-11-20.17`. The user reported browser PASS: 27 checks, with the
+stated effects mocked and no external requests or real writes. Normal-app/live
+services, post-login setup and real cryptography remain outside this evidence.
+
+`node --test tests/auth-credentials.test.cjs tests/auth-panel.test.cjs` passed 18/18;
+`node --test tests/*.test.cjs` passed 714/714, zero failures/skips. The prior form-only
+browser result remains user-reported 21 checks, separate from this new fixture.
+
+### Post-login account setup and seeding — user-reported browser PASS
+
+Open `https://localhost:51888/tests/post-login.browser.html` and report final
+PASS/FAIL. It uses real setup workflow/controller/view, service descriptors and
+public-feed discovery. Accepted login/session, HTTP, KV storage, encryption,
+account loading, reader navigation and modal shell are mocked; no external
+requests or real writes. It checks registration-only public seeding, Local
+exclusions, existing data retention, per-step accepted/uncertain receipts,
+read-only refresh/check, explicit remaining/service retry, partial discovery,
+refresh failure, stale ownership and newer reader navigation. Live services,
+actual browser storage and real cryptography are outside this evidence.
+Editor marker: `test 2026-11-20.18`. The user reported browser PASS: 22 checks,
+with the stated dependencies mocked and no external requests or real writes.
+
+Focused Node command: `node --test tests/post-login.test.cjs tests/auth-panel.test.cjs tests/public-feed-accounts.test.cjs`
+passed 22/22. The full Node suite passed 723/723, zero failures/skips. Prior
+credential/session browser PASS (27 checks) is separate user-reported evidence.
+
+### Logout and session restoration — user-reported browser PASS
+
+Open `https://localhost:51888/tests/session-lifecycle.browser.html` and report
+final PASS/FAIL. Real lifecycle workflow/controller/view run with cookies, tab
+storage, key import, account loading, identity widgets, modal shell, timers and
+reload mocked. No external requests, real writes or actual reload. Coverage:
+hosted/Local validity, missing keys and malformed/expired expiry, import versus
+account-read failures, stale reads/delays, newer-reader retention, token-first
+scoped logout, draft cleanup, unrelated data retention, partial failures, duplicate
+logout guards, one-time notice and reload retry. Cross-tab delivery, live services,
+real cryptography and a normal application's full reload are outside this fixture.
+Marker: `test 2026-11-20.19`. The user reported browser PASS: 24 checks,
+with the stated dependencies mocked and no external requests, real writes or reload.
+
+Focused auth/lifecycle tests passed 28/28; the separate existing account-state
+fixture passed 7/7 after updating its source-extraction boundary for the moved
+storage listener. The full Node suite passed 733/733, zero failures/skips.

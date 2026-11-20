@@ -513,3 +513,31 @@ Never fall back from a conflicting add to blind overwrite. Preserve captured
 source/destination/session and public metadata, recheck before each write, and
 retain late receipts across panel rebuilds. Recovery lasts only in this tab and
 source session; preview tests alone do not validate execution.
+
+
+Login/register modal navigation, validation and server-picker selection use
+`auth-panel-state.js`, `auth-panel.js` and `auth-panel-view.js`. Mode/draft server
+live in `CList.state.authPanel`; passwords stay in private submission captures.
+Keep duplicate/pending/rebuilt guards and distinguish preference-write failure
+from refresh failure after accepted server selection. Credential transport and
+session installation use `auth-credentials-workflow.js`, `auth-session-workflow.js`
+and `auth-credentials.js`. Capture server/Local adapter/source-session versions
+before awaits; validate returned username/token/expiry before saving. Keep
+registration receipts private and distinguish accepted creation from login failure;
+uncertain creation gets login checks or explicit registration retry only. Prepare
+key export before synchronous token-last saving and report incomplete rollback.
+Post-login setup uses `post-login-workflow.js`, `post-login.js` and
+`post-login-view.js`. Service descriptors remain in `collab_account.js`,
+`annotate_account.js`, `clistbin.js` and `public-feeds.js`. Preserve add-only
+account writes, registration-only public subscriptions and Local exclusions.
+Keep registration/account-save receipts separate; Refresh accounts and Check
+setup never seed. Unknown service registration needs its explicit retry. Await
+setup before one account refresh, expire old modal/session actions and retain
+newer reader navigation. Logout/startup/storage-event restoration use
+`session-lifecycle-workflow.js`, `session-lifecycle.js` and
+`session-lifecycle-view.js`. Keep captured server/mode/cookie/key versions and
+auth epochs private, reject malformed/expired sessions, and never seed accounts
+during restoration. Logout invalidates pending authentication/restoration first,
+removes the token before keys/drafts, verifies removal and reloads once. Retain
+other servers' keys and unrelated storage; report partial cleanup separately.
+Use `CList.keys.LOGOUT_MESSAGE` and `CList.keys.SESSION_SIGNAL` for existing names.

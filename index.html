@@ -55,6 +55,8 @@
                 PAGES_CATALOG:         'clist:pages-catalog',
                 DID_IDENTITY_KEY:      '_did_identity_key',
                 EDITOR_DRAFT_PREFIX:   'clist_draft_',
+                LOGOUT_MESSAGE:        'clist_logout_message',
+                SESSION_SIGNAL:        'kvstore',
             }
         };
         // Launcher's configured default applies first; an explicit saved user choice
@@ -331,7 +333,19 @@
 <script src="js/account-state.js" defer></script>
 <script src="js/account-form.js" defer></script>
 <script src="js/account-panel.js" defer></script>
-<script src="js/kvstore.js?v=2026-11-20.15" defer></script>
+<script src="js/kvstore.js?v=2026-11-20.19" defer></script>
+<script src="js/auth-panel-state.js?v=2026-11-20.19" defer></script>
+<script src="js/auth-panel-view.js?v=2026-11-20.19" defer></script>
+<script src="js/auth-panel.js?v=2026-11-20.19" defer></script>
+<script src="js/auth-credentials-workflow.js?v=2026-11-20.19" defer></script>
+<script src="js/auth-session-workflow.js?v=2026-11-20.19" defer></script>
+<script src="js/auth-credentials.js?v=2026-11-20.19" defer></script>
+<script src="js/post-login-workflow.js?v=2026-11-20.19" defer></script>
+<script src="js/post-login-view.js?v=2026-11-20.19" defer></script>
+<script src="js/post-login.js?v=2026-11-20.19" defer></script>
+<script src="js/session-lifecycle-workflow.js?v=2026-11-20.19" defer></script>
+<script src="js/session-lifecycle-view.js?v=2026-11-20.19" defer></script>
+<script src="js/session-lifecycle.js?v=2026-11-20.19" defer></script>
 <script src="js/password-confirmation-workflow.js?v=2026-11-20.9" defer></script>
 <script src="js/password-confirmation-view.js?v=2026-11-20.9" defer></script>
 <script src="js/password-confirmation.js?v=2026-11-20.11" defer></script>
@@ -366,7 +380,7 @@
 <script src="js/following-workflow.js?v=2026-11-20.5" defer></script>
 <script src="js/following-view.js?v=2026-11-20.5" defer></script>
 <script src="js/following.js?v=2026-11-20.5" defer></script>     <!-- Loads usere and account data -->
-<script src="js/editors.js?v=2026-11-20.15" defer></script>
+<script src="js/editors.js?v=2026-11-20.19" defer></script>
 <script src="js/editor-state.js?v=2026-11-20.1" defer></script>
 <script src="js/editor-switch-view.js?v=2026-11-20.1" defer></script>
 <script src="js/editor-switch.js?v=2026-11-20.1" defer></script>
@@ -415,7 +429,7 @@
 <script src="js/localrss_opml_requests.js" defer></script>
 <script src="js/localrss_opml_view.js" defer></script>
 <script src="js/localrss_opml.js" defer></script>
-<script src="js/public-feeds.js?v=2026-11-20.1" defer></script>
+<script src="js/public-feeds.js?v=2026-11-20.19" defer></script>
 <script src="js/public-feed-requests.js?v=2026-11-20.1" defer></script>
 <script src="js/public-feed-view.js?v=2026-11-20.1" defer></script>
 <script src="js/public-feed-reader.js?v=2026-11-20.1" defer></script>
@@ -547,7 +561,7 @@
             <label style="display:block; margin-bottom:.5em;">Password<br>
                 <div style="position:relative;">
                     <input id="authPassword" type="password" autocomplete="current-password" style="width:100%; box-sizing:border-box; padding:.4em; padding-right:2.2em;">
-                    <span onclick="toggleAuthPassword('authPassword',this)" title="Show/hide password"
+                    <span id="authPasswordToggle" onclick="toggleAuthPassword('authPassword',this)" title="Show/hide password"
                           style="position:absolute; right:.4em; top:50%; transform:translateY(-50%); cursor:pointer; user-select:none; font-size:1.1em; color:var(--text-main);">👁</span>
                 </div>
             </label>
@@ -555,7 +569,7 @@
                 <label style="display:block; margin-bottom:.5em;">Confirm password<br>
                     <div style="position:relative;">
                         <input id="authConfirm" type="password" autocomplete="new-password" style="width:100%; box-sizing:border-box; padding:.4em; padding-right:2.2em;">
-                        <span onclick="toggleAuthPassword('authConfirm',this)" title="Show/hide password"
+                        <span id="authConfirmToggle" onclick="toggleAuthPassword('authConfirm',this)" title="Show/hide password"
                               style="position:absolute; right:.4em; top:50%; transform:translateY(-50%); cursor:pointer; user-select:none; font-size:1.1em; color:var(--text-main);">👁</span>
                     </div>
                 </label>

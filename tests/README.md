@@ -1526,3 +1526,81 @@ effects mocked. This is not proof of live
 migration, real encryption, atomic concurrency or durable recovery across tab reload,
 new source login or expired destination authorization. Existing DID mounting still
 runs in the focused integration Node fixture; its prior browser result was 85 checks.
+
+
+### Login/register panel and account-server selection
+
+`node --test tests/auth-panel.test.cjs` has 9 tests. Seven shared cases in
+`tests/helpers/auth-panel-fixture.js` also drive `auth-panel.browser.html` using
+real state/controller/view and the application modal shell. Cases cover validation,
+state-owned mode/draft server, private captured input, safe labels, password reset,
+Local selection, Cancel, same-server behavior, preference persistence failure versus
+accepted selection/refresh failure, duplicate/pending/rebuilt/expired guards and
+post-login feedback. Two Node cases additionally extract real `submitAuthModal`
+and mock its credentials/session/account-setup dependencies to check captured
+registration order, duplicate suppression and accepted-login setup failure.
+No real auth, registration, preference writes or external requests are made.
+The user reported browser PASS: 21 checks, with the stated effects mocked.
+Existing credential helpers still own
+transport, session installation and seeding; their internal effects and registration
+recovery are not proved guarded/cancellable by this fixture.
+
+### Credential verification and session installation
+
+`node --test tests/auth-credentials.test.cjs tests/auth-panel.test.cjs` passes 19 tests.
+Nine credential cases in `tests/helpers/auth-credentials-fixture.js` drive both Node
+and `auth-credentials.browser.html` (user-reported PASS: 27 checks). They use real
+credential/session data workflows, compatibility helpers and form controller/view
+with the application shell. Hosted/Local auth, derivation/export, cookies and
+sessionStorage are mocked; no actual network/storage writes or real cryptography.
+Coverage includes captured routing/Local adapter, username/hash-only requests,
+matching username/token/future-expiry validation, registration acceptance surviving
+login failure/rebuilt panels, uncertain creation/login-check/explicit retry, late
+creation acceptance, stale server/session rejection before install, token-last
+saving and readback, key/partial/silent-cookie rollback and incomplete restoration,
+private presentation state, concurrent direct registration and unchanged helper
+contracts. The form bridge tests mock the combined credential entry point and keep
+registration/login/setup order assertions. Post-login setup/seeding, remote session
+revocation, reload-persistent receipts and real browser storage failure modes are
+outside the mocked evidence. Prior form-only browser PASS: 21 checks.
+
+### Post-login account setup and seeding
+
+`node --test tests/post-login.test.cjs tests/auth-panel.test.cjs tests/public-feed-accounts.test.cjs`
+passes 22 tests, including nine setup cases shared with `post-login.browser.html`
+through `helpers/post-login-fixture.js`. Real setup workflow/controller/view,
+Collab/Annotations/CListBin descriptors and public discovery run with accepted
+login/session, HTTP, KV/crypto, account loading, reader and modal shell mocked.
+No external requests or actual writes. The user reported browser PASS: 22 checks.
+Cases cover all seeds before one refresh, registration-only subscriptions, Local
+exclusions, existing account data, partial discovery, retained add/registration
+receipts, read-only refresh/check, targeted unknown-registration retry, expired
+modal/source/panel ownership and preserved reader navigation/default targets.
+The former public-subscription test that matched legacy inline source has been
+replaced by captured-descriptor behavior; real registration/login gating and
+refresh ordering are asserted in the shared setup cases. Normal-app startup,
+logout, live service registrations, real encryption and durable reload recovery
+remain outside these fixtures.
+
+### Logout and session restoration
+
+`node --test tests/session-lifecycle.test.cjs tests/auth-panel.test.cjs tests/auth-credentials.test.cjs`
+passes 28 tests. Nine lifecycle cases in `helpers/session-lifecycle-fixture.js`
+also drive `session-lifecycle.browser.html` (user-reported PASS: 24 checks), using real
+workflow/controller/view with cookie/tab storage, key import, account loading,
+identity widgets, modal shell, timers and reload mocked. No live calls, actual
+writes or reload. An additional Node credential case verifies that a logout epoch
+rejects pending direct login installation even when source cookies were empty.
+The existing DID fixture mocks startup restoration because its scope is the DID
+panel; its earlier browser result does not establish lifecycle coverage.
+
+Cases cover hosted/Local read-only restore, invalid/missing/expired inputs,
+import versus account-read failure/retry, superseding reads and captured delayed
+callbacks, reader navigation, token-first cleanup and duplicate suppression,
+preserved unrelated keys/preferences, failed deletion, expired retry, partial
+cleanup, one-time notices and reload-only retry. Existing account-loader source
+extraction was updated without changing its behavioral assertions (7/7 passed).
+Actual browser cookie policy, cross-tab event delivery, full application reload,
+remote revocation and real cryptography remain outside the mocked evidence.
+
+Final lifecycle regression evidence: full Node suite 733/733, zero failures/skips.

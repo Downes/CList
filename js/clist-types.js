@@ -766,3 +766,20 @@
  * @property {number} [identityTotal]
  */
 /** @typedef {{panelId:number,pending:boolean,complete:boolean,checkRequired:boolean,copied:number,total:number,identities:number,identityTotal:number,destination:string,error:(string|null)}} CListMigrationExecutionState Public progress only; never credentials, ciphertext or private plans. */
+
+/** @typedef {{generation:number,mode:('login'|'register'),panel:('closed'|'main'|'server'),busy:boolean,error:(string|null),registration:('created'|'uncertain'|'rejected'|null),serverUrl:string,draftServer:(string|null)}} CListAuthPanelState Public form/navigation state only; no passwords or session material. */
+/** @typedef {{mode:('login'|'register'),username:string,password:string}} CListAuthInput Private captured form submission; password cleared on settlement. */
+/** @typedef {{owner:number,generation:number,epoch:number,serverUrl:string,input:CListAuthInput,authenticated:boolean}} CListAuthAttempt Private dispatch capture, never persisted or placed in UI state. */
+
+/** @typedef {{serverUrl:string,local:boolean,epoch:number,keys:Object.<string,string>,sourceToken:(string|null),source:string,snapshot:function():string,adapter:(Object|undefined)}} CListAuthCredentialTarget Private captured transport/storage target and source-session version; never UI state. */
+/** @typedef {{username:string,authHash:string,encKey:(CryptoKey|null)}} CListPreparedAuthCredentials Transient derived values; never persisted together or rendered. */
+/** @typedef {{token:string,username:string,expires:string}} CListVerifiedAuthSession Private verified response with future ISO/parseable expiry; never UI state. */
+
+/** @typedef {{key:string,label:string,data:CListAccountData,registerUrl?:string}} CListPostLoginDescriptor Captured default account and optional service registration endpoint. */
+/** @typedef {CListPostLoginDescriptor & {registration:('ready'|'uncertain'|'accepted'),record:('ready'|'uncertain'|'accepted'|'existing'),ciphertext:(string|null),error:(string|null)}} CListPostLoginStep Private per-service registration and encrypted-account receipts. */
+/** @typedef {Omit<CListAccountSession,'encKey'> & {encKey:(CryptoKey|null)}} CListPostLoginSession Private session while its key is being loaded. */
+/** @typedef {{session:CListPostLoginSession,steps:CListPostLoginStep[],discover:boolean,discovered:boolean,discoveryError:(string|null)}} CListPostLoginPlan Private captured setup, never presentation state or persistent storage. */
+/** @typedef {{operationId:number,pending:boolean,done:number,total:number,errors:string[],uncertainServices:Array<{key:string,label:string}>}} CListPostLoginState Safe counts/feedback/action labels; no accounts, keys, tokens or ciphertext. */
+
+/** @typedef {{serverUrl:string,local:boolean,epoch:number,username:(string|null),token:(string|null),expires:(string|null),key:(string|null)}} CListSessionSnapshot Private cookie/tab-key capture; never presentation state. */
+/** @typedef {{generation:number,phase:('restoring'|'guest'|'ready'|'logging-out'|'logged-out'|'failed'),error:(string|null)}} CListSessionLifecycleState Safe lifetime/feedback only. */

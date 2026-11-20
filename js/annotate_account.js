@@ -118,3 +118,9 @@ async function registerAnnotateAccount({ url, title, permissions }, { token, enc
     const encryptedValue = await encryptWithKey(encKey, JSON.stringify(instanceData));
     await window.CList.storage.kv.put(url, encryptedValue);
 }
+
+function annotationSetupAccount(defaults) {
+    if (!defaults.ANNOTATIONS) return null;
+    const key=defaults.ANNOTATIONS;
+    return {key,label:'Annotations',registerUrl:key.replace(/\/$/,'')+'/api/register',data:{type:'Annotate',instance:key,title:key.replace('https://',''),permissions:'rw'}};
+}
