@@ -33,9 +33,35 @@ The user-approved remaining order is:
    controls retain targets in closures rather than HTML. Google/DDG/OASIS
    internals are now implemented as a small follow-up: 604/604 Node tests pass,
    with the new browser fixture passing user testing (17 checks); a fixture-only
-   selector correction subsequently passed 23 focused Find Node tests. OpenAlex/Commons stateless search-row
-   controls and annotation controller presentation cleanup remain separate.
-5. Authentication, identity/DID/migration and administrative settings.
+   selector correction subsequently passed 23 focused Find Node tests. OpenAlex/Commons row controls now use the shared callback binder (606/606 Node
+   tests pass; updated Find browser fixture passed user testing, 28 checks). Annotation controller
+   presentation cleanup is now implemented (607/607 Node tests pass; updated
+   annotation browser fixture passed user testing, 20 checks). The next area is authentication/identity,
+   to be scoped as a small separate slice after validation.
+5. Authentication, identity/DID/migration and administrative settings. First small
+   slice: Me → Following workflow/controller/view implemented; 613/613 Node tests
+   pass, Following browser check passed user testing (17 checks). Login and DID/migration/admin paths
+   remain on their existing implementations. DID identity display and public
+   account listing now have separated read workflow/controller/view (620/620 Node
+   tests pass; browser check passed user testing, 18 checks). Identity write/removal/migration
+   lifecycles are outside this read-only slice. Prove Same Identity is now a
+   separate workflow/controller/view (626/626 Node tests pass; extended DID browser
+   fixture passed user testing, 27 checks). Publish Existing Key now has a separate workflow/controller/view (635/635 Node
+   tests pass; extended DID browser fixture passed user testing, 37 checks). Generation/regeneration,
+   Update DID, removal/migration and login remain separate. Shared password
+   confirmation now has workflow/controller/view boundaries (642/642 Node tests
+   pass; browser fixture passed user testing, 21 checks), preserving custom import/export
+   verification and adding stale source/session/dialog guards before dispatch.
+   First-time identity generation now uses add-only workflow/controller/view and
+   existing-key publication (650/650 Node tests pass; extended DID browser fixture
+   passed user testing, 48 checks). Confirmed regeneration/rotation now has its
+   own workflow/controller/view and partial-write recovery (660/660 Node tests
+   pass; extended DID browser fixture passed user testing, 62 checks). Remove DID
+   now has separate workflow/controller/view and step receipts (669/669 Node tests
+   pass; extended DID browser fixture passed user testing, 75 checks). Update DID and migration internals
+   remain separate, with guarded mutation dispatch. Update DID and public-account
+   selection now have workflow/controller/view boundaries (677/677 Node tests pass;
+   extended DID browser fixture passed user testing, 85 checks). Migration internals remain to migrate.
 6. Pane persistence/navigation, keyboard/mobile state and reusable action/menu contracts.
 7. Collaboration/P2P chat session workflows, then remaining AI feature boundaries.
 

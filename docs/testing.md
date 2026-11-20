@@ -660,3 +660,591 @@ paging/earlier-page controls, nested DDG topics, OASIS HTML parsing/proxy header
 empty/error feedback and stale request/menu/row/session guards. Services/actions
 were mocked; no external requests or writes. This supersedes the pending browser
 rerun above and completes this small stage's browser validation.
+
+
+## OpenAlex and Commons row controls — small follow-up
+
+Both providers now use `bindSearchProviderRow` instead of inline HTML action
+handlers. Existing request construction, normalization and pagination are retained.
+Controls capture the original URL/row ID, survive paging and Find panel closure,
+and reject detached/replaced rows and changed sessions. No new component or
+transport was introduced. Editor marker: `test 2026-11-20.3`.
+
+Fresh checks: **27 focused Node tests passed** with
+`node --test tests/find.test.cjs tests/reader-row-context.test.cjs`, then the full
+`node --test tests/*.test.cjs` suite passed **606/606**, with no failures or skips.
+App/fixture script paths and JavaScript syntax were checked separately.
+
+User browser rerun **pending**:
+[Find boundary](https://localhost:51888/tests/find.browser.html). Expect final
+**PASS**. This existing fixture now binds real provider row controls while keeping
+listing widgets, HTTP, external actions, feedback and reader invalidation mocked.
+It checks callback markup, OpenAlex expansion, earlier-page OpenAlex/Commons browser
+actions, replaced rows and session-stale actions alongside existing query/paging
+checks. It makes no external requests or writes and does not establish live API
+or complete reader integration behavior.
+
+
+User reran `find.browser.html` and reported **PASS (28 checks)**, including real
+OpenAlex/Commons request construction/normalization, captured pagination, callback
+row controls and earlier-page/stale-row guards. APIs, listing widgets, feedback,
+external actions and reader invalidation were mocked; no external requests or
+storage writes. This completes browser validation for this small follow-up and
+supersedes its pending rerun above. It does not establish live-service or full
+reader integration behavior.
+
+
+## Annotation presentation cleanup — small follow-up
+
+`annotate_reader.js` now supplies captured Follow/Flow row commands through
+`annotationRowOptions`; `annotate_view.js` renders and invokes those callbacks.
+Flow retains its captured annotation session and existing publishing workflow.
+Stale rows cannot dispatch commands, and follow errors route back to view feedback.
+The last feed-author label, follow/unfollow notice and partial-batch warning
+presentation now live in the view. Existing discovery, persistence, account/session
+ownership, duplicate guards and exact-node thread restoration are retained.
+
+Fresh checks: **31 focused Node tests passed** with
+`node --test tests/annotation-reader.test.cjs tests/annotation-publishing.test.cjs`,
+then `node --test tests/*.test.cjs` passed **607/607**, no failures or skips.
+App and annotation fixture script paths/JavaScript syntax were checked separately.
+Editor marker: `test 2026-11-20.4`.
+
+User browser rerun **pending**:
+[Annotation reader](https://localhost:51888/tests/annotation-reader.browser.html).
+Expect final **PASS**. Existing checks are extended with empty-feed presentation,
+real follow feedback using mocked persistence, captured Flow commands, detached
+follow/Flow controls and view-owned feed-author text. HTTP, encryption, storage,
+reader surfaces, sharing and Flow publication are mocked; no external requests
+or actual file/storage writes. Browser preparation does not establish execution,
+live-service or ordinary-account behavior.
+
+
+User reran `annotation-reader.browser.html` and reported **PASS (20 checks)**,
+including view-owned empty/follow feedback, captured row Flow commands, stale
+controls, exact-node thread restoration and session isolation. HTTP, encryption,
+storage, reader surfaces, sharing and Flow publication were mocked; no external
+requests or writes. This supersedes the pending annotation rerun above and
+completes browser validation for this small stage. It is separate from the
+recorded **607/607 Node** result and does not establish live-service behavior.
+
+
+## Me → Following — first small identity slice
+
+Following now uses `following-workflow.js` for explicit list/decrypt/delete
+operations, `following.js` for captured session/panel/request/row ownership, and
+`following-view.js` for controls and feedback. `playFollowing` and
+`kvstoreFollowingPanel` remain compatibility entry points. The annotation refresh
+hook and follow-cache invalidation are retained. Login, DID publication/proofs,
+migration and administrative settings are outside this slice.
+
+Delete the exact stored key, even when the decrypted DID differs. Partial
+unreadable records retain their key-derived identity and a visible warning.
+Unfollow locks persist across list refreshes; old rows and changed login/server/
+storage-mode/panel callbacks expire. Failures keep the row and offer explicit
+retry through Unfollow; no automatic delete retries. Accepted writes remain
+separate from later list refresh errors. Storage uses the existing facade, which
+captures its destination/authentication synchronously when the operation starts.
+Credentials stay outside `CList.state.following`; it holds only panel/request IDs,
+phase, error and pending count. Profile links/labels use safe text and standard
+buttons. Unknown DID formats display as text.
+
+Fresh checks: **15 focused Node tests passed** with
+`node --test tests/following.test.cjs tests/annotation-reader.test.cjs`, then
+`node --test tests/*.test.cjs` passed **613/613**, no failures or skips. Workflow
+checks run without DOM; controller/view checks use simulated elements. App and
+fixture script paths/JavaScript syntax were checked separately.
+
+User browser check **pending**:
+[Following panel](https://localhost:51888/tests/following.browser.html). Expect
+final **PASS**. It runs real workflow/controller/view with mocked session, storage,
+keys and decryption: safe labels/links, unreadable-entry warnings, exact delete
+keys, duplicate/refresh locks, uncertain failures and explicit retry, stale
+sessions/panels, empty/login/error feedback and credential-free state. No external
+requests or real storage writes. This does not verify deployed authentication,
+DID services or the full Me navigation. Editor marker: `test 2026-11-20.5`.
+
+
+User ran `following.browser.html` and reported **PASS (17 checks)**, covering exact
+stored keys, safe labels/links, unreadable-entry warnings, duplicate/refresh locks,
+uncertain failure and explicit retry, stale session/panel guards, empty/login/error
+feedback and credential-free presentation state. Storage, encryption and session
+APIs were mocked; no external requests or real storage writes. This supersedes
+the pending Following browser check above and completes validation for this small
+slice, separately from the recorded **613/613 Node** result. Live authentication,
+DID services and full Me navigation remain unverified by these fixtures.
+
+
+## DID identity display and public account listing — read-only slice
+
+`did-identity-workflow.js` owns explicit hosted/local identity reads and account
+list/decryption/projection. `did-identity.js` captures panel/session/storage mode
+and independent identity/account request lanes. `did-identity-view.js` owns safe
+status/account rendering, retry controls and section visibility. The existing
+`kvstoreDidPanel` builds its unchanged management shell and delegates read startup,
+post-write account reloads and visibility rendering. It retains existing identity
+write handlers; publishing, proof, removal and migration lifecycles are not migrated
+or claimed stale-safe by this slice.
+
+Hosted 404 distinguishes missing identity from an imported unpublished key. Other
+HTTP/storage/key failures remain visible and permit explicit read retry rather than
+being reported as no identity. Local mode derives public display data only and
+skips hosted identity/account reads. Optional aliases and malformed account records
+are handled safely; unreadable accounts are skipped with visible partial warnings.
+New reads, changed sessions/server/mode, closed/replaced panels and expired retry
+callbacks reject stale effects. Both request lanes keep separate ownership.
+
+The public checkbox `checked`/`data-key` contract is retained for legacy Update DID.
+Account labels/keys use DOM text/property assignment; the view receives only key,
+title, type and public flag, not credentials. This is read/display separation,
+not migration of publication selection/state or other write workflows.
+`CList.state.identityDisplay` contains only panel/request IDs, phases and errors.
+The new read path uses `CList.keys.DID_IDENTITY_KEY` for the existing stored key;
+record formats and cryptographic primitives are unchanged.
+
+Fresh checks: **13 focused Node tests passed** with
+`node --test tests/did-identity.test.cjs tests/following.test.cjs`, then
+`node --test tests/*.test.cjs` passed **620/620**, no failures or skips. Checks
+include explicit workflow dependencies without DOM, hosted/local/missing/imported
+identity, safe metadata, partial account failures, current failure/retry, independent
+request supersession and stale session/server/mode/panel guards. One Node check
+mounts the actual existing DID panel builder with extracted reads and checks legacy
+checkbox/write-button compatibility without invoking a write. App/fixture script
+paths and JavaScript syntax were checked separately.
+
+User browser check **pending**:
+[DID identity display](https://localhost:51888/tests/did-identity.browser.html).
+Expect final **PASS**. It loads the real existing panel and extracted read modules,
+with session/HTTP/storage/key derivation mocked and write attempts blocked. General
+application bootstrap is isolated; no external requests or writes are performed.
+It does not validate real authentication, cryptography, DID publication, proof,
+removal or migration. Editor marker: `test 2026-11-20.6`.
+
+
+User ran `did-identity.browser.html` and reported **PASS (18 checks)**: real existing
+DID panel plus read workflow/controller/view, hosted/local/missing/unpublished
+identity, safe metadata/account labels, legacy checkbox compatibility, partial
+warnings, HTTP failure/retry, stale panel/session/request guards and private-data
+exclusion. HTTP, storage, sessions and key derivation were mocked; no external
+requests or writes. This supersedes the pending DID display check above and
+completes browser validation for the read-only slice, separately from the recorded
+**620/620 Node** result. Publishing, proof, removal, migration and live authentication
+remain outside this evidence.
+
+
+## Prove Same Identity — small identity slice
+
+`did-proof-workflow.js` takes an explicit target and read/crypto dependencies;
+`did-proof.js` captures the current DID panel, session/mode and request lifetime;
+`did-proof-view.js` owns input capture, controls and progress/result/error rendering.
+The existing DID panel binds this controller. No identity/storage publication,
+removal or migration writes were added or invoked. Existing crypto helpers remain
+unchanged. Verification uses the fetched public JWK and the exact locally signed
+challenge/signature; a did:key alias is display metadata, not the proof decision.
+
+Targets require HTTP(S) URLs without embedded credentials/query/fragment and an
+encoded normalized username. Own credentials are not sent to the other account.
+Duplicate clicks are suppressed. Input edits expire/abort old work and permit a
+new request; stale completions cannot reset newer feedback/controls. Session,
+server, local/hosted mode, closed/replaced panel and request changes reject pending
+key preparation, signing/verification continuation and UI effects. An already
+started crypto operation is not cancelled, but its stale continuation is rejected.
+Key mismatch is a completed verification outcome, distinct from visible transport,
+key/decryption and crypto failures. Explicit retry is available via the normal
+proof button; no automatic retries. All result metadata uses text rendering.
+`CListIdentityProofState` stores only panel/request IDs, phase and error; decrypted
+keys, signatures, challenges and tokens remain transient.
+
+Fresh checks: **13 focused Node tests passed** with
+`node --test tests/did-proof.test.cjs tests/did-identity.test.cjs`, then
+`node --test tests/*.test.cjs` passed **626/626**, no failures or skips. The focused
+cases cover explicit workflows without DOM, exact signing/verification inputs,
+validation, missing login/keys, mismatch/error separation, duplicate clicks, input
+supersession and stale token/server/mode/panel guards. Crypto and external APIs
+are mocked; these results do not validate cryptographic primitives or real servers.
+App/fixture script paths and JavaScript syntax were checked separately.
+
+User browser rerun **pending**:
+[DID identity and proof](https://localhost:51888/tests/did-identity.browser.html).
+Expect final **PASS**. The existing real-panel fixture retains the display checks
+and adds captured proof, safe metadata, duplicate/input/session guards and mismatch
+feedback. HTTP/storage writes are blocked; session, key operations and signing/
+verification are mocked. No external requests or writes. Publication, removal and
+migration are not exercised. Editor marker: `test 2026-11-20.7`.
+
+
+User reran `did-identity.browser.html` and reported **PASS (27 checks)**, retaining
+the real-panel identity display/account-list coverage and adding captured identity
+proof, duplicate/input/session guards, key mismatch and private-data exclusion.
+HTTP, storage, sessions, key derivation and proof cryptography were mocked; no
+external requests or writes. This supersedes the pending proof browser rerun above
+and completes browser validation for this small stage, separately from the
+recorded **626/626 Node** result. Publishing, removal, migration and live services
+remain outside this evidence.
+
+
+## Publish Existing Key — small DID publication slice
+
+`did-publication-workflow.js` derives public material from the existing encrypted
+identity key and performs explicit DID checks/publication. It never generates,
+replaces or saves a private key. `did-publication.js` captures panel/session/mode,
+owns pending locks, accepted receipts and reconciliation. `did-publication-view.js`
+owns controls and feedback. The existing Publish Existing Key entry point delegates
+to this controller. Generation/regeneration, Update DID selection/publication,
+removal and migration remain separate legacy lifecycles.
+
+Before PUT, recheck the captured stored key and current owner. Public DID preflight
+uses a fresh GET: an existing matching Ed25519 public key and did:key is reconciled
+without replacing its document; a different identity is rejected. A new registration
+retains the existing publicKeyJwk/didKey/empty service and aliases request contract.
+These are cooperative client checks, not an atomic server-side precondition.
+The controller cancels superseded identity display reads before publishing so
+old read results/retries cannot replace publication feedback.
+
+HTTP acceptance retains a receipt before reading optional response JSON. Body or
+later account/collaboration refresh failures remain distinct from accepted DID
+publication and never cause another PUT. Collaboration refresh now returns failed
+destinations for visible post-publication feedback while retaining captured auth.
+An uncertain transport outcome offers **Check publication**, a read-only check.
+Matching publication reconciles it without replay; a confirmed missing document
+offers a separate explicit **Retry publication** action. Pending locks span rebuilt
+panels in the same captured session. Changed sessions/server/panels and changed
+stored keys reject stale preparation/reconciliation; late accepted results do not
+change newer panels or launch follow-up requests under another session.
+
+`CList.state.identityPublication` holds only panel ID, phase and error. Tokens,
+encrypted key snapshots, derived public material and receipts stay transient;
+private key material never enters publication payloads or UI. Follow-up receipts
+are in-memory; a new panel recovers accepted publication through public preflight.
+No automatic publication retries were introduced.
+
+Fresh checks: **22 focused Node tests passed** with
+`node --test tests/did-publication.test.cjs tests/did-identity.test.cjs tests/did-proof.test.cjs`,
+then `node --test tests/*.test.cjs` passed **635/635**, no failures or skips. Cases
+cover explicit workflow dependencies without DOM, public-only payloads, matching/
+conflicting documents, stale keys/session/panels, duplicate/rebuilt-panel locks,
+uncertain accepted/missing reconciliation, unreadable accepted response bodies and
+collaboration failure reporting with captured authorization. App and fixture
+script paths/JavaScript syntax were checked separately.
+
+User browser rerun **pending**:
+[DID identity, proof and existing-key publication](https://localhost:51888/tests/did-identity.browser.html).
+Expect final **PASS**. Existing real-panel display/proof cases now include mocked
+publication, duplicate clicks, public-only payloads, post-publication warnings,
+receipt retention, lost-response reconciliation, conflicting identity rejection and
+stale session preparation. Only explicitly mocked publication PUTs are permitted;
+other writes are blocked. No external requests or real writes occur. Real crypto,
+live publication, generation/regeneration, removal and migration are not tested.
+Editor marker: `test 2026-11-20.8`.
+
+
+User reran `did-identity.browser.html` and reported **PASS (37 checks)**, retaining
+identity display/proof coverage and adding captured existing-key publication,
+receipts/uncertainty, stale publication/conflict guards and private-data exclusion.
+HTTP including publication, storage, sessions and key derivation were mocked; no
+external requests or real writes. This supersedes the pending publication browser
+rerun above and completes validation for Publish Existing Key, separately from the
+recorded **635/635 Node** result. Real crypto/live services, generation/regeneration,
+Update DID, removal and migration remain outside this evidence.
+
+
+## Shared password confirmation — small authentication slice
+
+`password-confirmation-workflow.js` verifies a captured session-key snapshot using
+explicit derivation/export/encoding dependencies. `password-confirmation.js`
+owns dialog/session/source lifetime, pending state, one-time callback dispatch and
+compatibility `verifyPassword` / `confirmWithPassword` entry points.
+`password-confirmation-view.js` owns controls, modal lifecycle and feedback. The
+same crypto helpers and local password-check algorithm remain in use; there is no
+server authentication or identity write in this slice.
+
+Default verification captures the original account/session/key. Custom import
+verifiers remain supported independently of the current account password. Preserve
+trusted message HTML (callers escape untrusted values), custom confirm labels/classes
+and callback(password) behavior. Submit captures the password once before awaiting;
+it never rereads a changed input after verification. Enter and click share a pending
+lock; a completed callback is never dispatched again, even after rejection.
+
+Cancel, replaced/externally closed modals, changed login/server/storage/key and
+optional source guards expire pending callbacks. External modal closure clears
+password inputs through a view-owned observer. Session/source expiry leaves Cancel
+usable. Verification failures permit explicit retry; confirmed action failure is
+reported separately without rerunning that action or closing another modal.
+DID regenerate/remove and account export/import callers now supply their source
+panel guard. These guards govern confirmation dispatch, not the caller's internal
+async operations after dispatch: generation/removal and legacy transfer flows are
+not thereby migrated or claimed safe against later session changes.
+
+`CList.state.passwordConfirmation` holds only ID, phase and generic error. Passwords
+and verification-key snapshots remain transient, are never logged or stored in
+summaries, and are cleared from closed dialog controls. The shared status helper
+reports callback failures without replacing a newer modal. Standard button classes
+are used while preserving callers' existing confirm-class option.
+
+Fresh checks: **7 focused Node tests passed** with
+`node --test tests/password-confirmation.test.cjs`, then
+`node --test tests/*.test.cjs` passed **642/642**, no failures or skips. Cases cover
+explicit workflow dependencies, current-session verification, false/error retries,
+custom import verifier and labels, captured passwords, Enter/click duplicates,
+Cancel/replaced/external dialogs, session/server/storage/key/source expiry and
+single action dispatch including async failures. App and fixture script paths/
+JavaScript syntax were checked separately.
+
+User browser check **pending**:
+[Password confirmation](https://localhost:51888/tests/password-confirmation.browser.html).
+Expect final **PASS**. Real workflow/controller/view; session storage, derivation,
+custom verification, action callbacks and modal shell are mocked. Only synthetic
+keys/passwords are used; there are no external requests, actual storage writes or
+destructive identity actions. This does not establish real password derivation,
+production login, export/import or destructive-operation behavior.
+Editor marker: `test 2026-11-20.9`.
+
+
+User ran `password-confirmation.browser.html` and reported **PASS (21 checks)**:
+real workflow/controller/view, default/custom verifier contracts, captured passwords,
+Enter/click duplicate guards, Cancel/replaced/external modal rejection, session/
+source/key expiry, visible failures/explicit retry, single callback dispatch and
+secret-free state. Session storage, derivation, custom verification, actions and
+modal shell were mocked; no external requests, real storage writes or destructive
+identity actions. This supersedes the pending confirmation browser check above and
+completes validation for this small slice, separately from **642/642 Node** results.
+Real login, key generation/removal and caller-owned async operations remain outside
+this fixture evidence.
+
+
+## First-time Generate Identity Key — small identity slice
+
+`did-generation-workflow.js` owns explicit first-time key inspection/generation/
+encryption and add-if-absent storage. `did-generation.js` captures panel/session/
+mode, cross-panel pending locks, accepted storage receipts and read-only recovery.
+`did-generation-view.js` owns generation/storage feedback. The Generate Identity
+Key button delegates here; confirmed Regenerate Key continues through its separate
+legacy function. Key removal, migration and Update DID remain separate.
+
+The first-time path never overwrites an existing stored identity. Existing or
+concurrently created keys are inspected/derived and preserved. New keys use the
+existing storage facade's `add`, not `put`; AlreadyExists never falls back to an
+update. Existing crypto primitives and encrypted record format are unchanged.
+Guards are checked after key preparation/generation/encryption and before storage;
+accepted adds retain their receipt even if the panel/session later changes.
+Client guards cooperate with the storage adapter's add-if-absent contract.
+
+Local mode stores the key without hosted requests. Hosted mode hands the stored
+key to the existing publication controller, bound to its exact derived did:key;
+a subsequently changed identity cannot be published by that captured generation.
+Storage completion and publication completion remain separate. Publication recovery
+reuses the same stored key and existing publication receipts/checks; it never
+regenerates. Unknown add outcomes offer **Check stored identity**, which only reads
+and derives a stored key. Missing storage then offers a separate explicit **Retry
+generation**. No automatic key generation/storage retries or identity replacement.
+Retained Generate callbacks cannot regenerate after an accepted storage receipt.
+
+`CList.state.identityGeneration` holds only panel ID, phase and error. Private keys
+and encryption material remain in transient crypto operations; receipts expose only
+didKey/existing. Post-storage failure offers read-only identity refresh while
+retaining the stored-key outcome. These guards do not migrate Regenerate Key's
+legacy internal lifecycle.
+
+Fresh checks: **24 focused Node tests passed** with
+`node --test tests/did-generation.test.cjs tests/did-publication.test.cjs tests/did-identity.test.cjs`,
+then `node --test tests/*.test.cjs` passed **650/650**, no failures or skips. Cases
+cover local/hosted first-time creation, existing/concurrent key preservation,
+encrypted add-only payloads, uncertain storage checks, duplicate/rebuilt panels,
+stale session/server/mode/closed panels, post-store failure recovery, explicit
+workflow dependencies without DOM and publication of the exact stored identity.
+App/fixture script paths and JavaScript syntax were checked separately.
+
+User browser rerun **pending**:
+[DID identity and first-time generation](https://localhost:51888/tests/did-identity.browser.html).
+Expect final **PASS**. Existing cases gain add-only creation, hosted publication
+reuse, local-only behavior, storage/publication uncertainty recovery, retained
+Generate rejection and stale-session preparation. HTTP/key/storage operations are
+mocked; only explicitly mocked add/publication writes are permitted. No external
+requests or real writes. Regeneration, removal, migration and real cryptography
+are not exercised. Editor marker: `test 2026-11-20.10`.
+
+
+User reran `did-identity.browser.html` and reported **PASS (48 checks)**, retaining
+identity display/proof/publication coverage and adding add-only first-time
+generation, storage/publication recovery and private-data exclusion. HTTP including
+publication, storage, sessions, key derivation and generation were mocked; no
+external requests or real writes. This supersedes the pending generation browser
+rerun above and completes validation for this small slice, separately from the
+recorded **650/650 Node** result. Regeneration, removal, migration, live services
+and real cryptography remain outside this fixture evidence.
+
+
+## Regenerate Key / confirmed rotation
+
+`did-rotation-workflow.js`, `did-rotation.js` and `did-rotation-view.js` replace
+the legacy rotation body. Preparation captures the original encrypted key and
+public identity before the shared password prompt; Cancel causes no key change.
+The confirmed target, login/server/mode/panel and public key are rechecked before
+generation and storage. Linked services (including extension fields) and non-key
+aliases come from the latest accepted public document; old did:key aliases and
+server-owned KVStore service entries are excluded as before. Metadata read failures
+stop rather than silently publishing empty metadata. Local rotation has no hosted
+requests. Existing crypto and encrypted key formats remain unchanged.
+
+Replacement storage and publication have separate outcomes. Session-scoped,
+in-memory plans retain encrypted replacement snapshots and receipts across panel
+rebuilds; no new persistent receipt format is introduced. Unknown storage offers a
+read-only check; an accepted replacement offers separate Continue publication.
+Unknown publication is checked without replay; continuing publication reuses the
+stored replacement, never another generated key. A conflict offers explicit
+identity refresh. Successful rotation expires the old action; a subsequent rotation
+requires fresh preparation/password confirmation. Shared publication transport
+retains HTTP acceptance before response parsing; account/collaboration refresh
+failures cannot repeat rotation/publication. No automatic retries or key rollback.
+Client checks are cooperative: the storage update API is not compare-and-swap.
+
+Rotation invalidates pending identity reads/proofs. Proof also rechecks its stored
+key after verification, rejecting a key changed by another panel. Password
+confirmation now returns an owned isOpen/cancel handle and supports a one-time
+onCancel notification; existing callers remain compatible. Confirmation guards
+govern dispatch; operation guards still govern each asynchronous write boundary.
+Private keys stay in crypto operations; ciphertext/plans remain transient and do
+not enter `CList.state.identityRotation`, which holds only panel ID/phase/error.
+
+Fresh checks: **40 focused Node tests passed** with
+`node --test tests/did-rotation.test.cjs tests/password-confirmation.test.cjs tests/did-publication.test.cjs tests/did-identity.test.cjs tests/did-proof.test.cjs`,
+then `node --test tests/*.test.cjs` passed **660/660**, no failures or skips. Coverage
+includes confirmation/Cancel, changed targets, metadata preservation, local mode,
+partial/uncertain writes, explicit continuation, rebuilt-panel receipts, duplicate/
+stale actions, source/session changes and old-key proof rejection. App/fixture
+script paths and JavaScript syntax were checked separately.
+
+User browser rerun **pending**:
+[DID identity and rotation](https://localhost:51888/tests/did-identity.browser.html).
+Expect final **PASS**. The existing real-panel fixture now also runs the real
+password dialog with a mocked verifier/modal shell and mocked rotation key/storage/
+publication operations. It checks cancellation, confirmed targets, metadata,
+local mode, storage/publication recovery, retained actions and stale-session writes.
+No external requests or real writes; removal/migration and real crypto/authentication
+are not exercised. Editor marker: `test 2026-11-20.11`.
+
+
+User reran `did-identity.browser.html` and reported **PASS (62 checks)**, retaining
+identity display/proof/publication/generation coverage and adding confirmed key
+rotation, preserved metadata, partial-rotation recovery and private-data exclusion.
+HTTP including publication, storage, sessions, key derivation, regeneration and
+password verification were mocked; no external requests or real writes. This
+supersedes the pending rotation browser rerun above and completes validation for
+this small slice, separately from **660/660 Node** results. Removal, migration,
+live authentication/services and real cryptography remain outside this evidence.
+
+
+## Remove DID — confirmed two-part removal
+
+`did-removal-workflow.js`, `did-removal.js` and `did-removal-view.js` replace the
+legacy removal body. Preparation captures the original encrypted-key value and
+public identity before password confirmation; Cancel performs no delete. Changed
+key/public identity/session/panel targets expire the action. Local mode removes
+only the stored key and makes no hosted request.
+
+Stored-key and public-document removal have separate, monotonic accepted/absence
+receipts. A failed key deletion may still allow the captured public document to be
+removed, preserving the former behavior, but completion is never reported until
+both steps are acknowledged/confirmed absent. Partial/unknown outcomes offer
+**Check removal** (read-only), then a separate **Retry remaining removal** for
+unfinished steps. Accepted steps are not replayed. DELETE 404 needs a fresh public
+read confirming absence; a missing delete endpoint alone is not success. KV read
+errors are not interpreted as an absent private key. Target conflicts offer explicit
+identity refresh and fresh confirmation rather than deleting another identity.
+
+Transient session-owned plans survive panel rebuilds. Accepted old completions do
+not drive the new panel; explicit checks reconcile receipts. Completion clears
+obsolete rotation recovery plans and rebuilds fresh DID controls, enabling future
+first-time generation without old receipts. A controls-refresh failure remains an
+accepted-removal outcome and offers read-only recovery, never another delete.
+No automatic retries, key restoration or actual tool-driven removal was performed.
+
+Migrated generation/publication/rotation/removal coordinate mutation lifetimes;
+first-time generation may delegate its expected key to publication. Legacy Update
+DID and migration Run dispatch are guarded while another mutation is active and
+hold a compatibility guard until their awaited action settles. Their internals
+remain legacy and are not claimed fully captured/stale-safe by this wrapper.
+Deletion invalidates pending proof/read feedback. The checks are cooperative client
+guards, not cross-client/server atomic transactions.
+
+`CList.state.identityRemoval` holds panel ID/phase/error only. Encrypted target
+snapshots, public fingerprints and step receipts stay transient. Existing key/DID
+record formats are unchanged. No plaintext private keys are needed for removal.
+
+Fresh checks: **40 focused Node tests passed** with
+`node --test tests/did-removal.test.cjs tests/did-generation.test.cjs tests/did-publication.test.cjs tests/did-rotation.test.cjs tests/did-identity.test.cjs`,
+then `node --test tests/*.test.cjs` passed **669/669**, no failures or skips. Coverage
+includes confirmation/Cancel, local/hosted removal, target changes, partial key
+failure, uncertain/public DELETE outcomes, fresh-read validation of 404, exact
+remaining-step retry, rebuilt panels, mutation coordination and accepted removal
+with a failed UI refresh. App/fixture script paths and syntax were checked separately.
+
+User browser rerun **pending**:
+[DID identity and removal](https://localhost:51888/tests/did-identity.browser.html).
+Expect final **PASS**. The existing real-panel/dialog fixture now includes mocked
+removal, Cancel, partial/unknown recovery without replay, fresh controls after
+completion, local mode and changed targets. All key/HTTP deletions are mocked;
+no external requests or real writes. Migration, live authentication/storage and
+real cryptography are not exercised. Editor marker: `test 2026-11-20.12`.
+
+
+User reran `did-identity.browser.html` and reported **PASS (75 checks)**, retaining
+identity display/proof/publication/generation/rotation coverage and adding confirmed
+and partial removal with private-data exclusion. HTTP including publication and
+removal, storage, sessions, key derivation, regeneration and password verification
+were mocked; no external requests or real writes. This supersedes the pending
+removal browser rerun above and completes validation for this slice, separately
+from **669/669 Node** results. Migration, live authentication/storage/services and
+real cryptography remain outside this fixture evidence.
+
+
+## Update DID and public-account selection
+
+`did-update-workflow.js`, `did-update.js` and `did-update-view.js` replace the legacy
+Update DID body. Public choices live in controller-owned selection with a safe
+`CList.state.identitySelection` projection; checkbox changes use captured keys and
+expire when rows rebuild. Checked/data-key DOM tampering cannot choose targets.
+Selections survive account-list refresh; source ciphertext versions remain transient.
+
+Captured choices preserve account credentials/extensions while changing only public
+flags. Account versions, identity key, page catalog and public DID are rechecked
+before writes. Managed service extensions, unmapped public links, non-managed aliases
+and catalog endpoints are preserved; unchecked managed Bluesky aliases are removed.
+The UI explains that other public links are retained. Malformed/unreadable source
+metadata fails visibly before publication. These are client checks, not server CAS.
+
+Per-account visibility receipts and DID publication acceptance are independent.
+Partial flag saves remain visible even after publication succeeds. Check update is
+read-only; explicit Retry remaining update skips accepted steps. Changed drafts or
+reopened panels cannot write the old choices without refreshing/start of a fresh
+update. Unknown publication is reconciled without replaying flags/PUT. Newer public
+metadata cannot be overwritten by retrying an unaccepted old plan. Accepted/newer
+metadata is preserved, with a visible notice when applicable. Fresh unchanged choices
+cause no writes. Migrated mutation coordination now includes Update DID; only
+migration Run remains behind the compatibility dispatch wrapper.
+
+Fresh checks: **15 focused Node tests passed** with
+`node --test tests/did-update.test.cjs tests/did-identity.test.cjs`, then
+`node --test tests/*.test.cjs` passed **677/677**, no failures or skips. Cases cover
+state-owned/tampered selection, metadata/credential/catalog preservation, stale row
+callbacks, partial and lost-response recovery, source/draft/session/panel changes,
+duplicate dispatch and explicit workflow dependencies. App/fixture script paths and
+JavaScript syntax passed separately.
+
+User browser rerun **pending**:
+[DID identity and Update DID](https://localhost:51888/tests/did-identity.browser.html).
+Expect final **PASS**. The extended real-panel fixture adds state-owned choices,
+credential/service/catalog preservation, managed aliases, partial visibility saves,
+remaining-step retry and uncertain publication reconciliation. HTTP, storage,
+sessions and crypto remain mocked; no external requests or real writes. Migration
+is not exercised. Editor marker: `test 2026-11-20.13`.
+
+
+User reran `did-identity.browser.html` and reported **PASS (85 checks)**, retaining
+prior identity coverage and adding state-owned public choices, captured Update DID,
+partial-update recovery and private-data exclusion. HTTP including publication,
+storage, sessions, key derivation and identity operations were mocked; no external
+requests or real writes. This supersedes the pending Update DID browser rerun above
+and completes validation for this slice, separately from **677/677 Node** results.
+Migration, live authentication/storage/services and real cryptography remain
+outside this fixture evidence.

@@ -412,5 +412,92 @@ for pagination. Reject detached/replaced rows and stale account/session callback
 LocalRSS row binding is in `localrss_row_view.js`. Google/DDG/OASIS now use captured
 Find contexts, explicit request functions and `search-provider-view.js` row controls.
 Google modes/pagination retain the original query and credential snapshot; reject
-changed accounts and stale menus. OpenAlex/Commons already use Find contexts but
-their stateless inline row controls remain a separate cleanup.
+changed accounts and stale menus. OpenAlex/Commons also use the shared row binder;
+keep earlier-page controls live while rejecting detached/replaced/session-stale rows.
+
+## Following identity panel
+
+Me → Following uses `following-workflow.js`, `following.js` and
+`following-view.js`. Preserve exact stored keys independently of decrypted DIDs,
+visible fallback warnings, captured login/server/storage-mode ownership and
+pending Unfollow locks across refresh. Do not retry uncertain deletes automatically.
+Keep transient credentials/nodes outside `CList.state.following`; the shared state
+holds only presentation summaries. Reuse the storage facade and annotation cache
+invalidation/refresh hook. Login/DID/migration/admin paths remain separate.
+
+## DID identity display reads
+
+DID identity/account listing uses `did-identity-workflow.js`, `did-identity.js`
+and `did-identity-view.js` inside the existing management panel. Capture read-only
+session/mode/panel and separate request lanes; reject stale responses/retries.
+Keep account projections and displayed metadata free of credentials and render
+untrusted text safely. Preserve local identity handling, 404 imported-key fallback,
+visible read errors/partial warnings and the existing checkbox contract for legacy
+Update DID. Reads use `CList.keys.DID_IDENTITY_KEY`. DID publication/removal/migration
+controllers remain legacy paths and are not protected by these read guards.
+
+Prove Same Identity uses `did-proof-workflow.js`, `did-proof.js` and
+`did-proof-view.js`. Capture panel/session/target; reject stale input/session/key
+continuations and guard duplicates. Reuse existing crypto helpers, never send own
+credentials/private key to the other account, and keep proof material outside
+shared summaries. Use safe text for untrusted public identity metadata. Mismatch
+is a completed verification result, separate from operational failure. Publication,
+removal and migration remain separate legacy lifecycles.
+
+Publish Existing Key uses `did-publication-workflow.js`, `did-publication.js` and
+`did-publication-view.js`. Preserve the stored key, captured session, fresh public
+preflight, ciphertext check, cross-panel pending lock and accepted receipts. Reconcile
+matching public identities without replacing documents; reject conflicting keys.
+Unknown outcomes require read-only Check publication before a separate explicit
+retry. Keep post-write account/collaboration refresh failures distinct from accepted
+publication. Do not add automatic PUT retries or leak credentials/private keys into
+summaries/payloads. Generation/regeneration, Update DID, removal and migration remain
+separate legacy controllers.
+
+Shared password confirmation uses `password-confirmation-workflow.js`,
+`password-confirmation.js` and `password-confirmation-view.js`. Preserve the public
+verifyPassword/confirmWithPassword APIs, custom import verifiers, trusted caller
+HTML and label/class options. New callers should supply `opts.isCurrent` for their
+captured source and own their async operation lifetime after confirmation dispatch.
+Keep passwords/verifier keys transient, clear closed-dialog inputs, reject stale or
+duplicate dispatch, and report async callback failure without replaying it or
+replacing a newer modal. This helper does not migrate legacy DID write workflows.
+
+First-time Generate Identity Key uses `did-generation-workflow.js`,
+`did-generation.js` and `did-generation-view.js`. Preserve existing/concurrent keys
+with add-if-absent; never fall back to put/update. Retain accepted storage receipts,
+read-check uncertain adds before a separate explicit retry, and hand hosted
+publication to the existing controller bound to the exact stored did:key. Local
+creation performs no hosted request. Keep private/encryption material transient.
+Regenerate Key, removal, Update DID and migration remain separate legacy paths.
+
+Confirmed Regenerate Key uses `did-rotation-workflow.js`, `did-rotation.js` and
+`did-rotation-view.js`. Capture the original key/public identity before confirmation;
+recheck after async preparation. Preserve latest services/extensions/non-key aliases.
+Keep replacement storage, publication and follow-up receipts distinct, with read-only
+checks before separate explicit continuation of unknown outcomes. Never regenerate
+or roll back to recover publication. Session-owned transient plans survive panel
+rebuilds; never put ciphertext/private keys into UI summaries. A new deliberate
+rotation needs fresh confirmation. Client key checks are not server-side CAS.
+Invalidate pending proof/read feedback; proof must reject a changed stored key.
+Update DID selection/publication, removal and migration remain separate lifecycles.
+
+Remove DID uses `did-removal-workflow.js`, `did-removal.js` and
+`did-removal-view.js`. Preserve password confirmation, original target/session
+checks, independent key/document receipts, read-only reconciliation and explicit
+remaining-step retry. Never replay accepted deletes, treat endpoint 404 alone as
+proof of absence, or report completion while a step is unconfirmed. Retain partial
+plans across panel rebuilds; completion rebuilds clean controls and clears obsolete
+rotation plans. Keep ciphertext/fingerprints out of UI summaries. New identity
+mutations must participate in the shared busy checks. Legacy Update DID/migration
+Run dispatch guards do not migrate their internal async/session behavior.
+
+Update DID/public choices use `did-update-workflow.js`, `did-update.js` and
+`did-update-view.js`, with selection owned by the identity read controller. Never
+infer choices from checked/data-key DOM properties. Keep source ciphertext versions
+transient and protect credentials/extensions, linked metadata and catalog endpoints.
+Account visibility and publication receipts are separate; checks are read-only,
+remaining-step retries explicit, and accepted writes never replayed. Changed source
+records/drafts/panels expire retries. Use `CList.keys.PAGES_CATALOG`. Update DID
+participates in mutation coordination; migration remains separately guarded legacy
+work. Client version checks are not backend compare-and-swap.

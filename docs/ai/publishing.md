@@ -391,3 +391,35 @@ changing collection serialization or overwriting existing records. Confirmed
 AlreadyExists and a failed/uncertain write remain different outcomes. Guard every
 key/encryption/write boundary against a changed session and never automatically
 retry. Tags tests mock KV/crypto; they do not establish live authorization.
+
+Existing DID-key publication uses `did-publication-workflow.js`,
+`did-publication.js` and `did-publication-view.js`. Keep captured stored-key/session
+checks, matching-document reconciliation, uncertainty checks and receipts separate
+from account/collaboration refresh outcomes. Generation/regeneration, Update DID,
+removal and migration remain separate paths; do not infer that the new publication
+controller guards those legacy write lifecycles.
+
+First-time identity generation uses `did-generation-*` and add-if-absent storage,
+then reuses existing-key publication with an expected did:key guard. Preserve the
+stored-key receipt across publication failures/uncertainty; never regenerate to
+retry publication. Regeneration/key rotation remains a separate legacy workflow.
+
+Confirmed key rotation uses `did-rotation-*` plus the shared one-shot
+`sendDidPublication` transport. Preserve the captured original key/public identity,
+latest linked metadata, accepted replacement and publication receipts, and explicit
+read checks/continuation after uncertain outcomes. Do not retry by generating a
+new key or roll back automatically. Follow-up refresh failures are separate from
+accepted rotation. Update DID, removal and migration remain separate.
+
+DID removal uses `did-removal-*` with separate key/document receipts and captured
+target checks. Reconcile uncertain outcomes by reads before explicit remaining-step
+retries; never replay accepted steps or restore a key automatically. Migrated key
+operations share mutation-busy checks; legacy Update DID/migration Run are only
+wrapped at dispatch, with their internal lifetime still separate. UI refresh failure
+after accepted removal must not become another delete attempt.
+
+Public-account Update DID uses `did-update-*` and shared publication transport.
+Preserve state-owned choices, captured account/private-key/catalog/profile versions,
+separate visibility/publication receipts and explicit remaining-step recovery.
+Retain credentials/extensions and unmapped public links; never silently discard
+unreadable metadata. Migration remains a separate legacy internal workflow.

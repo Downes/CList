@@ -52,6 +52,8 @@
                 TOKEN_EXPIRES:         'token_expires',
                 OAUTH_CALLBACK_RESULT: 'oauth_callback_result',
                 KVSTORE_URL:           'clist_kvstore_url',
+                PAGES_CATALOG:         'clist:pages-catalog',
+                DID_IDENTITY_KEY:      '_did_identity_key',
                 EDITOR_DRAFT_PREFIX:   'clist_draft_',
             }
         };
@@ -329,8 +331,35 @@
 <script src="js/account-state.js" defer></script>
 <script src="js/account-form.js" defer></script>
 <script src="js/account-panel.js" defer></script>
-<script src="js/kvstore.js?v=8" defer></script>     <!-- Loads usere and account data -->
-<script src="js/editors.js?v=2026-11-20.2" defer></script>
+<script src="js/kvstore.js?v=2026-11-20.13" defer></script>
+<script src="js/password-confirmation-workflow.js?v=2026-11-20.9" defer></script>
+<script src="js/password-confirmation-view.js?v=2026-11-20.9" defer></script>
+<script src="js/password-confirmation.js?v=2026-11-20.11" defer></script>
+<script src="js/did-identity-workflow.js?v=2026-11-20.13" defer></script>
+<script src="js/did-identity-view.js?v=2026-11-20.13" defer></script>
+<script src="js/did-identity.js?v=2026-11-20.13" defer></script>
+<script src="js/did-proof-workflow.js?v=2026-11-20.11" defer></script>
+<script src="js/did-proof-view.js?v=2026-11-20.7" defer></script>
+<script src="js/did-proof.js?v=2026-11-20.11" defer></script>
+<script src="js/did-publication-workflow.js?v=2026-11-20.11" defer></script>
+<script src="js/did-publication-view.js?v=2026-11-20.8" defer></script>
+<script src="js/did-publication.js?v=2026-11-20.12" defer></script>
+<script src="js/did-generation-workflow.js?v=2026-11-20.10" defer></script>
+<script src="js/did-generation-view.js?v=2026-11-20.10" defer></script>
+<script src="js/did-generation.js?v=2026-11-20.12" defer></script>
+<script src="js/did-rotation-workflow.js?v=2026-11-20.11" defer></script>
+<script src="js/did-rotation-view.js?v=2026-11-20.11" defer></script>
+<script src="js/did-rotation.js?v=2026-11-20.12" defer></script>
+<script src="js/did-removal-workflow.js?v=2026-11-20.12" defer></script>
+<script src="js/did-removal-view.js?v=2026-11-20.12" defer></script>
+<script src="js/did-removal.js?v=2026-11-20.12" defer></script>
+<script src="js/did-update-workflow.js?v=2026-11-20.13" defer></script>
+<script src="js/did-update-view.js?v=2026-11-20.13" defer></script>
+<script src="js/did-update.js?v=2026-11-20.13" defer></script>
+<script src="js/following-workflow.js?v=2026-11-20.5" defer></script>
+<script src="js/following-view.js?v=2026-11-20.5" defer></script>
+<script src="js/following.js?v=2026-11-20.5" defer></script>     <!-- Loads usere and account data -->
+<script src="js/editors.js?v=2026-11-20.13" defer></script>
 <script src="js/editor-state.js?v=2026-11-20.1" defer></script>
 <script src="js/editor-switch-view.js?v=2026-11-20.1" defer></script>
 <script src="js/editor-switch.js?v=2026-11-20.1" defer></script>
@@ -389,9 +418,9 @@
 <script src="js/search-provider-view.js?v=2026-11-20.2" defer></script>
 <script src="js/googlesearch.js?v=2026-11-20.2" defer></script>
 <script src="js/duckduckgo.js?v=2026-11-20.2" defer></script>
-<script src="js/commons.js?v=2026-11-20.1" defer></script>
+<script src="js/commons.js?v=2026-11-20.3" defer></script>
 <script src="js/oasis.js?v=2026-11-20.2" defer></script>
-<script src="js/openalex.js?v=2026-11-20.1" defer></script>
+<script src="js/openalex.js?v=2026-11-20.3" defer></script>
 
 <!--script src="js/audio.js" defer></script -->          <!-- Audio -->
 
@@ -421,8 +450,8 @@
 <script src="js/annotate_publish.js" defer></script>
 <script src="js/annotate.js?v=2026-11-20.1" defer></script>
 <script src="js/annotate_requests.js?v=2026-11-20.1" defer></script>
-<script src="js/annotate_view.js?v=2026-11-20.1" defer></script>
-<script src="js/annotate_reader.js?v=2026-11-20.1" defer></script>   <!-- Annotation store -->
+<script src="js/annotate_view.js?v=2026-11-20.4" defer></script>
+<script src="js/annotate_reader.js?v=2026-11-20.4" defer></script>   <!-- Annotation store -->
 <script src="js/annotate_account.js" defer></script>
 <script src="js/annotate-editor.js?v=2026-11-20.1" defer></script>   <!-- Dedicated annotation editor -->
 <script src="js/collection-formats.js?v=2026-11-20.1" defer></script> <!-- Collection format interpreters -->

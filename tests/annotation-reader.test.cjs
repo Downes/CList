@@ -11,7 +11,7 @@ function fixture(){
   feed(root,{items,warnings,rowOptions,emptyText}){root.replaceChildren();this.warnings(root,warnings);if(!items.length)root.appendChild({textContent:emptyText});this.rows(root,items,rowOptions);},
   rows(root,items,options){for(const item of items)root.appendChild({anno:item,options});},
   followBusy(button,busy){button.disabled=busy;},followed(button,did){button.title='Following';messages.push('Now following '+did);},
-  followButton(){return null;},followState(){},error(error){errors.push(error.message);}};
+  followButton(){return null;},followState(){},actionError(action,error,current){errors.push({action,message:error.message,current});},error(error){errors.push(error.message);}};
  cList.ui.annotationReading=view;
  const ctx=vm.createContext({window:{CList:cList,addEventListener(){},removeEventListener(){}},structuredClone,URLSearchParams,console:{error(){}},
   document:{querySelectorAll:()=>nodes,getElementById:id=>nodes.find(node=>node.id===id),createElement:()=>({textContent:'',appendChild(){}})},history:{pushState(){}},
@@ -70,4 +70,21 @@ test('batch checks snapshot original nodes before discovery and cannot attach co
  const f=fixture(),gate=defer(),old={id:'same',isConnected:true,reference:{url:'https://old.invalid'}};f.setNodes([old]);f.ctx._allAnnotationAccounts=()=>gate.promise;
  const pending=f.ctx.window.checkAnnotationsBatch();const replacement={id:'same',isConnected:true,reference:{url:'https://new.invalid'}};f.setNodes([replacement]);old.isConnected=false;
  gate.resolve([{instance:'https://store.invalid'}]);f.setHttp(async()=>({ok:true,json:async()=>({results:{'https://old.invalid':3}})}));await pending;assert.equal(f.counts.length,0);
+});
+
+
+test('row commands capture Flow session/targets, reject stale actions and route follow failures to the view',async()=>{
+ const f=fixture(),calls=[];let current=true;
+ f.ctx.captureAnnotationSession=()=>({token:'captured-session'});
+ f.ctx._flowAnnotation=async(...args)=>calls.push(args);
+ const writeAccounts=[{type:'Annotate',instance:'https://write.invalid'}];
+ const options=f.ctx.annotationRowOptions({token:'a-token',writeAccts:writeAccounts});
+ f.ctx.captureAnnotationSession=()=>({token:'new-session'});
+ const button={isConnected:true},annotation=anno();
+ await options.onFlow(annotation,'https://source.invalid',button,()=>current);
+ assert.equal(calls.length,1);assert.equal(calls[0][0],annotation);assert.equal(calls[0][2],writeAccounts);assert.equal(calls[0][5].token,'captured-session');
+ current=false;await options.onFlow(annotation,'https://wrong.invalid',button,()=>current);await options.onFollow('did:web:person.invalid',button,()=>current);
+ assert.equal(calls.length,1);assert.equal(f.writes.length,0);
+ current=true;f.setKey(async()=>{throw Error('Key unavailable');});await options.onFollow('did:web:person.invalid',button,()=>current);
+ assert.deepEqual(f.errors,[{action:'Follow',message:'Key unavailable',current:true}]);assert.equal(button.disabled,false);
 });

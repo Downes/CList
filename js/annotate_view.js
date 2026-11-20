@@ -68,6 +68,14 @@ window.CList.ui.annotationReading = {
         button.onclick = () => follow(button, label); banner.append(label, button);
         root.insertBefore(banner, root.children[1] || null);
     },
+    feedAuthorFollowed(label,did) { label.textContent = 'Following ' + did.replace(/^did:web:[^:]+:users:/, ''); },
+    followFeedback(following) { showStatusMessage(following ? 'Now following feed author.' : 'Unfollowed feed author.'); },
+    batchWarnings(warnings) { console.error('[annotation batch] partial failures',warnings); showStatusMessage(warnings.join(' ')); },
+    actionError(action,error,current) {
+        console.error('[annotation '+action+']',error);
+        if (current) showErrorModal(action+' error: '+error.message,{title:action+' failed'});
+        else showStatusMessage('An earlier annotation '+action.toLowerCase()+' action stopped.');
+    },
     error(error) { console.error('[annotation reader]', error); showStatusMessage(error?.message || String(error)); },
 };
 function _buildAnnotationItem(anno, options = {}) {
@@ -79,6 +87,7 @@ function _buildAnnotationItem(anno, options = {}) {
         followedDids = new Set(),
         url          = '',
         isCurrent = () => true,
+        onFollow, onFlow,
     } = options;
 
     const guard = () => statusBox.isConnected && isCurrent();
@@ -146,11 +155,7 @@ function _buildAnnotationItem(anno, options = {}) {
         followBtn.innerHTML = `<span class="material-icons md-18 md-light">${alreadyFollowing ? 'how_to_reg' : 'person_add'}</span>`;
         followBtn.disabled = alreadyFollowing;
         if (!alreadyFollowing) {
-            followBtn.addEventListener('click', () => _followUser(creatorId, token, followBtn, guard).catch(e => {
-                if (guard()) showErrorModal('Follow error: ' + e.message, { title: 'Follow failed' });
-                else showStatusMessage('An earlier annotation follow action stopped.');
-                console.error('Follow error', e);
-            }));
+            followBtn.addEventListener('click', () => { if (guard()) return onFollow?.(creatorId,followBtn,guard); });
         }
         metaDiv.appendChild(followBtn);
     }
@@ -290,11 +295,7 @@ function _buildAnnotationItem(anno, options = {}) {
         flowBtn.className = 'clist-action-btn';
         flowBtn.title = 'Flow — add to your annotations';
         flowBtn.innerHTML = '<span class="material-icons md-18 md-light">forward</span>';
-        const flowSession = captureAnnotationSession();
-        flowBtn.addEventListener('click', () => { if (!guard()) return; return _flowAnnotation(anno, flowUrl, writeAccts, token, flowBtn, flowSession, guard).catch(e => {
-            showErrorModal('Flow error: ' + e.message, { title: 'Flow failed' });
-            console.error('Flow error', e);
-        }); });
+        flowBtn.addEventListener('click', () => { if (guard()) return onFlow?.(anno,flowUrl,flowBtn,guard); });
         clistActions.appendChild(flowBtn);
     }
 

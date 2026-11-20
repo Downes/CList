@@ -682,3 +682,39 @@
  * @property {Object.<string, {page: CListWebPageSource|null, references: CListReference[]}>} parked Detached metadata; never editor bodies.
  * @property {string|null} error
  */
+
+/** @typedef {{key:string,did:string}} CListFollowingEntry Exact stored key, separate from displayed decrypted DID. */
+/**
+ * @typedef {Object} CListFollowingState
+ * @property {number} panelId
+ * @property {number} requestId
+ * @property {'idle'|'loading'|'ready'|'failed'} phase
+ * @property {string|null} error
+ * @property {number} pendingCount
+ */
+
+/** @typedef {CListAnnotationSession & {username:string,local:boolean,mode:string}} CListDidIdentitySession Transient read-only owner capture. */
+/** @typedef {{key:string,title:string,type:string,public:boolean}} CListDidPublicAccount Safe account-list projection; never credentials. */
+/** @typedef {{requestId:number,phase:('idle'|'loading'|'ready'|'failed'),error:(string|null)}} CListIdentityReadLane */
+/** @typedef {{panelId:number,identity:CListIdentityReadLane,accounts:CListIdentityReadLane}} CListIdentityDisplayState */
+
+/** @typedef {{panelId:number,requestId:number,phase:('idle'|'fetching'|'signing'|'verifying'|'complete'|'failed'),error:(string|null)}} CListIdentityProofState Safe UI summary; no keys, signatures or tokens. */
+
+/** @typedef {{panelId:number,phase:('preparing'|'publishing'|'confirmed'|'uncertain'|'failed'),error:(string|null)}} CListIdentityPublicationState Safe summary; no credentials or receipts. */
+/** @typedef {{didKey:string,existing:boolean,warning?:string}} CListDidPublicationReceipt Public accepted/reconciled identity information. */
+
+/** @typedef {{id:number,phase:('ready'|'verifying'|'rejected'|'confirmed'|'cancelled'|'expired'|'failed'|'action-failed'),error:(string|null)}} CListPasswordConfirmationState Generic UI summary; never passwords or verifier/session keys. */
+
+/** @typedef {{panelId:number,phase:('preparing'|'generating'|'storing'|'stored'|'uncertain'|'failed'),error:(string|null)}} CListDidGenerationState Safe first-time generation summary. */
+/** @typedef {{didKey:string,existing:boolean}} CListDidKeyReceipt Accepted or reconciled stored identity; no key material. */
+
+/** @typedef {{panelId:number,phase:('idle'|'preparing'|'confirming'|'generating'|'storing'|'publishing'|'stored'|'uncertain-storage'|'complete'|'failed'),error:(string|null)}} CListDidRotationState Safe UI summary; no keys/plans. */
+/** @typedef {{storedValue:string,doc:(Object|null)}} CListDidRotationSnapshot Transient original ciphertext and parsed public DID, never plaintext keys. */
+/** @typedef {{storedValue:string,didKey:string,publicKeyJwk:JsonWebKey}} CListDidRotationPrepared Transient replacement ciphertext and public identity. */
+
+/** @typedef {{panelId:number,phase:('idle'|'preparing'|'confirming'|'removing-key'|'removing-document'|'partial'|'complete'|'failed'),error:(string|null)}} CListDidRemovalState Safe UI summary; no target material. */
+/** @typedef {{storedValue:(string|null),documentIdentity:(string|null),keyRemoved:boolean,documentRemoved:boolean}} CListDidRemovalPlan Transient ciphertext/public fingerprint plus accepted/absence receipts. */
+
+/** @typedef {{panelId:number,revision:number,selected:Object.<string,boolean>}} CListDidIdentitySelection Safe public checkbox state, no source records. */
+/** @typedef {{panelId:number,revision:number,items:Array<{key:string,public:boolean,sourceValue:string}>}} CListDidAccountSelectionSnapshot Transient source ciphertext binding, never persisted or placed in UI state. */
+/** @typedef {{panelId:number,phase:('saving'|'checking'|'publishing'|'partial'|'complete'|'failed'),error:(string|null)}} CListDidAccountUpdateState Safe operation summary. */

@@ -350,3 +350,80 @@ Mastodon safe read state stores `{kind, value}`; annotation read state stores on
 `{generation, phase, error}`. Service sessions, forms, bodies and credentials remain
 transient. `CListPublisherOptions.assertCurrent` is an optional Mastodon form guard
 checked before its write, not a general cancellation guarantee for other publishers.
+
+`CListFollowingEntry` keeps the original storage `key` separately from its displayed
+`did`. Decryption may yield a different DID; deletion still targets the original
+key. A corrupt record uses its key-derived DID with visible read warnings and is
+not silently discarded. `CListFollowingState` is a safe panel/request/phase/error/
+pending-count summary. Tokens, keys, ciphertext, decryption results and node/action
+bindings stay in transient captures. Follow record storage formats are unchanged.
+
+`CListDidIdentitySession` is a transient captured store/token/username/mode owner.
+It must not enter public metadata, logs or `CListIdentityDisplayState`. That shared
+state holds only panel ID plus independent `CListIdentityReadLane` summaries.
+`CListDidPublicAccount` is a safe read-view projection: key/title/type/public, not
+the full decrypted `CListAccountData`. Original account records/extensions are
+unchanged. Legacy DID publication still consumes checkbox checked/data-key values;
+that write contract remains outside the read-only slice. `DID_IDENTITY_KEY` names
+the existing `_did_identity_key` storage record; it does not introduce a new format.
+
+`CListIdentityProofState` holds only panel/request IDs, progress phase and error.
+Captured targets/session, encrypted/decrypted identity keys, challenges, signatures
+and verification inputs/results stay transient. The proof workflow returns only
+verified/otherLabel/didKey display data; a fetched did:key alias is not trusted as
+the verification decision. Existing identity key/account record formats and
+cryptographic helper contracts are unchanged.
+
+`CListIdentityPublicationState` is a safe panel/phase/error summary. Existing-key
+publication owns transient captured credentials, ciphertext version, derived public
+key and `CListDidPublicationReceipt`. A receipt contains didKey/existing/optional
+warning, not private keys or credentials. Accepted HTTP status is retained even
+when response parsing or follow-up work fails. Unknown outcomes are checked through
+public reads before another explicit publication attempt. Identity/account record
+formats and existing new-DID PUT payload fields are unchanged.
+
+`CListPasswordConfirmationState` contains only dialog ID, phase and a generic error.
+Entered passwords and captured raw verifier/session-key snapshots remain transient
+and never enter summaries/logs. `confirmWithPassword(message,onConfirm,opts)` retains
+the custom verifier/confirm-label/class contract and adds optional `opts.isCurrent`
+for a captured source guard. It forwards the exact verified submission once.
+The guard covers callback dispatch, not subsequent caller-owned async operations.
+No identity/account storage format or password derivation algorithm changed.
+
+First-time generation uses `CListDidGenerationState` for panel/phase/error only and
+`CListDidKeyReceipt` for accepted/reconciled didKey/existing information. Private
+keys, raw/encrypted key material and session credentials do not enter these shapes.
+The existing encrypted identity record format is unchanged. New storage uses
+add-if-absent; regeneration remains separate. Publication accepts an optional
+expected did:key from generation and rejects a different subsequently stored key.
+
+`CListDidRotationState` is panel/phase/error only. `CListDidRotationSnapshot` and
+`CListDidRotationPrepared` distinguish original/replacement ciphertext from parsed
+public DID/JWK metadata. They remain in transient session-owned plans, not shared
+summaries or persistent records. Public metadata extensions inside service entries
+are preserved; encrypted identity record formats are unchanged. Pending plans
+survive panel rebuilds in the same captured login and are cleared after accepted
+completion or explicit recovery/refresh. The key update is guarded client-side,
+not an atomic compare-and-swap. Shared password confirmation adds an optional
+synchronous onCancel notification and returns isOpen/cancel dialog ownership;
+password/key snapshots remain private to confirmation/crypto operations.
+
+`CListDidRemovalState` is a safe panel/phase/error summary. `CListDidRemovalPlan`
+contains a transient original ciphertext/public identity fingerprint and independent
+keyRemoved/documentRemoved receipts; these are never put in shared state or stored
+as a new record format. Receipts are monotonic and distinguish accepted/confirmed
+absence from unknown results. Only remaining steps may be explicitly retried after
+read checks. Completion clears the session's obsolete rotation plan and rebuilds
+identity controllers so prior generation/publication receipts do not block a new
+identity. Migrated mutation checks are client-local coordination, not server CAS.
+
+`CListDidIdentitySelection` contains public booleans only. Its transient
+`CListDidAccountSelectionSnapshot` binds choices to source ciphertext versions;
+account-list reads now return a private versions Map alongside safe projections.
+Neither versions nor record bodies enter UI state. `CListDidAccountUpdateState`
+is panel/phase/error only. Pending update plans separately retain visibility and
+publication receipts without changing account storage formats. Only public is
+changed on account records; extensions/credentials remain intact. `PAGES_CATALOG`
+names the existing clist:pages-catalog record. Other public links are preserved;
+managed aliases/services reflect the captured choices. Acknowledgement does not
+overwrite newer drafts, credentials, catalog metadata or private identity keys.
