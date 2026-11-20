@@ -701,6 +701,7 @@
 /** @typedef {{panelId:number,requestId:number,phase:('idle'|'fetching'|'signing'|'verifying'|'complete'|'failed'),error:(string|null)}} CListIdentityProofState Safe UI summary; no keys, signatures or tokens. */
 
 /** @typedef {{panelId:number,phase:('preparing'|'publishing'|'confirmed'|'uncertain'|'failed'),error:(string|null)}} CListIdentityPublicationState Safe summary; no credentials or receipts. */
+/** @typedef {{publicKeyJwk:JsonWebKey,didKey:string,service:Object[],alsoKnownAs:string[]}} CListDidPublicationPayload Public identity transport; no private key. */
 /** @typedef {{didKey:string,existing:boolean,warning?:string}} CListDidPublicationReceipt Public accepted/reconciled identity information. */
 
 /** @typedef {{id:number,phase:('ready'|'verifying'|'rejected'|'confirmed'|'cancelled'|'expired'|'failed'|'action-failed'),error:(string|null)}} CListPasswordConfirmationState Generic UI summary; never passwords or verifier/session keys. */
@@ -718,3 +719,50 @@
 /** @typedef {{panelId:number,revision:number,selected:Object.<string,boolean>}} CListDidIdentitySelection Safe public checkbox state, no source records. */
 /** @typedef {{panelId:number,revision:number,items:Array<{key:string,public:boolean,sourceValue:string}>}} CListDidAccountSelectionSnapshot Transient source ciphertext binding, never persisted or placed in UI state. */
 /** @typedef {{panelId:number,phase:('saving'|'checking'|'publishing'|'partial'|'complete'|'failed'),error:(string|null)}} CListDidAccountUpdateState Safe operation summary. */
+
+/** @typedef {{url:string,username:string,password:string,register:boolean}} CListMigrationInput Transient captured form values; password cleared after preparation. */
+/** @typedef {{source:string,destination:string,username:string,local:boolean,accountCount:number,systemCount:number,hasDid:boolean,conflictCount:number,didConflict:boolean}} CListMigrationPreview Public labels/counts only. */
+/** @typedef {{panelId:number,phase:('idle'|'preparing'|'ready'|'checking'|'executing'|'failed'|'finished'),message:string,preview:(CListMigrationPreview|null),overwrite:boolean,registration:('created'|'uncertain'|'rejected'|null)}} CListMigrationPreparationState Safe UI projection, no secrets or record bodies. */
+/**
+ * Private prepared execution handoff. Never persist or place in UI state.
+ * Record values/fingerprints are encrypted; keys/tokens remain transient.
+ * @typedef {Object} CListMigrationPlan
+ * @property {string} oldUrl
+ * @property {string} oldUsername
+ * @property {string} oldToken
+ * @property {CryptoKey} oldEncKey
+ * @property {string} newUrl
+ * @property {string} newUsername
+ * @property {string} newToken
+ * @property {CryptoKey} newEncKey
+ * @property {CListEncryptedKVRecord[]} kvs
+ * @property {boolean} hasDid
+ * @property {number} accountCount Non-system record count, not a claim that each is a social account.
+ * @property {number} conflictCount
+ * @property {boolean} didConflict
+ * @property {string} sourceFingerprint Sorted key/ciphertext snapshot, not a cryptographic digest.
+ * @property {string} destinationFingerprint Sorted key/ciphertext snapshot.
+ */
+
+/** @typedef {{key:string,sourceValue:string,before:(string|null),value:(string|null),status:('ready'|'uncertain'|'accepted')}} CListMigrationCopyStep Private ciphertexts and copy receipt; no plaintext. */
+/** @typedef {{name:string,session:CListDidIdentitySession,before:string,payload:CListDidPublicationPayload,status:('ready'|'uncertain'|'accepted')}} CListMigrationIdentityStep Private captured target, public metadata fingerprint/payload and receipt. */
+/**
+ * Private tab/session-lifetime execution and recovery. Destination credentials/keys cleared on completion.
+ * @typedef {Object} CListMigrationExecutionPlan
+ * @property {CListMigrationPlan|null} plan
+ * @property {CListDidIdentitySession} session
+ * @property {CListMigrationCopyStep[]} rows
+ * @property {CListMigrationIdentityStep[]} identities
+ * @property {Map<string,string>} expected Expected destination ciphertexts after accepted copies.
+ * @property {boolean} prepared
+ * @property {boolean} pending
+ * @property {boolean} complete
+ * @property {boolean} checkRequired
+ * @property {number} total
+ * @property {string} destination
+ * @property {string|null} [error]
+ * @property {number} [copied] Final safe count after clearing private steps.
+ * @property {number} [identityCount]
+ * @property {number} [identityTotal]
+ */
+/** @typedef {{panelId:number,pending:boolean,complete:boolean,checkRequired:boolean,copied:number,total:number,identities:number,identityTotal:number,destination:string,error:(string|null)}} CListMigrationExecutionState Public progress only; never credentials, ciphertext or private plans. */

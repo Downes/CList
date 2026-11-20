@@ -423,15 +423,15 @@ function kvstoreDidPanel() {
                     <label><input type="checkbox" id="migrate-register" style="margin-right:0.4em;">Register a new account on the destination server</label>
                 </div>
                 <div class="kv-action-buttons">
-                    <button class="kv-action-btn kv-save-btn" id="migrate-prepare-btn">Preview Migration</button>
+                    <button class="btn-small" id="migrate-prepare-btn">Preview Migration</button>
                 </div>
             </div>
 
             <div id="migrate-step-2" style="display:none;">
                 <div id="migrate-preview" style="font-size:0.9em;"></div>
                 <div class="kv-action-buttons">
-                    <button class="kv-action-btn kv-save-btn" id="migrate-run-btn">Run Migration</button>
-                    <button class="kv-action-btn" id="migrate-cancel-btn" style="margin-left:0.5em;">Cancel</button>
+                    <button class="btn-small" id="migrate-run-btn">Run Migration</button>
+                    <button class="btn-small btn-secondary" id="migrate-cancel-btn">Cancel</button>
                 </div>
             </div>
 
@@ -448,7 +448,6 @@ function kvstoreDidPanel() {
     const keyRotator=createDidKeyRotator(div,{onStart:()=>{identityRead.cancelIdentity();identityProof.invalidate();},onComplete:()=>setDidState(true),refreshAccounts:()=>loadAccounts(),refreshIdentity:()=>identityRead.identity()});
     const didRemover=createDidRemover(div,{onStart:()=>{identityRead.cancelIdentity();identityProof.invalidate();},onComplete:()=>{openLeftInterface(kvstoreDidPanel());showStatusMessage('Identity removal completed.');},refreshIdentity:()=>openLeftInterface(kvstoreDidPanel())});
     function loadAccounts(){return identityRead.accounts();}
-    function runLegacyIdentityAction(action){if(!identityRead.isCurrent())return;if(didIdentityMutationBusy(didIdentitySession())){showStatusMessage('Another identity operation is running. Wait for it to finish.');return;}return runDidLegacyMutation(action);}
 
     // mode: 'generate' (no key anywhere yet), 'publish' (key present locally, not registered
     // with this server), or 'regenerate' (already registered here -- clicking replaces it).
@@ -483,282 +482,8 @@ function kvstoreDidPanel() {
     identityRead.start();
 
 
-    // ── Account migration ─────────────────────────────────────────────────────
-
-    let _migrateCtx = null;
-
-    async function putKV(serverUrl, token, key, value) {
-        const res = await fetch(`${serverUrl}/add_kv/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-            body: JSON.stringify({ key, value })
-        });
-        if (res.status === 409) {
-            const upRes = await fetch(`${serverUrl}/update_kv/`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-                body: JSON.stringify({ key, value })
-            });
-            if (!upRes.ok) throw new Error(`Update failed (${upRes.status})`);
-        } else if (!res.ok) {
-            throw new Error(`Upload failed (${res.status})`);
-        }
-    }
-
-    async function putDidDocument(serverUrl, token, { publicKeyJwk, didKey, service, alsoKnownAs }) {
-        await fetch(`${serverUrl}/auth/did`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-            body: JSON.stringify({ publicKeyJwk, didKey, service, alsoKnownAs })
-        });
-    }
-
-    async function migratePrepare() {
-        const progressEl = div.querySelector('#migrate-progress');
-        progressEl.style.display = 'block';
-        progressEl.textContent = 'Checking credentials…';
-
-        const oldToken    = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
-        const oldUsername = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.USERNAME);
-        const oldEncKey   = await getEncKey(window.CList.config.flaskSiteUrl);
-
-        if (!oldToken || !oldUsername || !oldEncKey) {
-            progressEl.textContent = 'Not logged in to source server. Please log in first.';
-            return;
-        }
-
-        const newUrl      = div.querySelector('#migrate-new-url').value.trim().replace(/\/$/, '');
-        const newUsername = div.querySelector('#migrate-new-username').value.trim().toLowerCase();
-        const newPassword = div.querySelector('#migrate-new-password').value;
-        const doRegister  = div.querySelector('#migrate-register').checked;
-
-        if (!newUrl || !newUsername || !newPassword) {
-            progressEl.textContent = 'Please fill in all destination fields.';
-            return;
-        }
-
-        try {
-            progressEl.textContent = localMode ? 'Reading accounts from this device…' : 'Exporting accounts from source server…';
-            // storage.kv.list() hits the same /get_kvs/-shaped interface for both backends
-            // (kvstore-remote.js for a hosted source, local-kvstore.js for a Local source), so
-            // this works unchanged regardless of where the source account lives.
-            const kvs = await window.CList.storage.kv.list();
-
-            let accountCount = 0;
-            for (const kv of kvs.filter(k => !k.key.startsWith('_'))) {
-                try { await decryptWithKey(oldEncKey, kv.value); accountCount++; } catch {}
-            }
-
-            // hasDid means "there's an identity private key to carry over" -- for a Local source
-            // there's no did.json to check, but the key's presence in kvs (just fetched above) is
-            // the whole state anyway, same as the identity display's local branch.
-            const hasDid = kvs.some(k => k.key === '_did_identity_key');
-
-            progressEl.textContent = doRegister
-                ? 'Registering on destination server…'
-                : 'Logging in to destination server…';
-
-            const [newEncKey, newAuthHash] = await Promise.all([
-                deriveEncKey(newPassword, newUsername),
-                deriveAuthHash(newPassword, newUsername)
-            ]);
-
-            if (doRegister) {
-                const regRes = await fetch(`${newUrl}/auth/register`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username: newUsername, auth_hash: newAuthHash })
-                });
-                if (!regRes.ok) {
-                    const err = await regRes.json().catch(() => ({}));
-                    throw new Error(err.error || `Registration failed (${regRes.status})`);
-                }
-            }
-
-            const loginRes = await fetch(`${newUrl}/auth/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: newUsername, auth_hash: newAuthHash })
-            });
-            if (!loginRes.ok) {
-                const err = await loginRes.json().catch(() => ({}));
-                throw new Error(err.error || `Login failed (${loginRes.status}). Is the destination server URL correct?`);
-            }
-            const loginData = await loginRes.json();
-
-            // Check what's already on the destination account before we overwrite anything --
-            // the per-key upload in migrateRun() is a blind PUT keyed by name, so any destination
-            // entry that shares a key with the source (most notably '_did_identity_key', the one
-            // fixed-name system key) would otherwise be silently clobbered with no way back.
-            let destKvs = [];
-            try {
-                const destRes = await fetch(`${newUrl}/get_kvs/`, {
-                    headers: { 'Authorization': 'Bearer ' + loginData.token }
-                });
-                if (destRes.ok) destKvs = await destRes.json();
-            } catch { /* if this fails, treat as no conflicts -- migrateRun's own per-key PUTs will surface the real error */ }
-            const destKeySet = new Set(destKvs.map(k => k.key));
-            const conflictCount = kvs.filter(k => destKeySet.has(k.key)).length;
-            const didConflict = hasDid && destKeySet.has('_did_identity_key');
-
-            _migrateCtx = {
-                oldUrl: window.CList.config.flaskSiteUrl, oldToken, oldEncKey, oldUsername,
-                newUrl, newToken: loginData.token, newEncKey, newUsername,
-                hasDid, kvs, accountCount, conflictCount, didConflict
-            };
-
-            const srcHost = localMode ? 'this device (Local)' : new URL(window.CList.config.flaskSiteUrl).hostname;
-            const dstHost = new URL(newUrl).hostname;
-            const didPreviewLine = hasDid
-                ? (localMode
-                    ? '<li>Your did:key identity will be registered on the destination server</li>'
-                    : '<li>DID identity will be linked between old and new servers</li>')
-                : '';
-            const overwriteWarning = conflictCount > 0 ? `
-                <div style="font-size:0.85em; color:#842029; background:#f8d7da; padding:0.5em 0.7em; border-radius:4px; margin:0.6em 0;">
-                    <strong>Warning:</strong> The destination account already has ${conflictCount} entr${conflictCount !== 1 ? 'ies' : 'y'}
-                    that will be permanently overwritten by this migration${didConflict ? ', including its existing DID identity' : ''}.
-                    <label style="display:block; margin-top:0.4em; font-weight:normal;">
-                        <input type="checkbox" id="migrate-overwrite-confirm" style="margin-right:0.4em;">
-                        I understand this will overwrite existing data on the destination account.
-                    </label>
-                </div>` : '';
-            div.querySelector('#migrate-preview').innerHTML = `
-                <p><strong>Ready to migrate:</strong></p>
-                <ul style="margin:0.4em 0 0.6em 1.2em; padding:0;">
-                    <li>${accountCount} account${accountCount !== 1 ? 's' : ''} from <strong>${srcHost}</strong> (${kvs.filter(k => !k.key.startsWith('_')).length} total entries)</li>
-                    <li>${kvs.filter(k => k.key.startsWith('_')).length} system key${kvs.filter(k => k.key.startsWith('_')).length !== 1 ? 's' : ''}${hasDid ? ' (including your DID private key)' : ''}</li>
-                    ${didPreviewLine}
-                </ul>
-                <p><strong>Destination:</strong> ${dstHost} as <strong>${newUsername}</strong></p>
-                ${overwriteWarning}
-                <p style="font-size:0.85em; color:#856404; background:#fff3cd; padding:0.5em 0.7em; border-radius:4px; margin:0.6em 0 0;">
-                    Your source account will not be deleted. To switch servers after migration, log out and use the "Change" link on the login screen.
-                </p>`;
-
-            div.querySelector('#migrate-step-1').style.display = 'none';
-            div.querySelector('#migrate-step-2').style.display = 'block';
-            progressEl.style.display = 'none';
-
-        } catch (err) {
-            console.error('migratePrepare failed:', err);
-            progressEl.textContent = `Error: ${err.message}`;
-        }
-    }
-
-    async function migrateRun() {
-        if (!_migrateCtx) return;
-        const { oldUrl, oldToken, oldEncKey, oldUsername, newUrl, newToken, newEncKey, newUsername, hasDid, kvs, conflictCount } = _migrateCtx;
-
-        if (conflictCount > 0) {
-            const confirmEl = div.querySelector('#migrate-overwrite-confirm');
-            if (!confirmEl || !confirmEl.checked) {
-                const progressEl = div.querySelector('#migrate-progress');
-                progressEl.style.display = 'block';
-                progressEl.textContent = 'Please check the overwrite-confirmation box above before running the migration.';
-                return;
-            }
-        }
-
-        const progressEl = div.querySelector('#migrate-progress');
-        progressEl.style.display = 'block';
-        div.querySelector('#migrate-step-2').style.display = 'none';
-
-        let done = 0, errors = 0;
-
-        try {
-            for (const kv of kvs) {
-                try {
-                    const plaintext = await decryptWithKey(oldEncKey, kv.value);
-                    const newValue  = await encryptWithKey(newEncKey, plaintext);
-                    await putKV(newUrl, newToken, kv.key, newValue);
-                    done++;
-                } catch (err) {
-                    console.error(`Failed to migrate "${kv.key}":`, err);
-                    errors++;
-                }
-                progressEl.textContent = `Migrating: ${done + errors} / ${kvs.length} entries…`;
-            }
-
-            if (hasDid && localMode) {
-                // No old server to fetch a did.json from or link back to -- derive the public
-                // key/did:key straight from the _did_identity_key entry already in kvs (the
-                // private key itself was already carried over by the loop above) and register
-                // it fresh on the new server, same as the existing-key publication workflow.
-                progressEl.textContent = 'Registering identity on destination server…';
-                try {
-                    const kvRow = kvs.find(k => k.key === '_did_identity_key');
-                    const { publicKeyJwk, didKey } = await derivePublicKeyJwkAndDidKey(kvRow.value, oldEncKey);
-                    await putDidDocument(newUrl, newToken, { publicKeyJwk, didKey, service: [], alsoKnownAs: [] });
-                } catch (err) {
-                    console.warn('DID registration on destination failed:', err);
-                    errors++;
-                }
-            } else if (hasDid) {
-                progressEl.textContent = 'Linking DID between servers…';
-                try {
-                    const oldDidRes = await fetch(`${oldUrl}/users/${oldUsername}/did.json`);
-                    if (oldDidRes.ok) {
-                        const oldDoc = await oldDidRes.json();
-                        const publicKeyJwk = oldDoc.verificationMethod?.[0]?.publicKeyJwk;
-                        const didKey = (oldDoc.alsoKnownAs || []).find(a => a.startsWith('did:key:'));
-                        const services = (oldDoc.service || []).filter(s => s.type !== 'KVStore');
-
-                        if (publicKeyJwk && didKey) {
-                            const oldDidWeb = `did:web:${new URL(oldUrl).hostname}:users:${oldUsername}`;
-                            const newDidWeb = `did:web:${new URL(newUrl).hostname}:users:${newUsername}`;
-
-                            // alsoKnownAs for new server: include old server's did:web
-                            const newAlsoKnownAs = (oldDoc.alsoKnownAs || [])
-                                .filter(a => !a.startsWith('did:key:'));
-                            if (!newAlsoKnownAs.includes(oldDidWeb)) newAlsoKnownAs.push(oldDidWeb);
-
-                            await putDidDocument(newUrl, newToken, { publicKeyJwk, didKey, service: services, alsoKnownAs: newAlsoKnownAs });
-
-                            // alsoKnownAs for old server: include new server's did:web
-                            const oldAlsoKnownAs = [...newAlsoKnownAs];
-                            if (!oldAlsoKnownAs.includes(newDidWeb)) oldAlsoKnownAs.push(newDidWeb);
-
-                            await putDidDocument(oldUrl, oldToken, { publicKeyJwk, didKey, service: services, alsoKnownAs: oldAlsoKnownAs });
-                        }
-                    }
-                } catch (err) {
-                    console.warn('DID linking failed:', err);
-                    errors++;
-                }
-            }
-
-            const srcHost = localMode ? 'this device (Local)' : new URL(oldUrl).hostname;
-            const dstHost = new URL(newUrl).hostname;
-            const didDoneLine = hasDid
-                ? (localMode
-                    ? `<p>Your did:key identity was registered on <strong>${dstHost}</strong>.</p>`
-                    : `<p>DID identity linked between <strong>${srcHost}</strong> and <strong>${dstHost}</strong>.</p>`)
-                : '';
-            progressEl.innerHTML = `
-                <p style="color:green; font-weight:bold;">Migration complete!</p>
-                <p>${done} of ${kvs.length} entries migrated successfully.${errors > 0 ? ` <span style="color:#c44;">(${errors} error${errors !== 1 ? 's' : ''} — see browser console)</span>` : ''}</p>
-                ${didDoneLine}
-                <p style="font-size:0.85em; margin-top:0.8em;"><strong>Next steps:</strong> Log out, then use the "Change" link on the login screen to switch to <strong>${dstHost}</strong>.</p>`;
-
-        } catch (err) {
-            console.error('migrateRun failed:', err);
-            progressEl.textContent = `Migration failed: ${err.message}`;
-        }
-
-        _migrateCtx = null;
-    }
-
-    function migrateReset() {
-        _migrateCtx = null;
-        div.querySelector('#migrate-step-1').style.display = 'block';
-        div.querySelector('#migrate-step-2').style.display = 'none';
-        div.querySelector('#migrate-progress').style.display = 'none';
-    }
-
-    div.querySelector('#migrate-prepare-btn').onclick = () => migratePrepare();
-    div.querySelector('#migrate-run-btn').onclick = () => runLegacyIdentityAction(migrateRun);
-    div.querySelector('#migrate-cancel-btn').onclick = () => migrateReset();
+    const migrationPreparation = createMigrationPreparation(div);
+    createMigrationExecution(div, migrationPreparation);
 
     return div;
 }

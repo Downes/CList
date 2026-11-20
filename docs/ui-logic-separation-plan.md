@@ -61,7 +61,16 @@ The user-approved remaining order is:
    pass; extended DID browser fixture passed user testing, 75 checks). Update DID and migration internals
    remain separate, with guarded mutation dispatch. Update DID and public-account
    selection now have workflow/controller/view boundaries (677/677 Node tests pass;
-   extended DID browser fixture passed user testing, 85 checks). Migration internals remain to migrate.
+   extended DID browser fixture passed user testing, 85 checks). Migration preparation/preview now has workflow/controller/view boundaries,
+   fail-closed record checks, registration receipts, captured approval and a revalidated
+   one-use execution handoff (685/685 Node tests pass). User reported browser PASS (25 preparation,
+   85 DID checks); the preparation-page layout fix was visually confirmed. Copy/link execution and
+   recovery now have workflow/controller/view boundaries and a public identity helper.
+   Per-step receipts, read-only reconciliation, explicit remaining-step retries and
+   tab/source-session recovery pass 696/696 Node tests; the new migration-execution
+   browser fixture passed user testing (35 checks; HTTP/storage/crypto mocked).
+   Remaining auth/admin work includes login,
+   registration, credential/server selection and administrative settings.
 6. Pane persistence/navigation, keyboard/mobile state and reusable action/menu contracts.
 7. Collaboration/P2P chat session workflows, then remaining AI feature boundaries.
 

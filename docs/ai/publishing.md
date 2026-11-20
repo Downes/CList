@@ -423,3 +423,23 @@ Preserve state-owned choices, captured account/private-key/catalog/profile versi
 separate visibility/publication receipts and explicit remaining-step recovery.
 Retain credentials/extensions and unmapped public links; never silently discard
 unreadable metadata. Migration remains a separate legacy internal workflow.
+
+
+Migration preparation/preview uses `migration-preparation-workflow.js`,
+`migration-preparation.js` and `migration-preparation-view.js`. Capture all inputs
+before awaits; fail closed on unreadable source or failed/malformed destination
+lists. Keep registration side effects explicit, retain accepted/uncertain receipts
+across panel rebuilds within the captured source session, and never automatically
+repeat registration. Run consumes one state-approved plan after checking both
+record snapshots. Execution now uses `migration-execution-workflow.js`, `migration-execution.js`,
+`migration-execution-view.js` and `migration-identity-workflow.js`. Private plans
+retain each ciphertext and accepted/uncertain copy/publication receipt. Read-only
+Check migration reconciles remote results before an explicit Retry remaining steps;
+never repeat accepted steps or fall back from add conflict to overwrite. Recheck
+source/destination records and public documents before each write, and guard after
+every asynchronous boundary. Preserve captured local/hosted identities and public
+metadata. Reuse `sendDidPublication` for one-shot identity writes; HTTP failure
+must not become success feedback. Recovery is tab/source-session scoped, not
+persistent across reload or a new login; expired destination authorization stops
+rather than silently changing credentials. Mock registration/login, copy/link
+writes, storage and crypto in regressions. No client-side reads provide server CAS.

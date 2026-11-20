@@ -501,3 +501,15 @@ remaining-step retries explicit, and accepted writes never replayed. Changed sou
 records/drafts/panels expire retries. Use `CList.keys.PAGES_CATALOG`. Update DID
 participates in mutation coordination; migration remains separately guarded legacy
 work. Client version checks are not backend compare-and-swap.
+
+
+Migration preparation uses `migration-preparation-*` (workflow/controller/view).
+Keep captured credentials/plans private, fail closed on unreadable records or
+failed destination checks, and preserve registration receipts/explicit retry.
+Migration execution uses `migration-execution-*` plus `migration-identity-workflow.js`.
+Keep per-step accepted/uncertain receipts and ciphertexts private. Check migration
+is read-only; explicit Retry remaining steps skips accepted copies/publications.
+Never fall back from a conflicting add to blind overwrite. Preserve captured
+source/destination/session and public metadata, recheck before each write, and
+retain late receipts across panel rebuilds. Recovery lasts only in this tab and
+source session; preview tests alone do not validate execution.

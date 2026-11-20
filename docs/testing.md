@@ -1248,3 +1248,48 @@ requests or real writes. This supersedes the pending Update DID browser rerun ab
 and completes validation for this slice, separately from **677/677 Node** results.
 Migration, live authentication/storage/services and real cryptography remain
 outside this fixture evidence.
+
+
+### Migration preparation and preview — user-reported browser PASS
+
+Open `https://localhost:51888/tests/migration-preparation.browser.html` and report
+its final PASS/FAIL (including stack on failure). The fixture uses real preparation
+workflow/controller/view and shared identity coordination; shell and execution
+handoff are fixtures. Source storage, destination registration/login/listing and
+crypto are mocked; no external requests or real writes. It checks captured inputs,
+conflicts, state-owned overwrite approval, one-use revalidated handoff, cancellation,
+stale inputs/session, registration receipts/explicit retry and fail-closed reads.
+Execution/recovery and live migration are outside this evidence. Also rerun
+`https://localhost:51888/tests/did-identity.browser.html` (expected existing 85
+checks) to check the existing panel integration. Editor marker: `test 2026-11-20.14`.
+The user reported PASS for migration preparation (25 checks) and the existing
+DID fixture (85 checks). They also reported that the migration page is not
+displaying as HTML, clarified as plain text. The fixture now uses a normal
+scrolling layout and a status paragraph instead of a preformatted block; visual
+confirmation of that presentation-only adjustment was reported successful by the user.
+Functional fixture results and that presentation issue are recorded separately.
+
+Automated evidence for this slice: 15/15 focused Node tests, then 685/685 full
+Node tests (0 failures/skips). Script syntax, fixture script paths and diff whitespace
+were checked separately. Browser fixture results above are user-reported; normal-app
+and live migration checks were not performed.
+
+### Migration execution and recovery — user-reported browser PASS
+
+Open `https://localhost:51888/tests/migration-execution.browser.html` and report
+its final PASS/FAIL. The fixture uses real execution workflow/controller/view,
+identity linking and the shared one-shot publication transport. The hosted success
+case uses the real preparation controller/view too; the shell and other preparation
+handoffs are fixtures. HTTP including copy/link writes, source/destination storage
+and cryptography are mocked; no external requests or real writes.
+
+It checks hosted/Local completion, approved existing-record updates, metadata
+retention, partial/uncertain copy/link recovery, read-only checks, explicit retries,
+new destination/source protection, duplicate/expired callbacks, changed sessions,
+and late accepted writes across panel rebuilds. Tab/source-session recovery does
+not establish reload/new-login recovery or live service behavior. Marker:
+`test 2026-11-20.15`. The user reported PASS: 35 checks. HTTP, storage and
+crypto were mocked; no external requests or real writes were performed.
+Automated results: 26/26 focused Node tests; 696/696 full Node tests, zero
+failures/skips. Browser results for the earlier preparation (25) and DID (85)
+fixtures remain distinct, user-reported prior evidence.

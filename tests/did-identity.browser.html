@@ -26,7 +26,7 @@ window.fetch=async(url,options={})=>{if(options.method&&options.method!=='GET'){
  }requests.push({url:String(url),options});
  if(behavior.published&&String(url)===CList.config.flaskSiteUrl+'/users/'+encodeURIComponent(CList.state.username)+'/did.json')return{ok:true,json:async()=>structuredClone(behavior.published)};return behavior.http?behavior.http(url,options):{ok:true,json:async()=>({id:'did:web:store.invalid:users:alice',alsoKnownAs:['did:key:public']})};};
 </script>
-<script src="../js/kvstore.js?v=2026-11-20.13"></script>
+<script src="../js/kvstore.js?v=2026-11-20.15"></script>
 <script src="../js/did-identity-workflow.js?v=2026-11-20.13"></script><script src="../js/did-identity-view.js?v=2026-11-20.13"></script><script src="../js/did-identity.js?v=2026-11-20.13"></script>
 <script src="../js/did-proof-workflow.js?v=2026-11-20.11"></script><script src="../js/did-proof-view.js?v=2026-11-20.7"></script><script src="../js/did-proof.js?v=2026-11-20.11"></script>
 <script src="../js/did-publication-workflow.js?v=2026-11-20.11"></script><script src="../js/did-publication-view.js?v=2026-11-20.8"></script><script src="../js/did-publication.js?v=2026-11-20.12"></script>
@@ -35,6 +35,13 @@ window.fetch=async(url,options={})=>{if(options.method&&options.method!=='GET'){
 <script src="../js/did-rotation-workflow.js?v=2026-11-20.11"></script><script src="../js/did-rotation-view.js?v=2026-11-20.11"></script><script src="../js/did-rotation.js?v=2026-11-20.12"></script>
 <script src="../js/did-removal-workflow.js?v=2026-11-20.12"></script><script src="../js/did-removal-view.js?v=2026-11-20.12"></script><script src="../js/did-removal.js?v=2026-11-20.12"></script>
 <script src="../js/did-update-workflow.js?v=2026-11-20.13"></script><script src="../js/did-update-view.js?v=2026-11-20.13"></script><script src="../js/did-update.js?v=2026-11-20.13"></script>
+<script src="../js/migration-preparation-workflow.js?v=2026-11-20.15"></script>
+<script src="../js/migration-preparation-view.js?v=2026-11-20.15"></script>
+<script src="../js/migration-preparation.js?v=2026-11-20.15"></script>
+<script src="../js/migration-identity-workflow.js?v=2026-11-20.15"></script>
+<script src="../js/migration-execution-workflow.js?v=2026-11-20.15"></script>
+<script src="../js/migration-execution-view.js?v=2026-11-20.15"></script>
+<script src="../js/migration-execution.js?v=2026-11-20.15"></script>
 <script>
 // Isolate unrelated page bootstrap and cryptography; keep the actual DID panel builder.
 window.hasValidSession=()=>false;window.getAccounts=async()=>[];window.displayUsername=()=>{};window.updateUIVisibility=()=>{};

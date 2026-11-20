@@ -1,0 +1,24 @@
+<!doctype html>
+<meta charset="utf-8"><title>CList migration execution regression</title>
+<link rel="stylesheet" href="../css/interface.css">
+<style>
+html,body{display:block;height:auto;min-height:100%;overflow:auto}body{box-sizing:border-box;max-width:960px;margin:0 auto;padding:24px;font:16px/1.5 system-ui,sans-serif}#result{padding:16px;border:1px solid currentColor;border-radius:6px;white-space:pre-wrap;overflow-wrap:anywhere}
+</style>
+<h1>Migration execution and recovery</h1>
+<p>Real execution workflow/controller/view, identity linking, shared identity coordination and one-shot publication transport. The panel shell is a fixture; the hosted success case uses the real preparation controller/view, while failure cases use a captured handoff fixture. HTTP, source/destination storage and crypto are mocked; no external requests or real writes. This does not verify live migration or real cryptography.</p>
+<p id="result" role="status">Checking migration execution…</p><div id="fixture"></div>
+<script>window.CList={ui:{}};window.fixtureAttach=root=>document.getElementById('fixture').replaceChildren(root);</script>
+<script src="../js/did-identity.js?v=2026-11-20.15"></script>
+<script src="../js/did-removal-workflow.js?v=2026-11-20.15"></script>
+<script src="../js/did-publication-workflow.js?v=2026-11-20.15"></script>
+<script src="../js/migration-preparation-workflow.js?v=2026-11-20.15"></script>
+<script src="../js/migration-preparation-view.js?v=2026-11-20.15"></script>
+<script src="../js/migration-preparation.js?v=2026-11-20.15"></script>
+<script src="../js/migration-identity-workflow.js?v=2026-11-20.15"></script>
+<script src="../js/migration-execution-workflow.js?v=2026-11-20.15"></script>
+<script src="../js/migration-execution-view.js?v=2026-11-20.15"></script>
+<script src="../js/migration-execution.js?v=2026-11-20.15"></script>
+<script src="helpers/migration-execution-fixture.js?v=2026-11-20.15"></script>
+<script>
+(async()=>{let checks=0;for(const [name,run] of migrationExecutionCases)await run((condition,message)=>{if(!condition)throw Error(name+': '+message);checks++;});document.getElementById('result').textContent='PASS: '+checks+' checks. Real migration execution/controller/view, captured re-encryption and copy/link targets, accepted and uncertain receipts, read-only checks and explicit remaining-step retries, local/hosted identities, metadata retention, conflicts and stale panel/session/callback guards. HTTP, crypto, storage and preparation handoff mocked; no external requests or real writes.';})().catch(error=>{document.getElementById('result').textContent='FAIL: '+error.stack;console.error(error);});
+</script>

@@ -1485,3 +1485,44 @@ requests or real writes. This supersedes the pending Update DID browser rerun ab
 and completes validation for this slice, separately from **677/677 Node** results.
 Migration, live authentication/storage/services and real cryptography remain
 outside this fixture evidence.
+
+
+### Migration preparation and preview
+
+`node --test tests/migration-preparation.test.cjs tests/did-identity.test.cjs`
+checks real preparation workflow/controller/view plus existing DID-panel mounting.
+Eight preparation tests cover detached local/hosted snapshots, conflict/DID counts,
+secret-free state, invalid targets/records, captured inputs, duplicate/cancel/panel
+lifetimes, accepted/uncertain registration receipts, explicit retry, state-owned
+overwrite consent and one-use snapshot-revalidated handoff. Auth/register/storage,
+crypto and execution are mocked; no external requests or actual writes.
+`migration-preparation.browser.html` is the dedicated user handoff using real DOM
+and extracted modules, with fixture shell/execution. `did-identity.browser.html`
+loads the new scripts through its existing panel. User reported PASS for both
+fixtures (25 preparation checks, 85 DID checks), with a migration-page display
+issue subsequently clarified as plain text. The preparation fixture layout/status
+presentation adjustment was visually confirmed by the user. Neither fixture exercises copy/link execution/recovery, live
+credentials or real cryptography. A registration checkbox intentionally creates
+a destination account during normal-app Preview; the UI explicitly says so.
+
+### Migration execution and recovery
+
+`node --test tests/migration-execution.test.cjs tests/migration-preparation.test.cjs tests/did-identity.test.cjs`
+passes 26 tests (11 execution cases). `tests/helpers/migration-execution-fixture.js`
+is shared by the execution Node test and `migration-execution.browser.html`.
+It runs real execution workflow/controller/view, public identity capture/linking,
+shared identity coordination and one-shot publication transport. The hosted success
+case also uses real preparation/controller/view; other cases mock the approved
+handoff, and the panel shell is a fixture. Accounts, HTTP including writes, KV data
+and crypto are mocked; no real external requests or writes.
+
+Coverage includes direct update of approved existing records, no add-409 overwrite
+fallback, source and unrelated destination retention, metadata merging, per-step
+receipts, partial/lost-reply copies and publications, read-only reconciliation,
+explicit remaining-step retries, reusing generated ciphertext, stale source/session
+and panel ownership, duplicate/expired callbacks and late accepted writes across
+panel rebuilds. The user reported browser PASS: 35 checks, with all external
+effects mocked. This is not proof of live
+migration, real encryption, atomic concurrency or durable recovery across tab reload,
+new source login or expired destination authorization. Existing DID mounting still
+runs in the focused integration Node fixture; its prior browser result was 85 checks.

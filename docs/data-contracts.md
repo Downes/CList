@@ -427,3 +427,35 @@ changed on account records; extensions/credentials remain intact. `PAGES_CATALOG
 names the existing clist:pages-catalog record. Other public links are preserved;
 managed aliases/services reflect the captured choices. Acknowledgement does not
 overwrite newer drafts, credentials, catalog metadata or private identity keys.
+
+
+Migration preparation uses `CListMigrationInput` (transient captured password),
+`CListMigrationPlan` (private source/destination tokens, CryptoKeys, detached
+ciphertext records and sorted key/value snapshots), and safe
+`CListMigrationPreparationState`/`CListMigrationPreview`. No password, auth hash,
+key, token or encrypted record enters UI state. Preparation decrypts every source
+record but retains only ciphertext, preserving extensions. It never installs the
+destination login or copies records. Optional Register creates an account during
+preview; transient per-source-session/target receipts distinguish accepted,
+uncertain and rejected registration. Ordinary retry checks login without resending
+an uncertain/accepted registration; resending needs explicit Retry registration.
+Overwrite consent belongs to controller state. Run rechecks exact source and
+destination records and consumes the captured plan once. These client-side reads
+are not atomic server CAS.
+
+Execution uses private `CListMigrationExecutionPlan`, `CListMigrationCopyStep`
+and `CListMigrationIdentityStep` records. It retains original/expected destination
+ciphertexts, one generated ciphertext per copy, captured public metadata and
+separate ready/uncertain/accepted receipts. `CListDidPublicationPayload` describes
+the existing shared one-shot transport. `CListMigrationExecutionState` is only
+progress counts, target label, error and action state. Destination credentials,
+keys and copy payloads are cleared on completion; source-session ownership remains
+private. Pending recovery survives panel rebuilds in the same tab/source session,
+not reloads or a new login. Read-only checking reconciles an exact written ciphertext
+or matching public payload before any explicit remaining-step retry. Accepted steps
+are not repeated; changed source/destination records or public documents stop work.
+Unrelated destination records/aliases/services are preserved; conflicting service
+metadata needs review. A hosted source must publish its matching identity before
+any copies; a Local source needs only its stored key. There is no source record
+delete or automatic account switch. Both key conflicts and identity publications
+remain explicit, captured operations; client checks are not atomic CAS.
