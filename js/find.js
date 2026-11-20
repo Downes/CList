@@ -56,8 +56,13 @@ async function runFindRequest(selection,load){
     const isCurrent=()=>findRequestCurrent(request),view=window.CList.ui.find;
     let continuationId=null;
     /** @type {CListFindContext} */
+    const selectionCurrent=()=>sameFindSession(selection.session)&&_findRequest?.selection===selection
+        &&window.CList.state.reader.requestId===selection.readerId&&window.CList.readers[selection.key]===selection.handler
+        &&window.CList.ui.find.target()===selection.target&&window.CList.ui.isHandlerVisible(selection.handler);
     const context={requestId:request.id,query:selection.query,signal:request.abort.signal,isCurrent,
-        render:(items,options)=>isCurrent()?view.render(items,options,isCurrent):Promise.resolve(),
+        isAccountCurrent:selectionCurrent,
+        navigate:loadNext=>selectionCurrent()?runFindRequest(selection,loadNext):Promise.resolve(),
+        render:(items,options)=>isCurrent()?view.render(items,{...options,rowContext:context},isCurrent):Promise.resolve(),
         empty:title=>{if(isCurrent())view.empty(title,isCurrent);},
         fail:(title,error)=>{if(isCurrent()){
             window.CList.state.find=finishFindRequest(findState(),request.id,error?.message||String(error));

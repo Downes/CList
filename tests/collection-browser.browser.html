@@ -1,0 +1,89 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CList collection browsing regression</title>
+<h1>Collection browsing</h1>
+<p>Real collection browsing controller and view. Accounts, storage, editor APIs, member rendering and sharing are mocked. No external requests or writes.</p>
+<pre id="result">Checking collections…</pre>
+<section id="feed-section"><div id="feed-menu"></div><div id="feed-container"></div></section>
+<div id="load-options"></div>
+<script>
+window.CList = { state: { username: 'fixture', reader: { mode: 'collections', requestId: 1 } },
+ config: { flaskSiteUrl: 'https://storage.invalid' }, accounts: [], readers: {}, loaders: [], ui: { view: {
+  feedContainer: document.getElementById('feed-container'), feedMenu: document.getElementById('feed-menu'), loadOptions: document.getElementById('load-options') } } };
+let token = 'fixture-token', records = [], listing, removeFailure = false;
+const calls = [], messages = [];
+window.fetch = () => Promise.reject(Error('Unexpected network request'));
+window.beginCollectionSession = (options = {}) => ({ username: CList.state.username, storeUrl: CList.config.flaskSiteUrl,
+ token: options.token || token, encKey: options.encKey, isCurrent: options.isCurrent });
+window.assertCollectionSession = session => {
+ if (session.username !== CList.state.username || session.token !== token || session.storeUrl !== CList.config.flaskSiteUrl || session.isCurrent?.() === false) throw Error('Session changed');
+};
+window.prepareCollectionSession = async session => { assertCollectionSession(session); session.encKey ||= 'fixture-key'; };
+window.collectionDependencies = session => ({ session });
+window.listCollectionRecords = async deps => { assertCollectionSession(deps.session); return listing ? listing() : { collections: structuredClone(records), warnings: [] }; };
+window.deleteCollectionRecord = async (col, deps) => { assertCollectionSession(deps.session); calls.push(['remove', col.key]);
+ if (removeFailure) throw Error('Storage offline'); records = records.filter(row => row.key !== col.key); };
+window.deleteAccount = async (key, session) => { assertCollectionSession(session); calls.push(['account-remove', key]); };
+window.parseAccountValue = account => JSON.parse(account.value);
+CList.readers.Feed = { editCollection: async (...args) => calls.push(['feed-edit', ...args]) };
+window.revealEditorPane = () => {};
+window._loadCollectionIntoEditor = async (...args) => calls.push(['editor', ...args]);
+window.switchReaderAccount = async key => { calls.push(['read', key]); CList.state.reader = { mode: 'account', requestId: CList.state.reader.requestId + 1 }; };
+window.invalidateReader = mode => { CList.state.reader = { mode, requestId: CList.state.reader.requestId + 1 }; };
+window.populateReadAccountList = () => {}; window.updateUIVisibility = () => {};
+window.populateLoadOptions = () => { CList.state.editorControls = { id: (CList.state.editorControls?.id || 0) + 1 }; CList.ui.view.loadOptions.replaceChildren(); };
+window.mountCollectionImports = (root, session, current) => { calls.push(['imports', current]); const button = document.createElement('button'); button.className = 'btn'; button.textContent = 'Import'; root.appendChild(button); };
+window._renderCollectionItems = async (col, token, key, count, items, current) => { calls.push(['rows', col, current]);
+ const row = document.createElement('p'); row.textContent = col.items.map(item => item.title || item.url).join(', '); items.appendChild(row); };
+window._showAddToCollectionPicker = async (...args) => calls.push(['nest', ...args]);
+window._flattenForExport = async items => structuredClone(items);
+window._collectionItemDisplayTitle = item => item.title || item.url;
+window.sendShareMessage = (...args) => calls.push(['share', ...args]);
+window.openCollabWithCollection = (...args) => calls.push(['collab', ...args]);
+window.showStatusMessage = text => messages.push(text);
+</script>
+<script src="../js/collection-browser-view.js?v=2026-11-19.4"></script>
+<script src="../js/collection-browser.js?v=2026-11-19.4"></script>
+<script>
+(async () => {
+ let count = 0; const check = (value, label) => { if (!value) throw Error(label); count++; };
+ const tick = () => new Promise(resolve => setTimeout(resolve, 0));
+ const root = CList.ui.view.feedContainer;
+ const icon = title => [...root.querySelectorAll('button')].find(button => button.title === title);
+ const textButton = text => [...root.querySelectorAll('button')].find(button => button.textContent === text);
+ const saved = () => ({ key: 'collection:a', id: 'original', title: 'Saved <b>literal</b>', items: [{ title: 'First member', url: 'https://item.invalid' }], publishedUrls: [{ url: 'https://published.invalid' }] });
+ try {
+  records = [saved()]; CList.accounts = [{ key: 'feed', value: JSON.stringify({ type: 'Feed', title: 'News', id: 'private-token' }) }];
+  await showSavedCollections();
+  check(root.querySelectorAll('.saved-collection-wrapper').length === 2, 'Saved and registry feed collections rendered');
+  check(root.querySelector('.saved-collection-name').textContent === 'Saved <b>literal</b>' && !root.querySelector('b'), 'Untrusted titles remain text');
+  check(textButton('Import') && calls.find(call => call[0] === 'imports')[1](), 'Import hook receives owned surface');
+  await icon('Edit collection').onclick();
+  check(calls.find(call => call[0] === 'editor')[1].publishedUrls[0].url === 'https://published.invalid', 'Editor load retains publication identity');
+  icon('Delete this collection').onclick(); check(CList.state.collectionBrowsing.confirmKey === 'collection:a', 'Controller owns delete choice');
+  textButton('Cancel').onclick(); check(!root.querySelector('.collection-delete-confirm'), 'Cancel rebuilds confirmation state');
+  icon('Delete this collection').onclick(); removeFailure = true; await textButton('Delete').onclick();
+  check(root.textContent.includes('Storage offline') && root.querySelectorAll('.saved-collection-wrapper').length === 2, 'Failed deletion remains visible and keeps rows');
+  removeFailure = false; await textButton('Delete').onclick();
+  check(root.querySelectorAll('.saved-collection-wrapper').length === 1 && messages.some(message => message.includes('deleted')), 'Explicit delete retry removes captured row');
+  records = [saved()]; await showSavedCollections();
+  await root.querySelector('.saved-collection-name').onclick();
+  check(root.querySelector('.collection-detail-title').textContent === saved().title && root.textContent.includes('First member'), 'Detail header and member bridge render');
+  check(calls.filter(call => call[0] === 'rows').at(-1)[2](), 'Member bridge receives current-owner guard');
+  const staleShare = icon('Share to chat').onclick, beforeShare = calls.filter(call => call[0] === 'share').length;
+  CList.state.reader = { mode: 'account', requestId: 99 }; await staleShare();
+  check(calls.filter(call => call[0] === 'share').length === beforeShare, 'Expired detail action cannot share');
+  let finish; listing = () => new Promise(resolve => finish = resolve); const pending = showSavedCollections(); await tick();
+  root.replaceChildren(document.createTextNode('New account feed')); CList.state.reader = { mode: 'account', requestId: 100 };
+  finish({ collections: [saved()], warnings: [] }); await pending;
+  check(root.textContent === 'New account feed', 'Late list does not overwrite a replaced reader');
+  listing = null; CList.state.reader = { mode: 'collections', requestId: 101 };
+  await CList.loaders.find(loader => loader.label === 'My Collections').load();
+  check(CList.ui.view.loadOptions.querySelectorAll('.saved-collection-wrapper').length === 1, 'My Collections loader excludes feed subscriptions');
+  await CList.ui.view.loadOptions.querySelector('.account-button').onclick();
+  check(calls.filter(call => call[0] === 'editor').at(-1)[1].id === 'original', 'Load source retains original collection ID');
+  check(!JSON.stringify(CList.state.collectionBrowsing).includes('private-token'), 'Shared browsing state excludes credentials');
+  document.getElementById('result').textContent = 'PASS: real collection browser controller/view, saved and feed subscriptions, guarded imports/member loading, safe titles, delete Cancel/error/retry, detail actions, stale list/reader isolation and My Collections loading. ' + count + ' checks. Accounts, storage, editor/member APIs and sharing mocked; no external requests or writes.';
+ } catch (error) { console.error(error); document.getElementById('result').textContent = 'FAIL: ' + error.stack; }
+})();
+</script>

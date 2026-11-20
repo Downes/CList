@@ -1,0 +1,85 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CList Bluesky reader regression</title>
+<h1>Bluesky reader and row actions</h1>
+<p>Real Bluesky requests, reader controller, normalizer and view. Authentication, HTTP, shared listing chrome and publication are mocked; no external requests or writes.</p>
+<pre id="result">Checking Bluesky reader…</pre>
+<div id="feed"></div><div id="panel"></div>
+<script>
+window.CList={state:{},schemas:{},readers:{},ui:{socialPostLine:(author,handle,label,body)=>author+' '+label+': '+body}};
+const requests=[],auth=[],published=[],messages=[],errors=[];
+let generation=1,account='alice',pageCalls=0,failWrite=false,pendingWrite=null,loadMore;
+const feed=document.getElementById('feed'),panel=document.getElementById('panel');
+const post=(id='one')=>({uri:'at://did:author/app.bsky.feed.post/'+id,cid:'cid-'+id,author:{handle:'author.test',displayName:'Author'},record:{text:'Post '+id,createdAt:'2026-11-20'},viewer:{}});
+window._he=value=>String(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+window._heJs=value=>String(value);
+window.processTranslationWithTimeout=async value=>value;
+window.createBlueskyAccountSession=async selected=>{auth.push(structuredClone(selected));return{accessToken:selected.instance+'-token',did:'did:'+selected.instance,pds:'https://'+selected.instance};};
+window.openLeftInterface=root=>panel.replaceChildren(root);
+window.showStatusMessage=message=>messages.push(message);
+window.showPostMessage=(root,message)=>{const p=document.createElement('p');p.textContent=message;root.appendChild(p);};
+window.showServiceError=(root,title,message)=>{errors.push(message);const p=document.createElement('p');p.className='error-message';p.textContent=title+': '+message;root.appendChild(p);};
+window.showErrorModal=message=>errors.push(message);
+window.renderPublicationSuccess=(root,service,url)=>{root.textContent=service+' '+url;};
+window.publishBlueskyRecord=async(session,text,reply)=>{published.push({session,text,reply});return'https://post.invalid';};
+window.openInBrowser=()=>{};window.toggleEntryExpanded=()=>{};
+window.fetch=async(url,options={})=>{
+ requests.push({url,options});
+ if(options.method==='POST'){
+  if(failWrite)throw Error('Connection lost');if(pendingWrite)return pendingWrite;
+  const body=JSON.parse(options.body);return{ok:true,json:async()=>body.collection==='app.bsky.feed.like'?{uri:'at://did:alice.test/app.bsky.feed.like/like-record'}:body.collection==='app.bsky.feed.repost'?{uri:'at://did:alice.test/app.bsky.feed.repost/repost-record'}:{}};
+ }
+ if(url.includes('getTimeline'))return{ok:true,json:async()=>({feed:[{post:post(++pageCalls===1?'one':'two')}],cursor:pageCalls===1?'opaque-cursor':null})};
+ if(url.includes('getAuthorFeed'))return{ok:true,json:async()=>({feed:[{post:post('author')}],cursor:null})};
+ if(url.includes('getSuggestedFeeds'))return{ok:true,json:async()=>({feeds:[{uri:'at://generator',displayName:'Suggested feed'}]})};
+ if(url.includes('getFeed?'))return{ok:true,json:async()=>({feed:[{post:post('custom')}],cursor:null})};
+ if(url.includes('searchPosts'))return{ok:true,json:async()=>({posts:[post('search')],cursor:null})};
+ throw Error('Unexpected request: '+url);
+};
+function context(id=generation,selected=account){return{accountKey:selected,signal:new AbortController().signal,isCurrent:()=>id===generation&&selected===account,isAccountCurrent:()=>selected===account,
+ render:async(items,options)=>{if(!options.append)feed.replaceChildren();for(const raw of items){const item=await options.normalize(raw);if(id!==generation||selected!==account)return;
+  const row=document.createElement('article');row.id='row-'+item.bluesky.postId;
+  const title=document.createElement('div');title.innerHTML=item.titleHtml||item.title;const actions=document.createElement('div');actions.className='status-actions';row.append(title,actions);
+  CList.readers.Bluesky.bindRow(item,row,context(id,selected));feed.appendChild(row);}loadMore=options.onLoadMore;},
+ next:async load=>{if(id!==generation||selected!==account)return;return load(context(++generation,selected));},
+ navigate:async load=>{if(selected!==account)return;return load(context(++generation,selected));}};}
+</script>
+<script src="../js/bluesky.js"></script>
+<script src="../js/bluesky_requests.js"></script>
+<script src="../js/bluesky_view.js"></script>
+<script src="../js/bluesky_reader.js"></script>
+<script>
+(async()=>{
+ let checks=0;const check=(ok,label)=>{if(!ok)throw Error(label);checks++;};const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
+ const rowButton=(row,title)=>row.querySelector('button[title="'+title+'"]');
+ try{
+  const handler=CList.readers.Bluesky;
+  await handler.initialize({type:'Bluesky',instance:'alice.test',id:'selected-password'},context());
+  check(auth[0].instance==='alice.test'&&auth[0].id==='selected-password','Selected account passed to authentication');
+  check(feed.children.length===1&&feed.textContent.includes('Post one'),'Real normalized first page rendered');
+  check(!feed.innerHTML.includes('onclick='),'No inline service action dispatch');
+  const first=feed.firstElementChild,like=rowButton(first,'Like');
+  await loadMore();check(feed.children.length===2&&requests.some(request=>request.url.includes('cursor=opaque-cursor')),'Opaque cursor pagination appends');
+  await like.onclick();check(like.classList.contains('action-active'),'Earlier-page Like remains active after pagination');
+  await like.onclick();check(!like.classList.contains('action-active')&&JSON.parse(requests.at(-1).options.body).rkey==='like-record','Unlike uses captured created record URI');
+  let finish;pendingWrite=new Promise(resolve=>finish=resolve);const repost=rowButton(first,'Repost'),pending=repost.onclick();await repost.onclick();await tick();
+  const writes=requests.filter(request=>request.options.method==='POST').length;
+  finish({ok:true,json:async()=>({uri:'at://did:alice.test/app.bsky.feed.repost/new'})});await pending;pendingWrite=null;
+  check(requests.filter(request=>request.options.method==='POST').length===writes&&repost.classList.contains('action-active'),'Duplicate writes blocked and busy released');
+  await rowButton(first,'Reply').onclick();check(panel.querySelector('textarea')&&panel.querySelector('button').textContent==='Submit Reply','Captured Reply form renders');
+  panel.querySelector('textarea').value='Captured reply';await panel.querySelector('button').onclick();
+  check(published[0].session.did==='did:alice.test'&&published[0].reply.parent.uri.endsWith('/one'),'Reply uses original account and parent');
+  await handler.feedFunctions.Search(context());panel.querySelector('input').value='Exact search';await panel.querySelector('button').onclick();
+  check(requests.at(-1).url.includes('q=Exact+search')&&feed.textContent.includes('Post search'),'Search form navigates through captured reader');
+  const before=requests.length;await like.onclick();check(requests.length===before,'Replaced old row cannot write');
+  await handler.feedFunctions.Recommended(context());const select=panel.querySelector('select');select.value='at://generator';await select.onchange();
+  check(requests.at(-1).url.includes('feed=at%3A%2F%2Fgenerator')&&feed.textContent.includes('Post custom'),'Recommended feed picker captures selected URI');
+  failWrite=true;await rowButton(feed.firstElementChild,'Like').onclick();failWrite=false;
+  check(messages.some(message=>message.includes('could not be confirmed')),'Uncertain write feedback visible without automatic retry');
+  const activeRow=feed.firstElementChild,beforeSession=requests.length;account='bob';await rowButton(activeRow,'Like').onclick();
+  check(requests.length===beforeSession,'Session switch rejects retained row callback');
+  check(!JSON.stringify(CList.state).includes('selected-password'),'Shared application state excludes credentials');
+  document.getElementById('result').textContent='PASS: real Bluesky reader/request/view boundaries, selected-account authentication, normalized posts, opaque pagination and earlier-page actions, captured toggle records, duplicate/stale guards, Reply, Search and Recommended choices, uncertain failures and account isolation. '+checks+' checks. Authentication, HTTP, publication and shared chrome mocked; no external requests or writes.';
+ }catch(error){console.error(error);document.getElementById('result').textContent='FAIL: '+error.message+'\n'+error.stack;}
+})();
+</script>

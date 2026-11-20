@@ -1,0 +1,66 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CList Mastodon reader regression</title>
+<h1>Mastodon reader and row actions</h1>
+<p>Real Mastodon transport, normalization, reader controller, row state and views. Reader context, HTTP and publication are mocked. No external requests or writes.</p>
+<pre id="result">Checking Mastodon…</pre><div id="feed-container"></div><div id="left-controls"></div>
+<script>
+window.CList={state:{},readers:{},schemas:{},publishers:{},ui:{view:{feedContainer:document.getElementById('feed-container')},socialPostLine:(author,acct,verb,text)=>author+' '+text}};
+const _he=value=>String(value||'').replaceAll('<','&lt;');const escapeHtml=_he;
+class SafeHtml{constructor(value){this.value=value;}}
+window.OAuthClient={onCallback(){}};window.processTranslationWithTimeout=async value=>value;
+window.extractBaseUrl=value=>value.startsWith('http')?value:'https://'+value.split('@').at(-1);
+const requests=[],messages=[],errors=[],rendered=[],navigations=[];let active='a',generation=0,responder;
+window.fetch=async(url,options)=>{requests.push({url,options});return responder(url,options);};
+const response=(data,next)=>({ok:true,status:200,headers:{get:()=>next?'<'+next+'>; rel="next"':null},json:async()=>data});
+const post=id=>({id,url:'https://a.invalid/@author/'+id,account:{acct:'author',display_name:'Author'},content:'<p>Original text</p>',media_attachments:[]});
+const deferred=()=>{let resolve;const promise=new Promise(done=>resolve=done);return{resolve,promise};};
+window.showStatusMessage=text=>messages.push(text);window.showServiceError=(root,title,text)=>errors.push(text);window.showErrorModal=text=>errors.push(text);
+window.openLeftInterface=root=>document.getElementById('left-controls').replaceChildren(root);
+window.openInBrowser=()=>{};window.toggleEntryExpanded=()=>{};window.loadContentToEditor=()=>{};
+function context(id='a'){
+ const own=++generation,account={type:'Mastodon',instance:'https://'+id+'.invalid',id:'token-'+id};
+ const ctx={account,isCurrent:()=>active===id&&own===generation,isAccountCurrent:()=>active===id,
+ commit:fn=>{if(ctx.isCurrent())fn();},
+ navigate:async(fn,name)=>{if(ctx.isAccountCurrent()){navigations.push(name);return fn(context(id));}},
+ next:async fn=>{if(ctx.isCurrent())return fn(context(id));},
+ render:async(items,options)=>{
+  if(!ctx.isCurrent())return;const root=CList.ui.view.feedContainer;if(!options.append)root.replaceChildren();
+  for(const raw of items){const item=await options.normalize(raw);if(!ctx.isCurrent())return;
+   const row=document.createElement('article');row.className='status-box';
+   const content=document.createElement('div');content.className='statusSpecific';content.id='post-'+item.mastodon.statusId;
+   const title=document.createElement('div');title.innerHTML=item.titleHtml||item.title;content.appendChild(title);row.appendChild(content);
+   const actions=document.createElement('div');actions.className='status-actions';row.appendChild(actions);
+   CList.readers.Mastodon.bindRow(item,row,ctx);root.appendChild(row);rendered.push({item,row,context:ctx});
+  }ctx.last=options;
+ }};return ctx;
+}
+</script>
+<script src="../js/mastodon.js"></script><script src="../js/mastodon_requests.js"></script><script src="../js/mastodon_view.js"></script><script src="../js/mastodon_actions.js"></script><script src="../js/mastodon_reader.js"></script>
+<script>
+(async()=>{
+ let checks=0;const check=(ok,label)=>{if(!ok)throw Error(label);checks++;};const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
+ const button=title=>[...CList.ui.view.feedContainer.querySelectorAll('button')].find(button=>button.title===title);
+ try{
+ responder=async url=>response(url.endsWith('verify_credentials')?{acct:'fixture'}:[post(url.includes('?page=2')?'second':'first')],url.includes('?page=2')?null:'https://a.invalid/api/v1/timelines/home?page=2');
+ let ctx=context();await CList.readers.Mastodon.initialize(ctx.account,ctx);await CList.readers.Mastodon.feedFunctions.Following(ctx);
+ check(rendered.at(-1).item.mastodon.statusId==='first','Real normalization/rendering');check(requests[0].options.headers.Authorization==='Bearer token-a','Captured account verification');
+ const favorite=button('Favourite'),row=rendered.at(-1).row;await ctx.last.onLoadMore();
+ check(row.isConnected,'Earlier row survives appended page');favorite.classList.add('action-active');
+ responder=async()=>response({});await favorite.onclick();check(requests.at(-1).url.endsWith('/first/favourite'),'CSS state cannot choose wrong action');
+ await favorite.onclick();check(requests.at(-1).url.endsWith('/first/unfavourite'),'Closure state chooses explicit undo');
+ const gate=deferred();responder=()=>gate.promise;const pending=favorite.onclick();await favorite.onclick();
+ const count=requests.length;gate.resolve(response({}));await pending;check(requests.length===count,'Duplicate toggle blocked');
+ active='b';await favorite.onclick();check(requests.length===count,'Switched account cannot write retained row');active='a';row.remove();await favorite.onclick();check(requests.length===count,'Removed row cannot write');
+ ctx=context();const stale=deferred();responder=()=>stale.promise;const old=CList.readers.Mastodon.feedFunctions.Local(ctx);active='b';stale.resolve(response([post('stale')]));await old;
+ check(!rendered.some(value=>value.item.mastodon.statusId==='stale'),'Stale read not rendered');active='a';
+ const source=post('boost');source.reblog=post('actual');const normalized=await normalizeMastodonReaderItem(source,'home');check(!normalized.titleHtml.includes('onclick='),'No inline global author navigation');
+ ctx=context();let publication=deferred(),publicationCalls=[];window.publishMastodonStatus=async(...args)=>{publicationCalls.push(args);return publication.promise;};
+ showMastodonPost(ctx,'captured-reply');const form=document.getElementById('left-controls'),input=form.querySelector('textarea'),submit=form.querySelector('button');input.value='Original draft';
+ const sending=submit.onclick();await submit.onclick();input.value='Newer draft';publication.resolve('https://a.invalid/saved');await sending;
+ check(input.value==='Newer draft','Newer text survives completion');check(publicationCalls.length===1&&publicationCalls[0][3]==='captured-reply','Duplicate submission blocked and reply captured');
+ active='b';await submit.onclick();check(publicationCalls.length===1,'Old reply form cannot publish after account switch');
+ document.getElementById('result').textContent='PASS: real Mastodon transport/normalization/controller/actions/view, captured account verification and pagination, earlier-page row actions, closure-owned toggles, duplicate/stale account/row/read guards, captured reply and newer-draft protection. '+checks+' checks. HTTP, reader context and publication mocked; no external requests or writes.';
+ }catch(error){console.error(error);document.getElementById('result').textContent='FAIL: '+error.message+'\n'+error.stack;}
+})();
+</script>

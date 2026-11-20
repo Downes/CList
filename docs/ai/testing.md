@@ -159,3 +159,20 @@ matching browser pages with all HTTP and credential persistence mocked. Preserve
 ordered continuation updates/deletes, captured refresh writes and definite-401
 versus uncertain-upload behavior. Do not use live OAuth or upload files as an
 incidental refactor check.
+
+
+Collection browsing/import/membership/opening checks use the `collection-browser`,
+`collection-import`, `collection-members`, `collection-opening` and
+`collection-entry` Node fixtures plus `public-feed-editor.test.cjs`. Their four
+browser pages are prepared for the user; do not run them without delegation.
+Retain latest-record/legacy duplicate ordinal assertions, no optimistic source
+mutation after write failure, delayed encryption with same-container row replacement,
+cycle guards, explicit import choices, native member routing and unsaved draft
+restoration. A prepared browser page is pending evidence, not a pass.
+
+Service-reader checks and six browser handoff pages are catalogued in
+`tests/README.md` under "Service readers and row actions". Preserve the distinction
+between shared-context real-renderer coverage and service fixtures that mock shared
+chrome. Run targeted Node checks, then one full suite after the final functional
+change. Browser checks remain the user's responsibility unless delegated. Scope
+follow-up work to one small slice; do not expand the migration during final checks.

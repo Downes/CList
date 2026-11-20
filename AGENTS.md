@@ -367,3 +367,50 @@ refresh/retry; never replay an uncertain upload. Preserve explicit overwrite,
 accepted receipts, original folders/account/session and the shared content-first
 loader guard through editor choices. Apply all folder continuation updates/deletes
 in order; cancel expired picker/choice promises so Save/Load can be reopened.
+
+
+## Collection browsing and membership operations
+
+Collection browser list/detail/My Collections uses `collection-browser.js` and
+`collection-browser-view.js`. Imports use `collection-import-workflow.js`,
+`collection-import.js` and `collection-import-view.js`; imported identity collisions
+require an explicit Overwrite/Merge choice, and newer destination changes expire it.
+`collection-session.js` owns transient captured storage credentials;
+`collection-workflow.js` owns explicit record/membership operations. Presentation
+state contains no credentials, encryption keys or bodies. Preserve unknown stored
+extensions, publication metadata, stable storage keys and legacy records.
+
+Membership pickers/rows use `collection-members.js` / `collection-members-view.js`.
+Remove one durable membership ID or one selected legacy ordinal; never remove by
+URL. Read latest stored siblings before mutation and reconcile only after accepted
+writes. A replaced row must invalidate pending preparation/writes even when its
+container remains connected; release replacement controls when an old operation
+settles. Keep cycle rejection and add-if-absent creation; no automatic write retry.
+
+Collection/member opening uses `collection-opening-workflow.js`,
+`collection-opening.js`, `collection-opening-view.js`. Draft file/existing-resource
+additions use the analogous `collection-entry-*` modules. Keep original draft/page/
+account/session captures, shared content-first routing, explicit Open/Insert/Cancel,
+owned-page restrictions, anonymous local blobs and failed-mount rollback that does
+not overwrite a newer load. Nested file imports are add-only; conflicts are visible.
+The remaining editor row widgets and collection Save/publication paths stay separate.
+
+## Migrated service readers and row bindings
+
+Mastodon uses `mastodon_requests.js`, `mastodon_reader.js`, `mastodon_actions.js`
+and `mastodon_view.js`; Bluesky uses corresponding requests/reader/view modules.
+Discord and public feeds use their captured reader/view modules. Annotations use
+`annotate_requests.js`, `annotate_reader.js`, `annotate_view.js`. Keep selected
+accounts, sessions, cursors and targets in transient captures. Reuse existing
+publisher/annotation workflows for writes; views own feedback.
+
+`bindRow(item, row, context)` receives private context outside serialized item and
+reference data. Use `.service-status-actions` for service controls; shared actions
+are appended afterward. Preserve connected earlier-page rows with
+`isAccountCurrent`; use `context.navigate` for captured row navigation and `next`
+for pagination. Reject detached/replaced rows and stale account/session callbacks.
+LocalRSS row binding is in `localrss_row_view.js`. Google/DDG/OASIS now use captured
+Find contexts, explicit request functions and `search-provider-view.js` row controls.
+Google modes/pagination retain the original query and credential snapshot; reject
+changed accounts and stale menus. OpenAlex/Commons already use Find contexts but
+their stateless inline row controls remain a separate cleanup.

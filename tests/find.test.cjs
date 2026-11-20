@@ -128,15 +128,102 @@ test('session expiry cleans the old busy state and live typing rebinds the panel
  f.type('Current');await button.onclick();assert.equal(captured,'Current');assert.equal(f.CList.state.find.status,'ready');
 });
 
-test('actual legacy provider registrations retain captured initial queries and Google Web/Images arguments',async()=>{
+test('migrated provider registrations receive the captured query and context',async()=>{
  const f=fixture(),calls=[];
  for(const name of ['googlesearch','duckduckgo','oasis'])vm.runInContext(read(name),f.ctx);
- f.ctx.googleSearch=async(query,type)=>calls.push({provider:'google',query,type});
- f.ctx.duckduckgoSearch=async query=>calls.push({provider:'duckduckgo',query});f.ctx.oasisSearch=async query=>calls.push({provider:'oasis',query});
+ f.ctx.googleSearch=async(query,type,start,context)=>calls.push({query,context});
+ f.ctx.duckduckgoSearch=async(query,context)=>calls.push({query,context});f.ctx.oasisSearch=async(query,start,context)=>calls.push({query,context});
  f.ctx.playFind();f.type('Captured query');f.input().value='DOM tampered';
- await f.button('Google').onclick();await f.button('DuckDuckGo').onclick();await f.button('OASIS OERs').onclick();
- await f.CList.readers.google.feedFunctions.Images();await f.CList.readers.google.feedFunctions.Web();
- assert.equal(calls.length,5);assert.equal(calls.every(call=>call.query==='Captured query'),true);assert.equal(calls[3].type,'image');assert.equal(calls[4].type,undefined);
- f.type('');await f.CList.readers.google.search();await f.CList.readers.duckduckgo.search();await f.CList.readers.oasis.search();
- assert.equal(calls.length,5);assert.equal(f.errors.length,3);
+ for(const name of ['Google','DuckDuckGo','OASIS OERs'])await f.button(name).onclick();
+ assert.equal(calls.length,3);assert.equal(calls.every(call=>call.query==='Captured query'&&call.context.query==='Captured query'),true);
+});
+
+test('Find mode navigation retains its captured query and row lifetime across page generations only',async()=>{
+ const f=fixture(),contexts=[];f.CList.readers.test={label:'Test',supportsFindContext:true,search:async(query,context)=>contexts.push(context)};
+ f.ctx.playFind();f.type('Original query');await f.button('Test').onclick();const context=contexts[0];f.type('New draft');
+ await context.next(async()=>{});assert.equal(context.isCurrent(),false);assert.equal(context.isAccountCurrent(),true);
+ let seen;await context.navigate(async next=>{seen=next.query;});assert.equal(seen,'Original query');
+ f.token('changed-session');assert.equal(context.isAccountCurrent(),false);await context.navigate(async()=>{seen='incorrect';});assert.equal(seen,'Original query');
+});
+
+
+function providerFixture(){
+ const f=fixture(),menus=[];
+ for(const name of ['search-provider-view','googlesearch','duckduckgo','oasis'])vm.runInContext(read(name),f.ctx);
+ f.CList.ui.reader.menu=(names,selected,select)=>menus.push({names,selected,select});
+ f.ctx.kvstoreAuthHeader=()=>({Authorization:'Bearer proxy-fixture'});
+ f.CList.accounts=[{key:'google',value:JSON.stringify({title:'Google Search',id:'fixture-api-key',instance:'fixture-engine'})}];
+ f.ctx.DOMParser=class{parseFromString(){return{querySelector:()=>null,body:{textContent:''},querySelectorAll:()=>[]};}};
+ return {...f,menus};
+}
+test('Google actual transport captures credentials/query for paging and mode navigation, rejecting old menus and changed accounts',async()=>{
+ const f=providerFixture();let pending;const urls=[];
+ f.ctx.fetch=async(url,options)=>{urls.push({url:new URL(url),options});return {ok:true,json:async()=>({items:[{link:'https://result.invalid',title:'Page '+urls.length,snippet:'Description'}],queries:{nextPage:[{startIndex:21}]}})};};
+ f.ctx.playFind();f.type('Original & query');await f.button('Google').onclick();
+ const old=f.menus.at(-1),more=f.feed.querySelector('#google-load-more');f.type('New draft');await more.onclick();
+ assert.equal(urls[1].url.searchParams.get('start'),'21');assert.equal(urls[1].url.searchParams.get('q'),'Original & query');
+ await old.select('Images');assert.equal(urls[2].url.searchParams.get('searchType'),'image');assert.equal(urls[2].url.searchParams.get('q'),'Original & query');
+ assert.equal(urls[2].url.searchParams.get('key'),'fixture-api-key');assert.equal(urls[2].options.signal instanceof AbortSignal,true);
+ f.type('Replacement');await f.button('Google').onclick();const count=urls.length;await old.select('Web');assert.equal(urls.length,count);
+ const current=f.menus.at(-1);f.CList.accounts[0].value='changed';await current.select('Images');assert.equal(urls.length,count);
+});
+test('all migrated providers reject stale results/errors and abort superseded transport',async()=>{
+ for(const name of ['Google','DuckDuckGo','OASIS OERs']){
+  const f=providerFixture();let finish,signal;f.ctx.fetch=(url,options)=>{signal=options.signal;return new Promise(resolve=>finish=resolve);};
+  f.CList.readers.other={label:'Other',supportsFindContext:true,search:async(q,context)=>context.empty('Current results')};
+  f.ctx.playFind();f.type('Old');const pending=f.button(name).onclick();await new Promise(resolve=>setImmediate(resolve));
+  f.type('New');await f.button('Other').onclick();assert.equal(signal.aborted,true,name);
+  finish({ok:false,status:403,json:async()=>({error:{message:'Expired'}}),text:async()=>'<div>Old</div>'});await pending;
+  assert.match(f.feed.textContent,/Current results/);assert.equal(f.serviceErrors.length,0,name);
+ }
+});
+test('Google failed continuations preserve rows, allow explicit retry and never repeat automatically',async()=>{
+ const f=providerFixture();let calls=0;f.ctx.fetch=async()=>{calls++;if(calls===2)throw Error('Unreachable');return {ok:true,json:async()=>({items:[{title:'Page '+calls,link:'https://result.invalid'}],queries:{nextPage:[{startIndex:11}]}})};};
+ f.ctx.playFind();f.type('Query');await f.button('Google').onclick();const more=f.feed.querySelector('#google-load-more');await more.onclick();
+ assert.equal(calls,2);assert.equal(f.CList.state.find.status,'failed');assert.match(f.feed.textContent,/Page 1/);assert.equal(f.serviceErrors.length,1);
+ await more.onclick();assert.equal(calls,3);assert.equal(f.CList.state.find.status,'ready');assert.match(f.feed.textContent,/Page 3/);
+});
+test('DDG retains every nested topic and OASIS captures encoded query and proxy headers',async()=>{
+ const f=providerFixture();f.ctx.fetch=async()=>({ok:true,json:async()=>({Heading:'Topics',RelatedTopics:[{Topics:[{FirstURL:'https://one',Text:'First'},{FirstURL:'https://two',Text:'Second'}]},{FirstURL:'https://three',Text:'Third'}]})});
+ f.ctx.playFind();f.type('Topic');await f.button('DuckDuckGo').onclick();assert.match(f.feed.textContent,/FirstSecondThird/);
+ const calls=[];f.ctx.fetch=async(url,options)=>{calls.push({url,options});return{ok:true,text:async()=>'<html>Parsed separately</html>'};};
+ f.ctx.parseOasisHtml=()=>[{title:'OER result',url:'https://oer',itemType:'Book',description:'Description',source:'Source',author:'Author'}];
+ f.type('a & b + c');await f.button('OASIS OERs').onclick();
+ const dest=new URL(calls[0].options.body.get('url'));assert.equal(dest.searchParams.get('search_query'),'a & b + c');assert.equal(calls[0].options.headers.Authorization,'Bearer proxy-fixture');assert.match(f.feed.textContent,/OER result/);
+});
+test('provider request functions run with explicit dependencies and no DOM or shared state',async()=>{
+ const ctx=vm.createContext({window:{CList:{readers:{}}},URL,URLSearchParams});
+ for(const name of ['googlesearch','duckduckgo','oasis'])vm.runInContext(read(name),ctx);
+ const deps={fetch:async()=>({ok:false,status:429,json:async()=>({error:{message:'Rate limited'}})})};
+ await assert.rejects(ctx.requestGoogleSearch('q',undefined,1,{id:'key',instance:'engine'},deps),/Rate limited/);
+ await assert.rejects(ctx.requestDuckduckgoSearch('q',deps),/429/);await assert.rejects(ctx.requestOasisSearch('q',0,{...deps,headers:{}}),/429/);
+ assert.equal('document' in ctx,false);
+});
+test('search row callbacks use captured targets, preserve old pages and reject detached/session-stale rows',async()=>{
+ const f=providerFixture(),calls=[],row=new Element();row.id='original';const bar=new Element();bar.className='service-status-actions';row.appendChild(bar);
+ f.ctx.openInBrowser=(url,id)=>calls.push([url,id]);f.ctx.toggleEntryExpanded=id=>calls.push(id);let current=true;
+ const item={url:'https://original',_hasExpandableContent:true};f.ctx.bindSearchProviderRow(item,row,{isAccountCurrent:()=>current});item.url='https://changed';
+ await bar.children.find(button=>button.title==='Open in browser').click();assert.deepEqual(calls,[['https://original','original']]);
+ row.isConnected=false;await bar.children[0].click();current=false;row.isConnected=true;await bar.children[0].click();assert.equal(calls.length,1);
+});
+
+
+test('Google reports empty/missing credentials and rejects an account changed during the request',async()=>{
+ const f=providerFixture();f.ctx.fetch=async()=>({ok:true,json:async()=>({})});
+ f.ctx.playFind();f.type('<literal>');await f.button('Google').onclick();assert.match(f.feed.textContent,/<literal>/);assert.match(f.feed.textContent,/No results found/);
+ let finish;f.ctx.fetch=()=>new Promise(resolve=>finish=resolve);const pending=f.button('Google').onclick();await new Promise(resolve=>setImmediate(resolve));
+ f.CList.accounts[0].value=JSON.stringify({title:'Google Search',id:'changed',instance:'engine'});finish({ok:true,json:async()=>({items:[{title:'Stale account result'}]})});await pending;
+ assert.equal(f.feed.textContent.includes('Stale account result'),false);assert.match(f.serviceErrors.at(-1).message,/account changed/);
+ f.CList.accounts[0].value=JSON.stringify({title:'Google Search'});await f.button('Google').onclick();assert.match(f.serviceErrors.at(-1).message,/API key/);
+});
+
+
+test('browser provider selection uses the label span rather than Material Icon text',async()=>{
+ const f=providerFixture();let selected;f.ctx.oasisSearch=async query=>{selected=query;};
+ f.ctx.playFind();f.type('Captured query');
+ assert.equal(f.button('OASIS OERs').textContent,'schoolOASIS OERs');
+ f.ctx.document.querySelectorAll=()=>f.left.querySelectorAll('button');
+ const html=fs.readFileSync('tests/search-providers.browser.html','utf8');
+ const select=html.split('\n').find(line=>line.trim().startsWith('const select='));
+ await vm.runInContext(select+"\nselect('OASIS OERs');",f.ctx);assert.equal(selected,'Captured query');
 });

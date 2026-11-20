@@ -1,121 +1,37 @@
-
-// Handlers
-
-(function () {
-    const oasisHandler = {
-        label: 'OASIS OERs',
-        icon: 'school',
-        requiresLogin:   false,
-        requiresAccount: false,
-        statusActions: (item,itemID,itemLink) => {
-            oasisStatusActions = openInBrowserButton(itemLink, itemID);
-
-            // Enlarge Content
-            if (item._hasExpandableContent) { oasisStatusActions += `<button class="clist-action-btn" title="Expand" onClick="toggleEntryExpanded('${itemID}');"><span class="material-icons md-18 md-light">zoom_out_map</span></button>`; }
-
-            return oasisStatusActions;
-        },
-        search: async (baseURL, accessToken) => {
-            const searchString = finderString();
-            if (!searchString) return;
-            await oasisSearch(searchString);
-        }
-    };
-    // Ensure readerHandlers exists
-    if (typeof window.CList.readers === 'undefined') {
-    window.CList.readers = {}; // Create it if it doesn't exist
-    }
-
-    // Add the handler
-    window.CList.readers['oasis'] = oasisHandler;
- })();
-
-
-// Functions
-
-async function oasisSearch(query,start) {
-
-
-    const feedContainer = window.CList.ui.view.feedContainer;
-    const dateString = new Date().toISOString();
-
-    let proxyUrl = "https://proxyp.mooc.ca";
-    let oasisUrl = `http://oasis.geneseo.edu/basic_search.php?search_query=${query}`;
-    // ?title=Test&author=&subject=&format=json
-
-    // Construct URL with query parameters
-    if (start) { oasisUrl += `&start=${start}`;}
-
-    if (start === undefined || start === null || start === '' || start === 0) {
-        // First page will have a title, but not subsequent pages
-        feedContainer.innerHTML = '';                         // Clear previous content
-        feedContainer.appendChild(createFeedHeader('OASIS Search: '+query));   // Header
-    }
-
-    let data;
-    let params = {};
-    params.url = `${oasisUrl}`;
-    //params.apikey = apiKey;
-
+/// <reference path="./reader-types.js" />
+window.CList.readers.oasis = {
+    label:'OASIS OERs',icon:'school',requiresLogin:false,requiresAccount:false,
+    supportsFindContext:true,statusActions:()=>'',bindRow:(item,row,context)=>bindSearchProviderRow(item,row,context),
+    search:(query,context)=>oasisSearch(query,0,context),
+};
+/** Explicit transport; proxy credentials are supplied by the captured controller. */
+async function requestOasisSearch(query,start,{fetch,signal,headers}) {
+    const url = new URL('http://oasis.geneseo.edu/basic_search.php'); url.searchParams.set('search_query',query);
+    if (start) url.searchParams.set('start',String(start));
+    const response = await fetch('https://proxyp.mooc.ca',{method:'POST',signal,
+        headers:{'Content-Type':'application/x-www-form-urlencoded',...headers},body:new URLSearchParams({url:url.toString()})});
+    if (!response.ok) throw new Error(`OASIS returned HTTP ${response.status}.`);
+    return response.text();
+}
+function normalizeOasisItem(item) {
+    return {...item,service:'oasis',desc:`${item.itemType} ${item.description}`,content:`${item.itemType} ${item.description}`,feed:item.source};
+}
+/** @param {CListFindContext} context */
+async function oasisSearch(query,start=0,context) {
+    if (!context?.isCurrent()) return;
     try {
-        const response = await fetch(proxyUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                ...kvstoreAuthHeader(),
-            },
-            body: new URLSearchParams(params),
-        });
-
-        const htmlText = await response.text(); // use .text() instead of .json()
-       // const cleanedHtmlText = htmlText.replace(/textarea/g, '');
-
-
-        const data = parseOasisHtml(htmlText);
-
-        if (data && Array.isArray(data) && data.length > 0) {
-            data.forEach((item) => {
-                try {
-                    // console.log("Item\n");
-                    // console.log(item);
-
-                    // Create the listing object - align to main listing item fields
-                    // makeListing(service,url,title,desc,feed,author,date,full_content) 
-                    item.service = 'oasis';
-                    item.desc = `${item.itemType} ${item.description}`;
-                    item.content = item.desc;
-                    item.feed = item.source;
-
-                    const listing = makeListing(item);
-        
-                    // Append the listing to the feed container
-                    feedContainer.appendChild(listing);
-                } catch (error) {
-                    console.error(`Error processing item: ${JSON.stringify(item)}`, error);
-                }
-            });
-        } else {
-            console.warn('No items found in the parsed data.');
-        }
-
-    } catch (error) {
-        console.error("Failed to fetch from Oasis Search API:", error);
-        showServiceError(feedContainer, 'Oasis Search error', error.message,
-            'Could not reach Oasis Search. Check your network connection or try again later.');
-    }
-    window.checkAnnotationsBatch?.();
-    console.log(data);
+        const headers = {...kvstoreAuthHeader()};
+        const html = await requestOasisSearch(query,start,{fetch,signal:context.signal,headers});
+        if (!context.isCurrent()) return;
+        const items = parseOasisHtml(html);
+        if (!items.length && !start) {context.empty('OASIS Search: '+query);return;}
+        await context.render(items,{title:start?null:'OASIS Search: '+query,append:!!start,normalize:normalizeOasisItem});
+    } catch (error) { context.fail('OASIS search error',error); }
 }
 
-
-/**
- * Takes the raw HTML text from OASIS and returns an
- * array of item objects containing metadata fields:
- *   item-type, title, description, author, source, url, etc.
- */
 function parseOasisHtml(htmlString) {
     // 1) Parse the HTML string into a Document
-console.log(htmlString);
+
     const parser = new DOMParser();
     const doc = parser.parseFromString(htmlString, 'text/html');
   
@@ -141,7 +57,7 @@ console.log(htmlString);
       // AUTHOR
       // Author line often looks like: <b>Author</b>: Name<br/>
       // We can match it with a small regex on the entire element's HTML:
-      const authorMatch = resultEl.innerHTML.match(/<b>Author<\/b>:\s?(.*?)<br\/>/);
+      const authorMatch = resultEl.innerHTML.match(/<b>Author<\/b>:\s?(.*?)<br\s*\/?>/i);
       item.author = authorMatch ? authorMatch[1].trim() : '';
   
       // SOURCE

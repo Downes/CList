@@ -72,31 +72,8 @@ window.CList.schemas['LOCALRSS'] = {
         },
         onFeedClick:   null,
         onAuthorClick: null,
-        statusActions: (item, itemID) => {
-            let a = '';
-            if (item._hasExpandableContent) {
-                a += `<button class="clist-action-btn" title="Expand" `
-                   + `onclick="toggleEntryExpanded('${itemID}');"><span class="material-icons md-18 md-light">zoom_out_map</span></button>`;
-            }
-            if (item.audioIcon) { a += item.audioIcon; }
-            if (item.link && /^https?:\/\//i.test(item.link)) {
-                const safeLink = item.link.replace(/'/g, '%27');
-                a += `<button class="clist-action-btn" title="Open in browser" `
-                   + `onclick="openInBrowser('${safeLink}', '${itemID}')">`
-                   + `<span class="material-icons md-18 md-light">launch</span></button>`;
-            }
-            const ri = item.readAt ? 'visibility_off' : 'visibility';
-            const rt = item.readAt ? 'Mark unread' : 'Mark read';
-            a += `<button class="clist-action-btn" `
-               + `onclick="localrssToggleRead(${item.localrssActionId},this)" title="${rt}">`
-               + `<span class="material-icons md-18 md-light">${ri}</span></button>`;
-            const bi = 'star';
-            const bt = item.bookmarked ? 'Remove bookmark' : 'Bookmark';
-            a += `<button class="clist-action-btn${item.bookmarked ? ' action-active' : ''}" `
-               + `onclick="localrssToggleBookmark(${item.localrssActionId},this)" title="${bt}">`
-               + `<span class="material-icons md-18 md-light">${bi}</span></button>`;
-            return a;
-        }
+        statusActions: () => '',
+        bindRow: (item,row,context) => bindLocalrssRow(item,row,context),
     };
 
     // Pseudo-service used only as the item.service tag for rows in the "Feeds" list
@@ -114,19 +91,8 @@ window.CList.schemas['LOCALRSS'] = {
         feedFunctions: null,
         onFeedClick:   null,
         onAuthorClick: null,
-        statusActions: (item, itemID) => {
-            let a = '';
-            if (item.link && /^https?:\/\//i.test(item.link)) {
-                const safeLink = item.link.replace(/'/g, '%27');
-                a += `<button class="clist-action-btn" title="Open feed URL in browser" `
-                   + `onclick="openInBrowser('${safeLink}', '${itemID}')">`
-                   + `<span class="material-icons md-18 md-light">launch</span></button>`;
-            }
-            a += `<button class="clist-action-btn" title="Show posts" `
-               + `onclick="localrssShowBoundFeedPosts(${item.localrssFeedPostsId})">`
-               + `<span class="material-icons md-18 md-light">list</span></button>`;
-            return a;
-        }
+        statusActions: () => '',
+        bindRow: (item,row,context) => bindLocalrssFeedRow(item,row,context),
     };
 })();
 

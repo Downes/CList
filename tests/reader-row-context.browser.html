@@ -1,0 +1,44 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CList shared reader rows regression</title>
+<h1>Shared reader rows and navigation</h1>
+<p>Real reader state/controller/view and listing renderer. Accounts, services and actions mocked; no external requests or writes.</p>
+<pre id="result">Checking…</pre>
+<div id="left-content"></div><div id="feed-menu"></div><div id="feed-container"></div><div id="selectedAccount"></div><div id="account-status"></div>
+<script>
+window.CList={state:{username:'fixture'},config:{flaskSiteUrl:'https://store.invalid'},keys:{ACCESS_TOKEN:'access_token'},accounts:[],readers:{},ui:{}};
+window.escapeHtml=value=>String(value??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+window.parseAccountValue=record=>JSON.parse(record.value);let token='site-token',serial=0;
+window.getSiteSpecificCookie=()=>token;window.isRegistered=()=>true;window.ensureAccountsLoaded=async()=>CList.accounts;
+window.openLeftInterface=panel=>document.getElementById('left-content').replaceChildren(panel);
+window.translationEnabled=false;window.toggleTranslation=()=>{};window.fetch=()=>Promise.reject(Error('Unexpected network request'));
+window.summaryLimit=300;window.createUniqueIdFromUrl=()=> 'reader-row-'+ ++serial;window.truncateContent=text=>text;
+const actions=[],contexts=[];window.collectItem=id=>actions.push(['collect',id]);window.shareToChat=id=>actions.push(['share',id]);window.clistAnnotate=id=>actions.push(['annotate',id]);
+</script>
+<script src="../js/ui.js?v=2026-11-20.1"></script>
+<script src="../js/reader-state.js"></script><script src="../js/reader-view.js"></script><script src="../js/reader.js?v=2026-11-20.1"></script>
+<script>
+(async()=>{let checks=0;const check=(value,label)=>{if(!value)throw Error(label);checks++;};
+try{
+ CList.accounts=['A','B'].map(key=>({key,value:JSON.stringify({type:'Fixture',title:key,permissions:'r',id:'private-'+key})}));
+ const item=title=>({service:'Fixture',url:'https://source.invalid/'+title,title,titleHtml:'<strong>'+title+'</strong>',desc:'Summary',full_content:new SafeHtml('<p>Longer expanded content for this article.</p>')});
+ CList.readers.Fixture={supportsRequestContext:true,statusActions:()=>'',feedFunctions:{Timeline:()=>{}},onFeedClick:(entry,context)=>actions.push(['feed',entry.url,context.account.id]),
+ bindRow:(entry,row,context)=>{const bar=row.querySelector('.service-status-actions');check(bar&&!bar.closest('.entry-full-content'),'Service controls bind to collapsed outer action bar');
+  bar.replaceChildren();const button=document.createElement('button');button.title='Captured service action';button.textContent='Service';button.onclick=()=>{if(row.isConnected&&context.isAccountCurrent())actions.push(['service',context.account.id]);};bar.appendChild(button);},
+ initialize:async(account,context)=>{contexts.push(context);await context.render([item(account.title)],{normalize:async value=>value,title:'Timeline'});}};
+ await switchReaderAccount('A');const first=document.querySelector('.status-box'),context=contexts[0];
+ const button=title=>first.querySelector('button[title="'+title+'"]');
+ check(button('Captured service action')&&button('Add to collection')&&button('Share to chat'),'Common controls survive service action replacement');
+ check(button('Add to collection').getAttribute('onclick')===null,'Shared controls use callbacks without inline target state');
+ const reference=first.querySelector('.statusSpecific').reference;check(!JSON.stringify(reference).includes('private-A'),'Reference data excludes private reader context');
+ await context.next(next=>next.render([item('Page two')],{normalize:async value=>value,append:true}));
+ check(!context.isCurrent()&&context.isAccountCurrent(),'Pagination expires requests while retaining original row account ownership');
+ button('Captured service action').click();await button('Add to collection').onclick();check(actions.some(action=>action[0]==='service'&&action[1]==='private-A')&&actions.some(action=>action[0]==='collect'),'Earlier-page controls remain active');
+ await context.navigate(async next=>{check(next.account.id==='private-A','Row navigation keeps captured original account');await next.render([item('Thread')],{normalize:async value=>value,title:'Thread'});},'Thread');
+ const before=actions.length;await button('Add to collection').onclick();button('Captured service action').click();check(actions.length===before,'Replaced row callbacks reject detached targets');
+ await switchReaderAccount('B');await context.navigate(async()=>actions.push(['incorrect']));check(actions.length===before,'Old account cannot navigate the new reader');
+ const external=captureReaderSurface('public');await switchReaderAccount('A');check(external.signal.aborted&&!external.isCurrent(),'Account reads invalidate and abort public surfaces');
+ document.getElementById('result').textContent='PASS: real shared reader context, rendering, outer action bars, common controls, credential privacy, earlier-page rows, captured navigation and stale account/row/public-surface rejection. '+checks+' checks. Services and actions mocked; no external requests or writes.';
+}catch(error){console.error(error);document.getElementById('result').textContent='FAIL: '+error.message+'\n'+error.stack;}
+})();
+</script>

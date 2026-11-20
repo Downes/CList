@@ -260,9 +260,79 @@ pagination remains usable. A late obsolete completion cannot reset a newer
 request's busy state. Token expiry cleans up the old pending state; editing the
 live input rebinds a subsequent explicit search to the current session.
 
-Google, DuckDuckGo and OASIS keep their existing no-argument search contract and
-service-owned rendering. `finderString()` is state-backed and missing queries
-are rejected before these providers start. Google Web/Images compatibility stays
-in the existing feed-menu path. These legacy provider internals still need their
-service migration; the new panel/controller does not cancel their direct DOM
-writes. Direct calls to OpenAlex/Commons without context also retain legacy paths.
+Google, DuckDuckGo and OASIS now opt into `search(query, context)`. Explicit
+service request functions receive query, signal and transport dependencies; the
+controllers own feedback and use the shared progressive renderer. Direct calls
+without context do not start requests. No-argument third-party compatibility
+remains in the Find dispatcher. Their listing controls use callback bindings in
+`search-provider-view.js`; no target state is inferred from inline handlers.
+
+Google captures the configured account record and credentials after account
+loading, validates that record before reads/commits, and retains it with the
+original query for pagination and Web/Images navigation. Paging uses the API's
+next start index, with the legacy ten-result fallback when absent. Old menu
+callbacks cannot navigate a newer query; duplicate pending mode clicks are
+suppressed. Empty continuations retain earlier rows. Failed pages permit explicit
+retry through the original control without automatically repeating the request.
+Credentials are neither logged nor copied into listing/reference data.
+
+DDG recursively retains every nested topic and parses Result HTML as detached
+text, with Text/URL fallback. Abstract content retains escaped full text. OASIS
+captures proxy headers before transport, encodes the nested query URL, rejects
+HTTP failures and keeps HTML parsing separate from request/render operations.
+Its existing result-card format remains supported; no new paging protocol is
+inferred from the HTML. Empty results and current failures are visible; stale
+responses and errors cannot overwrite a newer Find/account/session selection.
+
+## Service readers and row actions — 2026-11-20
+
+Mastodon uses `mastodon_requests.js`, `mastodon_reader.js`, `mastodon_actions.js`
+and `mastodon_view.js`. Bluesky uses `bluesky_requests.js`, `bluesky_reader.js`
+and `bluesky_view.js`. Read transport accepts captured accounts/sessions, selection,
+cursors and abort signals; controllers retain operation ownership. Views render
+menus, forms, row controls and feedback. Mastodon pagination validates cursor
+origin; Bluesky retains opaque cursors. Bluesky authenticates the selected account,
+not the first matching account. Tokens remain outside shared reader state.
+
+`context.next(load)` owns pagination. `context.navigate(load, feedName)` owns new
+feeds/threads selected by live earlier-page rows. `isCurrent()` guards read results;
+`isAccountCurrent()` lets connected earlier-page actions survive pagination. Account,
+session and replaced-row guards still expire those actions. Initial selection skips
+registry `uiActions` and Refresh so a reading view opens first.
+
+The shared renderer passes a private `rowContext` as a rendering option, never in
+normalized items, serialized references or persisted accounts. `bindRow(item, row,
+context)` attaches service controls after row construction. Use the outer
+`.service-status-actions` host; expanded content has its own `.status-actions`.
+Common Collect/Share/Write-about controls are appended after service binding and
+retain their own connected-row guards. Like/repost/read/bookmark state lives in
+captured operation bindings, not HTML attributes. Failed uncertain toggles are
+never automatically replayed. Removed row controls cannot send new writes.
+
+Mastodon/Bluesky Post and Reply capture account, target and form lifetime. Pending
+and stale submissions are rejected; failure and newer text are preserved. Mastodon
+checks its optional `assertCurrent` again after limit preparation before POST.
+These client guards cannot cancel a remote write already sent.
+
+Discord uses `discord_reader.js` / `discord_view.js` with an explicit captured
+channel and bridge headers. Public feeds use `public-feed-requests.js`,
+`public-feed-reader.js` and `public-feed-view.js`: picker lifetime, private database
+headers, partial changelog failures and accountless public selection are guarded.
+`captureReaderSurface(mode)` shares reader/session invalidation with public and
+annotation feeds without putting credentials in shared state.
+
+Annotations use `annotate_requests.js`, `annotate_reader.js` and `annotate_view.js`.
+Discovery caches are scoped to the captured session. Thread Back restores the
+parked feed only while its original reader remains current. Batch counts/follow
+controls capture exact nodes/references before awaits, reject replaced nodes even
+with the same ID, and preserve live earlier-page actions. Follow persistence uses
+explicit dependencies and no automatic write retries. Flow continues through the
+existing captured annotation publishing workflow; partial read failures stay visible.
+
+LocalRSS now attaches its row controls in `localrss_row_view.js`, retaining the
+existing explicit action transport/bindings and earlier-page behavior. Audio
+indices and feed selections are callback captures rather than inline JavaScript.
+
+Browser fixtures for this stage are prepared for user execution; Node results
+are separate evidence. Initial OAuth, identity/admin setup, service editor mounting,
+collaboration and AI feature workflows remain separate refactoring stages.

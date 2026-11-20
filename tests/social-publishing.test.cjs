@@ -104,20 +104,21 @@ test('social warnings are captured in workflow state and final results through t
     assert.equal(outcome.destinations[0].status, 'published');
 });
 
-test('standalone Mastodon form keeps failed/newer drafts and clears only the submitted text', async () => {
-    const f = fixture(), input = { value: 'Draft' }, result = { innerHTML: '' }, failures = [];
-    f.context.document = { getElementById: id => ({ status: input, response: result, statusIDInput: { value: '' } })[id] };
-    Object.assign(f.context, { accessToken: 'reader-token', baseURL: 'https://reader.test',
-        showServiceError: (_, __, message) => failures.push(message), showPostMessage() {}, renderPublicationSuccess() {} });
-    const text = read('mastodon.js'), start = text.indexOf('async function postStatusFromForm(');
+test('explicit Mastodon post feedback uses its passed account and reports failure or success', async () => {
+    const f = fixture(), result = { innerHTML: '' }, failures = [], receipts = [];
+    Object.assign(f.context, { showServiceError: (_, __, message) => failures.push(message), showPostMessage() {},
+        renderPublicationSuccess: (...args) => receipts.push(args) });
+    const text = read('mastodon.js'), start = text.indexOf('async function postMastodonStatus(');
     vm.runInContext(text.slice(start, text.indexOf('// -----------------------------------------------------', start)), f.context);
-    f.context.publishMastodonStatus = async () => { throw Error('offline'); };
-    await f.context.postStatusFromForm({ preventDefault() {} }); assert.equal(input.value, 'Draft'); assert.equal(failures.length, 1);
-    let release; f.context.publishMastodonStatus = async () => new Promise(resolve => { release = resolve; });
-    const pending = f.context.postStatusFromForm({ preventDefault() {} }); input.value = 'New draft';
-    release('https://social.test/status'); await pending; assert.equal(input.value, 'New draft');
-    f.context.publishMastodonStatus = async () => 'https://social.test/status';
-    await f.context.postStatusFromForm({ preventDefault() {} }); assert.equal(input.value, '');
+    f.context.publishMastodonStatus = async (token, base, content, reply) => {
+        assert.equal(token, 'captured-token'); assert.equal(base, 'https://original.test');
+        assert.equal(content, 'Draft'); assert.equal(reply, 'reply-id'); throw Error('offline');
+    };
+    assert.equal(await f.context.postMastodonStatus('captured-token','https://original.test',result,'Draft','reply-id'),false);
+    assert.deepEqual(failures,['offline']);
+    f.context.publishMastodonStatus = async () => 'https://original.test/post';
+    assert.equal(await f.context.postMastodonStatus('captured-token','https://original.test',result,'Draft','reply-id'),true);
+    assert.equal(receipts[0][2],'https://original.test/post');
 });
 
 test('standalone Bluesky form uses the reader session, preserves failed/newer drafts, and clears a successful submission', async () => {
@@ -126,7 +127,7 @@ test('standalone Bluesky form uses the reader session, preserves failed/newer dr
     Object.assign(f.context, { createBlueskySession: async () => ({ accessToken: 'reader', did: 'did:plc:reader', pds: 'https://reader.test' }),
         showServiceError: (_, __, message) => failures.push(message), showPostMessage() {}, renderPublicationSuccess() {} });
     const text = read('bluesky.js'), start = text.indexOf('async function submitBlueskyPostFromForm(');
-    vm.runInContext(text.slice(start, text.indexOf('async function fetchBlueskyNotifications(', start)), f.context);
+    vm.runInContext(text.slice(start), f.context);
     f.context.publishBlueskyRecord = async () => { throw Error('offline'); };
     await f.context.submitBlueskyPostFromForm('input'); assert.equal(input.value, 'Draft'); assert.equal(failures.length, 1);
     let release; f.context.publishBlueskyRecord = async session => {

@@ -1,195 +1,74 @@
-
-
-// Handler
-
-(function () {
-    const googHandler = {
-        label: 'Google',
-        logoSrc: 'assets/icons/google.svg',
-        requiresLogin:   true,
-        requiresAccount: true,
-        statusActions: (item,itemID,itemLink) => {
-            return openInBrowserButton(itemLink, itemID);
-        },
-        feedFunctions: {
-            'Web': function() { window.CList.readers['google'].search(); },
-            'Images': function() { window.CList.readers['google'].search('image'); }
-        },
-        search: async (type) => {
-            const searchString = finderString();
-            if (!searchString) return;
-            await googleSearch(searchString,type);
-        }
-    };
-    // Ensure readerHandlers exists
-    if (typeof window.CList.readers === 'undefined') {
-    window.CList.readers = {}; // Create it if it doesn't exist
+/// <reference path="./reader-types.js" />
+// Google search: captured Find requests; credentials never enter normalized items.
+let _googleFindOwner = null;
+window.CList.readers.google = {
+    label: 'Google', logoSrc: 'assets/icons/google.svg', requiresLogin: true, requiresAccount: true,
+    supportsFindContext: true, statusActions: () => '', bindRow: (item,row,context) => bindSearchProviderRow(item,row,context),
+    feedFunctions: { Web: () => navigateGoogleSearch(), Images: () => navigateGoogleSearch('image') },
+    search: (query,context) => googleSearch(query,undefined,1,context),
+};
+function captureGoogleSearchAccount() {
+    /** @type {{record:CListAccountRecord, account:CListAccountData}|undefined} */
+    let selected;
+    for (const record of window.CList.accounts || []) {
+        const account = parseAccountValue(record);
+        if (account && String(account.title || '').includes('Google Search')) selected = {record: {...record}, account: structuredClone(account)};
     }
-
-    // Add the handler
-    window.CList.readers['google'] = googHandler;
- })();
-
-
-
-// Functions
-    
-async function googleSearch(query,type,start) {
-
-    const feedContainer = window.CList.ui.view.feedContainer;
-    const dateString = new Date().toISOString();
-
-        // Get generater from accounts
-    // Assumes 'accounts' array has been preloaded
-    // If necessary, fetch the accounts from the KVstore
-    try {
-        await ensureAccountsLoaded();
-    } catch (error) {
-        showErrorModal('Error getting accounts: ' + error.message, { title: 'Account lookup failed' });
-    }
-    
-    let API_KEY = null;
-    let SEARCH_ENGINE_ID = null;
-
-     accounts.forEach(account => {                           // Check the accounts
-        const parsedValue = parseAccountValue(account);
-        if (!parsedValue) return;
-        console.log("checking account: ", parsedValue);
-        if (parsedValue.title.includes('Google Search')) {  // Check if 'permissions' contains 'g'
-            console.log("FOUND account: ", parsedValue);
-            console.log("parsedValue.id: ", parsedValue.id);
-            console.log("parsedValue.key: ", parsedValue.key);
-            API_KEY = parsedValue.id;
-            SEARCH_ENGINE_ID = parsedValue.instance;
-        }
-    });
-
-
-    // Check for required values and handle errors
-    if (!API_KEY || !SEARCH_ENGINE_ID) {
-        throw new Error('No Google Search account found. Open Accounts and add a Google Search account.');
-    }
-
-
-    // 1. Store API information
-    const GOOGLE_SEARCH_URL = "https://www.googleapis.com/customsearch/v1";
-
-    
-
-    // Construct URL with query parameters
-    let url = `${GOOGLE_SEARCH_URL}?key=${API_KEY}&cx=${SEARCH_ENGINE_ID}&q=${encodeURIComponent(query)}`;
-    if (start) { url += `&start=${start}`;}
-    if (type === 'image') { url += '&searchType=image'; }
-    if (type === 'video') { url += '&searchType=video'; }    
-
-    if (start === undefined || start === null || start === '' || start === 0) {
-        // First page will have a title, but not subsequent pages
-        feedContainer.innerHTML = '';                         // Clear previous content
-        feedContainer.appendChild(createFeedHeader('GoogleSearch: '+query));   // Header
-    }
-
-    try {
-        // Make the request
-        const response = await fetch(url);
-        
-        // Convert response to JSON
-        const data = await response.json();
-        
-        // Handle potential errors from the API
-        if (data.error) {
-            showGoogleSearchError(feedContainer, data.error);
-            return;
-        }
-
-        setupFeedButtons('google');  // Different feed buttons for different services
-
-        // Check if items array exists
-        if (data.items && data.items.length > 0) {
-            data.items.forEach((item) => {
-                console.log(JSON.stringify(item, null, 2));
-
-                // Create the listing object - align to main listing item fields
-                // makeListing(service,url,title,desc,feed,author,date,full_content) 
-                item.service = 'google';
-                item.url = item.link;
-                item.desc = item.snippet;
-                item.feed = 
-                    item?.pagemap?.metatags?.[0]?.['og:site_name'] ||
-                    item?.pagemap?.metatags?.[0]?.['twitter:site'] ||       // ex: "@BBCWorld"
-                    item?.pagemap?.metatags?.[0]?.['application:name'] ||   // made-up fallback
-                    item?.displayLink || // e.g. "www.bbc.com"
-                    '';
-                item.author = extractAuthorFromGoogle(item);
-                item.content = item.htmlSnippet;
-
-                // Put image information into standard images array with url preview_url description
-                if (type === 'image') {
-                    item.images = [];
-                    item.images.push({
-                        url: item.link,
-                        preview_url: item.image.thumbnailLink,
-                        description: item.snippet
-                    });
-                }
-
-
-                const listing = makeListing(item);
-                feedContainer.appendChild(listing);
-        
-                // For demo, just log it:
-                console.log(listing);
-                });
-
-            // Show a button to load the next page if there is more data
-            let nextPageButton = document.getElementById('nextPageButton');
-            if (typeof start === 'undefined') {
-                start = 11;
-              } else {
-                start += 10;
-              }
-            if (!nextPageButton) {
-                nextPageButton = document.createElement('button');
-                nextPageButton.id = 'nextPageButton';
-                nextPageButton.className = 'btn';
-                nextPageButton.textContent = 'Load Next Page';
-                nextPageButton.onclick = () => googleSearch(query,type,start);
-                feedContainer.appendChild(nextPageButton);
-            } else if (nextPageButton) {  
-                nextPageButton.onclick = () => googleSearch(query,type,start);
-            }
-
-            // Push Next Page button to the Bottom
-            feedContainer.appendChild(nextPageButton);
-            window.checkAnnotationsBatch?.();
-        }
-
-
-        // console.log("Google Search results:", data);
-        
-        
-    } catch (error) {
-        showGoogleSearchError(feedContainer, { message: error.message });
-    }
+    if (!selected?.account.id || !selected.account.instance) throw new Error('No Google Search account found. Open Accounts and add its API key and Search Engine ID.');
+    return selected;
 }
-
-function showGoogleSearchError(feedContainer, apiError) {
-    const msg = document.createElement('div');
-    msg.className = 'feed-status-message';
-    msg.innerHTML = `
-        <p><strong>Google Search error:</strong> ${apiError.message || 'Unknown error'}${apiError.code ? ` (${apiError.code})` : ''}</p>
-        <p>Your Google Search account credentials may be missing, expired, or invalid.
-        Open <strong>Accounts</strong> and re-enter your API key and Search Engine ID for the Google Search account.</p>
-        <p><a href="https://programmablesearchengine.google.com/" target="_blank">Set up a Programmable Search Engine</a> &nbsp;|&nbsp;
-        <a href="https://developers.google.com/custom-search/v1/introduction" target="_blank">API key instructions</a></p>
-    `;
-    feedContainer.appendChild(msg);
+function googleSearchAccountCurrent(capture) {
+    return (window.CList.accounts || []).some(record => record.key === capture.record.key && record.value === capture.record.value);
 }
-
-/**
- * Attempt to extract an author from the item's pagemap, if present.
- * Note: This is not an official or standardized approach; it's heuristic-based
- * because different pages provide different metadata fields for authors.
+/** Explicit transport; no controls, shared state or account lookup.
+ * @param {string} query @param {string|undefined} type @param {number} start
+ * @param {CListAccountData} account @param {{fetch:Function,signal?:AbortSignal}} dependencies
  */
+async function requestGoogleSearch(query,type,start,account,{fetch,signal}) {
+    const url = new URL('https://www.googleapis.com/customsearch/v1');
+    url.search = new URLSearchParams({key:account.id,cx:account.instance,q:query,start:String(start)});
+    if (type) url.searchParams.set('searchType',type);
+    const response = await fetch(url.toString(),{signal}), data = await response.json();
+    if (!response.ok || data.error) throw new Error(data.error?.message || `Google Search returned HTTP ${response.status}.`);
+    return data;
+}
+function normalizeGoogleSearchItem(raw,type) {
+    const tags = raw.pagemap?.metatags?.[0];
+    return { ...raw, service:'google', url:raw.link, desc:raw.snippet, content:raw.htmlSnippet,
+        feed:tags?.['og:site_name'] || tags?.['twitter:site'] || tags?.['application:name'] || raw.displayLink || '',
+        author:extractAuthorFromGoogle(raw),
+        ...(type === 'image' ? {images:[{url:raw.link,preview_url:raw.image?.thumbnailLink,description:raw.snippet}]} : {}) };
+}
+function navigateGoogleSearch(type,owner = _googleFindOwner) {
+    if (!owner?.context.isAccountCurrent() || !googleSearchAccountCurrent(owner.capture)) return Promise.resolve();
+    if (owner.pending) return Promise.resolve();
+    owner.pending = true;
+    return owner.context.navigate(next => googleSearch(owner.query,type,1,next,owner.capture)).finally(()=>{owner.pending=false;});
+}
+/** @param {CListFindContext} context */
+async function googleSearch(query,type,start=1,context,capture) {
+    if (!context?.isCurrent()) return;
+    try {
+        if (!capture) {
+            await ensureAccountsLoaded(); if (!context.isCurrent()) return;
+            capture = captureGoogleSearchAccount();
+        }
+        const assertAccount = () => { if (!googleSearchAccountCurrent(capture)) throw new Error('The Google Search account changed. Select Google again.'); };
+        assertAccount();
+        const data = await requestGoogleSearch(query,type,start,capture.account,{fetch,signal:context.signal});
+        if (!context.isCurrent()) return; assertAccount();
+        const owner = _googleFindOwner = {context,capture,query};
+        window.CList.ui.searchProvider.modes(['Web','Images'],type === 'image' ? 'Images':'Web',name=>navigateGoogleSearch(name==='Images'?'image':undefined,owner));
+        const items = data.items || [];
+        if (!items.length && start === 1) {context.empty('Google Search: '+query);return;}
+        const candidate = Number(data.queries?.nextPage?.[0]?.startIndex ?? (items.length === 10 ? start+10 : 0));
+        const nextStart = Number.isInteger(candidate) && candidate > start && candidate <= 100 ? candidate : null;
+        await context.render(items,{title:start===1?'Google Search: '+query:null,append:start!==1,
+            normalize:item=>normalizeGoogleSearchItem(item,type),loadMoreBtnId:'google-load-more',
+            onLoadMore:nextStart?()=>context.next(next=>googleSearch(query,type,nextStart,next,capture)):null});
+    } catch (error) { context.fail('Google Search error',error); }
+}
+
 function extractAuthorFromGoogle(item) {
     if (!item.pagemap) {
       return "";

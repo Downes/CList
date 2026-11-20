@@ -294,3 +294,59 @@ Folder pages follow the ordered continuation protocol in the
 latest case-insensitive path updates win and deleted paths disappear. HTTP errors
 carry numeric `status`, `missingScope` and structured `conflict` flags; upload
 network/receipt failures are uncertain and never trigger automatic replay.
+
+
+## Collection browsing, importing and memberships
+
+`CListCollectionSession` captures storage URL, username, token, encryption key and
+an optional ownership predicate. It stays outside shared state. The explicit
+`collectionDependencies(session)` adapter is the storage/encryption boundary;
+DOM-free workflows receive these operations rather than reading global selection.
+`CListCollectionBrowseRecord` normalizes current objects and legacy bare arrays,
+retaining extension properties and adding storage `key` plus a `name` alias for
+`title`. Aliases are excluded from stored values. Legacy IDs may be null; adding
+to a legacy target keeps its original storage key while assigning a durable ID.
+
+`CListCollectionBrowseState`, `CListCollectionImportState`,
+`CListCollectionMembershipState` and `CListCollectionOpeningState` describe safe
+phase/generation/busy/error fields under their matching CList.state properties.
+Selected records, members, draft bodies, references, account snapshots and choice
+callbacks remain transient controller captures.
+
+Membership removal uses the selected membershipId and verifies that member still
+matches. Legacy members require an unchanged list and selected ordinal. Neither
+operation removes all copies sharing a URL. Add/remove preserve latest siblings,
+record extensions and publication metadata; failed writes do not mutate the
+captured source list. Storage has no compare-and-swap API, so checks do not provide
+transactional protection against another client writing between read and write.
+
+Import recognition reuses the shared content detector, preserves recognized
+identity and valid JSON extensions, and captures its new identity once for retry.
+Existing targets require explicit Overwrite/Merge; commits recheck the captured
+destination. Merge retains existing members and deduplicates leaves by URL while
+preserving nested/local memberships by membership or collection identity. Existing
+publication metadata survives overwrite/merge. New records use add-if-absent.
+
+Opening captures the original editor/account/page and draft before awaits. Member
+fetches route through `loadSavedPage` with a continued lifetime guard. Owned pages
+and local blobs remain distinct. Failed/expired collection mounts restore only
+their own active target; newer loads and drafts are not reconciled over.
+
+
+Shared JSON collection parsing retains open member properties (including
+membershipId and extension metadata), normalizes title/URL/author/summary aliases,
+and retains role:contains members with a collectionId even without a leaf URL.
+Native author_name takes precedence over the legacy author alias. Collection
+identity continues through the existing validated UUID parser.
+
+Reader row bindings receive `rowContext` separately from normalized/reference
+objects. It may carry a captured account/session and must never be serialized or
+logged. `bindRow(item, row, context)` owns closures; DOM attributes/classes reflect
+presentation only. `context.navigate` starts an owned feed from a live row while
+`next` retains paging semantics. Find contexts provide the same selection lifetime
+through `isAccountCurrent` and capture the original query for mode navigation.
+`CListReaderSurfaceContext` captures accountless public/annotation reader lifetime.
+Mastodon safe read state stores `{kind, value}`; annotation read state stores only
+`{generation, phase, error}`. Service sessions, forms, bodies and credentials remain
+transient. `CListPublisherOptions.assertCurrent` is an optional Mastodon form guard
+checked before its write, not a general cancellation guarantee for other publishers.

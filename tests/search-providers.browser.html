@@ -1,0 +1,71 @@
+<!doctype html>
+<meta charset="utf-8"><title>CList search providers regression</title>
+<h1>Google, DuckDuckGo and OASIS</h1>
+<p>Real Find state/controller/view, provider transport/normalization, shared renderer, reader menu view and row callbacks. HTTP, accounts, reader invalidation, listing widgets and actions mocked. No external requests or writes.</p>
+<pre id="result">Checking search providers…</pre>
+<div id="left-content"></div><div id="feed-menu"></div><div id="feed-container"></div>
+<script>
+window.CList={config:{flaskSiteUrl:'https://fixture.invalid'},keys:{ACCESS_TOKEN:'access_token'},state:{username:'fixture',reader:{requestId:0}},readers:{},accounts:[{key:'google',value:JSON.stringify({title:'Google Search',id:'fixture-key',instance:'fixture-engine'})}]};
+let fixtureToken='fixture-token',behavior,requests=[],errors=[],actions=[];
+window.getSiteSpecificCookie=()=>fixtureToken;window.isRegistered=()=>true;
+window.ensureAccountsLoaded=async()=>{};window.parseAccountValue=record=>JSON.parse(record.value);
+window.openLeftInterface=panel=>document.getElementById('left-content').replaceChildren(panel);
+window.invalidateReader=()=>{invalidateFindRequest();CList.state.reader.requestId++;CList.ui.view.feedMenu.replaceChildren();};
+window.escapeHtml=value=>String(value||'').replaceAll('&','&amp;').replaceAll('<','&lt;');
+window.kvstoreAuthHeader=()=>({Authorization:'Bearer proxy-fixture'});
+window.translationEnabled=false;window.toggleTranslation=()=>{};
+window.fetch=async(url,options)=>{requests.push({url:String(url),options});if(!behavior)throw Error('Unexpected request');return behavior(String(url),options);};
+</script>
+<script src="../js/ui.js?v=2026-11-20.1"></script>
+<script src="../js/reader-view.js"></script>
+<script src="../js/find-state.js"></script><script src="../js/find-view.js"></script><script src="../js/find.js?v=2026-11-20.1"></script>
+<script src="../js/search-provider-view.js?v=2026-11-20.2"></script>
+<script src="../js/googlesearch.js?v=2026-11-20.2"></script><script src="../js/duckduckgo.js?v=2026-11-20.2"></script><script src="../js/oasis.js?v=2026-11-20.2"></script>
+<script>
+(async()=>{let checks=0;const check=(value,label)=>{if(!value)throw Error(label);checks++;};
+ const feed=document.getElementById('feed-container'),tick=()=>new Promise(resolve=>setTimeout(resolve,0));
+ const query=value=>{const input=document.getElementById('find-input');input.value=value;input.dispatchEvent(new Event('input'));};
+ const select=label=>{const button=[...document.querySelectorAll('#find-section button')].find(button=>button.children[button.children.length-1]?.textContent===label);if(!button)throw Error('Provider button missing: '+label);return button.onclick();};
+ const mode=label=>[...document.querySelectorAll('#feed-menu button')].find(button=>button.textContent===label);
+ const json=data=>({ok:true,json:async()=>data});
+ window.showServiceError=(container,title,message)=>{errors.push(message);};window.showErrorModal=message=>errors.push(message);
+ window.showStatusMessage=message=>errors.push(message);window.openInBrowser=(url,id)=>actions.push({url,id});window.toggleEntryExpanded=id=>actions.push({id});
+ window.SafeHtml=class{constructor(value){this.value=value;}toString(){return this.value;}};
+ // Keep the real shared feed loop; isolate the listing widget and bind actual provider row controls.
+ window.makeListing=(item,{rowContext}={})=>{const row=document.createElement('article');row.textContent=item.title;row.id='row-'+feed.children.length;
+  row.reference={url:item.url,author:item.author,feed:item.feed};const bar=document.createElement('div');bar.className='service-status-actions';row.appendChild(bar);
+  CList.readers[item.service]?.bindRow(item,row,rowContext);return row;};
+ try{
+ playFind();query('Original & query');
+ behavior=()=>json({items:[{title:'Google one',link:'https://result.invalid',snippet:'Summary',pagemap:{metatags:[{author:'Author','og:site_name':'Source'}]}}],queries:{nextPage:[{startIndex:21}]}});
+ await select('Google');check(feed.textContent.includes('Google one'),'Google results rendered');
+ const originalRow=feed.querySelector('article'),reference=originalRow.reference,oldImages=mode('Images');
+ check(reference.author==='Author'&&reference.feed==='Source'&&!JSON.stringify(reference).includes('fixture-key'),'Metadata preserved without credentials');
+ const more=document.getElementById('google-load-more');query('New draft');await more.onclick();
+ check(new URL(requests.at(-1).url).searchParams.get('q')==='Original & query'&&new URL(requests.at(-1).url).searchParams.get('start')==='21','Paging keeps captured query and API cursor');
+ await originalRow.querySelector('button').onclick();check(actions.at(-1).url==='https://result.invalid','Earlier-page controls remain live');
+ behavior=()=>json({items:[{title:'Image',link:'https://image.invalid',image:{thumbnailLink:'https://thumb.invalid'}}]});await oldImages.onclick();
+ check(new URL(requests.at(-1).url).searchParams.get('searchType')==='image'&&new URL(requests.at(-1).url).searchParams.get('q')==='Original & query','Images keeps original query');
+ const before=requests.length;await originalRow.querySelector('button').onclick();check(actions.length===1,'Removed row controls expire');
+ query('Replacement');await select('Google');const count=requests.length;await oldImages.onclick();check(requests.length===count,'Old mode menu cannot navigate a newer query');
+ behavior=()=>json({Heading:'Topics',RelatedTopics:[{Topics:[{FirstURL:'https://first.invalid',Result:'<a href="https://first.invalid">First topic</a> - one'},{FirstURL:'https://second.invalid',Result:'<a href="https://second.invalid">Second topic</a> - two'}]},{FirstURL:'https://third.invalid',Text:'Third topic'}]});
+ await select('DuckDuckGo');check(feed.querySelectorAll('article').length===3&&feed.textContent.includes('First topic')&&feed.textContent.includes('Second topic'),'All nested and direct DDG topics retained');
+ behavior=()=>json({Abstract:'An abstract',AbstractURL:'https://abstract.invalid',Heading:'Abstract title',AbstractSource:'Example',AbstractText:'<literal>'});await select('DuckDuckGo');
+ check(feed.querySelector('article').reference.feed==='Example'&&feed.textContent.includes('Abstract title'),'DDG abstract metadata retained');
+ const oasisHtml='<div class="row sources results"><b><a rel="external" href="https://oer.invalid">OER title</a></b><b>Author</b>: Author A<br/><b>Source</b>: <a>Source A</a><b>Type</b>: Book<br><strong>Description<br></strong>Body</div>';
+ behavior=async()=>({ok:true,text:async()=>oasisHtml});query('a & b + c');await select('OASIS OERs');
+ const req=requests.at(-1),dest=new URL(req.options.body.get('url'));check(dest.searchParams.get('search_query')==='a & b + c'&&req.options.headers.Authorization==='Bearer proxy-fixture','OASIS query encoded and proxy headers captured');
+ check(feed.textContent.includes('OER title')&&feed.querySelector('article').reference.feed==='Source A'&&feed.querySelector('article').reference.author==='Author A','Real OASIS HTML parsing/normalization');
+ for(const provider of ['Google','DuckDuckGo','OASIS OERs']){
+  let resolve;behavior=()=>new Promise(done=>resolve=done);query('Old');const pending=select(provider);await tick();const signal=requests.at(-1).options.signal;
+  behavior=()=>json({});query('New');await select('DuckDuckGo');resolve({ok:false,status:403,json:async()=>({error:{message:'Stale'}}),text:async()=>''});await pending;
+  check(signal.aborted&&feed.textContent.includes('No results found.')&&!errors.includes('Stale'),provider+' stale request rejected');
+ }
+ behavior=()=>json({});query('<literal>');await select('Google');check(feed.textContent.includes('<literal>')&&feed.textContent.includes('No results found.')&&!feed.querySelector('literal'),'Empty feedback uses literal query');
+ behavior=()=>({ok:false,status:429,json:async()=>({error:{message:'Rate limited'}})});await select('Google');check(errors.includes('Rate limited')&&findState().status==='failed','Current error visible');
+ behavior=()=>json({items:[{title:'Restored',link:'https://restored.invalid'}]});await select('Google');const row=feed.querySelector('article'),button=row.querySelector('button'),actionCount=actions.length;fixtureToken='changed';await button.onclick();check(actions.length===actionCount,'Session-stale row rejected');
+ document.getElementById('result').textContent='PASS: real Google/DDG/OASIS Find requests, query/credential capture, Web/Images and paging, earlier-page controls, nested topics, HTML parsing, proxy headers, empty/error feedback and stale request/menu/row/session guards. '+checks+' checks. Services and actions mocked; no external requests or writes.';
+ document.body.dataset.result='PASS';
+ }catch(error){document.getElementById('result').textContent='FAIL: '+error.stack;document.body.dataset.result='FAIL';console.error(error);}
+})();
+</script>

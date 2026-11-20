@@ -36,6 +36,7 @@ async function publishMastodonStatus(token, baseUrl, text, replyToId = null, opt
     }
     const body = { status, visibility: 'public' };
     if (replyToId) body.in_reply_to_id = replyToId;
+    options.assertCurrent?.();
     let response;
     try {
         response = await fetch(`${baseUrl}/api/v1/statuses`, {

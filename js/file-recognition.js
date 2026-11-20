@@ -114,7 +114,9 @@ function _recognitionAnnotationReferences(data) {
 }
 function _recognitionCollectionJSON(data) {
     const items = Array.isArray(data) ? data : _recognitionObject(data) ? data.items : null;
-    if (!Array.isArray(items) || !items.every(item => _recognitionObject(item) && typeof item.url === 'string')) return false;
+    if (!Array.isArray(items) || !items.every(item => _recognitionObject(item)
+        && (typeof item.url === 'string' || (item.role === 'contains'
+            && typeof item.collectionId === 'string' && !!item.collectionId)))) return false;
     if (Array.isArray(data)) return items.length > 0;
     return typeof data.title === 'string' || typeof data.name === 'string' || data.format === 'clist-collection-v1';
 }

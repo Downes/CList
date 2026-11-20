@@ -1,0 +1,139 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CList collection memberships regression</title>
+<h1>Collection memberships</h1>
+<p>Real session, storage workflow, membership controller and view. KV storage, encryption, crypto and listing widgets are mocked. No external requests or file/storage writes.</p>
+<pre id="result">Checking collection memberships…</pre>
+<div id="feed-container"></div>
+<span id="member-count"></span><div id="member-rows"></div><div id="nest-anchor-host"><button id="nest-anchor" class="btn">Nest</button></div>
+<script>
+window.CList = { state: { username: 'fixture' }, config: { flaskSiteUrl: 'https://storage.invalid' },
+ keys: { ACCESS_TOKEN: 'access_token' }, ui: {}, storage: { kv: {} } };
+const _COLLECTION_NAME_RE = /^[a-zA-Z0-9#\-_ ]+$/;
+const records = new Map(), writes = [], messages = [], errors = [], listings = [];
+let token = 'fixture-token', serial = 0, keyGate = null, encryptionGate = null, failWrite = false;
+Object.defineProperty(window, 'crypto', { configurable: true, value: { randomUUID: () => 'fixture-' + ++serial } });
+window.getSiteSpecificCookie = () => token;
+window.getEncKey = async () => keyGate ? keyGate() : 'fixture-key';
+window.encryptWithKey = async (key, value) => encryptionGate ? encryptionGate(value) : value;
+window.decryptKVJson = async (key, value) => JSON.parse(value);
+window._parseCollectionData = raw => Array.isArray(raw) ? { items: raw, publishedUrls: [] } : raw;
+window._newCollectionIdentity = () => { const id = crypto.randomUUID(); return { key: 'collection:' + id, id: 'urn:uuid:' + id }; };
+window.escapeHtml = value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
+window.dismissOnOutsideClick = () => {};
+window.showStatusMessage = message => messages.push(message);
+window.showErrorModal = message => errors.push(message);
+window.fetch = () => Promise.reject(Error('Unexpected network request'));
+window.makeListing = item => {
+ listings.push(structuredClone(item)); const row = document.createElement('article'); row.className = 'fixture-listing';
+ const title = document.createElement('span'); title.textContent = item.title;
+ const actions = document.createElement('div'); actions.className = 'clist-actions'; row.append(title, actions); return row;
+};
+window._showCollectionDetail = async col => messages.push('Nested: ' + col.title);
+CList.storage.kv = {
+ list: async () => [...records].map(([key, value]) => ({ key, value })),
+ get: async key => records.has(key) ? { value: records.get(key) } : null,
+ put: async (key, value) => {
+  if (failWrite) throw Error('Storage offline');
+  records.set(key, value); writes.push({ key, value: JSON.parse(value) });
+ },
+ add: async (key, value) => {
+  if (records.has(key)) throw Error('Already exists');
+  if (failWrite) throw Error('Storage offline');
+  records.set(key, value); writes.push({ key, value: JSON.parse(value) });
+ },
+};
+</script>
+<script src="../js/collection-formats.js"></script>
+<script src="../js/collection-session.js"></script>
+<script src="../js/collection-workflow.js"></script>
+<script src="../js/collection-members-view.js"></script>
+<script src="../js/collection-members.js"></script>
+<script>
+(async () => {
+ let count = 0; const check = (value, label) => { if (!value) throw Error(label); count++; };
+ const tick = () => new Promise(resolve => setTimeout(resolve, 0));
+ const until = async (predicate, label) => { for (let i = 0; i < 50 && !predicate(); i++) await tick(); if (!predicate()) throw Error(label); };
+ const idle = async () => { await until(() => !CList.state.collectionMemberships?.busy, 'Membership operation settled'); await tick(); };
+ const setRecord = (key, value) => records.set(key, JSON.stringify(value));
+ const getRecord = key => JSON.parse(records.get(key));
+ const countEl = document.getElementById('member-count'), rows = document.getElementById('member-rows');
+ const snapshot = async key => { const session = beginCollectionSession(); await prepareCollectionSession(session); return readCollectionSnapshot(key, collectionDependencies(session)); };
+ const removeButtons = () => [...rows.querySelectorAll('button[title="Remove from collection"]')];
+ const picker = () => document.querySelector('.collection-picker');
+ const pickerButton = label => [...picker().querySelectorAll('button')].find(button => button.textContent === label);
+ const fire = async button => { button.dispatchEvent(new MouseEvent('click', { bubbles: true })); await idle(); };
+ const makeFeedItem = (id, reference) => {
+  const status = document.createElement('div'); status.className = 'status-box';
+  const item = document.createElement('div'); item.id = id; item.reference = reference; status.appendChild(item);
+  const collect = document.createElement('button'); collect.id = 'collect-btn-' + id; collect.textContent = 'Collect'; status.appendChild(collect);
+  document.getElementById('feed-container').appendChild(status); return item;
+ };
+ const target = () => ({ id: 'urn:uuid:target', title: 'Target', items: [], publishedUrls: [{ url: 'https://published.invalid' }], extension: { retained: true } });
+ try {
+  setRecord('collection:target', target());
+  const item = makeFeedItem('original-item', { title: 'Original title', url: 'https://original.invalid', author_name: 'Original author', custom: { keep: true } });
+  let releaseKey; keyGate = () => new Promise(resolve => releaseKey = resolve);
+  const opening = _showCollectionPicker('original-item');
+  item.reference = { title: 'New row content', url: 'https://new.invalid' };
+  keyGate = null; releaseKey('fixture-key'); await opening;
+  check(pickerButton('Target'), 'Real picker lists existing collection');
+  await fire(pickerButton('Target'));
+  let stored = getRecord('collection:target');
+  check(stored.items[0].url === 'https://original.invalid' && stored.items[0].title === 'Original title', 'Original reference captured before asynchronous key lookup');
+  check(stored.items[0].custom.keep && stored.items[0].membershipId, 'Collected metadata and durable membership ID retained');
+  check(stored.extension.retained && stored.publishedUrls[0].url === 'https://published.invalid', 'Existing collection extensions and publications retained');
+
+  const duplicate = { title: 'Twin', url: 'https://duplicate.invalid' };
+  setRecord('collection:legacy', { id: 'urn:uuid:legacy', title: 'Legacy twins', items: [duplicate, { ...duplicate }], extension: { legacy: true } });
+  const legacy = await snapshot('collection:legacy'); _renderCollectionItems(legacy, token, 'fixture-key', countEl, rows);
+  check(removeButtons().length === 2, 'Duplicate URL memberships render independently');
+  await removeButtons()[0].onclick();
+  check(getRecord('collection:legacy').items.length === 1 && legacy.items.length === 1 && countEl.textContent === '1 item', 'Legacy removal deletes only the selected ordinal');
+
+  const stableMember = { membershipId: 'remove-this', title: 'Remove', url: 'https://remove.invalid' };
+  setRecord('collection:stable', { id: 'urn:uuid:stable', title: 'Stable', items: [stableMember, { membershipId: 'keep-this', url: 'https://keep.invalid' }], extension: { original: true } });
+  const stable = await snapshot('collection:stable'); _renderCollectionItems(stable, token, 'fixture-key', countEl, rows);
+  setRecord('collection:stable', { ...getRecord('collection:stable'), items: [...getRecord('collection:stable').items, { membershipId: 'incoming', url: 'https://incoming.invalid' }], extension: { incoming: true } });
+  await removeButtons()[0].onclick(); stored = getRecord('collection:stable');
+  check(stored.items.map(member => member.membershipId).join(',') === 'keep-this,incoming', 'Durable membership removal preserves incoming other members');
+  check(stored.extension.incoming && stable.extension.incoming, 'Latest extension metadata survives membership write and UI reconciliation');
+  const beforeFailure = writes.length, previous = JSON.stringify(stable.items); failWrite = true;
+  await removeButtons()[0].onclick(); failWrite = false;
+  check(writes.length === beforeFailure && JSON.stringify(stable.items) === previous, 'Failed persistence never mutates visible collection optimistically');
+  check(errors.some(message => message.includes('Storage offline')) && !CList.state.collectionMemberships.busy, 'Write failure is visible and releases busy state');
+
+  let releaseEncryption; encryptionGate = value => new Promise(resolve => releaseEncryption = () => resolve(value));
+  const pendingRemoval = removeButtons()[0].onclick();
+  await until(() => !!releaseEncryption, 'Removal reached encryption boundary');
+  _renderCollectionItems(stable, token, 'fixture-key', countEl, rows);
+  const beforeReplacement = writes.length; encryptionGate = null; releaseEncryption(); await pendingRemoval;
+  check(writes.length === beforeReplacement && JSON.stringify(stable.items) === previous, 'Replaced row generation rejects a delayed old write');
+  check(removeButtons().every(button => !button.disabled), 'Replacement rows unlock when expired operation settles');
+
+  item.reference = { title: 'Original callback', url: 'https://callback.invalid' };
+  await _showCollectionPicker('original-item'); const stalePickerButton = pickerButton('Target');
+  const other = makeFeedItem('other-item', { title: 'Other', url: 'https://other.invalid' });
+  await _showCollectionPicker('other-item'); const beforeStalePicker = writes.length;
+  await fire(stalePickerButton);
+  check(writes.length === beforeStalePicker, 'Replaced picker callbacks cannot add a membership');
+  const staleRowButton = pickerButton('Target'), replacement = document.createElement('div');
+  replacement.id = 'other-item'; replacement.reference = { url: 'https://replacement.invalid' }; other.replaceWith(replacement);
+  await fire(staleRowButton);
+  check(writes.length === beforeStalePicker, 'Replaced original feed row invalidates a connected picker');
+  await _showCollectionPicker('original-item'); const expiredSessionButton = pickerButton('Target');
+  token = 'different-session'; await fire(expiredSessionButton); token = 'fixture-token';
+  check(writes.length === beforeStalePicker, 'Session changes reject retained picker callbacks');
+
+  document.querySelectorAll('.collection-picker').forEach(node => node.remove());
+  const child = { key: 'collection:cycle-a', id: 'urn:uuid:cycle-a', title: 'Cycle A', items: [{ role: 'contains', collectionId: 'urn:uuid:cycle-b', title: 'Cycle B' }] };
+  setRecord(child.key, child); setRecord('collection:cycle-b', { id: 'urn:uuid:cycle-b', title: 'Cycle B', items: [] });
+  const beforeCycle = writes.length;
+  await _showAddToCollectionPicker(child, token, 'fixture-key', document.getElementById('nest-anchor'));
+  await fire(pickerButton('Cycle B'));
+  check(writes.length === beforeCycle && errors.some(message => message.includes('nest a collection inside itself')), 'Nested collection cycle prevented before persistence');
+  check(!JSON.stringify(CList.state.collectionMemberships).includes('fixture-key') && !JSON.stringify(CList.state.collectionMemberships).includes('fixture-token'), 'Shared membership state excludes credentials');
+  document.getElementById('result').textContent = 'PASS: real collection session/workflow/membership controller/view, original reference capture, independent duplicate removals, incoming member and extension preservation, failed-write isolation, replaced row/picker/session guards, busy cleanup and nested-cycle prevention. ' + count + ' checks. KV/encryption/crypto/listing APIs mocked; no external requests or file/storage writes.';
+ } catch (error) { console.error(error); document.getElementById('result').textContent = 'FAIL: ' + error.stack; }
+})();
+</script>

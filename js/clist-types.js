@@ -3,6 +3,51 @@
 // Read docs/data-contracts.md before extending these definitions.
 
 /**
+ * Transient collection storage session, outside all presentation state.
+ * @typedef {Object} CListCollectionSession
+ * @property {string} storeUrl
+ * @property {string|null} username
+ * @property {string|null} token
+ * @property {CryptoKey|null} encKey
+ * @property {(function():boolean)|null} [isCurrent]
+ */
+/**
+ * Normalized stored/legacy collection with storage identity and UI name alias.
+ * Unknown record/member extensions remain open; credentials are not record fields.
+ * @typedef {Object.<string, *> & {key:string,id:(string|null),title:string,name:string,
+ * items:CListCollectionMember[],publishedUrls:CListPublishedCollectionUrl[]}} CListCollectionBrowseRecord
+ */
+/**
+ * @typedef {Object} CListCollectionBrowseState
+ * @property {number} generation
+ * @property {string} phase
+ * @property {string|null} selectedKey
+ * @property {string|null} confirmKey
+ * @property {boolean} busy
+ * @property {string|null} error
+ */
+/**
+ * @typedef {Object} CListCollectionImportState
+ * @property {number} generation
+ * @property {string} phase
+ * @property {boolean} busy
+ * @property {string|null} error
+ */
+/**
+ * @typedef {Object} CListCollectionOpeningState
+ * @property {number} id
+ * @property {string} phase
+ * @property {boolean} busy
+ * @property {string|null} error
+ */
+/**
+ * @typedef {Object} CListCollectionMembershipState
+ * @property {boolean} busy
+ * @property {string} phase
+ * @property {string|null} error
+ */
+
+/**
  * Private capture for one Dropbox file operation. Never store in CList.state.
  * @typedef {Object} CListDropboxSession
  * @property {string} username
@@ -461,6 +506,7 @@
  * Optional data notifications; service operations never display them directly.
  * @typedef {Object} CListPublisherOptions
  * @property {string[]} [tags]
+ * @property {function():void} [assertCurrent] Optional Mastodon captured-form guard, checked after preparation and before POST; throws when expired.
  * @property {CListAnnotationSession} [annotationSession] Transient; never stored in operation summaries.
  * @property {function(CListAnnotationReceipt): void} [onTargetResult]
  * @property {function(CListPublisherProgress): void} [onProgress]

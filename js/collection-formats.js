@@ -147,8 +147,9 @@ function _parseCollectionJSON(text) {
     const data  = JSON.parse(text);
     if (!data || !Array.isArray(data.items)) throw new Error('Not a collection JSON object.');
     const items = (data.items || [])
-        .map(i => ({ title: i.title || i.url || '', url: i.url || '', author_name: i.author || '', summary: i.summary || '' }))
-        .filter(i => i.url);
+        .map(i => ({ ...i, title: i.title || i.url || '', url: i.url || '',
+            author_name: i.author_name || i.author || '', summary: i.summary || '' }))
+        .filter(i => i.url || (i.role === 'contains' && typeof i.collectionId === 'string' && i.collectionId));
     return { title: data.title || 'Imported collection', items, id: _validUrnUuid(data.id) };
 }
 
