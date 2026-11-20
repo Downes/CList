@@ -1368,3 +1368,21 @@ with the stated dependencies mocked and no external requests, real writes or rel
 Focused auth/lifecycle tests passed 28/28; the separate existing account-state
 fixture passed 7/7 after updating its source-extraction boundary for the moved
 storage listener. The full Node suite passed 733/733, zero failures/skips.
+
+### Administrative settings — user-reported browser PASS
+
+Open `https://localhost:51888/tests/admin-settings.browser.html` and report final
+PASS/FAIL. Real app metadata, settings workflow/controller/view and picker logic
+run with HTTP/session/Local mode and modal/navigation shells mocked. No external
+requests or real administrative writes. It checks desktop/mobile picker expiry,
+current KVStore selection, header isolation, safe labels/Help and hidden secrets,
+changed-only payloads, blank-secret omission, boolean rejection, newer drafts,
+accepted/uncertain receipts, read-only checks and explicit reviewed saves, pending
+panel rebuilds, stale callbacks and malformed/Local rejection. Backend authorization,
+live service schemas and full application navigation are not exercised.
+Marker: `test 2026-11-20.20`. The user reported browser PASS: 25 checks,
+with the stated effects mocked and no external requests or real settings writes.
+
+Focused Node checks passed 10/10 (`node --test tests/admin-settings.test.cjs`).
+The full Node suite passed 743/743, zero failures/skips. These results are separate
+from prior user-reported lifecycle browser PASS (24 checks).

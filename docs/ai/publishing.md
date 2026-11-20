@@ -487,3 +487,15 @@ legacy key and all tab draft-prefix entries. Preserve unrelated/other-server key
 avoid repeating accepted cleanup, scope reload-only retry and report partial
 cleanup without claiming remote session revocation. Legacy management `getAccounts`
 and administrative workflows remain separate from this restoration boundary.
+
+Administrative GET/PUT settings now use `admin-settings-*`, with no DOM in the
+workflow. App metadata and session headers are captured before requests; only the
+configured LocalRSS app gets the issuing `X-Kvstore-Url`. A Local account cannot
+authorize hosted administrative settings. Desktop/mobile picker callbacks expire
+on account changes, as do replaced form rows and Help callbacks. Form values,
+drafts and PUT receipts stay private; public state is counts/phases/errors only.
+Preserve newer text/secret edits during saves and reads. Accepted PUT followed by
+an unreadable/incomplete body requires GET, not another write. An uncertain save
+blocks writes until Check current settings; only a later explicit Save reviewed
+changes may resend intent. Masked secrets cannot be confirmed by GET. These client
+guards are not backend authorization or server compare-and-swap.

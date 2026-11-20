@@ -1604,3 +1604,19 @@ Actual browser cookie policy, cross-tab event delivery, full application reload,
 remote revocation and real cryptography remain outside the mocked evidence.
 
 Final lifecycle regression evidence: full Node suite 733/733, zero failures/skips.
+
+### Administrative settings
+
+`node --test tests/admin-settings.test.cjs` passes 10 tests. The shared
+`helpers/admin-settings-fixture.js` also drives `admin-settings.browser.html`
+(user-reported PASS: 25 checks). Real workflow/controller/view/app metadata run with
+HTTP, credentials, Local mode and modal/navigation mocked; no external requests
+or actual settings writes. Coverage includes captured app/session headers and
+LocalRSS-only issuing URL, dynamic KVStore selection, desktop/mobile expired
+picker callbacks, safe schema/Help text, hidden secrets, changed-only Save,
+blank-sensitive omission, newer text/secret drafts, immediate one-key boolean
+saves, duplicate/rebuilt/stale controls, definite rejection, HTTP acceptance with
+missing body, uncertain writes and read-only check/explicit reviewed save. Local
+authorization and malformed schemas fail closed. Actual server authorization,
+server-side races, reload-persistent recovery, live schemas and full application
+navigation are outside the mocked evidence. Full Node regression: 743/743.

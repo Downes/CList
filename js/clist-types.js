@@ -783,3 +783,10 @@
 
 /** @typedef {{serverUrl:string,local:boolean,epoch:number,username:(string|null),token:(string|null),expires:(string|null),key:(string|null)}} CListSessionSnapshot Private cookie/tab-key capture; never presentation state. */
 /** @typedef {{generation:number,phase:('restoring'|'guest'|'ready'|'logging-out'|'logged-out'|'failed'),error:(string|null)}} CListSessionLifecycleState Safe lifetime/feedback only. */
+
+/** @typedef {{label:string,baseUrl:string,description?:string,requiresKvstoreUrlHeader?:boolean}} CListAdminApp Captured public metadata, never credentials. */
+/** @typedef {{key:string,label:string,type:string,sensitive:boolean,help:string}} CListAdminField Normalized schema field. */
+/** @typedef {{schema:CListAdminField[],values:Object.<string,string>}} CListAdminSettingsData Private normalized values, including sensitive/masked fields. */
+/** @typedef {{storeUrl:string,token:(string|null),username:(string|null),epoch:number,local:boolean}} CListAdminSession Private source-session capture. */
+/** @typedef {{owner:number,payload:Object.<string,string>,versions:Map<string,number>,schema:CListAdminField[],pending:boolean,accepted:boolean,reviewed:boolean,uncertain?:boolean,rejected?:boolean}} CListAdminWrite Private PUT and receipt; never UI state or persistent storage. */
+/** @typedef {{panelId:number,app:string,phase:('loading'|'failed'|'saving'|'check-required'|'ready'|'editing'),error:(string|null),dirtyCount:number,busy:boolean}} CListAdminSettingsState Safe progress/counts only; no field values, drafts or tokens. */

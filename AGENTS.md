@@ -541,3 +541,13 @@ during restoration. Logout invalidates pending authentication/restoration first,
 removes the token before keys/drafts, verifies removal and reloads once. Retain
 other servers' keys and unrelated storage; report partial cleanup separately.
 Use `CList.keys.LOGOUT_MESSAGE` and `CList.keys.SESSION_SIGNAL` for existing names.
+
+Administrative settings use `admin-settings-apps.js` (captured app metadata),
+`admin-settings-workflow.js` (explicit GET/PUT/normalization), `admin-settings.js`
+(private draft/session/receipt controller) and `admin-settings-view.js` (picker,
+form, feedback and stacked Help). Resolve the selected KVStore when opening the
+picker. Keep values/secrets/tokens out of `CList.state.adminSettings`. Preserve
+boolean autosave, changed-only text saves and blank-secret omission. Retain newer
+edits across save/read responses. Unknown writes require a read check and an
+explicit reviewed save; HTTP acceptance survives a missing body/replaced panel.
+Backend authorization remains authoritative; fixtures never write live settings.

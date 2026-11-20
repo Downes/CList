@@ -84,7 +84,10 @@ The user-approved remaining order is:
    restoration, scoped token-first cleanup and reload recovery (733/733 Node
    tests pass). The `session-lifecycle.browser.html` fixture passed user testing,
    24 checks with effects mocked.
-   Administrative settings remain to separate.
+   Administrative settings now have captured app metadata, workflow/controller/view,
+   private drafts and accepted/uncertain PUT receipts (743/743 Node tests pass;
+   `admin-settings.browser.html` passed user testing, 25 checks). Backend authorization and
+   live services remain outside mocked validation.
 6. Pane persistence/navigation, keyboard/mobile state and reusable action/menu contracts.
 7. Collaboration/P2P chat session workflows, then remaining AI feature boundaries.
 

@@ -527,3 +527,21 @@ Other server/user key slots and unrelated preferences remain. Existing names
 storage transaction: token-removal failure stops destructive cleanup; later
 failures are reported while proceeding to reload, with a scoped reload-only retry
 if navigation fails. No remote token revocation or Local account deletion occurs.
+
+`CListAdminApp` is captured public service metadata. `CListAdminSession` contains
+the selected source cookie credentials/epoch privately. `CListAdminField` and
+`CListAdminSettingsData` normalize the existing schema/values response; string,
+boolean and numeric values become strings, absent booleans retain the legacy true
+default. The wire format remains GET `{schema,values}` and PUT changed fields only,
+with `{values}` returned. Backend field keys remain open strings; duplicate schema
+keys/invalid shapes fail closed. Sensitive values display only Set (hidden)/not set.
+
+`CListAdminWrite` retains private payload, per-field draft versions and independent
+pending/accepted/uncertain/rejected receipt state. `CListAdminSettingsState` exposes
+only owner/app/phase/error/dirty count/busy. Boolean toggles save one key immediately;
+text Save omits unchanged/blank secret fields. Acceptance clears only the original
+unchanged drafts, retaining newer input. GET checks preserve drafts; matching
+nonsecret values or known HTTP acceptance reconcile receipts. Unknown masked secret
+changes stay unconfirmed and require explicit review/save. Pending and unreviewed
+writes block overlapping saves across rebuilt panels in the same source session.
+No receipt is persisted across reload; no server CAS/atomicity is implied.
