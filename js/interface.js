@@ -199,17 +199,6 @@ function closeRightPane(options = {}) {
     savePaneState();
 }
 
-// Reveal the writing surface without toggling or resizing an already-open pane.
-function revealEditorPane() {
-    if (window.innerWidth <= 768) {
-        closeLeftPane();
-        mobShowWrite();
-    } else {
-        if (writePane.getBoundingClientRect().width <= 1) snapPanes('left');
-        currentPane = 'write-pane';
-    }
-}
-
 function snapPanes(direction) {
     const mainContentRect = mainContent.getBoundingClientRect();
     const readPaneRect = readPane.getBoundingClientRect();
@@ -237,8 +226,14 @@ function snapPanes(direction) {
 
 // Drag-to-resize: the divider between the read and write panes.
 divider.addEventListener("mousedown", (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
     isDragging = true;
     document.body.style.cursor = "col-resize";
+});
+
+document.addEventListener("selectstart", (e) => {
+    if (isDragging) e.preventDefault();
 });
 
 document.addEventListener("mousemove", (e) => {
@@ -345,7 +340,52 @@ function toggleLeftOverlaySection(id) {
 // ============================================================================
 // 5. Feed menu
 // ============================================================================
-// Rendering/dispatch now live in reader-view.js and reader.js.
+
+function setupFeedButtons(instanceType) {
+    const buttonsContainer = window.CList.ui.view.feedMenu;
+    if (!buttonsContainer) {
+        console.error('Error: The element with ID "feed-menu" does not exist, so there is no place to put the feed buttons.');
+        showErrorModal('Error loading feed — feed menu element not found.', { title: 'Feed load failed' });
+        return;
+    }
+    buttonsContainer.innerHTML = '';
+
+    const handler = window.CList.readers[instanceType];
+    if (!handler || !handler.feedFunctions || Object.keys(handler.feedFunctions).length === 0) {
+        console.error(`No feed functions defined for instance type: ${instanceType}`);
+        return;
+    }
+    const feedFunctions = handler.feedFunctions;
+
+    for (const [feedType, feedAction] of Object.entries(feedFunctions)) {
+        const button = document.createElement('button');
+        button.className = 'btn btn-small feed-filter-btn';
+        button.textContent = feedType;
+        button.onclick = () => {
+            feedAction();
+            // "Refresh" reloads the current view rather than switching to a new
+            // one, so it never becomes the active indicator itself.
+            if (feedType === 'Refresh') return;
+            buttonsContainer.querySelectorAll('.feed-filter-btn.is-active')
+                .forEach(b => b.classList.remove('is-active'));
+            button.classList.add('is-active');
+        };
+        buttonsContainer.appendChild(button);
+    }
+
+    // Readers initialize directly into their default view (e.g. "Unread")
+    // without going through a button click, so highlight it up front.
+    const defaultBtn = Array.from(buttonsContainer.querySelectorAll('.feed-filter-btn'))
+        .find(b => b.textContent !== 'Refresh');
+    if (defaultBtn) defaultBtn.classList.add('is-active');
+
+    const translateBtn = document.createElement('button');
+    translateBtn.id = 'translation-toggle-btn';
+    translateBtn.className = 'btn btn-small';
+    translateBtn.textContent = 'Translate: ' + (translationEnabled ? 'ON' : 'OFF');
+    translateBtn.onclick = toggleTranslation;
+    buttonsContainer.appendChild(translateBtn);
+}
 
 // ============================================================================
 // 6. Feed entry navigation (expand/collapse, keyboard, swipe)
@@ -554,24 +594,6 @@ function mobShowLeft() {
 function mobShowRight() {
     openRightPane();
 }
-
-// On mobile, #left-pane is an absolutely-positioned overlay covering the whole
-// read pane (see the max-width:768px rule for #left-pane.pane-open), so picking
-// an account/feed/search-service to read from it loads the result into
-// #feed-container behind the overlay, where it can't be seen. Closing the
-// overlay afterward moves the visitor straight to the read pane, same as a
-// swipe. Scoped to these three lists specifically (not .account-button
-// generally, which is also the generic styled-button class used by unrelated
-// left-pane panels like Accounts and App Settings, where a click shouldn't
-// bounce the visitor out mid-task): #read-account-list (readPanel(), reader.js),
-// #find-section (findPanel(), reader.js), #public-feeds-list
-// (renderPublicFeedsList(), public-feeds.js).
-leftPane.addEventListener('click', (e) => {
-    if (window.innerWidth > 768) return;
-    if (e.target.closest(
-        '#read-account-list .account-button, #find-section .account-button, #public-feeds-list .account-button'
-    )) closeLeftPane();
-});
 
 // ============================================================================
 // 8. Modal dialogs
