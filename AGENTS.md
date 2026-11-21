@@ -589,3 +589,106 @@ whole overlay, retaining draft fields/statistics/pending locks; Close or databas
 switch disposes that presentation. Keep legacy database/feed/import workflows
 separate. `.menu-shell-surface` makes moved overlays flow inside the modal; skip
 non-rendered controls when setting/trapping focus.
+
+P2P chat initialization/connections use `dynamicp2p_session.js` (captured source,
+Peer/connection ownership and cleanup), `dynamicp2p_session_view.js` (control
+bindings/lifecycle feedback), and `dynamicp2p_session_bridge.js` (legacy globals
+and effects). `CList.state.chatSession` contains phase/count only. Hiding Chat
+keeps its peer alive; replaced controls/session sources expire callbacks. Preserve
+same-ID connection guards, one open handshake, stale identity/signature checks and
+owned heartbeat timer guards. Sharing/collaboration cards and remaining
+message/crypto/storage internals still have legacy paths. Source expiry is checked
+on activity/reopen, not by a new idle authentication observer.
+
+Discussion listing/Join use `dynamicp2p_discussions_requests.js` (captured GET and
+validation), `dynamicp2p_discussions.js` (private request/list/Join ownership and
+compatibility bridge) and `dynamicp2p_discussions_view.js` (literal rows/feedback).
+Keep directory rows/tokens out of `CList.state.chatDiscussions`; it holds phase/
+counts only. Supersede old reads, expire replaced/source/service/list controls,
+and reuse captured Peer-session dispatch. A requested/existing connection locks
+duplicate rows until refresh; never describe dispatch as confirmed connectivity.
+Remaining message and collaboration-editor internals migrate separately.
+
+Create/Leave use `dynamicp2p_discussion_workflow.js` (explicit write receipts),
+`dynamicp2p_discussion_actions.js` (private locks/review/recovery),
+`dynamicp2p_discussion_view.js` (controls/feedback/layout) and
+`dynamicp2p_discussion_bridge.js` (legacy effects). Keep payloads, credentials and
+channels outside `CList.state.chatDiscussionAction`. Accepted writes recover local
+updates without repeating POST/DELETE. Uncertain writes require read-only review
+before explicit original-target retry; directory data cannot prove the write or
+visibility. Leave pauses its owned heartbeat before dispatch, retaining local
+connections until acceptance. Preserve new discussions/channels/drafts and locks
+across rebuilt panels. Recovery is transient, without server CAS/idempotency.
+
+Chat popup communication uses `dynamicp2p_popup.js` (main ownership/bridge),
+`dynamicp2p_popup_client.js` (popup commands/acknowledgements) and
+`dynamicp2p_popup_view.js` (DOM and existing renderers). Each main presentation has
+an opaque private channel; each popup load has its own client identity. Expire old
+requests/close events across reload, source changes and replacement windows.
+`chatBc` is a guarded legacy forwarder, never a raw shared channel. Session teardown
+notifies/disconnects its owned popup. Acknowledgements mean action dispatch, not
+peer delivery or collaboration-document completion. Retain drafts on failures
+and clear acknowledged text only if unchanged. No channel/IDs/content enter
+`CList.state.chatPopup`. Real channel/window policy and legacy popup card rendering remain
+separate validation/migration work.
+
+Main share/invite cards now use `dynamicp2p_cards.js` (private snapshots/action
+ownership/legacy bridge) and `dynamicp2p_cards_view.js` (literal DOM/callbacks).
+`CList.state.chatCards` exposes counts only. Capture full import/invite extensions,
+guard session/root/row lifetimes and duplicate pending actions, and push references
+only for the original editor generation after loading. HTTP(S)-only card links
+and normalized popup link data prevent unsafe navigation schemes; escape invite
+relay text. Existing importer/editor/collaboration internals are not cancelled by
+these guards.
+
+Outgoing Share uses `dynamicp2p_share_workflow.js` (detached preparation/one-pass
+broadcast), `dynamicp2p_share.js` (pending operation/receipt/session ownership and
+compatibility bridge) and `dynamicp2p_share_view.js` (source capture/feedback).
+Capture content before peer readiness; retain one pending selection and expire
+old row/session/discussion continuations. Automatic discussion creation reuses
+the Create controller with captured values, without overwriting the form; only
+confirmed local completion permits broadcast. Unknown/blocked creation requires
+explicit recovery and another Share. Preserve collection/invite extensions and
+the synchronous `sendCollabInvite` boolean; reserve protocol identity fields.
+Transport counts mean local send acceptance, not peer delivery. Never repeat a
+partial/uncertain broadcast or resend to recover a preview failure.
+
+Ordinary chat text uses `dynamicp2p_message_workflow.js` (detached packet/ID
+preparation), `dynamicp2p_messages.js` (dedup/sign/verify/relay ownership and legacy
+wrappers), and `dynamicp2p_message_view.js` (literal sender labels, decorated/
+sanitized body, transcript and sanitizer compatibility helpers). Keep message
+content/IDs/signatures outside `CList.state.chatMessages`; it holds a busy count.
+Reserve duplicate IDs before awaiting verification and capture sender/recipients
+before signing or verification. Skip closed/replaced connections and stale source/
+DOM completions. Signature indicators retain the existing permissive render/relay
+policy; local send acceptance is not delivery. Identity key/signature operations use the boundary described below.
+
+Peer lists, username/DID claims, username requests, service announcements and
+handshakes use `dynamicp2p_control_workflow.js`, `dynamicp2p_control.js` and
+`dynamicp2p_control_view.js`. Validate/detach packets before cache mutation; replace
+absent identity claims and expire superseded Follow controls. Reuse `_followUser`
+with its fourth guard argument and captured token/DID/anchor. Escape join relay
+text, restrict annotation URLs to HTTP(S), and expose only safe counts through
+`CList.state.chatControl`. Announcements are peer claims, not verified identity.
+Keep per-peer registries free of inherited keys. Preserve own public-field
+projection, one-pass sends and original-channel guards; never retry uncertain sends.
+
+Chat identity uses `dynamicp2p_identity_workflow.js` (explicit read/codec operations),
+`dynamicp2p_identity.js` (captured ownership/private key lifetime and legacy wrappers)
+and `dynamicp2p_identity_view.js` (feedback). Reuse the shared identity crypto helpers;
+preserve the URL-safe chat wire format and true/false/null verification policy.
+Keep keys/ciphertext/signatures out of `CList.state.chatIdentity`, which contains
+availability/phase/counts only. Capture hosted/Local targets, check ownership after
+awaits and reread ciphertext before accepting keys. Reject stale signing and
+replaced-peer-key verification; never turn a stale signature into an unsigned send.
+Missing/unavailable keys retain the existing unsigned fallback with owned failure
+feedback. Separate announcement failures from successful identity loading.
+
+Discussion activity uses `dynamicp2p_heartbeat_workflow.js` (captured POST),
+`dynamicp2p_heartbeat.js` (timer/ownership/overlap controller and compatibility
+bridge) and `dynamicp2p_heartbeat_view.js` (feedback). Preserve the one-minute
+schedule and `startHeartbeat`/`stopHeartbeat` callers. Skip overlapping requests;
+invalidate old timers/results on discussion, peer, service or source changes.
+401 stops the timer; other failures remain visible and the next scheduled tick
+may try again. No immediate retry or publication/delivery confirmation is implied.
+`CList.state.chatHeartbeat` contains phase/busy only, never target credentials.

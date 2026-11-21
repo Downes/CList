@@ -182,7 +182,7 @@
                                     <label for="discussionNameInput" class="visually-hidden">Discussion Name:</label>
                                     <input type="text" id="discussionNameInput" placeholder="Enter discussion name">
                                     <label style="font-size:0.85em;margin-left:4px"><input type="checkbox" id="discussionPublicCheckbox"> Public</label>
-                                    <button id="advertiseDiscussionButton" class="btn" onClick="advertiseDiscussion()">Create</button>
+                                    <button id="advertiseDiscussionButton" class="btn" onClick="advertiseDiscussion(this)">Create</button>
                                     <button id="refreshDiscussionsButton" class="btn" onClick="refreshDiscussions()">Join</button>
                                     <button id="chat-advanced-button" class="btn btn-small" onclick="toggleDiv('chat-advanced')">Advanced</button>
                                 </div>
@@ -190,7 +190,7 @@
                                     <ul id="discussion-list"></ul>
                                 </div>
                                 <div id="end-discussion-div" style="display: none;">
-                                    <button id="endDiscussionButton" class="btn" onClick="endDiscussion()">Leave Discussion</button>
+                                    <button id="endDiscussionButton" class="btn" onClick="endDiscussion(this)">Leave Discussion</button>
                                     <button id="startDocButton" class="btn" onclick="startCollabFromChat()" title="Start a shared document from this discussion">Start document</button>
                                 </div>
                                 <div id="chat-messages"></div>
@@ -386,7 +386,7 @@
 <script src="js/following-workflow.js?v=2026-11-20.5" defer></script>
 <script src="js/following-view.js?v=2026-11-20.5" defer></script>
 <script src="js/following.js?v=2026-11-20.5" defer></script>     <!-- Loads usere and account data -->
-<script src="js/editors.js?v=2026-11-21.2" defer></script>
+<script src="js/editors.js?v=2026-11-21.12" defer></script>
 <script src="js/editor-state.js?v=2026-11-20.1" defer></script>
 <script src="js/editor-switch-view.js?v=2026-11-20.1" defer></script>
 <script src="js/editor-switch.js?v=2026-11-20.1" defer></script>
@@ -528,7 +528,35 @@
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"
         integrity="sha384-nlUQ8ZqCbvStErob+biJNzSgltf6urV3VGqhfIfzhmg9RXmpeRm76ELw0pYnKlTR"
         crossorigin="anonymous" defer></script>
-<script src="js/dynamicp2p.js?v=4" defer></script>
+<script src="js/dynamicp2p_session_view.js?v=2026-11-21.3" defer></script>
+<script src="js/dynamicp2p_session.js?v=2026-11-21.10" defer></script>
+<script src="js/dynamicp2p_session_bridge.js?v=2026-11-21.10" defer></script>
+<script src="js/dynamicp2p_discussions_requests.js?v=2026-11-21.4" defer></script>
+<script src="js/dynamicp2p_discussions_view.js?v=2026-11-21.4" defer></script>
+<script src="js/dynamicp2p_discussions.js?v=2026-11-21.4" defer></script>
+<script src="js/dynamicp2p_discussion_workflow.js?v=2026-11-21.5" defer></script>
+<script src="js/dynamicp2p_discussion_view.js?v=2026-11-21.5" defer></script>
+<script src="js/dynamicp2p_discussion_actions.js?v=2026-11-21.8" defer></script>
+<script src="js/dynamicp2p_discussion_bridge.js?v=2026-11-21.5" defer></script>
+<script src="js/dynamicp2p_popup.js?v=2026-11-21.6" defer></script>
+<script src="js/dynamicp2p_cards_view.js?v=2026-11-21.7" defer></script>
+<script src="js/dynamicp2p_cards.js?v=2026-11-21.7" defer></script>
+<script src="js/dynamicp2p_share_workflow.js?v=2026-11-21.8" defer></script>
+<script src="js/dynamicp2p_share_view.js?v=2026-11-21.8" defer></script>
+<script src="js/dynamicp2p_share.js?v=2026-11-21.8" defer></script>
+<script src="js/dynamicp2p_message_workflow.js?v=2026-11-21.9" defer></script>
+<script src="js/dynamicp2p_message_view.js?v=2026-11-21.9" defer></script>
+<script src="js/dynamicp2p_messages.js?v=2026-11-21.9" defer></script>
+<script src="js/dynamicp2p_control_workflow.js?v=2026-11-21.10" defer></script>
+<script src="js/dynamicp2p_control_view.js?v=2026-11-21.10" defer></script>
+<script src="js/dynamicp2p_control.js?v=2026-11-21.10" defer></script>
+<script src="js/dynamicp2p_identity_workflow.js?v=2026-11-21.11" defer></script>
+<script src="js/dynamicp2p_identity_view.js?v=2026-11-21.11" defer></script>
+<script src="js/dynamicp2p_identity.js?v=2026-11-21.11" defer></script>
+<script src="js/dynamicp2p_heartbeat_workflow.js?v=2026-11-21.12" defer></script>
+<script src="js/dynamicp2p_heartbeat_view.js?v=2026-11-21.12" defer></script>
+<script src="js/dynamicp2p_heartbeat.js?v=2026-11-21.12" defer></script>
+<script src="js/dynamicp2p.js?v=2026-11-21.12" defer></script>
 <script src="js/publishing-workflow.js" defer></script>
 <script src="js/publishing-view.js" defer></script>
 <script src="js/web-page-records.js" defer></script>

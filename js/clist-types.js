@@ -799,3 +799,24 @@
 /** @typedef {{x:number,y:number,endX:number,endY:number,duration:number,mobile:boolean,feed:boolean,pane:string}} CListNavigationTouchFacts DOM-free single-touch classification input. */
 
 /** @typedef {{id:string,label:string,selected?:boolean,disabled?:boolean,run?:(function():*)}} CListActionDefinition Private captured command definition; literal display text, no HTML or credentials in presentation fields. */
+
+/** @typedef {{phase:('connecting'|'ready'|'closed'),connectionCount:number}} CListChatSessionState Safe lifecycle summary; no peer IDs, messages, account tokens or identity keys. */
+
+/** @typedef {{name:string,peerId:string}} CListDiscussionEntry Detached directory entry; labels and IDs are literal strings. */
+/** @typedef {{phase:('loading'|'ready'|'empty'|'login'|'error'),count:number,joiningCount:number}} CListDiscussionListState Safe counts/phase only; no directory rows, credentials or peer IDs. */
+
+/** @typedef {{phase:string,kind:('create'|'leave'|null),receipt:('accepted'|'rejected'|'uncertain'|null)}} CListDiscussionActionState Safe lifecycle/receipt only; captured discussion, session, channels and credentials remain private. */
+
+/** @typedef {{phase:('closed'|'opening'|'ready'),pending:number}} CListChatPopupState Safe main-window summary; no channel names, client/request IDs, windows or content. */
+
+/** @typedef {{count:number,busy:number}} CListChatCardsState Safe counts only; snapshots, callbacks, editor captures and peer data stay private. */
+
+/** @typedef {{phase:('idle'|'waiting-peer'|'creating'|'sending'|'complete'|'error'),busy:boolean}} CListChatShareState Safe outgoing progress only; source snapshots, sessions and packets remain private. */
+
+/** @typedef {{busy:number}} CListChatMessagesState Safe pending count only; packets, labels, signatures and resources remain private. */
+
+/** @typedef {{knownPeers:number,identities:number,following:number}} CListChatControlState Safe counts only; peer IDs, identity claims, tokens and key material remain private. */
+
+/** @typedef {{phase:('idle'|'loading'|'ready'|'absent'|'failed'),canSign:boolean,signing:number,verifying:number}} CListChatIdentityState Safe availability/counts only; keys, account targets and signatures stay private. */
+
+/** @typedef {{phase:('idle'|'waiting'|'sending'|'expired'),busy:boolean}} CListChatHeartbeatState Safe timer progress only; discussion, endpoint, token and peer stay private. */

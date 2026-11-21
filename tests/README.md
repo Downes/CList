@@ -1721,3 +1721,206 @@ Full Node suite passed 784/784, zero failures/skips. Syntax, inline scripts,
 script/stylesheet paths and script order, LF and diff checks passed; browser
 validation: user-reported PASS, 21 checks, with the stated dependencies mocked
 and no external requests or writes.
+
+### P2P chat session lifecycle
+
+`node --test tests/p2p-session.test.cjs` passes 10 cases, shared through
+`helpers/p2p-session-fixture.js` with `p2p-session.browser.html` (user-reported PASS: 27 checks).
+Real session controller/view and compatibility bridge run; selected cases also run
+the real guarded DID installation, signed-send, incoming packet verification and
+heartbeat helpers. PeerJS emitters/channels, HTTP, crypto, session values, timers,
+message rendering and discussion effects are mocked; no external requests/writes.
+Node uses the existing small DOM helper; browser controls use real DOM/synthetic
+events. Cases cover one initialization/retry, hidden panel retention, captured
+Send/Enter/Shift/composition controls, duplicate pending/open/reconnect callbacks,
+same-ID inbound replacement, close/disposal/resource cleanup, source/view expiry,
+credential-free summaries and stale asynchronous completions/heartbeat timers.
+Live WebRTC, real crypto/key storage, native input, full app, discussion advertise/
+end/directory, popup/share and collaboration-card workflows remain unverified.
+Full Node suite passed 794/794, zero failures/skips; syntax, inline scripts,
+local script paths/order and LF/diff checks passed. The user reported browser
+PASS: 27 checks, with the stated dependencies mocked and no external requests or writes.
+
+### Discussion directory and Join controls
+
+`p2p-discussions.test.cjs` shares 8 cases through
+`helpers/p2p-discussions-fixture.js` with `p2p-discussions.browser.html` (user-reported
+PASS: 30 checks). Run `node --test tests/p2p-discussions.test.cjs tests/p2p-session.test.cjs`
+(18/18 passed). Real captured GET/normalization, controller/view, compatibility
+wrapper and current-session bridge run. HTTP, session values, Peer dispatch and
+the shared error helper are mocked; no external requests or writes. Browser rows
+use real DOM with captured callback invocation; Node uses the existing DOM helper.
+Cases cover safe detached labels/targets, captured credentials/endpoint, abort and
+out-of-order results, service/source/list expiry, login/empty/error/retry, malformed
+JSON/records, duplicate pending/accepted peers, visible Join failure/explicit retry,
+stale callbacks/completions, unavailable sessions and existing-channel reuse.
+Live directory/WebRTC, native input, full app and Create/Leave are not exercised.
+Full Node suite passed 802/802, zero failures/skips. Syntax, inline scripts,
+local script paths/order and LF/diff checks passed. The user reported browser
+PASS: 30 checks, with the stated dependencies mocked and no external requests or writes.
+
+### Discussion Create/Leave receipts and recovery
+
+`p2p-discussion-actions.test.cjs` shares 11 cases via
+`helpers/discussion-actions-fixture.js` with `p2p-discussion-actions.browser.html`
+(user-reported PASS: 32 checks). Real workflow/controller/view, compatibility entry points
+and effects bridge cover captured POST/DELETE payloads, body-independent HTTP
+acceptance, validation, pending/rebuilt/stale controls, newer drafts, safe state,
+4xx rejection, lost/5xx uncertainty, read-only check and explicit original retry,
+accepted-write/local-only recovery, changed conversations/sources, partial close/
+refresh failure, one notice, deterministic layout and uncertain Leave heartbeat
+pause. HTTP, Peer sessions/channels, cookies, heartbeat, notices and directory
+refresh are mocked; no external requests or writes. Browser controls use real
+DOM; Node uses the existing helper. Session checks also cover captured heartbeat
+endpoint/token and service expiry. Earlier browser passes remain historical.
+
+`node --test tests/p2p-discussion-actions.test.cjs tests/p2p-discussions.test.cjs tests/p2p-session.test.cjs`
+passed 29/29. Full Node: 813/813, zero failures/skips. Live service/WebRTC, real
+crypto and full app are not verified; directory review cannot prove mutation or
+visibility. The user reported browser PASS: 32 checks, with the stated dependencies
+mocked and no external requests or writes.
+
+### Chat popup communication
+
+`p2p-popup.test.cjs` has 9 cases shared via `helpers/p2p-popup-fixture.js` with
+`p2p-popup.browser.html` (user-reported PASS: 25 checks). Real main/client controllers,
+popup view and legacy entry/relay bridge run. Broadcast delivery, windows, session
+ownership, sends/collaboration and timers are mocked. DOM controls use synthetic
+events. No external requests or writes. Coverage includes channel isolation,
+ready/focus reuse, credential-free state, pending/completed duplicate IDs, draft
+preservation, relay/title reset, collaboration dispatch, source expiry, popup
+reload client identity, old close packets/timers, blocked/direct popup URLs,
+keyboard/IME and visible action/channel failures, plus the real compatibility
+forwarder and owner close. Existing card rendering remains in the view; card/
+collaboration workflow completion, live WebRTC, actual channel/window policy and
+full app integration are not verified. Acknowledgements do not prove delivery.
+
+Run `node --test tests/p2p-popup.test.cjs tests/p2p-session.test.cjs`.
+Passed 19/19; full Node suite passed 822/822, zero failures/skips. Syntax, inline
+scripts, local script paths/order and LF/diff checks passed. The user reported
+browser PASS: 25 checks, with channels, windows, sessions, actions and timers
+mocked; no external requests or writes.
+
+### Main share/invite card controls
+
+`p2p-cards.test.cjs` shares 8 cases via `helpers/p2p-cards-fixture.js` with
+`p2p-cards.browser.html` (user-reported PASS: 24 checks). Real card controller/view
+and compatibility wrappers cover literal detached fields, exact URL/reference
+metadata, HTML escaping, safe link schemes/popup projections, collection/invite
+extensions and anchors, per-card duplicate locks, detached/source/editor guards,
+visible error/explicit retry, relay failure and bound editor API dispatch.
+Session ownership, editor/reference, import, collaboration, navigation, popup
+relay and the shared error helper are mocked; no external requests or writes.
+Node uses the existing DOM helper; browser rows invoke captured callbacks.
+Legacy API internals/mounting, same-editor newer-draft protection, full app/live
+services and outgoing share preparation/broadcast are not exercised.
+
+`node --test tests/p2p-cards.test.cjs` passed 8/8. The user reported browser PASS:
+24 checks, with the stated dependencies mocked and no external requests or writes.
+
+Full Node suite passed 830/830, zero failures/skips; syntax, inline scripts,
+local script paths/order and LF/diff checks passed.
+
+### Outgoing Share preparation and broadcast
+
+`p2p-share.test.cjs` shares 8 cases via `helpers/p2p-share-fixture.js` with
+`p2p-share.browser.html` (user-reported PASS: 28 checks). Real preparation/transport workflow,
+outgoing controller/view, legacy wrappers and Create controller run. Peer sends,
+sessions, Create transport/presentation and card previews are mocked; no external
+requests or writes. DOM sources are real in the browser, simulated in Node.
+Coverage includes exact captured metadata/title/excerpt limits, one waiting
+selection, duplicate/readiness/source/session/row/discussion guards, Create
+receipt gating/explicit recovery, preserved form drafts, direct collection/
+annotation extensions and protected protocol fields, same-ID channel replacement,
+partial/uncertain send feedback without retry, preview-failure separation, and
+the strict synchronous collaboration boolean. Local acceptance is not delivery.
+
+`node --test tests/p2p-share.test.cjs tests/p2p-discussion-actions.test.cjs tests/p2p-session.test.cjs`
+passed 29/29. Live PeerJS/delivery, full Create/editor integration and real
+cryptography are not exercised. The user reported browser PASS: 28 checks,
+with Peer channels, sessions, Create transport/presentation and previews mocked;
+no external requests or writes.
+
+Full Node suite passed 838/838, zero failures/skips. Syntax, inline scripts,
+local script paths/order and LF/diff checks passed.
+
+### Ordinary chat message processing/view
+
+`p2p-messages.test.cjs` shares 8 cases via `helpers/p2p-messages-fixture.js` with
+`p2p-messages.browser.html` (user-reported PASS: 21 checks). Real preparation/controller/view,
+shared one-pass broadcast and legacy message wrappers run. Sessions/resources,
+transport, crypto, decoration, popup relay and the error helper are mocked; no
+external requests or writes. Node mocks HTML sanitization; browser uses the real
+DOMParser sanitizer with real DOM rendering. Cases cover detached IDs/extensions/
+sender data, concurrent dedup before verification, legacy generated IDs, true/
+false/unknown verification, captured recipients and stale origin/session/DOM
+rejection, literal/escaped labels, browser unsafe HTML/URL removal and preserved
+allowed formatting, partial sends, relay failure and compatibility dispatch.
+Real crypto/key storage, peer-control packets, WebRTC and full app are unverified.
+
+Run `node --test tests/p2p-messages.test.cjs tests/p2p-session.test.cjs` (18/18).
+The existing session fixture now supplies a transcript node and loads the message
+modules while retaining its source/connection/signing/verification assertions.
+Full Node suite passed 846/846, zero failures/skips; syntax, inline scripts,
+local script paths/order and LF/diff checks passed. Cancelled signed sends reject
+to preserve popup drafts. The user reported browser PASS: 21 checks, including
+real sanitizer validation, with the stated dependencies mocked and no external requests or writes.
+
+### Peer discovery and identity-control packets
+
+`p2p-control.test.cjs` shares 8 cases via `helpers/p2p-control-fixture.js` with
+`p2p-control.browser.html` (user-reported PASS: 29 checks). Real normalization/controller/view,
+dispatcher and legacy wrappers run. Sessions/channels, connect, identity sources,
+Follow persistence, popup relay and error helper are mocked; no external requests
+or writes. DOM join controls are real in browser and simulated in Node. Coverage:
+deduplicated discovery/self/existing/origin guards, malformed packets, detached
+identity keys and literal/escaped joins, claim clearing and duplicate identity
+rows, captured Follow arguments/fourth guard, pending/replacement/session expiry,
+safe exact service URLs, explicit absence, inbound/outbound handshakes, public-only
+identity replies, visible errors/explicit Follow retry and stale store getters.
+The real session registry additionally tests an inherited-object-key peer ID.
+Live discovery, verified DID/crypto, persistent Follow and WebRTC are unverified.
+
+Run `node --test tests/p2p-control.test.cjs tests/p2p-session.test.cjs` (18/18).
+Full Node suite passed 854/854, zero failures/skips; syntax, inline scripts,
+local script paths/order and LF/diff checks passed. The user reported browser
+PASS: 29 checks, with the stated dependencies mocked and no external requests or writes.
+Syntax, inline scripts, local script paths/order and LF/diff checks passed.
+
+### Chat identity loading and signatures — user-reported browser PASS
+
+Open `https://localhost:51888/tests/p2p-identity.browser.html` and report PASS/FAIL.
+Marker: `test 2026-11-21.11`. Real identity read/codec workflows, controller/view
+and compatibility wrappers run with HTTP, encrypted storage and crypto helpers
+mocked; no external requests or writes. Checks cover captured hosted/Local reads,
+key-version/source guards, coalesced loads, visible errors/retry, private-data
+exclusion, URL-safe signature compatibility, stale signing/peer-key rejection and
+unsigned/unknown fallbacks. The user reported browser PASS: 25 checks, with the
+stated dependencies mocked and no external requests or writes. Normal-app/live
+crypto checks remain unverified.
+
+`node --test tests/p2p-identity.test.cjs tests/p2p-session.test.cjs` passed 19/19
+(9 identity and 10 session cases). The ninth identity case uses the actual shared
+Ed25519 helpers with mocked WebCrypto to verify byte/codec contracts; it does not
+verify real cryptography. Full Node suite passed 863/863, zero failures/skips.
+The session fixture now settles identity reads before measuring heartbeat traffic.
+
+Node: `tests/p2p-identity.test.cjs`; shared fixture: `tests/helpers/p2p-identity-fixture.js`.
+
+### Discussion heartbeat — user-reported browser PASS
+
+Node: `tests/p2p-heartbeat.test.cjs`; shared cases:
+`tests/helpers/p2p-heartbeat-fixture.js`; browser: `p2p-heartbeat.browser.html`.
+Open `https://localhost:51888/tests/p2p-heartbeat.browser.html` (marker
+`test 2026-11-21.12`) and report PASS/FAIL. Real transport/controller/view and
+legacy wrappers use mocked HTTP, timers, session/peer values and feedback helpers;
+no external requests, actual timers or writes. Covers captured URL/auth/payload,
+one-minute deferred scheduling, overlap prevention, late replacement/stop/source
+guards, changed discussion/service/peer, 401 notice/stop, visible HTTP/network
+failures and periodic recovery. State excludes credentials and target details.
+Live services and complete app integration are unverified.
+
+`node --test tests/p2p-heartbeat.test.cjs tests/p2p-session.test.cjs tests/p2p-discussion-actions.test.cjs`
+passed 28/28 (7 heartbeat, 10 session, 11 Create/Leave). Full Node suite passed
+870/870, zero failures/skips. The user reported browser PASS: 25 checks,
+with the stated dependencies mocked and no external requests or writes.

@@ -514,3 +514,74 @@ Alt+A in `navigation.js` captures the selected reference and text before
 superseded reader/session/row/selection and editor-switch completions before
 dispatching insertion. These guards do not cancel an editor handler's mounting or
 its internal asynchronous insertion; do not claim full draft protection from them.
+
+Chat session teardown now expires Peer/channel callbacks and clears only its
+owned heartbeat. Signed sends capture sender/recipient channels and check session
+ownership after signing; DID installation and verified incoming output have
+completion guards. Preserve these in `dynamicp2p_session*` and the legacy bridge.
+Popup/share/collaboration workflows and legacy key/storage reads remain separate.
+
+Create/Leave now use `dynamicp2p_discussion_*` captured receipts and recovery.
+HTTP 2xx is accepted without requiring JSON; ordinary 4xx is rejected and lost/
+408/5xx responses remain uncertain. Read-only review cannot prove the write or
+visibility; only explicit retry repeats its original payload/server/session.
+Accepted writes retry local updates only. Leave pauses its captured heartbeat
+before DELETE; rejected/uncertain Leave retains connections without automatic
+re-advertisement. New peer/discussion/channel activity prevents stale cleanup.
+No server CAS/idempotency, live authorization or reload durability is implied.
+
+Popup commands now capture one chat session, channel and client load through
+`dynamicp2p_popup*`. Pass the owned guard into signed sends; teardown/reload must
+expire late results and clear only the original client draft. Collaboration popup
+acknowledgements confirm dispatch only; legacy collaboration/card workflows are
+not made cancellable or remotely confirmed by this boundary.
+
+Main card actions now capture source/session, detached row data and selected
+editor handler/generation in `dynamicp2p_cards*`. Retain exact structural reference
+URLs and collection/invite extensions. Await handler/import/invite results and
+show owned-row errors; stale results must not add references or affect newer rows.
+These dispatch guards do not cancel existing APIs' internal writes/mounts or
+fully protect same-editor newer drafts.
+
+Outgoing Share now uses `dynamicp2p_share*` with captured source/session and
+one-pass recipient dispatch. Automatic Create delegates to the existing receipt
+controller via captured values; its private outcome must be accepted/complete
+before sharing. Unknown/blocked Create never implicitly retries or broadcasts,
+including after local recovery; the user explicitly chooses Share again.
+Snapshot recipients and verify channel identity before every attempt. Local
+send acceptance is not remote delivery; thrown sends are uncertain, with no
+automatic retry. Preview failures must not repeat dispatched packets. Preserve
+the strict synchronous collaboration-invite boolean and extension fields.
+
+Ordinary text messages now capture detached packets/senders/recipient channels
+through `dynamicp2p_message*` and reuse the one-pass broadcast workflow. Keep
+dedup reservation before verification, source/connection/DOM completion guards,
+literal sender presentation and sanitized/escaped popup output. Partial sends
+must not automatically repeat. This boundary does not confirm delivery or migrate
+the key-loading/crypto and peer-control workflows.
+
+Peer control dispatch and Follow join cards now use `dynamicp2p_control*` with
+captured channel/source/identity/row guards. Pass the fourth guard argument to the
+existing `_followUser` API, preserving its captured-session persistence checks.
+Outgoing handshakes/replies contain explicit public fields only; do not forward
+the whole identity object. Directory/service announcements remain unverified
+peer claims. Identity key/signature operations use the boundary described below.
+
+Chat identity uses `dynamicp2p_identity_workflow.js` (explicit read/codec operations),
+`dynamicp2p_identity.js` (captured ownership/private key lifetime and legacy wrappers)
+and `dynamicp2p_identity_view.js` (feedback). Reuse the shared identity crypto helpers;
+preserve the URL-safe chat wire format and true/false/null verification policy.
+Keep keys/ciphertext/signatures out of `CList.state.chatIdentity`, which contains
+availability/phase/counts only. Capture hosted/Local targets, check ownership after
+awaits and reread ciphertext before accepting keys. Reject stale signing and
+replaced-peer-key verification; never turn a stale signature into an unsigned send.
+Missing/unavailable keys retain the existing unsigned fallback with owned failure
+feedback. Separate announcement failures from successful identity loading.
+
+Heartbeat POSTs now use `dynamicp2p_heartbeat*`: the workflow owns transport, the
+controller captures endpoint/token/discussion/peer and timer lifetime, and the
+view owns expiry/failure feedback. Preserve Create/Leave/session compatibility
+wrappers. Invalidate stale results before feedback or stopping timers; an old
+response cannot stop its replacement. Prevent overlap, stop on 401, and retain
+the existing one-minute schedule after other failures without immediate retries.
+Successful heartbeat HTTP is an activity receipt, not publication confirmation.

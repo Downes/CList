@@ -1,0 +1,22 @@
+<!doctype html><meta charset="utf-8"><title>CList chat session check</title>
+<style>body{max-width:960px;margin:auto;padding:24px;font:16px/1.5 system-ui,sans-serif}#result{white-space:pre-wrap}</style>
+<h1>P2P chat session lifecycle</h1><p>Real session controller/view, compatibility bridge and guarded identity/message/heartbeat helpers. PeerJS, HTTP, crypto, session values, timers, message rendering and discussion effects are mocked. DOM controls run directly with synthetic events. No external requests or writes. Discussion publication, popup/share workflows and live WebRTC are not verified. Test 2026-11-21.3.</p>
+<p id="result">Checking...</p>
+<script>window.CList={config:{flaskSiteUrl:'https://store.invalid'},defaults:{DISCUSSIONS:'https://discussion.invalid'},state:{},keys:{USERNAME:'fixture-user',ACCESS_TOKEN:'fixture-token'}};window.fetch=()=>{throw Error('Unexpected network');};</script>
+<script src="../js/dynamicp2p_session_view.js?v=2026-11-21.3"></script><script src="../js/dynamicp2p_session.js?v=2026-11-21.10"></script>
+<script src="../js/dynamicp2p_session_bridge.js?v=2026-11-21.10"></script><script src="../js/dynamicp2p_share_workflow.js?v=2026-11-21.9"></script>
+<script src="../js/dynamicp2p_message_workflow.js?v=2026-11-21.9"></script>
+<script src="../js/dynamicp2p_message_view.js?v=2026-11-21.9"></script>
+<script src="../js/dynamicp2p_messages.js?v=2026-11-21.9"></script>
+<script src="../js/dynamicp2p_control_workflow.js?v=2026-11-21.10"></script>
+<script src="../js/dynamicp2p_control_view.js?v=2026-11-21.10"></script>
+<script src="../js/dynamicp2p_control.js?v=2026-11-21.10"></script>
+<script src="../js/dynamicp2p_identity_workflow.js?v=2026-11-21.11"></script>
+<script src="../js/dynamicp2p_identity_view.js?v=2026-11-21.11"></script>
+<script src="../js/dynamicp2p_identity.js?v=2026-11-21.11"></script>
+<script src="../js/dynamicp2p_heartbeat_workflow.js?v=2026-11-21.12"></script>
+<script src="../js/dynamicp2p_heartbeat_view.js?v=2026-11-21.12"></script>
+<script src="../js/dynamicp2p_heartbeat.js?v=2026-11-21.12"></script>
+<script src="../js/dynamicp2p.js?v=2026-11-21.12"></script>
+<script src="helpers/p2p-session-fixture.js?v=2026-11-21.11"></script>
+<script>(async()=>{let checks=0;for(const [name,run] of p2pSessionCases)await run((condition,message)=>{if(!condition)throw Error(name+': '+message);checks++;});previousP2pFixture?.dispose();document.getElementById('result').textContent='PASS: '+checks+' checks. Real chat session/controller/view and bridge, single initialization/retry, Send/Enter controls, connection/open/reconnect guards, same-ID replacement and disposal, source/view expiry, safe summaries, stale identity/signing/verification and heartbeat isolation. PeerJS, HTTP, crypto, sessions, timers, rendering and discussion effects mocked; no external requests or writes.';})().catch(error=>{document.getElementById('result').textContent='FAIL: '+error.stack;console.error(error);});</script>

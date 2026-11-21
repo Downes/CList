@@ -598,3 +598,153 @@ repeats nor cancels pending data operations. Replacing Options closes/removes on
 the original presentation. Shared shell views accept an existing nested trigger,
 feature-current predicate and literal Back label; no new persistent/public data
 shape or service operation is introduced.
+
+`CListChatSessionState` exposes only `phase` (connecting/ready/closed) and
+`connectionCount` (including pending channels). The P2P session controller owns
+one Peer and channel registry, known/deduplicated peers/messages and peer identity
+maps. Peer IDs, source fingerprint, tokens, messages and keys stay private. The
+compatibility bridge temporarily aliases these maps for legacy chat helpers.
+Same-ID replacement invalidates the old channel before closing it, so saved or
+late callbacks cannot remove/update the replacement. Hiding the existing panel
+does not destroy its session; replacing controls or source expires ownership.
+
+Delayed DID installation, signed-send dispatch and verified-message output check
+the original session/channel before applying results. A heartbeat captures its
+session/timer and cannot send for an expired source or stop a newer timer.
+These guards neither cancel started transport/cryptography nor fully capture
+legacy storage reads. No idle cross-tab/authentication observer is introduced;
+activity/reopen checks ownership. Discussion publication, popup/share
+and collaboration-card workflows remain separate migration work.
+
+`CListDiscussionEntry` is a detached literal name/peerId pair, normalized from
+validated directory responses. Additional service fields are not used by the
+listing. `CListDiscussionListState` exposes phase/count/joiningCount only. Captured
+directory endpoint, credentials, source fingerprint, entries, accepted peers and
+pending Join targets stay private. HTTP 401 maps to login feedback; malformed or
+failed responses produce no Join rows. Rows dispatch captured copies rather than
+reading labels or peer IDs from DOM attributes. Source/service/list changes and
+newer refresh generations expire callbacks/completions. Duplicate peers share a
+Join lock; accepted/existing dispatch stays locked until explicit refresh and is
+not proof of a live connection. The bridge reuses the current chat session; no
+directory or Peer write is automatically retried.
+
+`CListDiscussionActionState` exposes phase/kind/receipt only. Its private record
+captures name, peer ID, visibility, endpoint/token, session, prior discussion and
+channel identities. The view displays the original name/visibility while keeping
+newer drafts. Accepted/rejected/uncertain receipts survive panel rebuilds in this
+tab. Uncertain writes block other actions until read-only review and explicit
+original-request retry or Done; directory presence/absence proves neither the
+write nor visibility. Accepted writes recover local effects without remote retry.
+Captured channel-close/notice/refresh progress prevents repeated completed steps;
+new discussions/channels/peer IDs block old activation/cleanup. Leave pauses its
+owned heartbeat before dispatch and retains connections on rejected/uncertain
+results. Heartbeats capture endpoint/token and expire on source/service changes.
+There is no reload-persistent recovery or server atomicity/idempotency guarantee.
+
+`CListChatPopupState` contains phase/pending count only. Window handles, opaque
+channel names, per-load client IDs, command IDs and content remain private. A
+credential-free channel name is passed in the popup URL fragment; it isolates
+presentations, without creating an authorization boundary against same-origin
+code. Popup reload replaces the client identity and expires old commands/results.
+Main request IDs suppress duplicate dispatch; pending/completed acknowledgements
+belong to the original channel/client/session. Success means the existing helper
+returned, not confirmed peer delivery or completed collaboration publication.
+There is no automatic resend or crash/acknowledgement timeout recovery.
+
+The popup retains failed/unacknowledged drafts and clears acknowledged text only
+when unchanged. Main teardown disables the client and releases listeners/channel
+resources; presentation reopen focuses a live owned window. Old unload timers and
+close packets cannot close replacements. Existing message/card rendering remains
+view-owned and otherwise follows its previous trust/sanitization behavior.
+
+`CListChatCardsState` exposes card/busy counts only. The main card controller keeps
+detached packet/invite snapshots, row identities, callbacks and editor captures
+private. Import/invite dispatch retains open-ended extensions and captured anchor
+nodes. Pending actions lock one card; expired sessions/detached rows suppress old
+callbacks and completion feedback. After editor loading, reference insertion
+requires the original row/session/editor handler and switch generation. This does
+not cancel a legacy handler's internal asynchronous document writes or detect
+every same-editor newer-draft edit.
+
+Card link URLs retain their exact string after HTTP(S) validation; invalid schemes
+become literal labels without navigation/Load controls. Collection imports keep
+the original member data while popup presentation receives safe link projections.
+Main collaboration-invite text relayed as popup HTML is escaped. Existing card
+APIs remain compatibility wrappers.
+
+Outgoing Share now uses `CListChatShareState` (phase/busy only); its private record
+holds detached reference/text, source row guard, chat session and prior discussion.
+The last selection replaces a waiting-peer selection; duplicate clicks on the same
+waiting source reuse it. Running creation/dispatch blocks another queued share.
+Removed/replaced rows, expired sessions/sources and changed discussions invalidate
+continuations. Preparation retains the existing title/author fallback, whitespace
+collapse and truncation limits without rereading live content after peer readiness.
+
+Automatic Create passes captured name/visibility to the existing controller and
+reads a private receipt/phase/name outcome. It never overwrites current form
+values. Only accepted/complete matching creation allows broadcast. Read-only or
+local Create recovery does not implicitly share; another explicit Share is needed.
+Direct collection/annotation shares retain their call signatures and extensions;
+producer-owned type/kind/username/msgId fields cannot be overridden by extensions.
+Collaboration invitation remains a synchronous boolean indicating at least one
+local send acceptance. Each operation uses detached packets and captured current
+channels once; failures are uncertain and replacements are skipped. Local preview
+failure does not resend. Progress completion is not proof of peer delivery.
+
+`CListChatMessagesState` contains a busy count only. Detached message packets,
+dedup IDs, sender/recipient captures and signature results stay private. Incoming
+text must be a string, with an optional string msgId; other legacy extension
+fields survive normalization. Missing IDs receive an owned generated ID. The
+shared session dedup set is reserved before signature verification so concurrent
+duplicates cannot render or relay twice. New/replaced recipients after capture
+are skipped. Closed origin/session/root or removed local output invalidates late
+results. Other packet types are delegated to the separate peer-control normalizer.
+Cancelled outgoing signing/DOM continuations reject while their caller remains
+current, so a popup cannot acknowledge an unsent message and clear its draft.
+
+The view treats sender labels as literal text and separately sanitizes message
+body HTML before and after existing decoration; popup labels are escaped. The
+existing sanitizer and generic transcript helper move into that view module.
+Verification true/false/null keeps the existing marker and permissive relay
+behavior; signature verification does not authenticate arbitrary display labels.
+Transport failures produce visible uncertainty without retry. Actual crypto/key
+loading and legacy decoration workflows retain their own internals.
+
+`CListChatControlState` exposes known-peer/identity/pending-Follow counts only.
+Peer lists require a nonempty string ID and unique string peers; username updates
+require a nonempty string name, nullable string DID claims and nullable object
+public JWK. Normalization detaches packets before mutation. Missing identity/key
+claims replace old claims, and duplicate equivalent announcements reuse the current
+join row. This is structural validation, not DID/key authenticity verification.
+Peer registries use null-prototype objects to support IDs such as `constructor`.
+
+Join/Follow records capture the original channel, identity generation, row and
+auth token. Replacement/source/root expiry disables stale callbacks; the existing
+Follow API receives its guard so its own persistence workflow can expire safely.
+Tokens/keys/peer IDs stay private. Identity replies project only explicit public
+fields. Service announcements retain exact HTTP(S) URLs, reject unsafe replacements
+without changing the previous cache, and clear explicit absence. Expired sessions
+expose no announced stores. Outbound discovery/handshake sends use captured current
+channels once, exclude discovery origin and report uncertainty without retry.
+
+`CListChatIdentityState` exposes phase, signing availability and pending sign/verify
+counts only. Captured target/session, encryption keys, decrypted private keys,
+ciphertext, peer JWKs and signatures remain private. Identity reads use a captured
+hosted public DID URL or the Local identity helpers, with source checks after each
+await and a ciphertext reread before accepting a private key. The direct storage
+read uses `CList.keys.DID_IDENTITY_KEY`; no key generation or storage writes occur.
+Public announcements omit private JWK `d`. Missing keys preserve unsigned chat;
+ordinary crypto failures produce visible feedback and null/unknown results.
+Stale signing or verification against replaced peer keys rejects completion.
+Shared Ed25519 helpers retain their standard Base64 contracts; the chat workflow
+converts to/from the existing unpadded Base64URL wire format. Loading and announcing
+identity have separate outcomes: failed announcements do not discard loaded keys.
+
+`CListChatHeartbeatState` contains phase (`idle`, `waiting`, `sending`, `expired`)
+and busy only. Endpoint, auth token, discussion name, peer ID and ownership guard
+stay in a private timer capture. One POST runs at a time. Stop/replacement expires
+saved callbacks and late responses. Source, service, peer and discussion must
+still match before sends and completion effects. A 401 expires the timer; HTTP
+and network failures produce feedback and allow the next scheduled minute tick.
+No immediate retry, abort of in-flight HTTP, or server publication guarantee is
+provided. Existing heartbeat interval alias is maintained for compatibility.

@@ -105,6 +105,37 @@ The user-approved remaining order is:
    on the same root (784/784 Node tests pass; user-reported browser PASS, 21 checks). Legacy database/feed/
    import internals remain outside this presentation slice.
 7. Collaboration/P2P chat session workflows, then remaining AI feature boundaries.
+   Initialization, captured control/Peer/channel lifecycle and teardown now use
+   `dynamicp2p_session.js`, `dynamicp2p_session_view.js` and
+   `dynamicp2p_session_bridge.js`. Focused Node checks pass 10/10 and the full
+   Node suite passes 794/794; the user reported browser PASS, 27 checks.
+   Discussion listing/Join now use captured request/controller/view modules;
+   focused directory/session Node checks pass 18/18, full Node passes 802/802,
+   and the user reported browser PASS, 30 checks. Create/Leave now have captured
+   workflow/controller/view/bridge boundaries and local-only recovery (29 focused
+   checks and 813/813 full Node pass; user-reported browser PASS, 32 checks).
+   Popup main/client communication and view now use `dynamicp2p_popup*` with
+   isolated channels, per-load request ownership, draft-safe acknowledgements and
+   teardown guards (19 focused and 822/822 full Node pass; user-reported browser PASS, 25 checks). Message formatting/crypto/storage
+   remains legacy. Main incoming share/invite cards now have controller/view and
+   captured action boundaries (8 focused cases and 830/830 full Node pass;
+   user-reported browser PASS, 24 checks).
+   Outgoing preparation/one-pending-share/broadcast now uses `dynamicp2p_share*`,
+   captured Create outcomes and one-pass current-channel dispatch (8 focused
+   cases and 838/838 full Node pass; user-reported browser PASS, 28 checks), with completion guards
+   at the session boundary. Ordinary text message processing/rendering now uses
+   `dynamicp2p_message*` with captured packets, dedup/sign/verification/relay guards
+   and view-owned transcript/sanitizer helpers (18 focused checks, 846/846 full
+   Node pass; user-reported browser PASS, 21 checks).
+   Peer discovery/identity-control normalization/controller/view, guarded Follow
+   rows and shared handshakes now use `dynamicp2p_control*` (18 focused checks,
+   854/854 full Node pass; user-reported browser PASS, 29 checks). Chat identity loading/signing/verification now uses `dynamicp2p_identity*`,
+   shared crypto helpers and captured key/source guards (19 focused and 863/863 full
+   Node pass; user-reported browser PASS, 25 checks). No real crypto or storage writes tested.
+   Discussion heartbeat now uses `dynamicp2p_heartbeat*`, with captured transport,
+   timer/overlap ownership and view feedback (28 focused and 870/870 full Node
+   pass; user-reported browser PASS, 25 checks). HTTP/timers/session/feedback helpers mocked.
+   Continue with one small slice.
 
 For each slice: keep current behavior, reuse registries/helpers, capture inputs
 and operation lifetime, keep views free of writes, and test stale/duplicate/error
