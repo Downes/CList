@@ -96,21 +96,7 @@ window.getPeerAnnotationStores = function() { return _p2pSession?.isCurrent() ? 
  * calls openCollabFromChat() to create a new Collab document seeded with
  * that context. The collab invite is automatically broadcast to peers.
  */
-function startCollabFromChat() {
-  if (typeof window.openCollabFromChat !== 'function') {
-    showErrorModal('Collab editor not available.', { title: 'Collab unavailable' });
-    return;
-  }
-  const msgs = document.getElementById('chat-messages');
-  const contextHtml = msgs
-    ? Array.from(msgs.children)
-        .filter(el => !el.querySelector('.chat-share-card') && el.textContent.trim())
-        .slice(-15)
-        .map(el => `<p>${el.innerHTML}</p>`)
-        .join('')
-    : '';
-  window.openCollabFromChat(contextHtml || null, activeDiscussionName);
-}
+function startCollabFromChat() { return startP2pCollaboration(); }
 
 /**
  * openChatPopup()
@@ -241,36 +227,8 @@ function chatOptions(content, sender) {
  * Searches for an Etherpad link in the message content and returns a formatted message if found.
  */
 function findEtherpadLink(content, sender) {
-  const regex = /['"<](https:\/\/[^\s'"><]+)[>\s'"]/g;
-  let match;
-  while ((match = regex.exec(content)) !== null) {
-    const link = match[1];
-    if (link.includes('etherpad')) {
-      console.log(`${sender} shared ${link}`);
-      // Build the anchor safely via DOM instead of string interpolation.
-      const a = document.createElement('a');
-      a.href = link;
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      a.textContent = link;
-      a.addEventListener('click', (e) => { e.preventDefault(); showPadShare(link); });
-      const em = document.createElement('em');
-      const i  = document.createElement('i');
-      i.appendChild(a);
-      em.appendChild(i);
-      const prefix = document.createTextNode(`${sender} shared an Etherpad link (Click on the link to open): `);
-      const frag = document.createDocumentFragment();
-      frag.appendChild(prefix);
-      frag.appendChild(em);
-      // appendMessage expects a string; serialise via a temp div.
-      const tmp = document.createElement('div');
-      tmp.appendChild(frag);
-      return tmp.innerHTML;
-    } else {
-      return content;
-    }
-  }
-  return content;
+  const model = prepareP2pEtherpadLink(content, sender);
+  return model ? renderP2pEtherpadLink(model) : content;
 }
 
 // ── DID signing: key loading, signing, and verification ──────────────────────

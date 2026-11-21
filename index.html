@@ -52,6 +52,7 @@
                 TOKEN_EXPIRES:         'token_expires',
                 OAUTH_CALLBACK_RESULT: 'oauth_callback_result',
                 KVSTORE_URL:           'clist_kvstore_url',
+                TRANSLATION_ENABLED:   'translationEnabled',
                 PAGES_CATALOG:         'clist:pages-catalog',
                 DID_IDENTITY_KEY:      '_did_identity_key',
                 EDITOR_DRAFT_PREFIX:   'clist_draft_',
@@ -386,7 +387,7 @@
 <script src="js/following-workflow.js?v=2026-11-20.5" defer></script>
 <script src="js/following-view.js?v=2026-11-20.5" defer></script>
 <script src="js/following.js?v=2026-11-20.5" defer></script>     <!-- Loads usere and account data -->
-<script src="js/editors.js?v=2026-11-21.12" defer></script>
+<script src="js/editors.js?v=2026-11-21.20" defer></script>
 <script src="js/editor-state.js?v=2026-11-20.1" defer></script>
 <script src="js/editor-switch-view.js?v=2026-11-20.1" defer></script>
 <script src="js/editor-switch.js?v=2026-11-20.1" defer></script>
@@ -467,7 +468,11 @@
 <script src="js/blogger.js?v=1" defer></script>
 <script src="js/tinymce.js?v=2" defer></script>
 <script src="js/etherpad.js?v=1" defer></script>
-<script src="js/collab.js?v=3" defer></script>
+<script src="js/collab_documents_requests.js?v=2026-11-21.19" defer></script>
+<script src="js/collab_documents_view.js?v=2026-11-21.19" defer></script>
+<script src="js/collab_documents.js?v=2026-11-21.19" defer></script>
+<script src="js/collab_connection_preparation.js?v=2026-11-21.20" defer></script>
+<script src="js/collab.js?v=2026-11-21.20" defer></script>
 <script src="js/collab_account.js" defer></script>
 <script src="js/latex.js?v=4" defer></script>
 <script src="js/slides.js?v=14" defer></script>
@@ -522,9 +527,19 @@
 <script src="js/hypothesis.js?v=2" defer></script>
 <script src="js/hypothesis_publish.js" defer></script>
 <script src="js/grsshopper_publish.js" defer></script>
-<script src="js/chatgpt.js" defer></script>
-<script src="js/summarize.js?v=2026-11-20.1" defer></script>
-<script src="js/translate.js" defer></script>
+<script src="js/chatgpt_requests.js?v=2026-11-21.17" defer></script>
+<script src="js/chatgpt_template_requests.js?v=2026-11-21.18" defer></script>
+<script src="js/chatgpt_template_view.js?v=2026-11-21.18" defer></script>
+<script src="js/chatgpt_template_form.js?v=2026-11-21.18" defer></script>
+<script src="js/chatgpt.js?v=2026-11-21.18" defer></script>
+<script src="js/summarize-workflow.js?v=2026-11-21.15" defer></script>
+<script src="js/summarize-view.js?v=2026-11-21.15" defer></script>
+<script src="js/summarize-controller.js?v=2026-11-21.15" defer></script>
+<script src="js/summarize.js?v=2026-11-21.15" defer></script>
+<script src="js/translate-workflow.js?v=2026-11-21.16" defer></script>
+<script src="js/translate-view.js?v=2026-11-21.16" defer></script>
+<script src="js/translate-controller.js?v=2026-11-21.16" defer></script>
+<script src="js/translate.js?v=2026-11-21.16" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"
         integrity="sha384-nlUQ8ZqCbvStErob+biJNzSgltf6urV3VGqhfIfzhmg9RXmpeRm76ELw0pYnKlTR"
         crossorigin="anonymous" defer></script>
@@ -544,8 +559,8 @@
 <script src="js/dynamicp2p_share_workflow.js?v=2026-11-21.8" defer></script>
 <script src="js/dynamicp2p_share_view.js?v=2026-11-21.8" defer></script>
 <script src="js/dynamicp2p_share.js?v=2026-11-21.8" defer></script>
-<script src="js/dynamicp2p_message_workflow.js?v=2026-11-21.9" defer></script>
-<script src="js/dynamicp2p_message_view.js?v=2026-11-21.9" defer></script>
+<script src="js/dynamicp2p_message_workflow.js?v=2026-11-21.14" defer></script>
+<script src="js/dynamicp2p_message_view.js?v=2026-11-21.14" defer></script>
 <script src="js/dynamicp2p_messages.js?v=2026-11-21.9" defer></script>
 <script src="js/dynamicp2p_control_workflow.js?v=2026-11-21.10" defer></script>
 <script src="js/dynamicp2p_control_view.js?v=2026-11-21.10" defer></script>
@@ -556,7 +571,10 @@
 <script src="js/dynamicp2p_heartbeat_workflow.js?v=2026-11-21.12" defer></script>
 <script src="js/dynamicp2p_heartbeat_view.js?v=2026-11-21.12" defer></script>
 <script src="js/dynamicp2p_heartbeat.js?v=2026-11-21.12" defer></script>
-<script src="js/dynamicp2p.js?v=2026-11-21.12" defer></script>
+<script src="js/dynamicp2p_collaboration_workflow.js?v=2026-11-21.13" defer></script>
+<script src="js/dynamicp2p_collaboration_view.js?v=2026-11-21.13" defer></script>
+<script src="js/dynamicp2p_collaboration.js?v=2026-11-21.13" defer></script>
+<script src="js/dynamicp2p.js?v=2026-11-21.14" defer></script>
 <script src="js/publishing-workflow.js" defer></script>
 <script src="js/publishing-view.js" defer></script>
 <script src="js/web-page-records.js" defer></script>

@@ -137,6 +137,42 @@ The user-approved remaining order is:
    pass; user-reported browser PASS, 25 checks). HTTP/timers/session/feedback helpers mocked.
    Continue with one small slice.
 
+   Start document from chat now uses `dynamicp2p_collaboration*` for transcript
+   snapshots and captured/coalesced dispatch (25 focused and 876/876 full Node
+   pass; user-reported browser PASS, 22 checks). Collaboration editor API/session/feedback
+   mocked; document creation and invitation internals remain separate.
+
+   Stateless Etherpad link decoration now reuses the message workflow/view and
+   legacy wrappers (22 focused and 880/880 full Node pass; user-reported browser
+   PASS, 18 checks). Recognition preserves legacy rules; real DOM formatting,
+   sanitizer and query-link behavior passed the mocked browser fixture. Links
+   were not opened. No extra controller/state introduced.
+
+   Summarize now has explicit request/controller/view modules, captured AI/reader/
+   input ownership and bound output Load controls (10 focused and 887/887 full
+   Node pass; user-reported browser PASS, 32 checks). HTTP/accounts/reader/editor
+   effects mocked; actual DOM capture/rendering passed the fixture.
+   Translate now has request/controller/view boundaries, captured credentials,
+   preference/deadline guards and stale-safe form controls (32 focused and 895/895
+   full Node pass; user-reported browser PASS, 31 checks). HTTP/storage/accounts/reader/deadlines
+   mocked. ChatGPT template transport/continuations and captured request ownership
+   now use `chatgpt_requests.js` and `chatgpt_template_requests.js` (14 focused and
+   902/902 full Node pass; user-reported browser PASS, 34 checks). HTTP/accounts/sessions mocked;
+   Template generation form now uses `chatgpt_template_form.js` and
+   `chatgpt_template_view.js`, with private choices, guarded loader settlement,
+   local progress and observer cleanup (14 focused and 909/909 full Node pass;
+   user-reported browser PASS, 21 checks). HTTP/accounts/sessions/editor/navigation effects
+   mocked. Collab document browsing now uses `collab_documents*` for captured
+   requests, list/row ownership, literal rendering and opening dispatch (25
+   focused and 916/916 full Node pass; user-reported browser PASS, 22 checks). HTTP/accounts/
+   sessions/shared helpers/opening hook mocked. Local/remote connection preparation
+   now shares captured credentials/targets and commit guards through
+   `collab_connection_preparation.js` (21 focused and 924/924 full Node pass;
+   user-reported browser PASS, 20 checks). Node additionally exercises real Collab initializers
+   with resource/dependency fakes; browser fixture covers preparation only.
+   Provider callbacks, teardown, awareness and remaining editor internals remain
+   separate follow-ups.
+
 For each slice: keep current behavior, reuse registries/helpers, capture inputs
 and operation lifetime, keep views free of writes, and test stale/duplicate/error
 paths. DOM in views/editor widgets and HTML output serializers remains legitimate.

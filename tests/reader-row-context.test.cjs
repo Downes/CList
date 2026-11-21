@@ -50,8 +50,9 @@ test('thread and summary editor controls retain their shared loading action afte
  const header=ctx.window.CList.ui.feedHeader('thread');
  const load=header.querySelectorAll('button').find(button=>button.title==='Load thread into editor');
  vm.runInContext(load.onClick,ctx);assert.deepEqual(calls,['thread']);
- const source=fs.readFileSync('js/summarize.js','utf8'),handler=source.indexOf('async function handleSummarize(');
- vm.runInContext(source.slice(handler,source.indexOf('function getInputText',handler)),ctx);await ctx.handleSummarize('feed-container','feed-summary','thread');
+ vm.runInContext(fs.readFileSync('js/summarize-view.js','utf8'),ctx);
+ ctx.document.getElementById=id=>id==='feed-summary-content'?output.querySelector('#feed-summary-content'):output;
+ ctx.createSummaryView('feed-container','feed-summary').show('Summary',ctx.loadContentToEditor);
  const button=output.querySelectorAll('button').find(button=>button.title==='Load into editor');
- vm.runInContext(button.onClick,ctx);assert.deepEqual(calls,['thread','summary']);
+ button.onclick();assert.deepEqual(calls,['thread','feed-summary-content']);
 });

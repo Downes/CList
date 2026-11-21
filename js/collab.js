@@ -96,6 +96,28 @@ window.CList.schemas['Collab'] = {
     let dupCheckTimer      = null  // debounce timer for duplicate-title check
     let sharedRefs         = null  // Y.Map synced across all collaborators: url → JSON ref string
 
+    // Capture asynchronous preparation before replacing any live resources.
+    let connectionPreparation = null
+    function preparationSource() {
+        return JSON.stringify([readerSession(), window.CList.state.authEpoch || 0,
+            currentEditor, currentEditorAccount, window.CList.accounts || [], window.CList.defaults.COLLAB])
+    }
+    function getConnectionPreparation() {
+        if (!connectionPreparation) connectionPreparation = createCollabConnectionPreparation({
+            capture() {
+                const session = readerSession()
+                return { source: preparationSource(), storeUrl: session.storeUrl, token: session.token,
+                    username: session.username || '', color: '#' + Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, '0'),
+                    element: document.getElementById('tiptap-editor'), statusElement: document.getElementById('collab-status') }
+            },
+            current: snapshot => snapshot.source === preparationSource() && !!snapshot.element?.isConnected &&
+                document.getElementById('tiptap-editor') === snapshot.element && document.getElementById('collab-status') === snapshot.statusElement,
+            server: () => getCollabWsUrl(), load: () => loadDeps(),
+            state: value => { window.CList.state.collabPreparation = value }
+        })
+        return connectionPreparation
+    }
+
     // --- Load vendored dependencies lazily ---
     // Bundled locally (see header comment) so Y.Doc instances are shared and no
     // runtime CDN fetch can fail or go down.
@@ -180,12 +202,14 @@ window.CList.schemas['Collab'] = {
     // Initialize TipTap with a local Y.Doc only (no Hocuspocus) so the editor is
     // immediately usable before the user commits a document title.
     async function initLocalEditor() {
-        const { Editor, StarterKit, Collaboration, Link, Y } = await loadDeps()
+        const prepared = await getConnectionPreparation().prepare({ local: true })
+        prepared.assertCurrent()
+        const { Editor, StarterKit, Collaboration, Link, Y } = prepared.modules
         if (tiptapEditor) { tiptapEditor.destroy(); tiptapEditor = null }
         const ydoc = new Y.Doc()
         sharedRefs = ydoc.getMap('clist_refs')
         tiptapEditor = new Editor({
-            element:    document.getElementById('tiptap-editor'),
+            element:    prepared.element,
             editable:   true,
             extensions: [
                 StarterKit.configure({ history: false }),
@@ -507,25 +531,16 @@ window.CList.schemas['Collab'] = {
     // --- Connect to a collaborative document ---
 
     async function connectToDoc(docId, mode = 'edit', overrideWsUrl = null) {
-        const wsUrl = overrideWsUrl || await getCollabWsUrl()
+        const prepared = await getConnectionPreparation().prepare({ docId, mode, wsUrl: overrideWsUrl })
+        prepared.assertCurrent()
+        const { wsUrl, token, storeUrl, username: userName, color: userColor, statusElement: statusEl } = prepared
+        const { Editor, StarterKit, Collaboration, CollaborationCursor, Link, HocuspocusProvider, Y } = prepared.modules
         currentWsUrl = wsUrl
-
-        await loadDeps()
-        const { Editor, StarterKit, Collaboration, CollaborationCursor, Link, HocuspocusProvider, Y } = deps
-
-        const statusEl = document.getElementById('collab-status')
         if (statusEl) statusEl.textContent = 'connecting…'
 
-        // Tear down any previous session
+        // Preparation must still own its target before any existing resources change.
         if (hocuspocusProvider) { hocuspocusProvider.destroy(); hocuspocusProvider = null }
         if (tiptapEditor)       { tiptapEditor.destroy();       tiptapEditor = null }
-
-        const rawToken = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN)
-        const token    = (mode === 'read' && !rawToken) ? 'anonymous' : (rawToken || 'anonymous')
-        const userName = (window.CList.state.username && window.CList.state.username !== 'none' && window.CList.state.username !== '')
-            ? window.CList.state.username
-            : 'Anonymous'
-        const userColor = '#' + Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, '0')
 
         // Different document than whatever was previously merged in (if any) — start the
         // locally-displayed reference list clean rather than carrying over the old doc's
@@ -556,7 +571,7 @@ window.CList.schemas['Collab'] = {
             name:       docId,
             document:   ydoc,
             token,
-            parameters: { kvstoreUrl: window.CList.config.flaskSiteUrl, ...(mode === 'read' ? { mode: 'read' } : {}) },
+            parameters: { kvstoreUrl: storeUrl, ...(mode === 'read' ? { mode: 'read' } : {}) },
             onStatus: ({ status }) => {
                 if (statusEl) statusEl.textContent = status
             },
@@ -568,7 +583,7 @@ window.CList.schemas['Collab'] = {
         hocuspocusProvider.awareness.on('update', updateWhoList)
 
         tiptapEditor = new Editor({
-            element:    document.getElementById('tiptap-editor'),
+            element:    prepared.element,
             editable:   mode !== 'read',
             extensions: [
                 StarterKit.configure({ history: false }),
@@ -595,59 +610,18 @@ window.CList.schemas['Collab'] = {
             icon:    'group',
             requiresLogin:   true,
             requiresAccount: false,
-            load:    async () => {
-                const optionsDiv = window.CList.ui.view.loadOptions
-                optionsDiv.innerHTML = '<p class="list-tip">Loading documents…</p>'
-                try {
-                    const wsUrl = await getCollabWsUrl()
-                    const base  = wsUrlToRestBase(wsUrl)
-                    const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN) || ''
-                    const resp  = await fetch(`${base}/api/documents`, {
-                        headers: { Authorization: `Bearer ${token}` }
-                    })
-                    if (!resp.ok) throw new Error(`Server returned ${resp.status}`)
-                    const docs = await resp.json()
-
-                    optionsDiv.innerHTML = ''
-                    if (!docs.length) {
-                        optionsDiv.innerHTML = '<p class="list-tip">No documents yet — enter a document ID in the Collab editor to create one.</p>'
-                        return null
-                    }
-
-                    const list = document.createElement('div')
-                    list.className = 'account-list'
-                    const tip = document.createElement('div')
-                    tip.className = 'list-tip'
-                    tip.textContent = 'Select a document to open'
-                    list.appendChild(tip)
-
-                    docs.forEach(doc => {
-                        const btn = document.createElement('button')
-                        btn.className = 'account-button'
-                        const icon = document.createElement('span')
-                        icon.className = 'material-icons'
-                        icon.textContent = 'article'
-                        const name = document.createElement('span')
-                        name.textContent = doc.title || localPartOf(doc.id)
-                        btn.appendChild(icon)
-                        btn.appendChild(name)
-                        btn.addEventListener('click', async () => {
-                            if (currentEditor !== 'collab') await initializeEditor('collab')
-                            setDocTitle(localPartOf(doc.id))
-                            currentDocTitle = doc.title || ''
-                            try { await connectToDoc(doc.id) }
-                            catch (e) { showErrorModal('Connection failed: ' + e.message, { title: 'Collab connection failed' }) }
-                            closeRightPane()
-                        })
-                        list.appendChild(btn)
-                    })
-                    optionsDiv.appendChild(list)
-                } catch (e) {
-                    console.error('Collab load error:', e)
-                    optionsDiv.innerHTML = `<p class="feed-status-message">Could not load documents: ${e.message}</p>`
+            load: async () => openCollabDocuments({
+                title: localPartOf,
+                open: async (record, wsUrl, current) => {
+                    if (!current()) return
+                    if (currentEditor !== 'collab') await initializeEditor('collab')
+                    if (!current()) return
+                    setDocTitle(localPartOf(record.id))
+                    currentDocTitle = record.title || ''
+                    await connectToDoc(record.id, 'edit', wsUrl)
+                    if (current()) closeRightPane()
                 }
-                return null
-            }
+            })
         })
     })()
 

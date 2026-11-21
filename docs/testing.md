@@ -1658,3 +1658,141 @@ Live service behavior and full application integration are unverified.
 passed 28/28 (7 heartbeat, 10 session, 11 Create/Leave cases). Full Node suite
 passed 870/870, zero failures/skips. The user reported browser PASS: 25 checks,
 with the stated dependencies mocked and no external requests or writes.
+
+### Start document from chat — user-reported browser PASS
+
+Open `https://localhost:51888/tests/p2p-collaboration.browser.html` and report
+PASS/FAIL. Marker: `test 2026-11-21.13`. Real preparation/controller/view and
+wrapper run with collaboration API, sessions and feedback helpers mocked.
+Shared cases use transcript fixtures; the browser adds actual DOM row capture
+and removal checks. No external requests or writes. Covers last-15/non-card HTML,
+captured API/discussion, empty context, duplicate locks, stale queued dispatch,
+visible failures/explicit retry and private snapshots. Collaboration mounting,
+document creation, delayed insertion and invitations are not exercised.
+
+`node --test tests/p2p-collaboration.test.cjs tests/p2p-popup.test.cjs tests/p2p-session.test.cjs`
+passed 25/25 (6 new, 9 popup, 10 session). Full Node suite passed 876/876,
+zero failures/skips. The user reported browser PASS: 22 checks, with
+collaboration/session/feedback APIs mocked and no external requests or writes.
+Collaboration editor internals were not exercised.
+
+### Chat Etherpad link formatting — user-reported browser PASS
+
+Open `https://localhost:51888/tests/p2p-decoration.browser.html` and report
+PASS/FAIL. Marker: `test 2026-11-21.14`. Real recognition, HTML view, wrappers and
+shared message renderer/sanitizer run with session/transport/feedback/relay
+helpers mocked. No external requests or writes; links are not opened. Browser
+checks cover actual DOM rendering, literal sender metadata, emphasized safe
+links, query separator preservation after sanitization, and escaped popup output.
+Shared Node cases cover legacy first-URL/substring rules, unchanged text and
+wrapper dispatch with rendering stubbed. They do not verify actual DOM rendering.
+
+`node --test tests/p2p-decoration.test.cjs tests/p2p-messages.test.cjs tests/p2p-session.test.cjs`
+passed 22/22 (4 new, 8 messages, 10 session). Full Node passed 880/880, zero
+failures/skips. The user reported browser PASS: 18 checks, with the stated
+dependencies mocked, no external requests or writes, and links not opened.
+Live Etherpad integration remains unverified.
+
+### Summarize — user-reported browser PASS
+
+Open `https://localhost:51888/tests/summarize.browser.html` and report PASS/FAIL.
+Marker: `test 2026-11-21.15`. Real request/controller/view and compatibility APIs;
+HTTP, accounts, reader/session and editor effects mocked. Shared cases mock view
+capture/rendering; extra browser assertions exercise actual DOM capture, literal
+output, nested-summary exclusion and bound/stale Load controls. No external
+requests or writes. Live AI, real credentials and editor mounting are unverified.
+
+`node --test tests/summarize.test.cjs tests/reader-row-context.test.cjs` passed
+10/10 (7 Summarize, 3 shared-row cases). Full Node passed 887/887, zero failures/
+skips. Existing source-sliced summary coverage now uses the real extracted view.
+The user reported browser PASS: 32 checks, with HTTP/accounts/reader/editor
+effects mocked and no external requests or writes. Live AI and editor mounting
+were not exercised.
+
+### Translate — user-reported browser PASS
+
+Open `https://localhost:51888/tests/translate.browser.html` and report PASS/FAIL.
+Marker: `test 2026-11-21.16`. Real requests/controller/view and compatibility APIs
+with HTTP, preference storage, accounts, reader sessions and deadlines mocked.
+Form/toggle DOM runs directly in the browser. No external requests, real storage
+writes or actual timers. Covers captured credentials/payloads, independent rows,
+preference restoration/save failure, fallbacks, stale/timeout stage rejection,
+visible errors, form duplicate/newer-input/account/preference guards and state
+privacy. Live Google translation and full reader rendering are not exercised.
+
+`node --test tests/translate.test.cjs tests/action-menu.test.cjs tests/mastodon-reader.test.cjs tests/bluesky-reader.test.cjs`
+passed 32/32. Full Node passed 895/895, zero failures/skips. The user reported
+browser PASS: 31 checks, with HTTP/storage/accounts/reader/deadlines mocked and
+no external requests or real writes. Live translation and full reader rendering
+were not exercised. Existing reader tests mock translation.
+
+### ChatGPT template requests — user-reported browser PASS
+
+Open `https://localhost:51888/tests/chatgpt-requests.browser.html` and report
+PASS/FAIL. Marker: `test 2026-11-21.17`. Real transport/continuation workflow,
+captured request controller and compatibility API use mocked HTTP, account
+loading/selection and sessions. No external requests or writes. Covers legacy
+prompts/payloads, exact chunk history, loading failure isolation, session/account/
+JSON expiry, malformed/nonprogressing responses, independent calls, schema/fence
+compatibility and state privacy. Generation form, editor loading and live AI
+are not exercised.
+
+`node --test tests/chatgpt-requests.test.cjs tests/summarize.test.cjs` passed
+14/14 (7 request, 7 summary cases). Full Node passed 902/902, zero failures/skips.
+The user reported browser PASS: 34 checks, with HTTP/accounts/sessions mocked
+and no external requests or writes. Generation form, editor loading and live AI
+were not exercised.
+
+### Template generation form — user-reported browser PASS
+
+Open `https://localhost:51888/tests/template-form.browser.html` and report
+PASS/FAIL. Marker: `test 2026-11-21.18`. Real form/controller/view, request path
+and loader wrapper; accounts, HTTP, sessions, editor selection and navigation
+mocked. Controls/progress render directly in the browser; shared replacement
+cases explicitly deliver observer callbacks, with an additional actual browser
+observer cleanup check. No external requests or writes. Covers custom/selected
+choices and MIME/fence results, duplicate/changed-input guards, Back/null
+settlement, retry/draft preservation, source/editor/replaced-panel isolation,
+local progress and private state. Live AI and editor mounting remain unverified.
+
+`node --test tests/template-form.test.cjs tests/chatgpt-requests.test.cjs`
+passed 14/14 (7 form and 7 request cases). Full Node passed 909/909,
+zero failures/skips. The user reported browser PASS: 21 checks, with
+HTTP/accounts/sessions/editor/navigation effects mocked and no external requests
+or writes. Live AI and editor mounting were not exercised.
+
+### Collab document browsing — user-reported browser PASS
+
+Open `https://localhost:51888/tests/collab-documents.browser.html` and report
+PASS/FAIL. Marker: `test 2026-11-21.19`. Real list requests/controller/view and
+browser bridge; HTTP, accounts, session values, shared account/URL helpers and
+document-opening hook mocked. DOM rows render directly in the browser. No
+external requests or writes. Covers captured auth/server, lazy/default account
+paths, safe titles, empty/error/retry, superseded/session/container guards,
+opening locks, saved-row rejection and state privacy. Actual editor initialization,
+connection and live WebSocket lifecycle are not exercised.
+
+`node --test tests/collab-documents.test.cjs tests/editor-controls.test.cjs tests/editor-references.test.cjs`
+passed 25/25. Full Node passed 916/916, zero failures/skips. The user reported
+browser PASS: 22 checks, with HTTP/accounts/sessions/shared helpers/opening hook
+mocked and no external requests or writes. Editor initialization, connection and
+live WebSocket lifecycle were not exercised.
+
+### Collab connection preparation — user-reported browser PASS
+
+Open `https://localhost:51888/tests/collab-preparation.browser.html` and report
+PASS/FAIL. Marker: `test 2026-11-21.20`. Real preparation controller/configuration;
+server/dependency/session/editor-target APIs and state delivery mocked. No
+external requests or writes. Covers captured configuration, local/override
+routing, anonymous defaults, lookup/load failure propagation, stale source/DOM
+targets, local/remote supersession, final commit guards and safe pending state.
+The browser fixture does not run the full `collab.js` adapter or actual resources.
+
+`node --test tests/collab-preparation.test.cjs tests/collab-documents.test.cjs tests/editor-references.test.cjs`
+passed 21/21. The new Node file has seven shared preparation cases plus a real
+Collab initializer integration case using injected dependencies/editor/provider
+fakes. It checks captured constructor values and no replacement of live resources
+after stale preparation. Full Node passed 924/924, zero failures/skips. The user
+reported browser PASS: 20 checks, with server/dependency/session/editor-target
+APIs mocked and no external requests or writes. Full adapter, provider callbacks,
+teardown and live WebSockets were not exercised by the browser fixture.

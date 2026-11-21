@@ -5,6 +5,6 @@
 <script src="../js/dynamicp2p_heartbeat_workflow.js?v=2026-11-21.12"></script>
 <script src="../js/dynamicp2p_heartbeat_view.js?v=2026-11-21.12"></script>
 <script src="../js/dynamicp2p_heartbeat.js?v=2026-11-21.12"></script>
-<script src="../js/dynamicp2p.js?v=2026-11-21.12"></script>
+<script src="../js/dynamicp2p.js?v=2026-11-21.14"></script>
 <script src="helpers/p2p-heartbeat-fixture.js?v=2026-11-21.12"></script>
 <script>(async()=>{let checks=0;for(const [name,run] of p2pHeartbeatCases)await run((condition,message)=>{if(!condition)throw Error(name+': '+message);checks++;});document.getElementById('result').textContent='PASS: '+checks+' checks. Real heartbeat workflow/controller/view and wrappers, captured endpoint/auth/payload, periodic scheduling, overlap locks, replaced/stopped/stale callback guards, discussion/service/peer/source expiry, 401 notices, visible HTTP/network failures and secret-free state. HTTP, timers, sessions and feedback helpers mocked; no external requests or writes.';})().catch(error=>{document.getElementById('result').textContent='FAIL: '+error.stack;console.error(error);});</script>

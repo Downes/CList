@@ -820,3 +820,17 @@
 /** @typedef {{phase:('idle'|'loading'|'ready'|'absent'|'failed'),canSign:boolean,signing:number,verifying:number}} CListChatIdentityState Safe availability/counts only; keys, account targets and signatures stay private. */
 
 /** @typedef {{phase:('idle'|'waiting'|'sending'|'expired'),busy:boolean}} CListChatHeartbeatState Safe timer progress only; discussion, endpoint, token and peer stay private. */
+
+/** @typedef {{busy:boolean}} CListChatCollaborationState Safe dispatch progress only; transcript, discussion and callbacks remain private. */
+
+/** @typedef {{phase:('loading'|'ready'|'error'),busy:boolean}} CListSummaryState Safe progress only; source content, account credentials and result callbacks stay private. */
+
+/** @typedef {{enabled:boolean,pending:number}} CListTranslationState Safe preference/progress only; text, keys and request targets remain private. */
+
+/** @typedef {{pending:number}} CListTemplateRequestState Safe in-flight count only; generated content, prompts, account keys and sessions remain private. */
+
+/** @typedef {{phase:('editing'|'generating'|'error'|'complete'|'cancelled'),busy:boolean}} CListTemplateFormState Safe panel progress only; draft choices, generated content and callbacks stay private. */
+
+/** @typedef {{phase:('loading'|'ready'|'empty'|'error'),count:number,opening:boolean}} CListCollabDocumentsState Safe browser progress/count only; document rows, captured servers and credentials stay private. */
+
+/** @typedef {{phase:('preparing'|'ready'|'error'),pending:number}} CListCollabPreparationState Safe preparation summary only; credentials, module resources, DOM targets and document identities remain private. */

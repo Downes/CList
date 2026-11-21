@@ -11,122 +11,28 @@
 // 
 
 
-let translationEnabled = localStorage.getItem('translationEnabled') === 'true';
-
-function toggleTranslation() {
-    translationEnabled = !translationEnabled;
-    localStorage.setItem('translationEnabled', translationEnabled);
-    const btn = document.getElementById('translation-toggle-btn');
-    if (btn) btn.textContent = 'Translate: ' + (translationEnabled ? 'ON' : 'OFF');
-}
-
-async function handleTranslation() {
-    const inputText = document.getElementById('inputText').value;
-    const translatedText = await processTranslation(inputText);
-    document.getElementById('translated-text').innerText = translatedText;
-}
-
+let translationEnabled = false; // Compatibility alias; controller owns the preference.
 function getTranslationAccount() {
-    // Find the account with permission 't'
-    const found = findAccountByPermission('t');
-    return found ? found.parsedValue.id : null;
+    const found = findAccountByPermission('t'); return found ? found.parsedValue.id : null;
 }
-
-// Function to detect the language of input text
-async function detectLanguage(inputText) {
-    TranslationApiKey = getTranslationAccount();
-    if (!TranslationApiKey) {
-        console.log("No translation account");
-        return 'en';
-    }
-    const response = await fetch(
-        `https://translation.googleapis.com/language/translate/v2/detect?key=${TranslationApiKey}`, 
-        {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ q: inputText })
-        }
-    );
-
-    const data = await response.json();
-    const detectedLang = data?.data?.detections[0][0]?.language || 'unknown';
-    //console.log(`Detected Language: ${detectedLang}`);
-    return detectedLang;
+function translationSource() {
+    return JSON.stringify([readerSession(), readerState().requestId, window.CList.state.authEpoch || 0]);
 }
-
-// Function to translate text into English
-async function translateToEnglish(inputText, sourceLang) {
-    TranslationApiKey = getTranslationAccount();
-    if (!TranslationApiKey) {
-        console.log("No translation account");
-        return inputText;
-    }
-    const response = await fetch(
-        `https://translation.googleapis.com/language/translate/v2?key=${TranslationApiKey}`, 
-        {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                q: inputText,
-                source: sourceLang,
-                target: 'en',
-                format: 'html'
-            })
-        }
-    );
-
-    const data = await response.json();
-    const translatedText = data?.data?.translations[0]?.translatedText || '';
-    //console.log('Translated Text:', translatedText);
-    return translatedText;
+const _translationController = createTranslationController({
+    read: () => localStorage.getItem(window.CList.keys.TRANSLATION_ENABLED),
+    write: value => localStorage.setItem(window.CList.keys.TRANSLATION_ENABLED, value),
+    key: getTranslationAccount, source: translationSource,
+    run: (text, key, assertCurrent) => runTranslationWorkflow(text, key, { assertCurrent, fetch: (...args) => fetch(...args) }),
+    timeout: (work, ms) => withTimeout(work, ms),
+    state: value => { translationEnabled = value.enabled; window.CList.state.translation = value; }
+}, createTranslationView());
+function toggleTranslation() { return _translationController.toggle(); }
+function handleTranslation() { return _translationController.handle(); }
+async function detectLanguage(text) {
+    const key = getTranslationAccount(); return key ? requestTranslationStep(text, null, key, { fetch: (...args) => fetch(...args) }) : 'en';
 }
-
-// Updated processTranslation function with a timeout
-async function processTranslationWithTimeout(inputText) {
-
-    if (!translationEnabled) return inputText;
-
-    // Make sure we have a translation account defined
-    // and just return original text if we haven't
-    TranslationApiKey = getTranslationAccount();
-    if (!TranslationApiKey) {
-        console.log("No translation account");
-        return inputText;
-    }
-
-    try {
-        const translatedText = await withTimeout(processTranslation(inputText), 5000); // 5 seconds timeout
-        return translatedText;
-    } catch (error) {
-        console.error('Translation failed or timed out:', error);
-        throw error;  // Re-throw the error to handle it in the calling code
-    }
+async function translateToEnglish(text, language) {
+    const key = getTranslationAccount(); return key ? requestTranslationStep(text, language, key, { fetch: (...args) => fetch(...args) }) : text;
 }
-
-// Main function to detect and translate text
-async function processTranslation(inputText) {
-    try {
-        const detectedLang = await detectLanguage(inputText);
-        
-        if (detectedLang === 'en') {
-            //console.log('The text is already in English.', inputText);
-            return inputText;
-        } else if  (detectedLang === 'und') {
-            //console.log('The language is undefined:', inputText);
-            return inputText;
-        }
-        //console.log('Translating text from '+detectedLang);
-        const translatedText = await translateToEnglish(inputText, detectedLang);
-        return translatedText;
-    } catch (error) {
-        console.error('Error during translation:', error);
-        return inputText;
-    }
-}
-
-// Example usage:
-// const inputText = 'キャンピングカ';  // Replace with any text
-// const inputText = '\u30AD\u30E3\u30F3\u30D4\u30F3\u30B0\u30AB';  // Japanese: "Camping Car"
-
-//processTranslation(inputText);
-
+function processTranslationWithTimeout(text) { return _translationController.run(text, true); }
+function processTranslation(text) { return _translationController.run(text); }

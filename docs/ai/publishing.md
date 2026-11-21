@@ -585,3 +585,48 @@ wrappers. Invalidate stale results before feedback or stopping timers; an old
 response cannot stop its replacement. Prevent overlap, stop on 401, and retain
 the existing one-minute schedule after other failures without immediate retries.
 Successful heartbeat HTTP is an activity receipt, not publication confirmation.
+
+Chat-to-document preparation/dispatch uses `dynamicp2p_collaboration*`. Preserve
+the existing last-15 nonempty, non-card transcript HTML and captured discussion.
+Keep API/transcript snapshots private; `chatCollaboration` exposes busy only.
+Queued stale calls must not dispatch; pending duplicate clicks share one promise.
+The existing `openCollabFromChat` API retains document creation, delayed insertion
+and invitation effects, including its own failure reporting. Dispatch completion
+does not establish successful publication, cancel its internals or protect newer
+editor content within that API.
+
+Summarize now uses an explicit request workflow and captured controller/view.
+The output Load action retains `loadContentToEditor` with an output-specific
+content ID and bound node/reader/account/input guards. It selects the active
+editor when clicked; these guards do not cancel editor internals after dispatch.
+Keep generated text literal and credential/content snapshots out of public state.
+
+ChatGPT template requests now use an explicit transport/continuation workflow
+and captured account/session controller. Preserve model/prompt/token settings
+and exact chunk concatenation; fail closed after account-loading failure or
+session/credential replacement. Request helpers propagate failures to their
+callers. Request-only guards do not own form cancellation or editor transfer.
+
+Template generation controls now use `chatgpt_template_form.js` and
+`chatgpt_template_view.js`. Keep choices/pending content private and return the
+existing MIME/value record to the shared Load controller. Capture session/editor/
+account and control/load/switch identities; reject late results for changed
+owners. Back/removal/replacement settles null and expires the request caller
+guard. Form-local progress cannot hide another panel's shared loader. These
+guards neither abort started HTTP nor cancel editor mounting/insertion after
+the shared Load boundary dispatches returned content. Same-editor drafts still
+use existing load/overwrite protections.
+
+Collab document listing/selection now uses explicit captured requests and
+controller/view modules. The opening hook retains editor initialization, title
+updates and connection in `collab.js`, receiving the listed document/server and
+session/request guard. Recheck before/after mounting and before pane close;
+never redirect a saved row to another listed server. These dispatch checks do
+not cancel effects inside the existing live connection lifecycle.
+
+`connectToDoc` and local editor initialization now await shared captured
+connection preparation, then recheck its commit guard before destroying any
+existing resources. Server/dependency awaits cannot switch to newer credentials
+or editor nodes. Provider/editor constructors use captured token/store/identity/
+element values. Started lookup/import work still completes, and existing provider
+callbacks, reference/awareness behavior and resource teardown remain separate.

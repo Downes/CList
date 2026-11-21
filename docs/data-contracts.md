@@ -748,3 +748,108 @@ still match before sends and completion effects. A 401 expires the timer; HTTP
 and network failures produce feedback and allow the next scheduled minute tick.
 No immediate retry, abort of in-flight HTTP, or server publication guarantee is
 provided. Existing heartbeat interval alias is maintained for compatibility.
+
+`CListChatCollaborationState` contains busy only. Chat transcript HTML, discussion
+name, selected API and pending promise stay private. Capture DOM rows in the view;
+the pure preparation workflow filters empty rows and descendant share cards and
+wraps the last 15 eligible row HTML strings in paragraphs. Empty context remains
+null, preserving the existing collaboration API contract. Duplicate pending
+commands coalesce; replaced session/discussion/transcript or disposed controllers
+reject queued dispatch and suppress stale feedback. Already dispatched legacy
+collaboration work remains governed by its existing editor lifecycle; the boolean
+dispatch result is not proof of document creation or invitation delivery.
+
+Chat link decoration has no persistent state. A recognized presentation model
+contains link and literal sender only; nonmatching messages retain their original
+content. The existing case-sensitive first quoted/bracketed HTTPS URL/`etherpad`
+substring heuristic is preserved, without establishing service authenticity.
+The view decodes serialized HTML entities once before assigning the URL, uses
+text nodes for metadata and returns HTML to the existing sanitizer/relay path.
+Safe ordinary link navigation is preserved; no live Etherpad session is opened
+by preparation/rendering.
+
+`CListSummaryState` exposes phase/busy only. Source HTML, AI endpoint/key, generated
+text and Load callbacks remain private. Requests preserve the existing model,
+prompts, token calculation and empty-result fallback; nonstring response content
+is rejected. Source capture omits header/action controls and the captured summary
+output itself. Pending duplicates share an operation; changed input supersedes
+old results. Reader/session/account/node replacement invalidates completion and
+Load controls. The result uses literal text and an output-specific content ID,
+then delegates current-user Load intent to the existing editor API. No automatic
+AI retries, external publication or editor mounting cancellation is implied.
+
+`CListTranslationState` holds enabled/pending only. Input, API key, source/session,
+form nodes and deadline ownership remain private. One captured key is used for
+both Google detect and translate requests, with English/`und` short-circuits and
+HTML-format English output preserved. Disabled timed calls and missing keys
+return original text without requests. Ordinary service failures visibly fall
+back to original text; the five-second timed wrapper still rejects on timeout
+for existing reader fallbacks. Late detection cannot start translation after
+expiry, but already-started HTTP is not aborted. Pending counts describe owned
+controller work, not remaining transport activity after timeout.
+
+The stored preference name remains `translationEnabled`, accessed through
+`CList.keys.TRANSLATION_ENABLED`. Restoration performs no writes; failed saves
+leave the prior setting intact. Concurrent reader rows remain independent.
+Manual form requests coalesce duplicates and protect newer text/replaced nodes,
+source/account/preference changes. Form results use literal text; reader results
+remain HTML passed through the existing service normalization/rendering paths.
+
+`CListTemplateRequestState` exposes pending count only. Account endpoint/key,
+session fingerprint, prompts/history and generated text remain private. Account
+loading completes before one detached credential capture; source replacement
+or loading failure prevents transport. Every response, JSON parse and continuation
+checks the original session and selected credential values. The legacy GPT-4,
+2000-token and assistant-message continuation contract remains; content strings
+concatenate without formatting changes. Unknown finish reasons, malformed content
+and empty `length` continuations reject without retry. Independent calls retain
+independent histories. Already-started HTTP/account loading is not cancelled.
+The legacy form/fence helper/loader remain separate, with no new form or editor
+ownership guarantees from this request boundary.
+
+`CListTemplateFormState` contains phase/busy only. Draft choices, generated
+content, operation guards and the loader result promise remain private. DOM
+events update controller-owned choices; Generate captures custom-or-selected
+type and format. Duplicate pending submissions coalesce. Editing choices expires
+the old intent without automatically sending another request; explicit Generate
+can start the new draft. The optional request caller guard is checked before
+account loading, after awaits and before continuations.
+
+Success retains fence extraction and returns `{type:'text/html'|'text/plain',
+value:string}` to the existing loader boundary. Back/removal/replacement/session/
+editor expiry settles null. Cancel is idempotent; stale errors cannot affect the
+new panel. Mutation observation cleans externally removed idle forms; action and
+completion checks enforce ownership independently. The view owns progress/error
+feedback locally and never mutates the shared loading indicator. No actual HTTP
+abort or downstream editor mounting cancellation is implied.
+
+`CListCollabDocumentsState` exposes phase/count/opening only. Captured server,
+auth token, account records, document rows and callbacks stay private. Listing
+reads use the original session token and resolved selected/default server.
+Unreadable account reads fail closed. Server data must be an array of entries
+with nonempty string IDs and nullable/string titles; detached presentation rows
+retain ID and title only, preserving order and existing local-name fallback.
+
+The self-managing loader still returns null. Rows reject duplicate pending opens,
+replaced list/container/session callbacks and old request generations. Opening
+receives a detached record, captured server and source/request guard. The existing
+editor-opening hook owns mounting/connection/title changes; the list boundary
+does not abort its internal asynchronous dependencies or WebSocket work. After
+an opening handoff removes the list, current-session errors may use a status
+notice. No live connection or downstream draft protection is implied by listing
+tests, whose opening hook is mocked.
+
+`CListCollabPreparationState` exposes phase/pending only. Credentials, account/
+session/editor fingerprint, element/status nodes, module references and commit
+guard are transient private captures. Local and remote preparation share one
+generation; a newer start expires the earlier one. Recheck after server lookup,
+dependency loading and immediately before resource replacement. Configuration
+retains selected/override server, read/edit behavior and legacy anonymous token/
+name fallbacks. Dependency/server failures propagate to existing callers.
+
+Preparation cannot construct/destroy editors or sockets. The `collab.js` adapter
+uses captured credentials/store/identity/element in its existing constructors
+only after the commit guard passes. Old lookup/import work is not aborted;
+resource cleanup, provider callbacks, awareness and reference observers remain
+on their existing implementation. Mocked preparation evidence does not verify
+those lifecycles or live authentication/WebSockets.

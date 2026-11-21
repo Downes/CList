@@ -318,6 +318,7 @@ See `docs/adding-a-service.md` for the complete pattern.
 | `window.CList.keys.TOKEN_EXPIRES` | `'token_expires'` | token expiry timestamp (site-specific cookie) |
 | `window.CList.keys.OAUTH_CALLBACK_RESULT` | `'oauth_callback_result'` | OAuth popup result (localStorage) |
 | `window.CList.keys.KVSTORE_URL` | `'clist_kvstore_url'` | selected kvstore server URL (localStorage) |
+| `window.CList.keys.TRANSLATION_ENABLED` | `'translationEnabled'` | translation preference (localStorage) |
 | `window.CList.keys.EDITOR_DRAFT_PREFIX` | `'clist_draft_'` | per-editor draft body and `_refs` sessionStorage keys |
 
 These constants are declared in the inline `<script>` block in `index.html` and are available before any deferred script loads. Using them ensures a rename is a one-line change and prevents typo-silent bugs.
@@ -692,3 +693,72 @@ invalidate old timers/results on discussion, peer, service or source changes.
 401 stops the timer; other failures remain visible and the next scheduled tick
 may try again. No immediate retry or publication/delivery confirmation is implied.
 `CList.state.chatHeartbeat` contains phase/busy only, never target credentials.
+
+Start document from chat uses `dynamicp2p_collaboration_workflow.js` (last-15
+transcript preparation), `dynamicp2p_collaboration.js` (captured dispatch/busy
+ownership) and `dynamicp2p_collaboration_view.js` (DOM snapshot/feedback). Reuse
+`openCollabFromChat` without duplicating editor creation. Capture the API and
+discussion before deferred dispatch, coalesce pending clicks and reject stale
+source/discussion/transcript callbacks. These guards do not cancel the existing
+collaboration API's internal mounting, writes or invitation dispatch.
+
+Stateless Etherpad chat decoration uses `prepareP2pEtherpadLink` in the existing
+message workflow and `renderP2pEtherpadLink` in its view. Keep legacy wrappers and
+the first quoted/bracketed HTTPS URL heuristic. Render sender labels as text,
+decode serialized link entities once, and retain the shared message sanitizer.
+Serialized links use safe ordinary navigation; DOM listeners do not survive HTML
+serialization. Do not add a separate controller/state for this synchronous step.
+
+Summarize uses `summarize-workflow.js` (explicit account/request/prompt),
+`summarize-controller.js` (captured reader/account/input and operation ownership),
+and `summarize-view.js` (DOM capture/output/Load feedback). Keep legacy APIs in
+`summarize.js` and reuse `requireAccountWithPermission('z', ...)`. Preserve model,
+prompts and token limits. Exclude nested summary output from source snapshots;
+coalesce duplicates and reject stale responses/Load controls. Request failures
+propagate to the view. No account credentials or content in `state.summarizing`.
+
+Translate uses `translate-workflow.js` (explicit detect/translate requests),
+`translate-controller.js` (preference, captured key/source, concurrent operations
+and deadline/form ownership) and `translate-view.js` (labels/form/feedback).
+`translate.js` retains compatibility APIs and the `translationEnabled` alias.
+Reuse the preference key constant and shared timeout helper. Preserve independent
+row requests, English/undefined-language and original-text fallbacks, and timed
+wrapper rejection on timeout. Source/key/toggle/deadline expiry prevents follow-up
+translation and stale form output; started HTTP is not cancelled. Public state
+holds enabled/pending only. Request adapters propagate errors, views own feedback.
+
+ChatGPT template transport/continuations use `chatgpt_requests.js`; captured
+account loading, session/credential checks and request counts use
+`chatgpt_template_requests.js`. Keep schema/loader/compatibility APIs in
+`chatgpt.js`. Account-loading failures must stop generation, and continuation
+chunks must retain one captured URL/key and exact assistant history. Reject
+malformed/nonprogressing responses without automatic retry. Errors propagate to
+callers; no UI in request helpers. Public request state holds pending only.
+
+The generation form uses `chatgpt_template_form.js` (private choices, pending
+intent, loader result and captured ownership) and `chatgpt_template_view.js`
+(controls/local progress/errors/observer cleanup). Keep schema, fence extraction
+and compatibility loader in `chatgpt.js`. Pass the optional caller guard through
+generation requests so Back/changed choices prevent subsequent chunks. Back and
+replaced/expired panels settle null; explicit retry preserves draft choices.
+Progress is form-owned, not a shared-loader mutation. Public form state contains
+phase/busy only. Existing editor controls still own returned-content routing.
+
+Collab document browsing uses `collab_documents_requests.js` (captured account/
+server/session GET and normalization), `collab_documents.js` (request/row lifetime
+and opening lock) and `collab_documents_view.js` (literal list/feedback/retry).
+The registered loader in `collab.js` supplies its existing title/opening hooks.
+Keep lazy/default account resolution, fail closed on unreadable accounts, pass
+the listed server into opening and reject stale saved rows. Opening errors may
+use session-owned status feedback after editor mounting removes the list. The
+legacy editor/dependency/WebSocket lifecycle itself is not cancelled by these
+guards. Public list state contains phase/count/opening only.
+
+Local/remote Collab initialization now shares `collab_connection_preparation.js`.
+Capture credentials, server lookup ownership and editor/status nodes before any
+await; recheck the returned commit guard before replacing live resources.
+Local/remote starts supersede each other. Use captured element, token, store URL
+and identity in the existing constructors, and expose phase/pending only through
+`state.collabPreparation`. Started lookup/import work is not aborted. Provider
+callbacks, resource cleanup, reference observation and awareness UI remain on
+their existing lifecycle and need separate migration.

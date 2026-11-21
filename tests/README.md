@@ -1924,3 +1924,173 @@ Live services and complete app integration are unverified.
 passed 28/28 (7 heartbeat, 10 session, 11 Create/Leave). Full Node suite passed
 870/870, zero failures/skips. The user reported browser PASS: 25 checks,
 with the stated dependencies mocked and no external requests or writes.
+
+### Start document from chat — user-reported browser PASS
+
+`p2p-collaboration.test.cjs` uses six shared cases from
+`helpers/p2p-collaboration-fixture.js`; `p2p-collaboration.browser.html` adds two
+actual browser DOM assertions. Open
+`https://localhost:51888/tests/p2p-collaboration.browser.html` and report PASS/FAIL
+(marker `test 2026-11-21.13`). Preparation/controller/view and legacy wrapper are
+real; collaboration API, sessions and feedback are mocked. Transcript structures
+are mocked in shared cases. No external requests or writes. Covers last-15 row
+ordering, card/blank exclusion, preserved HTML, captured API/discussion/contents,
+duplicate pending commands, empty context, stale source/view/discussion/disposal,
+visible failures/explicit retry and state privacy. The browser separately tests
+real row capture and removal. Existing collaboration creation, delayed insertion,
+editor mounting and invitations remain unverified.
+
+`node --test tests/p2p-collaboration.test.cjs tests/p2p-popup.test.cjs tests/p2p-session.test.cjs`
+passed 25/25 (6 new, 9 popup, 10 session). Full Node passed 876/876, zero
+failures/skips. The user reported browser PASS: 22 checks, with
+collaboration/session/feedback APIs mocked and no external requests or writes.
+Collaboration editor internals were not exercised.
+
+### Chat Etherpad link formatting — user-reported browser PASS
+
+`p2p-decoration.test.cjs` shares four cases through
+`helpers/p2p-decoration-fixture.js` with `p2p-decoration.browser.html`.
+Open `https://localhost:51888/tests/p2p-decoration.browser.html` and report
+PASS/FAIL (marker `test 2026-11-21.14`). Node covers detached literal metadata,
+legacy case-sensitive first quoted/bracketed HTTPS URL/substring rules, unchanged
+nonmatching input and wrapper dispatch with rendering stubbed. The browser adds
+actual HTML view/message renderer/sanitizer checks: exact query URL, safe link
+attributes, literal sender, existing emphasis and escaped/sanitized popup relay.
+Session, transport and feedback/relay helpers are mocked; no external requests
+or writes and no links opened. Node does not verify actual DOM rendering.
+
+`node --test tests/p2p-decoration.test.cjs tests/p2p-messages.test.cjs tests/p2p-session.test.cjs`
+passed 22/22 (4 new, 8 messages, 10 session). Full Node passed 880/880,
+zero failures/skips. The user reported browser PASS: 18 checks, with the stated
+dependencies mocked, no external requests or writes, and links not opened.
+Live Etherpad is not exercised.
+
+### Summarize — user-reported browser PASS
+
+`summarize.test.cjs` shares seven cases via `helpers/summarize-fixture.js` with
+`summarize.browser.html`. Open `https://localhost:51888/tests/summarize.browser.html`
+and report PASS/FAIL (marker `test 2026-11-21.15`). Real request/controller and
+compatibility APIs use mocked view/account/HTTP/reader/editor dependencies.
+Cases cover preserved model/prompts/token calculation, captured endpoint/key,
+empty/malformed/HTTP/network responses, duplicate and superseded requests, source/
+view/disposal/account guards, stale Load controls, explicit retry and state privacy.
+The browser adds actual DOM capture/rendering, nested-output exclusion, literal
+generated text, output-specific Load IDs and detached button rejection. The
+existing shared-row test now uses the real extracted summary view, replacing its
+obsolete function-source slice. No external requests or writes; live AI and editor
+mounting are not exercised.
+
+`node --test tests/summarize.test.cjs tests/reader-row-context.test.cjs` passed
+10/10 (7 new, 3 shared-row). Full Node passed 887/887, zero failures/skips.
+The user reported browser PASS: 32 checks, with HTTP/accounts/reader/editor
+effects mocked and no external requests or writes. Live AI and editor mounting
+were not exercised.
+
+### Translate — user-reported browser PASS
+
+`translate.test.cjs` shares eight cases through `helpers/translate-fixture.js`
+with `translate.browser.html`. Open
+`https://localhost:51888/tests/translate.browser.html` and report PASS/FAIL
+(marker `test 2026-11-21.16`). Real workflow/controller/view and wrappers use
+mocked HTTP, preference storage, accounts, reader/session values and deadlines.
+Browser form/toggle DOM runs directly; Node uses the existing small DOM helper.
+No external requests, real storage writes or real timers. Cases cover captured
+encoded keys and detect/HTML payloads, independent rows, read-without-write
+restoration, failed preference saves, disabled/missing-key/en/und fallbacks,
+source/key/toggle/deadline guards, expired follow-up detection, HTTP/malformed/
+network errors, explicit later recovery, form duplicates and newer-input/account/
+preference isolation, literal output and public-state privacy.
+
+`node --test tests/translate.test.cjs tests/action-menu.test.cjs tests/mastodon-reader.test.cjs tests/bluesky-reader.test.cjs`
+passed 32/32 across Translate, menus, Mastodon and Bluesky. Full Node passed
+895/895, zero failures/skips. The user reported browser PASS: 31 checks, with
+HTTP/storage/accounts/reader/deadlines mocked and no external requests or real
+writes. Live translation and full reader rendering were not exercised.
+Adjacent reader tests mock translation.
+
+### ChatGPT template requests — user-reported browser PASS
+
+`chatgpt-requests.test.cjs` shares seven cases from
+`helpers/chatgpt-requests-fixture.js` with `chatgpt-requests.browser.html`.
+Open `https://localhost:51888/tests/chatgpt-requests.browser.html` and report
+PASS/FAIL (marker `test 2026-11-21.17`). Transport/continuation workflow, captured
+request controller and wrapper are real. HTTP, account loading/selection and
+sessions are mocked; no external requests or writes. Cases cover the preserved
+model/prompt/limits, original endpoint/key, exact chunk history and concatenation,
+fail-closed loading, session/key/JSON expiry, HTTP/malformed/unexpected-reason/
+nonprogressing responses, explicit later recovery, independent histories,
+existing schema/loader/fence helper and credential-free pending state. No form,
+editor transfer/mounting or live AI coverage is implied.
+
+`node --test tests/chatgpt-requests.test.cjs tests/summarize.test.cjs` passed
+14/14 (7 new, 7 summary). Full Node passed 902/902, zero failures/skips.
+The user reported browser PASS: 34 checks, with HTTP/accounts/sessions mocked
+and no external requests or writes. Generation form, editor loading and live AI
+were not exercised; generation form is the next separate slice.
+
+### Template generation form — user-reported browser PASS
+
+`template-form.test.cjs` shares seven cases through
+`helpers/template-form-fixture.js` with `template-form.browser.html`. Open
+`https://localhost:51888/tests/template-form.browser.html` and report PASS/FAIL
+(marker `test 2026-11-21.18`). Real form/controller/view, request workflow and
+loader wrapper use mocked HTTP/account/session/editor/navigation dependencies.
+Node uses the existing small DOM helper; browser controls/progress are real.
+Shared cases explicitly deliver removal notifications; the browser adds actual
+MutationObserver cleanup. Cases cover trimmed custom override/format/fence and
+MIME record, duplicates, edited choices and expired continuations, Back/null
+settlement, explicit retry/draft retention, source/editor/panel expiry, saved
+callbacks, shared-loader noninterference and state privacy. No external requests
+or writes; live AI and downstream editor transfer/mounting are not exercised.
+
+`node --test tests/template-form.test.cjs tests/chatgpt-requests.test.cjs`
+passed 14/14 (7 new, 7 request cases). Full Node passed 909/909, zero
+failures/skips. The user reported browser PASS: 21 checks, with
+HTTP/accounts/sessions/editor/navigation effects mocked and no external requests
+or writes. Live AI and editor mounting were not exercised.
+
+### Collab document browsing — user-reported browser PASS
+
+`collab-documents.test.cjs` shares seven cases through
+`helpers/collab-documents-fixture.js` with `collab-documents.browser.html`.
+Open `https://localhost:51888/tests/collab-documents.browser.html` and report
+PASS/FAIL (marker `test 2026-11-21.19`). Real list requests/controller/view and
+browser bridge use mocked HTTP/accounts/sessions/shared account/URL helpers and
+opening hook. Browser DOM rows run directly; Node uses the small existing DOM
+helper. No external requests or writes. Covers endpoint/header/server capture,
+lazy/default accounts, fail-closed account errors, empty/HTTP/malformed/login
+feedback and explicit Retry, literal titles/local-name fallback, superseded and
+expired requests, duplicate pending opens, saved rows, captured open arguments,
+visible open failures/explicit retry and private state. Actual editor initialization,
+connection and WebSocket lifecycle are outside this fixture.
+
+`node --test tests/collab-documents.test.cjs tests/editor-controls.test.cjs tests/editor-references.test.cjs`
+passed 25/25. Full Node passed 916/916, zero failures/skips. The user reported
+browser PASS: 22 checks, with HTTP/accounts/sessions/shared helpers/opening hook
+mocked and no external requests or writes. Editor initialization, connection and
+live WebSocket lifecycle were not exercised.
+
+### Collab connection preparation — user-reported browser PASS
+
+`collab-preparation.test.cjs` shares seven cases through
+`helpers/collab-preparation-fixture.js` with `collab-preparation.browser.html`.
+Open `https://localhost:51888/tests/collab-preparation.browser.html` and report
+PASS/FAIL (marker `test 2026-11-21.20`). Real preparation uses mocked server lookup,
+dependency loading, source/editor identity and state delivery; no external
+requests or writes. Cases cover captured credentials/configuration, local and
+explicit-server routing, anonymous defaults, failures/recovery, stale lookup/
+load targets, local/remote supersession, commit guards and pending-count draining.
+The browser fixture does not exercise the full adapter or actual resource classes.
+
+An eighth Node case loads the real `collab.js` initializer closures with narrow
+dependency/toolbar substitutions and fake Editor/Y.Doc/provider/timer APIs. It
+verifies stale dependencies cannot destroy existing resources, read-mode/server/
+token/store/element constructor values, and local-start supersession of remote
+preparation. It does not verify real TipTap, authentication, provider events,
+reference/awareness callbacks, teardown correctness or WebSockets.
+
+`node --test tests/collab-preparation.test.cjs tests/collab-documents.test.cjs tests/editor-references.test.cjs`
+passed 21/21. Full Node passed 924/924, zero failures/skips. The user reported
+browser PASS: 20 checks, with server/dependency/session/editor-target APIs mocked
+and no external requests or writes. Full adapter, provider callbacks, teardown
+and live WebSockets were not exercised by the browser fixture.

@@ -1,3 +1,20 @@
+function renderP2pEtherpadLink(model, doc = document) {
+    // Recognition sees serialized HTML after sanitization. Decode its entities
+    // once before assigning a URL, so query separators do not become "&amp;".
+    const decoded = doc.createElement('textarea'); decoded.innerHTML = model.link;
+    const link = decoded.value;
+    const a = doc.createElement('a');
+    a.href = link; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = link;
+    const em = doc.createElement('em'), i = doc.createElement('i');
+    i.appendChild(a); em.appendChild(i);
+    const tmp = doc.createElement('div');
+    tmp.appendChild(doc.createTextNode(model.sender + ' shared an Etherpad link (Click on the link to open): '));
+    tmp.appendChild(em);
+    // Serialized chat HTML retains ordinary safe-link navigation; DOM listeners
+    // cannot survive this string boundary. The shared message sanitizer still runs.
+    return tmp.innerHTML;
+}
+
 function createP2pMessageView(doc = document, deps = {}) {
     const root = doc.getElementById('chat-messages');
     const sanitize = deps.sanitize || (text => sanitizeHTML(text));
