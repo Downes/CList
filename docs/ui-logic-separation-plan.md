@@ -89,6 +89,21 @@ The user-approved remaining order is:
    `admin-settings.browser.html` passed user testing, 25 checks). Backend authorization and
    live services remain outside mocked validation.
 6. Pane persistence/navigation, keyboard/mobile state and reusable action/menu contracts.
+   First slice: layout state, legacy two-profile persistence, open/close/snap/reveal
+   commands and drag sizing now use `pane-state.js`, `panes.js` and `pane-view.js`
+   (753/753 Node tests pass; `panes.browser.html` passed user testing, 23 checks).
+   Keyboard/touch interpretation now uses `navigation-state.js`, `navigation.js`
+   and `navigation-view.js` (764/764 Node tests pass; `navigation.browser.html`
+   passed user testing, 41 checks). Shared labelled action definitions/controller/view
+   now pilot the reader feed-menu through `action-menu.js` and `action-menu-view.js`;
+   770/770 Node tests pass; the user reported browser PASS, 22 checks.
+   Reader pop-out/Back/Close/Escape/focus-return now use `menu-shell.js` and
+   `menu-shell-view.js`, moving the same menu node through the existing app modal.
+   777/777 Node tests pass; the user reported browser PASS, 26 checks. Service dispatch and Translate are
+   preserved. LocalRSS Options now adopts the same shell with its existing header
+   trigger and captured target guards; drafts/statistics/pending operations stay
+   on the same root (784/784 Node tests pass; user-reported browser PASS, 21 checks). Legacy database/feed/
+   import internals remain outside this presentation slice.
 7. Collaboration/P2P chat session workflows, then remaining AI feature boundaries.
 
 For each slice: keep current behavior, reuse registries/helpers, capture inputs

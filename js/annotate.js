@@ -62,11 +62,10 @@ function _serviceLabel(creatorId) {
 // referenceDisplayName. HTML-capable editors get the quote escaped and wrapped for HTML;
 // plain-text editors keep the quote-only behavior. The bracket citation itself is appended
 // by handler.insertLink/insertLinkVia, per editor type. Shared by the arrow button
-// (clistAnnotate, below) and the Alt+A "open Annotate editor" shortcut (interface.js) so
+// (clistAnnotate, below) and the Alt+A "open Annotate editor" shortcut (navigation.js) so
 // both quote the same way.
-function _buildQuoteContent(reference, handler) {
-    const selection = window.getSelection();
-    const selectedText = selection ? selection.toString().trim() : '';
+function _buildQuoteContent(reference, handler, capturedSelection) {
+    const selectedText = capturedSelection === undefined ? (window.getSelection()?.toString().trim() || '') : capturedSelection;
     const textToQuote = selectedText || reference.summary || '';
     const attribution = referenceDisplayName(reference);
     const feedTitle = attribution;
@@ -79,6 +78,21 @@ function _buildQuoteContent(reference, handler) {
         : { type: supportsHtml ? 'text/html' : 'text/plain', value: '' };
 
     return { content, feedTitle };
+}
+
+// Keyboard routing reuses the editor switch queue and quote formatter.
+async function annotateNavigationReference(reference, selectedText, isCurrent) {
+    const returnTo = currentEditor === 'annotate-edit' ? null : currentEditor;
+    const switching = switchToEditor('annotate-edit');
+    const switchId = window.CList.state.editorSwitching?.id;
+    const success = await switching;
+    if(success === false || !isCurrent() || currentEditor !== 'annotate-edit' || window.CList.state.editorSwitching?.id !== switchId) return false;
+    const handler = editorHandlers['annotate-edit'];
+    if(typeof handler?.insertLink !== 'function') throw new Error('The annotation editor cannot insert a source quote.');
+    const {content,feedTitle} = _buildQuoteContent(reference,handler,selectedText);
+    if(returnTo) _annotateReturnEditor = returnTo;
+    await handler.insertLink({content,entryUrl:reference.url,feedTitle,reference:{...reference}});
+    return true;
 }
 
 window.clistAnnotate = async function(itemId) {

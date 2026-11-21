@@ -617,6 +617,16 @@ body a:hover, html a:hover { text-decoration: underline; }
 
 #feed-options-section { z-index: 6; }
 
+/* An overlay moved into the shared modal flows within that modal's bounds. */
+.left-pane-overlay-section.menu-shell-surface {
+  position: static;
+  margin-left: 0;
+  direction: ltr;
+}
+.left-pane-overlay-section.menu-shell-surface > .left-pane-overlay-header {
+  display: none;
+}
+
 .left-pane-overlay-section * { direction: ltr; }
 
 .left-pane-overlay-section::-webkit-scrollbar,

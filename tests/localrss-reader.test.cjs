@@ -251,7 +251,7 @@ function optionsFixture() {
     const f = fixture(), targets = [], stats = [], failures = [], confirmations = [], messages = [];
     vm.runInContext(source('localrss_options'), f.ctx);
     Object.assign(f.ctx, {
-        renderLocalrssOptions: target => { target.root = { parentNode: {} }; targets.push(target); },
+        renderLocalrssOptions: target => { target.root = { parentNode: {}, isConnected: true }; targets.push(target); },
         localrssOptionsStats: (target, data) => stats.push({ target, data }),
         localrssOptionsError: (target, action, error) => failures.push({ target, action, error }),
         _localrssConfirm: (_, title, confirm) => confirmations.push(confirm),
@@ -341,12 +341,14 @@ test('Options database transport is DOM-free and rejects HTTP/API/malformed resp
 
 test('Options view builds standard controls and binds Show, reconnect, close and Mark all to its captured target', () => {
     const f = fixture(), body = new Element('div'), actions = [];
+    const { NavigationElement } = require('./helpers/navigation-dom.cjs');
+    f.ctx.document.createElement = tag => new NavigationElement(tag);
     f.ctx.document.getElementById = id => id === 'left-pane-body' ? body : body.querySelector('#' + id);
     Object.assign(f.ctx, {openLeftPane() {}, showLeftOverlaySection() {},
         _localrssDatabaseSection() {}, _localrssFeedsSection() {}, _localrssImportExportSection() {}});
-    vm.runInContext(source('localrss_options_view'), f.ctx);
+    for (const name of ['menu-shell-view', 'menu-shell', 'localrss_options_view']) vm.runInContext(source(name), f.ctx);
     const target = {account:{serviceUrl:'https://rss'}, accountKey:'a', filter:'read',
-        close: () => actions.push('close'), reconnect: () => actions.push('reconnect'),
+        current: () => true, close: () => actions.push('close'), reconnect: () => actions.push('reconnect'),
         show: value => actions.push(value), confirmMarkAll: button => actions.push(button.textContent)};
     f.ctx.renderLocalrssOptions(target);
     const show = body.querySelector('#localrss-show-select');

@@ -16,7 +16,7 @@
             document.documentElement.classList.add('dark-mode');
         }
     </script>
-    <link rel="stylesheet" href="css/interface.css?v=8">
+    <link rel="stylesheet" href="css/interface.css?v=2026-11-21.2">
     <link rel="stylesheet" href="css/reader.css?v=1">
     <link rel="stylesheet" href="css/kvlist.css">
     <link rel="stylesheet" href="css/sidebar.css">
@@ -57,6 +57,8 @@
                 EDITOR_DRAFT_PREFIX:   'clist_draft_',
                 LOGOUT_MESSAGE:        'clist_logout_message',
                 SESSION_SIGNAL:        'kvstore',
+                PANE_STATE_LOGGED_OUT:  'clist_pane_state',
+                PANE_STATE_LOGGED_IN:   'clist_pane_state_loggedin',
             }
         };
         // Launcher's configured default applies first; an explicit saved user choice
@@ -384,7 +386,7 @@
 <script src="js/following-workflow.js?v=2026-11-20.5" defer></script>
 <script src="js/following-view.js?v=2026-11-20.5" defer></script>
 <script src="js/following.js?v=2026-11-20.5" defer></script>     <!-- Loads usere and account data -->
-<script src="js/editors.js?v=2026-11-20.20" defer></script>
+<script src="js/editors.js?v=2026-11-21.2" defer></script>
 <script src="js/editor-state.js?v=2026-11-20.1" defer></script>
 <script src="js/editor-switch-view.js?v=2026-11-20.1" defer></script>
 <script src="js/editor-switch.js?v=2026-11-20.1" defer></script>
@@ -395,7 +397,11 @@
 <script src="js/editor-load-view.js?v=2026-11-20.1" defer></script>
 <script src="js/editor-load.js?v=2026-11-20.1" defer></script>   <!-- Major function handlers-->
 <script src="js/reader-state.js" defer></script>
-<script src="js/reader-view.js" defer></script>
+<script src="js/action-menu-view.js?v=2026-11-20.23" defer></script>
+<script src="js/action-menu.js?v=2026-11-20.23" defer></script>
+<script src="js/menu-shell-view.js?v=2026-11-21.2" defer></script>
+<script src="js/menu-shell.js?v=2026-11-21.1" defer></script>
+<script src="js/reader-view.js?v=2026-11-21.1" defer></script>
 <script src="js/reader.js?v=2026-11-20.1" defer></script>
 <script src="js/find-state.js?v=2026-11-20.1" defer></script>
 <script src="js/find-view.js?v=2026-11-20.1" defer></script>
@@ -426,8 +432,8 @@
 <script src="js/localrss_row_view.js?v=2026-11-20.1" defer></script>
 <script src="js/localrss_reader.js" defer></script>
 <script src="js/localrss_actions.js?v=2026-11-20.1" defer></script>
-<script src="js/localrss_options_view.js" defer></script>
-<script src="js/localrss_options.js" defer></script>
+<script src="js/localrss_options_view.js?v=2026-11-21.2" defer></script>
+<script src="js/localrss_options.js?v=2026-11-21.2" defer></script>
 <script src="js/localrss_feeds_view.js" defer></script>
 <script src="js/localrss_feeds.js" defer></script>
 <script src="js/localrss_opml_requests.js" defer></script>
@@ -473,7 +479,7 @@
 <script src="js/annotation-view.js" defer></script>
 <script src="js/annotation-publishing.js" defer></script>
 <script src="js/annotate_publish.js" defer></script>
-<script src="js/annotate.js?v=2026-11-20.1" defer></script>
+<script src="js/annotate.js?v=2026-11-20.23" defer></script>
 <script src="js/annotate_requests.js?v=2026-11-20.1" defer></script>
 <script src="js/annotate_view.js?v=2026-11-20.4" defer></script>
 <script src="js/annotate_reader.js?v=2026-11-20.4" defer></script>   <!-- Annotation store -->
@@ -538,7 +544,13 @@
 <script src="js/save-panel.js?v=2026-11-20.1" defer></script>
 <script src="js/publish.js?v=2026-11-20.1" defer></script>
 <script src="js/webmention.js" defer></script>
-<script src="js/interface.js?v=2026-11-20.1"></script>
+<script src="js/pane-state.js?v=2026-11-20.21" defer></script>
+<script src="js/pane-view.js?v=2026-11-20.21" defer></script>
+<script src="js/panes.js?v=2026-11-20.21" defer></script>
+<script src="js/navigation-state.js?v=2026-11-20.23" defer></script>
+<script src="js/navigation-view.js?v=2026-11-20.23" defer></script>
+<script src="js/navigation.js?v=2026-11-20.23" defer></script>
+<script src="js/interface.js?v=2026-11-20.23"></script>
 
 <!-- Login / Register modal -->
 <div id="authModal" style="display:none; position:fixed; inset:0; background:var(--bg-modal-overlay); z-index:9999; align-items:center; justify-content:center;">

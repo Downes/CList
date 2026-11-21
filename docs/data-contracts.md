@@ -545,3 +545,56 @@ nonsecret values or known HTTP acceptance reconcile receipts. Unknown masked sec
 changes stay unconfirmed and require explicit review/save. Pending and unreviewed
 writes block overlapping saves across rebuilt panels in the same source session.
 No receipt is persisted across reload; no server CAS/atomicity is implied.
+
+`CListPaneState` is presentation-only canonical layout: drawer booleans,
+finite nonnegative numeric flex grows, focus/surface and dragging. It contains no
+credentials or editor content. `CListPanePreference` retains the four legacy
+properties `leftOpen`, `rightOpen`, `readFlex`, `writeFlex`; grow values serialize
+as numeric strings. Existing browser-serialized numeric flex shorthands normalize
+to grows. No new focus/content/authentication data is persisted.
+
+`PANE_STATE_LOGGED_OUT` (`clist_pane_state`) and `PANE_STATE_LOGGED_IN`
+(`clist_pane_state_loggedin`) preserve the two existing shared profiles; these are
+not per-user records. Restore reads/applies once without changing either stored
+profile, including malformed data. Layout commands save canonical state under the
+current profile. Drag source/profile identity stays private and expires on session
+change; preview does not write, mouseup writes once for an owned changed drag.
+Clamped/zero-width sizing and stale width transitions cannot hide/reopen panes
+unexpectedly. Storage failures keep the live layout usable with visible feedback.
+
+`CListNavigationState` exposes only selected index, entry count, gesture-pending
+and annotating flags. Nodes, reference snapshots, selection text, credentials and
+gesture/session captures remain private to the controller. Key/touch facts use
+`CListNavigationKeyFacts` and `CListNavigationTouchFacts` for pure interpretation.
+Shared listing rows expose optional `isCListRowCurrent()` backed by their existing
+captured row context; navigation filters expired rows through it. Legacy rows
+without that guard retain DOM-membership checks only. Pagination preserves selected
+earlier-page rows, while request-generation changes expire in-flight gestures and
+annotation dispatch. No navigation preference or content is persisted.
+
+`CListActionDefinition` is a transient captured command: stable ID, literal label,
+selected/disabled flags and optional run callback. Missing callbacks are disabled.
+Commands and pending/focus state belong to the menu instance, outside shared
+application state. The view never reads selection or command identity back from
+button attributes. Labels use textContent; callbacks retain their feature-owned
+account/session guards. The component expires replaced/detached controls but does
+not independently authorize service actions or cancel dispatched operations.
+
+Menu shell phase (`inline`, `popout`, `disposed`) is private to its controller.
+The view captures the original DOM parent/position and one modal presentation;
+no nodes, callbacks or focus targets enter shared application state or storage.
+The same menu node moves into the existing stacked-modal shell, retaining command
+definitions, pending locks and field values. Back/Close/Escape return that node
+and restore focus only from the currently owned dialog to a visible trigger.
+Reader menu replacement/reset disposes the shell without focus restoration.
+External removal or replacement returns nodes without closing a newer dialog.
+These presentation guards do not cancel dispatched feature/service operations.
+
+LocalRSS Options retains its existing private account/header/filter target and
+root node while popped out. `current()` now requires a connected root as well as
+captured account/session ownership. The optional private `disposePresentation`
+callback releases its shared shell when closing/switching databases; it neither
+repeats nor cancels pending data operations. Replacing Options closes/removes only
+the original presentation. Shared shell views accept an existing nested trigger,
+feature-current predicate and literal Back label; no new persistent/public data
+shape or service operation is introduced.

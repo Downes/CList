@@ -499,3 +499,18 @@ an unreadable/incomplete body requires GET, not another write. An uncertain save
 blocks writes until Check current settings; only a later explicit Save reviewed
 changes may resend intent. Masked secrets cannot be confirmed by GET. These client
 guards are not backend authorization or server compare-and-swap.
+
+Pane commands now dispatch through `panes.js` and render via `pane-view.js`.
+Preserve `closeRightPane({preserveEditorControls:true})` and the existing
+Save/editor-picker/editor-controls invalidations. Revealing an editor changes
+layout/focus without remounting its DOM. Signed-in/out preference names remain
+unchanged; restoration applies a complete state without intermediate writes.
+Drag preview never persists, and mouseup may persist only for its captured
+source/profile context. Annotation/collab aliases and public pane helpers remain
+compatible. Keyboard/swipe interpretation uses the separate navigation modules.
+
+Alt+A in `navigation.js` captures the selected reference and text before
+`annotateNavigationReference` reuses the existing editor-switch queue. Reject
+superseded reader/session/row/selection and editor-switch completions before
+dispatching insertion. These guards do not cancel an editor handler's mounting or
+its internal asynchronous insertion; do not claim full draft protection from them.

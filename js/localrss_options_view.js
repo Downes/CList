@@ -1,4 +1,5 @@
 // LocalRSS Options rendering. Legacy sections retain their existing callbacks.
+let _localrssOptionsPresentation = null;
 function localrssOptionsPanel(target) {
     const div = document.createElement('div');
     div.id = 'localrss-options-panel';
@@ -28,6 +29,7 @@ function renderLocalrssOptions(target) {
         return;
     }
 
+    _localrssOptionsPresentation?.dispose();
     document.getElementById('feed-options-section')?.remove();
 
     const overlay = document.createElement('div');
@@ -43,13 +45,16 @@ function renderLocalrssOptions(target) {
     const popOutBtn = document.createElement('button');
     popOutBtn.className = 'clist-action-btn';
     popOutBtn.title = 'Pop out feed options';
-    popOutBtn.innerHTML = '<span class="material-icons md-18 md-light">open_in_new</span>';
+    const popIcon = document.createElement('span');
+    popIcon.className = 'material-icons md-18 md-light'; popIcon.textContent = 'open_in_new';
+    popOutBtn.appendChild(popIcon);
     header.appendChild(popOutBtn);
     const closeBtn = document.createElement('button');
     closeBtn.className = 'clist-action-btn';
     closeBtn.title = 'Close';
-    closeBtn.innerHTML = '<span class="material-icons md-18 md-light">close</span>';
-    closeBtn.onclick = () => { target.close(); overlay.remove(); };
+    const closeIcon = document.createElement('span');
+    closeIcon.className = 'material-icons md-18 md-light'; closeIcon.textContent = 'close';
+    closeBtn.appendChild(closeIcon);
     header.appendChild(closeBtn);
     overlay.appendChild(header);
 
@@ -58,6 +63,19 @@ function renderLocalrssOptions(target) {
     showLeftOverlaySection('feed-options-section');
 
     target.root = overlay;
+    const shell = createMenuShell(createMenuShellView(overlay, {
+        title: 'Feed Options', popoutTitle: 'Pop out feed options', trigger: popOutBtn,
+        backTitle: 'Back to feed options'
+    }, { isCurrent: () => target.current() }), error => {
+        if (target.current()) localrssOptionsError(target, 'pop-out', error);
+    });
+    target.disposePresentation = () => shell.dispose();
+    const presentation = { dispose() {
+        target.close(); shell.dispose(); overlay.remove();
+        if (_localrssOptionsPresentation === presentation) _localrssOptionsPresentation = null;
+    } };
+    _localrssOptionsPresentation = presentation;
+    closeBtn.onclick = () => presentation.dispose();
     return overlay;
 }
 

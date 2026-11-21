@@ -551,3 +551,41 @@ boolean autosave, changed-only text saves and blank-secret omission. Retain newe
 edits across save/read responses. Unknown writes require a read check and an
 explicit reviewed save; HTTP acceptance survives a missing body/replaced panel.
 Backend authorization remains authoritative; fixtures never write live settings.
+
+Pane layout uses `pane-state.js` (pure transitions/legacy preference parsing),
+`panes.js` (canonical state/persistence/commands) and `pane-view.js` (styles,
+geometry/transitions/drag bindings). `CList.state.panes` contains layout only;
+source credentials remain in private drag guards. Preserve the two existing
+logged-in/out preference names via `CList.keys.PANE_STATE_LOGGED_IN/OUT`.
+Restore without writes, save canonical state rather than reading DOM styles,
+preserve editor nodes and close/invalidation options, and reject stale drag or
+transition callbacks. `mainContent`/`readPane` aliases remain for existing
+annotation/collab integrations.
+
+Keyboard/touch navigation uses `navigation-state.js` (pure event rules),
+`navigation.js` (private row/gesture/annotation ownership) and `navigation-view.js`
+(DOM/events). `CList.state.navigation` contains indices/counts/phases only.
+Preserve earlier-page selection during pagination, use shared row guards where
+available, and reject captured gestures after reader/session/pane/selection changes.
+One gesture dispatches one action; editing controls and modals suppress navigation.
+Alt+A captures the reference and selection before queued editor switching. Its
+completion guards do not cancel service editor mounting or internal insertion.
+
+Shared labelled commands use `action-menu.js` (captured definitions, disabled/
+pending ownership and keyboard focus) and `action-menu-view.js` (literal text and
+buttons). The reader feed-menu is the first consumer; legacy service dispatch and
+Translate stay in the reader bridge. Dispose replaced menus, suppress detached
+callbacks/late failures, and report action failures through the feature's existing
+feedback.
+
+Reader menu pop-outs use `menu-shell.js` (private inline/pop-out/disposed lifetime)
+and `menu-shell-view.js` (same-node movement, application stacked-modal shell,
+Back/Close/Escape, Tab boundaries and focus return). Preserve pending command state
+when moving surfaces. Expire old modal callbacks, retain replacement dialogs, and
+dispose the shell before replacing/resetting its menu. External removal returns
+owned nodes without restoring stale focus. LocalRSS Options now supplies its
+existing header trigger and captured target guard to the same shell. It moves the
+whole overlay, retaining draft fields/statistics/pending locks; Close or database
+switch disposes that presentation. Keep legacy database/feed/import workflows
+separate. `.menu-shell-surface` makes moved overlays flow inside the modal; skip
+non-rendered controls when setting/trapping focus.

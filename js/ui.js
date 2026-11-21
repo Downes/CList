@@ -682,6 +682,7 @@ window.CList.ui.listing = function makeListing(
     statusBox.appendChild(clistActions);
 
     const rowIsCurrent = () => statusBox.isConnected && (!rowContext?.isAccountCurrent || rowContext.isAccountCurrent());
+    statusBox.isCListRowCurrent = rowIsCurrent;
     const titleToggle = statusSpecific.querySelector('.entry-title-toggle');
     if (titleToggle) titleToggle.onclick = () => { if (rowIsCurrent()) toggleEntryExpanded(itemID); };
     if (contentDiv) {

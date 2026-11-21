@@ -790,3 +790,12 @@
 /** @typedef {{storeUrl:string,token:(string|null),username:(string|null),epoch:number,local:boolean}} CListAdminSession Private source-session capture. */
 /** @typedef {{owner:number,payload:Object.<string,string>,versions:Map<string,number>,schema:CListAdminField[],pending:boolean,accepted:boolean,reviewed:boolean,uncertain?:boolean,rejected?:boolean}} CListAdminWrite Private PUT and receipt; never UI state or persistent storage. */
 /** @typedef {{panelId:number,app:string,phase:('loading'|'failed'|'saving'|'check-required'|'ready'|'editing'),error:(string|null),dirtyCount:number,busy:boolean}} CListAdminSettingsState Safe progress/counts only; no field values, drafts or tokens. */
+
+/** @typedef {{leftOpen:boolean,rightOpen:boolean,readFlex:number,writeFlex:number,currentPane:('left-pane'|'right-pane'|'read-pane'|'write-pane'),surface:('read'|'write'),dragging:boolean}} CListPaneState Canonical presentation-only layout. */
+/** @typedef {{leftOpen:boolean,rightOpen:boolean,readFlex:string,writeFlex:string}} CListPanePreference Legacy storage shape; numeric strings remain compatible. */
+
+/** @typedef {{selectedIndex:number,entryCount:number,gesturePending:boolean,annotating:boolean}} CListNavigationState Public reader/pane navigation summary; no DOM nodes, references, selection text or credentials. */
+/** @typedef {{key:string,ctrl?:boolean,alt?:boolean,meta?:boolean,repeat?:boolean,composing?:boolean,defaultPrevented?:boolean,blocked?:boolean}} CListNavigationKeyFacts DOM-free shortcut input. */
+/** @typedef {{x:number,y:number,endX:number,endY:number,duration:number,mobile:boolean,feed:boolean,pane:string}} CListNavigationTouchFacts DOM-free single-touch classification input. */
+
+/** @typedef {{id:string,label:string,selected?:boolean,disabled?:boolean,run?:(function():*)}} CListActionDefinition Private captured command definition; literal display text, no HTML or credentials in presentation fields. */

@@ -1620,3 +1620,104 @@ missing body, uncertain writes and read-only check/explicit reviewed save. Local
 authorization and malformed schemas fail closed. Actual server authorization,
 server-side races, reload-persistent recovery, live schemas and full application
 navigation are outside the mocked evidence. Full Node regression: 743/743.
+
+### Pane persistence and layout commands
+
+`node --test tests/panes.test.cjs` passes 10 tests. Nine cases shared through
+`helpers/panes-fixture.js` drive `panes.browser.html` (user-reported PASS: 23 checks).
+The real state/controller/view uses DOM nodes while preference storage,
+geometry, viewport/event delivery and feature invalidators are mocked. A further
+Node case loads the real initial `interface.js` bridge, runs its boot callback,
+checks no restore write, verifies public helpers and preserves annotation/collab
+aliases. No external requests or actual preference writes.
+
+Coverage includes legacy serialized flex grows, tiny-value round trips, two
+profiles, safe defaults/malformed reads, canonical state independent of styles,
+editor-node preservation, snap thresholds, clamped drag and one mouseup save,
+changed source/profile cancellation, mobile layout commands, transition/disposal
+guards and storage failures. Actual browser geometry/transition event delivery,
+full application panes, keyboard and swipe interpretation remain unverified by
+these mocks. Full Node regression: 753/753, zero failures/skips.
+
+### Keyboard and swipe navigation
+
+`node --test tests/navigation.test.cjs` passes 11 tests. Ten cases shared through
+`helpers/navigation-fixture.js` drive `navigation.browser.html` (user-reported
+PASS: 41 checks). Real navigation state/controller/view uses DOM rows while events,
+selection, scrolling, reader/session/pane state and annotation editor APIs are
+mocked. The additional Node case runs real annotation helper code to check captured
+selection and superseded editor-switch rejection. No external requests or writes.
+
+Coverage includes J/K/X bounds/repeats/expanded rows; editing, composition, modifier
+and modal suppression; earlier-page selection and shared row expiry; double-click
+controls; captured Alt+A and duplicate/stale/failure cleanup; one-action horizontal
+and vertical gestures, diagonals, desktop restrictions, multitouch/cancel and
+source/reader/pane/selection expiry; mobile reader choices and disposed callbacks.
+Native gesture/scroll delivery, actual editor mounting and full application
+integration are outside these mocks. Full Node regression: 764/764, zero
+failures/skips. Editor marker: `2026-11-20.22`.
+
+### Shared reader action menu
+
+`node --test tests/action-menu.test.cjs` passes 6 tests, sharing
+`helpers/action-menu-fixture.js` with `action-menu.browser.html` (user-reported
+PASS: 22 checks). Real shared controller/view and reader-menu bridge use literal labels,
+captured command definitions and callbacks. Tests cover selected/disabled/missing
+commands, arrow/Home/End movement and modified-key exclusion, busy and pending
+duplicates, synchronous/asynchronous errors and explicit retry, detached/disposed
+callbacks and late errors, definition snapshots, Translate and reader reset/empty
+menus. Callbacks, reader state, translation, events and focus recording are mocked;
+no external requests or writes. Full reader/service integration, native keyboard
+delivery and pop-out/Back/Close/focus-restoration shells are not exercised.
+
+Existing reader-boundary, reader-row-context, LocalRSS and search-provider browser
+pages now load the shared menu dependencies before reader-view.js; their earlier
+reported PASS results are historical, not fresh checks of this integration.
+The full Node suite passed 770/770, zero failures/skips. Script paths/order,
+JavaScript syntax and LF/diff checks passed. The user reported browser PASS:
+22 checks, with the stated dependencies mocked and no external requests or writes.
+
+### Reader menu pop-out shell
+
+`menu-shell.test.cjs` has 7 cases shared through `helpers/menu-shell-fixture.js`
+with `menu-shell.browser.html` (user-reported PASS: 26 checks). Run it with
+`node --test tests/menu-shell.test.cjs tests/action-menu.test.cjs`.
+Real shell controller/view, action menu, reader bridge and app stacked-modal code
+exercise same-node/input preservation, exact original placement, Back/Close/Escape,
+Tab boundaries/focus return, old presentation callbacks, replaced/external dialogs,
+disposal without focus theft, existing-dialog failure/retry, pending command locks
+across surfaces, reader rebuild and reset. Service commands, reader state,
+translation, keyboard delivery and mutation notifications are mocked; browser
+fixture focus/DOM movement use real browser APIs. No external requests or writes.
+Full app layout, native input delivery and live services remain unverified.
+
+Reader browser fixtures and the shared action-menu page now load menu-shell-view.js
+and menu-shell.js before reader-view.js. Their previous user-reported passes
+remain historical; the new pop-out page provides the focused browser handoff.
+Focused shell/shared-menu run passed 13/13; full Node suite passed 777/777,
+zero failures/skips. Syntax, inline scripts, local script paths/order and LF/diff
+checks passed. The user reported browser PASS: 26 checks, with the stated
+dependencies mocked and no external requests or writes.
+
+### LocalRSS Options shared pop-out
+
+`localrss-options-shell.test.cjs` has 7 cases shared through
+`helpers/localrss-options-shell-fixture.js` with
+`localrss-options-shell.browser.html` (user-reported PASS: 21 checks). The real Options
+controller/view, shared shell and app modal retain the same root/input fields,
+statistics and pending Mark all lock across surfaces. Cases cover captured
+database/headers, Back/focus return, close/replaced/session guards, database
+switching and existing-dialog error/retry. Browser checks use real DOM/focus and
+the app overlay CSS; Node uses `helpers/menu-shell-dom.cjs`. Transport,
+reader/account/session APIs, confirmation, feed/import sections, mutation
+notifications and error presentation are mocked; no external requests or writes.
+Live services, full app layout and native input delivery are not verified.
+
+Focused command: `node --test tests/localrss-options-shell.test.cjs tests/menu-shell.test.cjs tests/localrss-reader.test.cjs tests/action-menu.test.cjs`.
+Passed 89/89. Existing Options test mocks now describe connected roots and load the
+shared-shell dependencies; original behavioral assertions remain intact. Shared
+shell browser pages load the updated view; earlier PASS results are historical.
+Full Node suite passed 784/784, zero failures/skips. Syntax, inline scripts,
+script/stylesheet paths and script order, LF and diff checks passed; browser
+validation: user-reported PASS, 21 checks, with the stated dependencies mocked
+and no external requests or writes.
