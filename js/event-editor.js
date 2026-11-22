@@ -52,6 +52,11 @@
 // textarea; destroying and recreating that node would orphan it. Opening a different event (or
 // Clear) instead calls _reloadEventEditorFields(), which loads values onto the existing fields.
 
+// Bumped by hand whenever this file changes — shown in the editor's own header (see
+// _reloadEventEditorFields()) so a visible build marker confirms the browser is actually
+// running the latest fetched copy of this file, independent of the index.html ?v= cache-bust.
+const _EVENT_EDITOR_BUILD = '2026-11-22.2';
+
 // Editor to switch back to once a save succeeds — captured by window.openEventEditor().
 let _eventEditorReturnEditor = null;
 // The calendar-browser owner this event belongs to, and the original event being edited (null
@@ -76,17 +81,13 @@ function _initEventEditorTinyMCE() {
     if (typeof tinymce === 'undefined') {
         throw new Error('TinyMCE failed to load — check your network connection.');
     }
-    const dm = document.documentElement.classList.contains('dark-mode');
     _eventEditorTinyMCEReady = Promise.resolve(tinymce.init({
         selector: '#event-edit-description',
         height: 200,
         menubar: false,
         plugins: 'link image code',
         toolbar: 'bold italic link image code',
-        skin: dm ? 'oxide-dark' : 'oxide',
-        content_style: dm
-            ? 'body { background:#1e1e1e; color:#e0e0e0; font-size:14px; }'
-            : 'body { font-size:14px; }',
+        ...tinymceDarkOptions(),
         setup: (editor) => {
             editor.on('init', () => {
                 editor.getContainer().classList.add('tinymce-mini-toolbar');
@@ -150,7 +151,7 @@ function _renderEventEditor(container) {
 // used both for re-opening against a different event and for Clear, since the fields (and the
 // Description field's bound TinyMCE instance) must never be rebuilt after the first render.
 function _reloadEventEditorFields() {
-    if (_eventEditorHeader) _eventEditorHeader.textContent = _eventEditorOriginal ? 'Edit event' : 'Add event';
+    if (_eventEditorHeader) _eventEditorHeader.textContent = (_eventEditorOriginal ? 'Edit event' : 'Add event') + ` (build ${_EVENT_EDITOR_BUILD})`;
     if (!_eventEditorFields) return;
     _applyCalendarEventFieldValues(_eventEditorFields, _eventEditorOriginal);
     _eventEditorFields.titleInput.focus();
@@ -261,11 +262,14 @@ async function _eventEditorDelete() {
         const titleValue = fields.titleInput.value.trim();
         const startValue = fields.startInput.value;
         if (!titleValue || !startValue) throw new Error('Title and start are required.');
+        const startIso = _calendarFieldToIso(startValue, fields.allDayInput.checked);
+        const endIso = _calendarFieldToIso(fields.endInput.value, fields.allDayInput.checked) || undefined;
+        if (endIso && endIso < startIso) throw new Error('End must not be before start.');
         return {
             title: titleValue,
             allDay: fields.allDayInput.checked,
-            start: _calendarFieldToIso(startValue, fields.allDayInput.checked),
-            end: _calendarFieldToIso(fields.endInput.value, fields.allDayInput.checked) || undefined,
+            start: startIso,
+            end: endIso,
             location: fields.locationInput.value.trim() || undefined,
             description: ((typeof tinymce !== 'undefined' && tinymce.get('event-edit-description')?.getContent()) || fields.descriptionInput.value).trim() || undefined,
         };

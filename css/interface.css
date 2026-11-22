@@ -1329,6 +1329,12 @@ textarea.collection-editor-input { min-height: 60px; resize: vertical; }
   font: inherit; color: inherit;
 }
 
+/* Event editor's Start/End rows side by side when there's room, stacked below ~420px so
+   each datetime-local input keeps enough width to stay usable on narrow screens. */
+.event-editor-datetime-row { display: flex; flex-wrap: wrap; gap: 0 12px; }
+.event-editor-datetime-row > div { flex: 1 1 200px; min-width: 200px; }
+.event-editor-datetime-row input:invalid { border-color: #c33; }
+
 .tox-tinymce,
 .tox-edit-area { border-color: var(--border-main) !important; }
 .tox-editor-header,

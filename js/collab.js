@@ -417,6 +417,7 @@ window.CList.schemas['Collab'] = {
                     plugins: 'link',
                     toolbar: 'bold italic link | undo redo',
                     statusbar: false,
+                    ...tinymceDarkOptions(),
                     setup(editor) {
                         editor.on('init', () => editor.setContent(`<p>${linkHtml}</p>`))
                     },

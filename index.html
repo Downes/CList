@@ -16,7 +16,7 @@
             document.documentElement.classList.add('dark-mode');
         }
     </script>
-    <link rel="stylesheet" href="css/interface.css?v=8">
+    <link rel="stylesheet" href="css/interface.css?v=9">
     <link rel="stylesheet" href="css/reader.css?v=1">
     <link rel="stylesheet" href="css/kvlist.css">
     <link rel="stylesheet" href="css/sidebar.css">
@@ -317,7 +317,7 @@
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="js/local-kvstore.js" defer></script>
 <script src="js/utilities.js?v=1" defer></script>
-<script src="js/ui.js?v=2026-11-20.1" defer></script>
+<script src="js/ui.js?v=2026-11-22.1" defer></script>
 <script src="js/account-transfer.js" defer></script>  <!-- Export/import account data (Local or hosted); calls window.CList.storage.kv.* (storage.js + adapters below), crypto_utils.js, ui.js, kvstore.js's getEncKey -- all resolved by call time since nothing here runs until a button click, well after every deferred script has executed -->
 <script src="js/references-state.js?v=2026-11-20.1" defer></script>
 <script src="js/references-view.js?v=2026-11-20.1" defer></script>
@@ -399,9 +399,9 @@
 <!--script src="js/audio.js" defer></script -->          <!-- Audio -->
 
 <script src="js/page-store-idb.js" defer></script>  <!-- Save / Load --> <!-- Local IndexedDB layer for PageStore -->
-<script src="js/page-store.js" defer></script>      <!-- PageStore public API + its savers/loaders registry entries -->
+<script src="js/page-store.js?v=2026-11-22.1" defer></script>      <!-- PageStore public API + its savers/loaders registry entries -->
 <script src="js/file-recognition.js?v=2026-11-20.1" defer></script>
-<script src="js/files.js?v=2026-11-20.1" defer></script>
+<script src="js/files.js?v=2026-11-22.1" defer></script>
 <script src="js/file-save-workflow.js?v=2026-11-20.1" defer></script>
 <script src="js/file-save-view.js?v=2026-11-20.1" defer></script>
 <script src="js/file-save.js?v=2026-11-20.1" defer></script>
@@ -410,7 +410,7 @@
 <script src="js/blogger.js?v=1" defer></script>
 <script src="js/tinymce.js?v=2" defer></script>
 <script src="js/etherpad.js?v=1" defer></script>
-<script src="js/collab.js?v=3" defer></script>
+<script src="js/collab.js?v=4" defer></script>
 <script src="js/collab_account.js" defer></script>
 <script src="js/latex.js?v=4" defer></script>
 <script src="js/slides.js?v=14" defer></script>
@@ -427,7 +427,7 @@
 <script src="js/annotate_view.js?v=2026-11-20.1" defer></script>
 <script src="js/annotate_reader.js?v=2026-11-20.1" defer></script>   <!-- Annotation store -->
 <script src="js/annotate_account.js" defer></script>
-<script src="js/annotate-editor.js?v=2026-11-20.1" defer></script>   <!-- Dedicated annotation editor -->
+<script src="js/annotate-editor.js?v=2026-11-22.1" defer></script>   <!-- Dedicated annotation editor -->
 <script src="js/collection-formats.js?v=2026-11-20.1" defer></script> <!-- Collection format interpreters -->
 <script src="js/collections.js?v=2026-11-20.1" defer></script>
 <script src="js/collection-session.js?v=2026-11-20.1" defer></script>
@@ -447,13 +447,13 @@
 <script src="js/collection-entry.js?v=2026-11-20.1" defer></script> <!-- Collections -->
 <script src="js/collection-editor.js?v=2026-11-20.1" defer></script>
 <script src="js/calendar.js?v=2026-11-22.1" defer></script> <!-- Core calendar module: single source of truth for calendar events -->
-<script src="js/calendar-browser-view.js?v=2026-11-22.1" defer></script>
+<script src="js/calendar-browser-view.js?v=2026-11-22.5" defer></script>
 <script src="js/calendar-browser.js?v=2026-11-22.1" defer></script>
 <script src="js/ics.js?v=2026-11-21.1" defer></script> <!-- RFC5545 VEVENT parse/generate, no DOM/fetch -->
 <script src="js/calendar-subscription.js?v=2026-11-21.1" defer></script> <!-- Calendar (subscription) schema only -->
 <script src="js/calendar-subscriptions.js?v=2026-11-21.1" defer></script> <!-- fetch/parse/cache subscription events -->
 <script src="js/calendar-publish.js?v=2026-11-21.1" defer></script> <!-- publish/unpublish own calendar as ICS -->
-<script src="js/event-editor.js?v=2026-11-21.1" defer></script> <!-- Event editor (write pane), registers editorHandlers['event'] -->
+<script src="js/event-editor.js?v=2026-11-22.2" defer></script> <!-- Event editor (write pane), registers editorHandlers['event'] -->
 <script src="js/collection-publishing-workflow.js" defer></script>
 <script src="js/collection-publishing-view.js" defer></script>
 <script src="js/collection-publishing.js" defer></script>

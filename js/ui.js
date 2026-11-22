@@ -531,6 +531,10 @@ window.CList.ui.listing = function makeListing(
     feedEl.textContent = itemFeed || 'Unknown Source';
     summaryDiv.appendChild(feedEl);
 
+    if (itemDate) {
+        summaryDiv.appendChild(document.createTextNode(' · ' + itemDate));
+    }
+
     if (!item.noSummaryDesc) {
         const authorHandler = window.CList.readers[service]?.onAuthorClick;
         if (itemAuthor && authorHandler) {
@@ -1080,3 +1084,17 @@ window.CList.ui.isHandlerVisible = function(handler) {
     return true;
 };
 window.isHandlerVisible = window.CList.ui.isHandlerVisible;
+
+// Shared skin + content_style for every TinyMCE instance in CList, so the toolbar chrome and
+// the content iframe's own background/text both follow dark mode consistently — used by any
+// tinymce.init() call, not just Calendar's.
+window.CList.ui.tinymceDarkOptions = function(fontSize = '14px') {
+    const dm = document.documentElement.classList.contains('dark-mode');
+    return {
+        skin: dm ? 'oxide-dark' : 'oxide',
+        content_style: dm
+            ? `body { background:#1e1e1e; color:#e0e0e0; font-size:${fontSize}; }`
+            : `body { font-size:${fontSize}; }`,
+    };
+};
+window.tinymceDarkOptions = window.CList.ui.tinymceDarkOptions;

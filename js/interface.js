@@ -405,7 +405,7 @@ function expandEntry(itemID) {
     if (summary) summary.style.display = 'none';
 
     const box = content.closest('.status-box');
-    if (box) setCurrentEntry(box);
+    if (box) { setCurrentEntry(box); box.onEntryExpand?.(); }
     else content.scrollIntoView({ block: 'start', behavior: 'smooth' });
     return true;
 }

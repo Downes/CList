@@ -58,7 +58,7 @@ window.CList.ui.calendarBrowser = {
         }
         if (!model.events.length) {
             const empty = document.createElement('p'); empty.className = 'feed-status-message';
-            empty.textContent = 'No events yet. Use the + button above to add one.'; view.root.appendChild(empty);
+            empty.textContent = 'No events yet. Use the Add button above to add one.'; view.root.appendChild(empty);
         }
         for (const event of model.events) {
             const statusBox = document.createElement('div'); statusBox.className = 'status-box';
@@ -236,6 +236,22 @@ function _calendarFieldToIso(value, allDay) {
     return isNaN(date.getTime()) ? '' : date.toISOString();
 }
 
+// A native datetime-local input's .value stays '' until every segment — including time —
+// is set, even once a date is visibly selected. A brand-new event's Start field used to
+// start fully blank, so a user who opened the calendar-icon popup and clicked only a date
+// (never touching the time columns) ended up with what looked like a filled-in date but an
+// empty startInput.value — failing "Title and start are required." at save with no visible
+// cause, and silently skipping the end-before-start check too (both sides read as empty).
+// Defaulting Start to a complete value up front means picking a new date through the popup
+// only overwrites the date segment, leaving this time in place, so the value stays complete.
+function _calendarDefaultStartIso() {
+    const date = new Date();
+    date.setSeconds(0, 0);
+    const remainder = date.getMinutes() % 30;
+    if (remainder) date.setMinutes(date.getMinutes() + (30 - remainder));
+    return date.toISOString();
+}
+
 // Builds the field DOM once. The Description field carries a fixed id ('event-edit-description')
 // so event-editor.js can bind its own scoped TinyMCE instance to it (same pattern as
 // annotate-editor.js's '#annotate-edit-body') — which is also why this function must only run
@@ -263,6 +279,30 @@ function _buildCalendarEventFields(event) {
     const startRow = makeRow('Start', startInput);
     const endInput = document.createElement('input');
     const endRow = makeRow('End (optional)', endInput);
+    // Side by side when there's room, stacked on narrow viewports — see
+    // .event-editor-datetime-row in interface.css.
+    const dateTimeRow = document.createElement('div');
+    dateTimeRow.className = 'event-editor-datetime-row';
+    dateTimeRow.appendChild(startRow); dateTimeRow.appendChild(endRow);
+
+    // Constrains the native date/time pickers themselves (End can't show a date before Start,
+    // Start can't show one after End) and keeps a persistent :invalid state + validity bubble
+    // for whatever a picker still lets through, e.g. typing a sub-field by hand — full
+    // keystroke-level prevention isn't possible with a plain <input>. The Save-time throw in
+    // event-editor.js's _eventEditorBuildDraft() remains the hard backstop either way.
+    const validateDateRange = () => {
+        endInput.min = startInput.value || '';
+        startInput.max = endInput.value || '';
+        const startIso = _calendarFieldToIso(startInput.value, allDayInput.checked);
+        const endIso = _calendarFieldToIso(endInput.value, allDayInput.checked);
+        const invalid = !!(startIso && endIso && endIso < startIso);
+        endInput.setCustomValidity(invalid ? 'End must not be before start.' : '');
+        if (invalid) endInput.reportValidity();
+    };
+    startInput.onchange = validateDateRange;
+    endInput.onchange = validateDateRange;
+    startInput.oninput = validateDateRange;
+    endInput.oninput = validateDateRange;
 
     allDayInput.onchange = () => {
         const startIso = _calendarFieldToIso(startInput.value, !allDayInput.checked);
@@ -271,6 +311,7 @@ function _buildCalendarEventFields(event) {
         endInput.type = allDayInput.checked ? 'date' : 'datetime-local';
         startInput.value = _calendarInputValue(startIso, allDayInput.checked);
         endInput.value = _calendarInputValue(endIso, allDayInput.checked);
+        validateDateRange();
     };
 
     const locationInput = document.createElement('input'); locationInput.type = 'text';
@@ -280,7 +321,7 @@ function _buildCalendarEventFields(event) {
     const descriptionRow = makeRow('Description', descriptionInput);
 
     const fields = {
-        rows: [titleRow, allDayRow, startRow, endRow, locationRow, descriptionRow],
+        rows: [titleRow, allDayRow, dateTimeRow, locationRow, descriptionRow],
         titleInput, allDayInput, startInput, endInput, locationInput, descriptionInput,
     };
     _applyCalendarEventFieldValues(fields, event);
@@ -297,8 +338,12 @@ function _applyCalendarEventFieldValues(fields, event) {
     fields.allDayInput.checked = !!event?.allDay;
     fields.startInput.type = fields.allDayInput.checked ? 'date' : 'datetime-local';
     fields.endInput.type = fields.allDayInput.checked ? 'date' : 'datetime-local';
-    fields.startInput.value = _calendarInputValue(event?.start, fields.allDayInput.checked);
+    fields.startInput.value = event ? _calendarInputValue(event.start, fields.allDayInput.checked)
+        : _calendarInputValue(_calendarDefaultStartIso(), fields.allDayInput.checked);
     fields.endInput.value = _calendarInputValue(event?.end, fields.allDayInput.checked);
+    fields.endInput.min = fields.startInput.value || ''; // re-sync picker constraints, cleared stale flag
+    fields.startInput.max = fields.endInput.value || '';
+    fields.endInput.setCustomValidity('');
     fields.locationInput.value = event?.location || '';
     fields.descriptionInput.value = event?.description || '';
     const editor = typeof tinymce !== 'undefined' && tinymce.get(fields.descriptionInput.id);

@@ -18,8 +18,16 @@ function bindLocalrssRow(item, row, context) {
     if (!context?.isAccountCurrent || context.account?.type !== 'LOCALRSS') return;
     if (item.audioIndex != null) { const index = item.audioIndex; localrssRowButton(row,context,'Play audio','play_arrow',()=>playAudio(index)); }
     const actionId = item.localrssActionId;
-    localrssRowButton(row,context,item.readAt ? 'Mark unread' : 'Mark read',item.readAt ? 'visibility_off' : 'visibility',button=>localrssToggleRead(actionId,button));
+    const readButton = localrssRowButton(row,context,item.readAt ? 'Mark unread' : 'Mark read',item.readAt ? 'visibility_off' : 'visibility',button=>localrssToggleRead(actionId,button));
     localrssRowButton(row,context,item.bookmarked ? 'Remove bookmark' : 'Bookmark','star',button=>localrssToggleBookmark(actionId,button),!!item.bookmarked);
+    if (!item.readAt && item._hasExpandableContent) {
+        let fired = false;
+        row.onEntryExpand = () => {
+            if (fired || !row.isConnected) return;
+            fired = true;
+            localrssToggleRead(actionId, readButton);
+        };
+    }
 }
 function bindLocalrssFeedRow(item,row,context) {
     const id = row.querySelector('.statusSpecific')?.id || row.id;

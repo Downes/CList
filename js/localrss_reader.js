@@ -5,7 +5,7 @@
 let _localrssResolvedReader = null;
 /** @returns {CListLocalrssReadState} */
 function localrssReadState() {
-    return window.CList.state.localrssReading ||= { kind: 'items', filter: 'unread', offset: 0 };
+    return window.CList.state.localrssReading ||= { kind: 'items', filter: 'unread', offset: 0, excludeIds: [] };
 }
 async function initializeLocalrss(account, context) {
     if (!context) return;
@@ -30,7 +30,11 @@ async function loadLocalrssView(context, options = {}) {
     const kind = options.kind || (context.feedName === 'Feeds' ? 'feeds' : mappedFilter ? 'items' : previous.kind);
     const filter = selection ? 'all' : options.filter || mappedFilter || previous.filter;
     const append = !!options.append;
-    const offset = append ? options.offset ?? previous.offset + LOCALRSS_PAGE_SIZE : 0;
+    const excludeIds = append ? options.excludeIds || previous.excludeIds || [] : [];
+    // Pagination advances via exclude_ids (entries already delivered this session), not a numeric
+    // offset: the backend re-ranks the whole candidate set on every request, so a fixed offset
+    // into a shifting order is what let already-shown entries reappear on "Load more".
+    const offset = 0;
     const headers = { ..._localrssAuthHeaders() };
     const storeUrl = window.CList.config.flaskSiteUrl;
     const cacheKey = JSON.stringify([context.accountKey, context.account.serviceUrl, context.account.database, storeUrl, headers]);
@@ -47,19 +51,21 @@ async function loadLocalrssView(context, options = {}) {
             view.connection(account);
         });
         /** @type {CListLocalrssRequest} */
-        const request = { account, kind, filter, offset, limit: selection ? 1600 : LOCALRSS_PAGE_SIZE,
+        const request = { account, kind, filter, offset, limit: selection ? 1600 : LOCALRSS_PAGE_SIZE, excludeIds,
             ...(selection ? { selection: structuredClone(selection) } : {}) };
         // Save owned selection before fetching so Refresh can retry a failed query.
         if (selection) context.commit(() => {
-            window.CList.state.localrssReading = { kind, filter, offset, selection: structuredClone(selection) };
+            window.CList.state.localrssReading = { kind, filter, offset, excludeIds, selection: structuredClone(selection) };
         });
         const page = await fetchLocalrssPage(request, { fetch, headers, signal: context.signal });
         if (!context.isCurrent()) return;
+        const pageIds = kind === 'items' && !selection ? page.items.map(raw => raw.id).filter(id => id != null) : [];
+        const nextExcludeIds = [...excludeIds, ...pageIds];
         const next = page.hasMore ? () => context.next(current => loadLocalrssView(current,
-            { kind, filter, append: true, offset: offset + LOCALRSS_PAGE_SIZE })) : null;
+            { kind, filter, append: true, offset, excludeIds: nextExcludeIds })) : null;
         await view.render(page, context, request, append, next);
         context.commit(() => {
-            window.CList.state.localrssReading = { kind, filter, offset, ...(selection ? { selection: structuredClone(selection) } : {}) };
+            window.CList.state.localrssReading = { kind, filter, offset, excludeIds: nextExcludeIds, ...(selection ? { selection: structuredClone(selection) } : {}) };
             localrssFilter = filter; localrssOffset = offset;
         });
         if (kind === 'items' && !append && context.isCurrent()) {
@@ -69,7 +75,7 @@ async function loadLocalrssView(context, options = {}) {
         return page;
     } catch (error) {
         if (append) context.commit(() => view.retry(() => context.next(current => loadLocalrssView(current,
-            { kind, filter, append: true, offset }))));
+            { kind, filter, append: true, offset, excludeIds }))));
         throw error; // The reader controller presents current-request errors once.
     } finally { context.commit(() => view.busy(false)); }
 }

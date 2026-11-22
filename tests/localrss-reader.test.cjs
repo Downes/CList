@@ -78,26 +78,31 @@ test('late item success and errors cannot render audio, hide a newer loader or c
     assert.equal(f.CList.state.localrssReading.offset, 0); assert.equal(f.CList.ui.view.loadingIndicator.style.display, 'none');
 });
 
-test('pagination captures its offset, ignores double clicks and old callbacks, and advances only after success', async () => {
+test('pagination captures exclude_ids, ignores double clicks and old callbacks, and advances only after success', async () => {
     const f = fixture();
-    f.ctx.fetch = async (url, options) => { f.calls.push({ url, options }); return response(url.includes('/api/stats') ? { has_audio_majority: false } : Array.from({ length: 50 }, (_, id) => ({ id }))); };
+    const firstPageIds = Array.from({ length: 50 }, (_, id) => id);
+    f.ctx.fetch = async (url, options) => { f.calls.push({ url, options }); return response(url.includes('/api/stats') ? { has_audio_majority: false } : firstPageIds.map(id => ({ id }))); };
     await f.ctx.switchReaderAccount('a'); const more = f.rendered[0].more;
     let finish; f.ctx.fetch = (url, options) => { f.calls.push({ url, options }); return new Promise(resolve => finish = resolve); };
     const append = more(); await f.flush(); await more();
-    assert.equal(f.CList.state.localrssReading.offset, 0); assert.equal(f.calls.filter(c => c.url.includes('offset=50')).length, 1);
+    const excludeCalls = f.calls.filter(c => c.url.includes('exclude_ids'));
+    assert.equal(excludeCalls.length, 1);
+    const qs = new URL(excludeCalls[0].url).searchParams;
+    assert.equal(qs.get('offset'), '0'); assert.deepEqual(qs.get('exclude_ids').split(',').map(Number), firstPageIds);
     finish(response([{ id: 51 }])); await append;
-    assert.equal(f.CList.state.localrssReading.offset, 50); assert.equal(f.rendered.at(-1).append, true);
+    assert.deepEqual(structuredClone(f.CList.state.localrssReading.excludeIds), [...firstPageIds, 51]); assert.equal(f.rendered.at(-1).append, true);
     f.ctx.fetch = async () => response([]); await f.action('Bookmarked'); await more();
-    assert.equal(f.CList.state.localrssReading.filter, 'bookmarked'); assert.equal(f.CList.state.localrssReading.offset, 0);
+    assert.equal(f.CList.state.localrssReading.filter, 'bookmarked'); assert.deepEqual(structuredClone(f.CList.state.localrssReading.excludeIds), []);
 });
 
-test('failed pagination keeps its offset and offers an explicit guarded retry for the same page', async () => {
-    const f = fixture(); f.ctx.fetch = async url => response(url.includes('/api/stats') ? { has_audio_majority: false } : Array.from({ length: 50 }, (_, id) => ({ id })));
+test('failed pagination keeps its exclude_ids and offers an explicit guarded retry for the same page', async () => {
+    const f = fixture(); const firstPageIds = Array.from({ length: 50 }, (_, id) => id);
+    f.ctx.fetch = async url => response(url.includes('/api/stats') ? { has_audio_majority: false } : firstPageIds.map(id => ({ id })));
     await f.ctx.switchReaderAccount('a'); const more = f.rendered[0].more;
     f.ctx.fetch = async () => { throw Error('page offline'); }; await more();
-    assert.equal(f.CList.state.localrssReading.offset, 0); assert.equal(f.errors.at(-1), 'page offline');
+    assert.deepEqual(structuredClone(f.CList.state.localrssReading.excludeIds), firstPageIds); assert.equal(f.errors.at(-1), 'page offline');
     const retry = f.rendered.find(r => r.retry).retry; f.ctx.fetch = async () => response([{ id: 51 }]); await retry();
-    assert.equal(f.CList.state.localrssReading.offset, 50); assert.equal(f.CList.state.reader.status, 'ready');
+    assert.deepEqual(structuredClone(f.CList.state.localrssReading.excludeIds), [...firstPageIds, 51]); assert.equal(f.CList.state.reader.status, 'ready');
 });
 
 test('LocalRSS headers and account remain captured when logout/server changes occur during a request', async () => {
@@ -167,10 +172,15 @@ test('LocalRSS new scripts remain below 500 lines and load after their registere
 
 test('opening Options preserves current pagination, and its Show filter remains selected on Refresh', async () => {
     const f = fixture(); f.ctx.localrssOptionsOverlay = () => {};
-    f.ctx.fetch = async url => response(url.includes('/api/stats') ? { has_audio_majority: false } : Array.from({ length: 50 }, (_, id) => ({ id })));
+    const allIds = Array.from({ length: 200 }, (_, id) => id);
+    f.ctx.fetch = async url => {
+        if (url.includes('/api/stats')) return response({ has_audio_majority: false });
+        const excluded = new Set((new URL(url).searchParams.get('exclude_ids') || '').split(',').filter(Boolean).map(Number));
+        return response(allIds.filter(id => !excluded.has(id)).slice(0, 50).map(id => ({ id })));
+    };
     await f.ctx.switchReaderAccount('a'); const more = f.rendered[0].more;
     await f.action('Options'); assert.equal(f.CList.state.reader.feedName, 'Unread');
-    await more(); assert.equal(f.CList.state.localrssReading.offset, 50);
+    await more(); assert.deepEqual(structuredClone(f.CList.state.localrssReading.excludeIds), allIds.slice(0, 100));
     await f.ctx.localrssLoad(false, null, { filter: 'read', kind: 'items' });
     assert.equal(f.CList.state.reader.feedName, 'Read'); assert.equal(f.CList.state.localrssReading.filter, 'read');
     await f.action('Refresh'); assert.equal(f.CList.state.localrssReading.filter, 'read');

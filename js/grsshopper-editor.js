@@ -64,17 +64,13 @@ function _initGrsshopperTinyMCE() {
         showErrorModal('TinyMCE failed to load — check your network connection.', { title: 'Editor failed to load' });
         return;
     }
-    const dm = document.documentElement.classList.contains('dark-mode');
     tinymce.init({
         selector: '#grsshopper-post-body',
         height: 400,
         menubar: false,
         plugins: 'link image code lists',
         toolbar: 'bold italic link image code bullist numlist',
-        skin: dm ? 'oxide-dark' : 'oxide',
-        content_style: dm
-            ? 'body { background:#1e1e1e; color:#e0e0e0; font-size:14px; }'
-            : 'body { font-size:14px; }',
+        ...tinymceDarkOptions(),
         setup: (editor) => {
             editor.on('change', () => {
                 const ta = document.getElementById('grsshopper-post-body');
@@ -97,17 +93,13 @@ function _initGrsshopperDescriptionTinyMCE() {
         showErrorModal('TinyMCE failed to load — check your network connection.', { title: 'Editor failed to load' });
         return;
     }
-    const dm = document.documentElement.classList.contains('dark-mode');
     tinymce.init({
         selector: '#grsshopper-post-description',
         height: 200,
         menubar: false,
         plugins: 'link lists',
         toolbar: 'bold italic link bullist numlist',
-        skin: dm ? 'oxide-dark' : 'oxide',
-        content_style: dm
-            ? 'body { background:#1e1e1e; color:#e0e0e0; font-size:14px; }'
-            : 'body { font-size:14px; }',
+        ...tinymceDarkOptions(),
         setup: (editor) => {
             editor.on('change', () => {
                 const ta = document.getElementById('grsshopper-post-description');

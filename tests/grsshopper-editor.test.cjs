@@ -56,6 +56,7 @@ function fixture() {
             grsshopperSavePost: async () => { throw new Error('grsshopperSavePost not mocked'); },
         },
         tinymce,
+        tinymceDarkOptions: () => ({ skin: 'oxide', content_style: 'body { font-size:14px; }' }),
         escapeHtml: value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;'),
         cleanHTMLContent: value => String(value).replace(/<[^>]+>/g, ''),
         showErrorModal: (message) => errors.push(message),

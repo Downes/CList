@@ -92,17 +92,13 @@ function _initAnnotateTinyMCE() {
     if (typeof tinymce === 'undefined') {
         throw new Error('TinyMCE failed to load — check your network connection.');
     }
-    const dm = document.documentElement.classList.contains('dark-mode');
     _annotateTinyMCEReady = Promise.resolve(tinymce.init({
         selector: '#annotate-edit-body',
         height: 200,
         menubar: false,
         plugins: 'link image code',
         toolbar: 'bold italic link image code',
-        skin: dm ? 'oxide-dark' : 'oxide',
-        content_style: dm
-            ? 'body { background:#1e1e1e; color:#e0e0e0; font-size:14px; }'
-            : 'body { font-size:14px; }',
+        ...tinymceDarkOptions(),
         setup: (editor) => {
             // Smaller toolbar than the main write-column editor's — see .tinymce-mini-toolbar
             // in interface.css (shared with other scoped TinyMCE instances, e.g.

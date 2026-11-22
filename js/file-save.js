@@ -11,7 +11,12 @@ async function saveContent() {
         const switchId = window.CList.state.editorSwitching?.id, loadId = window.CList.state.editorLoading?.id;
         const controlsId = window.CList.state.editorControls?.id;
         const sourceAccount = typeof currentEditorAccount === 'undefined' ? null : currentEditorAccount;
-        const username = window.CList.state.username;
+        // 'none' is the logged-out sentinel (kvstore.js), not a real username — treat it the
+        // same way isRegistered() does everywhere else, or a guest save wrongly tries to index
+        // itself into My Pages and fails with a confusing "log in again" error. assertCurrent()
+        // re-reads live state later, so it must normalize the same way to compare apples to apples.
+        const normalizeUsername = raw => (raw && raw !== 'none') ? raw : null;
+        const username = normalizeUsername(window.CList.state.username);
         const storeUrl = window.CList.config.flaskSiteUrl;
         const token = username ? getSiteSpecificCookie(storeUrl, window.CList.keys.ACCESS_TOKEN) : null;
         const request = { editor: sourceEditor, handler: editorHandlers[sourceEditor],
@@ -21,7 +26,7 @@ async function saveContent() {
             loggedIn: !!username, authorDid: username ? _currentAuthorDid() : null,
             id: username ? (sourcePage?.pageKey && sourcePage.id ? sourcePage.id : `urn:uuid:${crypto.randomUUID()}`) : null };
         const assertCurrent = () => {
-            if (window.CList.state.username !== username || window.CList.config.flaskSiteUrl !== storeUrl
+            if (normalizeUsername(window.CList.state.username) !== username || window.CList.config.flaskSiteUrl !== storeUrl
                 || (username && getSiteSpecificCookie(storeUrl, window.CList.keys.ACCESS_TOKEN) !== token)) {
                 throw new Error('The session changed. Save the file again from the current session.');
             }

@@ -333,6 +333,14 @@ window.CList = window.CList || {};
         icon: 'save',
         requiresLogin:   true,
         requiresAccount: false,
+        // Gate on the active editor actually having an exportable flat content type (text/html/
+        // etc.) rather than naming editors — structured-data editors like 'event' and
+        // 'collection' declare contentTypes: [] for exactly this reason (collection never even
+        // reaches this list, since playSave() special-cases it before populateSaveOptions()).
+        visible: () => {
+            const handler = editorHandlers[currentEditor];
+            return !!(handler && Array.isArray(handler.contentTypes) && handler.contentTypes.length);
+        },
         save: async () => {
             const handler = editorHandlers[currentEditor];
             const content = (handler && typeof handler.getContent === 'function') ? await handler.getContent() : '';

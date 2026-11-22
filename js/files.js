@@ -196,6 +196,18 @@ function packageStatus(charlimit, input, publishedURL) {
         icon:  'save',
         requiresLogin:   false,
         requiresAccount: false,
+        // Mirrors prepareLocalFile()'s (file-save-workflow.js) own raw/packaged conditions --
+        // hidden for editors like 'event'/'collection' that declare contentTypes: [] and have
+        // no getFileContent/fileExtension raw path, since getContent() always returns '' for
+        // them and there is nothing exportable as a file.
+        visible: () => {
+            const handler = editorHandlers[currentEditor];
+            return !!(handler && (
+                typeof handler.getFileContent === 'function' ||
+                handler.fileExtension ||
+                (Array.isArray(handler.contentTypes) && handler.contentTypes.length)
+            ));
+        },
         save:  async () => await saveContent()
     });
 })();

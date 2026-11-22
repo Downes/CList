@@ -15,6 +15,7 @@ async function fetchLocalrssPage(request, { fetch: send, headers, signal }) {
         else if (snapshot.selection?.mode === 'feed') query.set('feed_id', String(snapshot.selection.feedId));
         else query.set('filter', snapshot.filter);
         query.set('limit', String(snapshot.limit)); query.set('offset', String(snapshot.offset));
+        if (snapshot.excludeIds?.length) query.set('exclude_ids', snapshot.excludeIds.join(','));
     } else if (snapshot.kind === 'feeds') query.set('limit', '1000');
     const path = snapshot.kind === 'items' ? '/api/items' : snapshot.kind === 'feeds' ? '/api/feeds' : '/api/stats';
     const response = await send(base.replace(/\/$/, '') + path + '?' + query,
