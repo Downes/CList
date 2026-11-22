@@ -1,0 +1,15 @@
+<!doctype html><meta charset="utf-8"><title>CList Collab creation check</title>
+<h1>Collab collection/chat creation</h1>
+<p>Real creation workflow/controller/view. Sessions, selection, connection/resources, namespace/slug helpers, editor commands/events, sanitizer, timers, invitations and error modal mocked. Title fields use actual browser DOM. No external requests or writes. Provider synchronization, actual editor/sanitizer behavior and live collaboration not exercised. Test 2026-11-21.27.</p>
+<pre id="result">Checking...</pre>
+<script src="../js/collab_creation_workflow.js?v=2026-11-21.27"></script>
+<script src="../js/collab_creation_view.js?v=2026-11-21.27"></script>
+<script src="../js/collab_creation.js?v=2026-11-21.27"></script>
+<script src="helpers/collab-creation-fixture.js?v=2026-11-21.27"></script>
+<script>
+(async () => {
+    let checks = 0;
+    for (const [name, run] of collabCreationCases) await run((condition, message) => { if (!condition) throw Error(name + ': ' + message); checks++; });
+    document.getElementById('result').textContent = 'PASS: ' + checks + ' checks. Real Collab creation workflow/controller/view, captured collection/chat seeds and invites, duplicate locks, namespace/connection intent guards, literal titles, owned timers/listeners, newer-content and empty-after-edit protection, stale source/editor/resource/disposal rejection and visible failures/explicit retry. Sessions, selection, connection, helpers, editor APIs, sanitizer, timers, invitations and modal mocked; no external requests or writes. Provider synchronization, actual editor/sanitizer behavior and live collaboration not exercised.';
+})().catch(error => { document.getElementById('result').textContent = 'FAIL: ' + error.stack; console.error(error); });
+</script>

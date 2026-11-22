@@ -11,7 +11,7 @@ function createCollabConnectionPreparation(deps) {
         async prepare(options = {}) {
             const id = ++generation, snapshot = deps.capture();
             const operation = latest = { snapshot, phase: 'preparing' };
-            const current = () => generation === id && deps.current(snapshot);
+            const current = () => generation === id && deps.current(snapshot) && (!options.current || options.current());
             const assertCurrent = () => {
                 if (!current()) throw Object.assign(Error('The collaboration connection target expired.'), { code: 'ExpiredCollabPreparation' });
             };
@@ -21,7 +21,7 @@ function createCollabConnectionPreparation(deps) {
                 const wsUrl = options.local ? null : (options.wsUrl || await deps.server()); assertCurrent();
                 const modules = await deps.load(); assertCurrent();
                 operation.phase = 'ready';
-                return { ...snapshot, docId: options.docId, mode: options.mode || 'edit', wsUrl, modules,
+                return { ...snapshot, local: !!options.local, docId: options.docId, mode: options.mode || 'edit', wsUrl, modules,
                     token: snapshot.token || 'anonymous', username: snapshot.username && snapshot.username !== 'none' ? snapshot.username : 'Anonymous',
                     assertCurrent };
             } catch (error) { operation.phase = 'error'; throw error; }

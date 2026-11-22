@@ -2083,7 +2083,7 @@ load targets, local/remote supersession, commit guards and pending-count drainin
 The browser fixture does not exercise the full adapter or actual resource classes.
 
 An eighth Node case loads the real `collab.js` initializer closures with narrow
-dependency/toolbar substitutions and fake Editor/Y.Doc/provider/timer APIs. It
+dependency substitutions and fake Editor/Y.Doc/provider/timer APIs. It
 verifies stale dependencies cannot destroy existing resources, read-mode/server/
 token/store/element constructor values, and local-start supersession of remote
 preparation. It does not verify real TipTap, authentication, provider events,
@@ -2094,3 +2094,223 @@ passed 21/21. Full Node passed 924/924, zero failures/skips. The user reported
 browser PASS: 20 checks, with server/dependency/session/editor-target APIs mocked
 and no external requests or writes. Full adapter, provider callbacks, teardown
 and live WebSockets were not exercised by the browser fixture.
+
+### Collab provider lifecycle — user-reported browser PASS
+
+`collab-lifecycle.test.cjs` shares eight cases through
+`helpers/collab-lifecycle-fixture.js` with `collab-lifecycle.browser.html`.
+Open `https://localhost:51888/tests/collab-lifecycle.browser.html` and report
+PASS/FAIL (marker `test 2026-11-21.21`). Controller/view are real; resource classes,
+map/awareness APIs, timers, session values, reference/feedback APIs are mocked.
+Browser status/presence DOM is real; Node uses the small DOM helper. Cases cover
+captured provider/editor options, synchronous constructor status, expired old
+status/auth/ref/presence/timer callbacks, owned observer/timer disposal and single
+destruction, hidden-document preservation and visible-only structural reference
+merges, session/DOM expiry, local replacement of remote resources, partial editor
+construction failure, cleanup continuation after destroy errors, idempotence,
+literal presence/color validation, explicit chrome rebinding and corrupt-ref
+feedback. No external requests or writes; live TipTap/Yjs/authentication/provider
+reconnect behavior and WebSockets are not exercised.
+
+`node --test tests/collab-lifecycle.test.cjs tests/collab-preparation.test.cjs tests/editor-references.test.cjs`
+passed 22/22. Full Node passed 932/932, zero failures/skips. The preparation Node
+integration test still runs real Collab initializers with dependency and
+resource fakes; it now uses lifecycle-created resources rather than seeded old
+aliases and asserts local startup clears the old document identity. The user
+reported browser PASS: 22 checks, with Editor/provider/Yjs/timers/session/
+reference/feedback APIs mocked and no external requests or writes. Live
+collaboration was not exercised.
+
+### Collab formatting toolbar — user-reported browser PASS
+
+`collab-format.test.cjs` shares seven cases through
+`helpers/collab-format-fixture.js` with `collab-format.browser.html`. Open
+`https://localhost:51888/tests/collab-format.browser.html` and report PASS/FAIL
+(marker `test 2026-11-21.22`). Real definitions/controller/view use mocked TipTap
+chains/events, ownership and feedback APIs. Browser buttons and active/pressed/
+disabled presentation are real; Node uses the small DOM helper. Cases cover all
+eight exact chains, captured editor routing, read-only callback guards, expired
+owners, rebuilt controls, listener removal/counts, synchronous reentrant dispatch,
+command/query failure recovery, failed-detach callback isolation and state privacy.
+No external requests or writes; real TipTap and live collaboration are untested.
+
+`node --test tests/collab-format.test.cjs tests/collab-lifecycle.test.cjs tests/collab-preparation.test.cjs`
+passed 23/23 (7 new, 8 lifecycle, 8 preparation). Full Node passed 939/939,
+zero failures/skips. The preparation integration case uses real formatting
+controller/view and fake editor methods, with read-only disabled-state assertions.
+The user reported browser PASS: 18 checks, with TipTap/session/editor/feedback
+APIs mocked and no external requests or writes. Actual TipTap formatting and
+live collaboration were not exercised.
+
+### Collab duplicate-title controls — user-reported browser PASS
+
+`collab-title.test.cjs` shares eight cases through
+`helpers/collab-title-fixture.js` with `collab-title.browser.html`. Open
+`https://localhost:51888/tests/collab-title.browser.html` and report PASS/FAIL
+(marker `test 2026-11-21.23`). Real requests/controller/view use mocked identity
+expansion, HTTP/server resolution, session/editor identity, timers and opening/
+Enter/paste hooks. Browser warning/title DOM is real; Node uses the small DOM
+helper. Covers 500ms debounce, captured server/auth/path, blank/current/404 and
+permission-error paths, explicit Retry, old expansion/candidate/timer rejection,
+source/editor/panel guards, duplicate opening, newer input and guarded commit,
+state-owned Enter, existing connect fallback, queued stale paste, title mirroring,
+listener cleanup and public-state privacy. No external requests or writes; real
+services, downstream editor connections and body-draft recovery are not covered.
+
+`node --test tests/collab-title.test.cjs tests/collab-preparation.test.cjs tests/collab-format.test.cjs`
+passed 23/23 (8 new, 8 preparation, 7 formatting). Full Node passed 947/947,
+zero failures/skips. The preparation integration test additionally exercises the
+real default title adapter and captured-auth check/open/normalize path with
+identity/HTTP/editor fakes; its shared cases now verify optional caller expiry.
+The user reported browser PASS: 26 checks, with identity/HTTP/server/session/
+editor/timer/opening APIs mocked and no external requests or writes. Live
+services and editor connections were not exercised.
+
+### Collab Share panel — user-reported browser PASS
+
+`collab-share.test.cjs` shares eight cases through
+`helpers/collab-share-fixture.js` with `collab-share.browser.html`. Open
+`https://localhost:51888/tests/collab-share.browser.html` and report PASS/FAIL
+(marker `test 2026-11-21.24`). Real transport/controller/view use mocked HTTP,
+sessions/documents/chat, clipboard, composer and modal shell. Browser DOM controls
+are real; Node uses the small DOM helper. Covers captured metadata/PATCH headers,
+literal title/link DOM, known/unknown settings, changed-only/duplicate writes,
+accepted/no-body/rejected/uncertain outcomes, explicit GET recovery, rebuilt-panel
+locks, stale reads/writes/actions, captured public invite/Post handoff and state
+privacy. No external requests, actual clipboard operations or real settings writes.
+Composer internals, live authorization and editor/provider operations are excluded.
+
+A ninth Node case runs the actual shared clipboard helper with mocked clipboard
+promises, checking stale success/failure suppression and unchanged default feedback.
+The preparation file's real Collab adapter case also exercises captured-auth PATCH
+and Copy/Chat actions with HTTP/clipboard/chat effects mocked; it does not run the
+composer. It also verifies direct share helpers reject an expired connection before
+capturing new credentials. The free-variable token fix is checked through actual wiring.
+
+`node --test tests/collab-share.test.cjs tests/collab-preparation.test.cjs tests/collab-title.test.cjs`
+passed 25/25 (9 sharing/helper, 8 preparation, 8 title). Full Node passed 956/956,
+zero failures/skips. The user reported browser PASS: 27 checks, with
+HTTP/session/document/chat/clipboard/composer/modal APIs mocked and no external
+requests or real writes. Composer, live authorization and editor/provider
+operations were not exercised.
+
+
+### Collab Post composer
+
+Open `https://localhost:51888/tests/collab-composer.browser.html` (marker
+`2026-11-21.25`) and report PASS/FAIL. The real composer/controller/view and
+temporary handler exercise safe fallback/rich seeds, delayed initialization,
+owned cleanup, retry/draft preservation, duplicate/stale publication completion
+and Cancel/newer-editor restoration. TinyMCE, sessions, publishing, timers and
+feedback are mocked; no external requests or writes. Real TinyMCE, live
+publication and collaboration are not exercised.
+
+`node --test tests/collab-composer.test.cjs tests/publishing-controller.test.cjs tests/collab-preparation.test.cjs`
+passed 26/26 (8 composer, 10 publishing controller, 8 preparation). Full Node
+passed 966/966 with zero failures/skips. The real Collab adapter preparation case
+also exercises composer opening, temporary handler content and Cancel restoration.
+User reported browser PASS: 21 checks, with the mocks and limitations above.
+
+
+### Collab links and invites
+
+Open `https://localhost:51888/tests/collab-opening.browser.html` (marker
+`2026-11-21.26`) and report PASS/FAIL. Real opening normalization/controller/view
+exercise captured public input, namespace/mode/server validation, literal title
+metadata, duplicate/superseded requests, session/editor/surface/disposal guards,
+Cancel and visible failure/explicit retry. Selection, connection, sessions and
+error modal are mocked; title fields use actual browser DOM. No external requests
+or writes. Full editor switching, provider lifecycle, authorization and live
+collaboration are not exercised by this fixture.
+
+`node --test tests/collab-opening.test.cjs tests/collab-preparation.test.cjs`
+passed 17/17 (9 opening and 8 preparation). The preparation test also exercises
+real link/invite adapters and captured provider routing with vendor dependencies
+mocked. Full Node passed 975/975, zero failures/skips. User reported browser
+PASS: 27 checks, with the mocks and limitations above.
+Collection/chat document creation and delayed seeding are outside this slice.
+
+
+### Collab collection/chat creation
+
+Open `https://localhost:51888/tests/collab-creation.browser.html` (marker
+`2026-11-21.27`) and report PASS/FAIL. Real workflow/controller/view exercise
+captured collection/chat seeds and invites, duplicate locks, namespace/connection
+intent guards, literal titles, owned timer/listener cleanup, newer content and
+empty-after-edit protection, stale source/editor/resource/disposal rejection,
+Cancel and visible failures/explicit retry. Sessions, selection, connection,
+helpers, editor APIs, sanitizer, timers, invitations and error modal are mocked.
+Title fields use actual browser DOM; no external requests or writes. Provider
+synchronization, actual editor/sanitizer behavior and live collaboration are not
+exercised. The retained 800 ms delay is not a synchronization guarantee.
+
+`node --test tests/collab-creation.test.cjs tests/collab-opening.test.cjs tests/collab-preparation.test.cjs`
+passed 27/27 (10 creation, 9 opening, 8 preparation). Preparation also exercises
+the real collection/chat bridge with mocked provider dependencies, captured
+invitation routing and stale seed rejection after link opening. Full Node passed
+985/985, zero failures/skips. User reported browser PASS: 27 checks, with the
+mocks and limitations above.
+
+
+### Collab header Share/Annotate
+
+Open `https://localhost:51888/tests/collab-header.browser.html` (marker
+`2026-11-21.28`) and report PASS/FAIL. Real header controller/view and reference
+preparation exercise structural slots/standard controls, captured Share/create
+handoff, duplicate locks, exact annotation references, staged load/reveal,
+visible failure/explicit retry and stale source/document/menu/disposal guards.
+Session, creation/sharing, reference/editor, pane and modal effects are mocked;
+header controls use actual browser DOM. No external requests or writes. Full
+initialization, editor loading, provider lifecycle and live collaboration are
+not exercised by the fixture.
+
+`node --test tests/collab-header.test.cjs tests/collab-preparation.test.cjs`
+passed 17/17 (9 header and 8 preparation). Preparation additionally checks the
+real Collab header adapter with mocked service/vendor dependencies, exact read
+references and session-expired local Share creation. Full Node passed 994/994,
+zero failures/skips. User reported browser PASS: 20 checks, with the mocks and
+limitations above. Main editor mounting
+and content/reference insertion remain separate follow-up work.
+
+
+### Collab content/reference insertion
+
+Open `https://localhost:51888/tests/collab-content.browser.html` (marker
+`2026-11-22.1`) and report PASS/FAIL. Real controller/workflow/view and shared
+reference deduplication exercise literal plaintext/HTML and link/via output,
+captured structural references/live identity, shared-map mirroring/resync,
+corrupt-entry warnings, read-only/stale resource/source guards, reentrant locks
+and partial-failure feedback without automatic reinsertion. Editor/source/session/
+resource, reference panel and modal/status effects are mocked; maps/JSON are
+real. No external requests or writes. Full mounting, TipTap HTML parsing and
+live Yjs/provider synchronization are not exercised by this fixture.
+
+`node --test tests/collab-content.test.cjs tests/editor-references.test.cjs tests/collab-preparation.test.cjs`
+passed 23/23 (9 content, 6 editor/reference, 8 preparation). Preparation additionally
+exercises actual Collab handler routing with mocked vendor dependencies, literal
+plaintext, captured reference identity and read-only rejection. Full Node passed
+1003/1003, zero failures/skips. User reported browser PASS: 25 checks, with the
+mocks and limitations above. Main editor
+mounting remains separate follow-up work.
+
+
+### Collab mounting/reactivation
+
+Open `https://localhost:51888/tests/collab-mount.browser.html` (marker
+`2026-11-22.2`) and report PASS/FAIL. Real mount controller/view exercise fresh,
+local and remote reactivation, preserved resource/DOM/title identity, duplicate
+locks, owned drop bindings, stale source/surface/local/disposal guards, newer
+connection/title protection, visible failure/explicit retry and pending-content
+failure propagation. Library/local initialization, resource/session/selection,
+controls, pending-content loader and modal are mocked. Surface/drop binding uses
+browser DOM. No external requests or writes. Full editor switching, actual
+TipTap/Yjs/provider lifecycle and live collaboration are not exercised.
+
+`node --test tests/collab-mount.test.cjs tests/collab-preparation.test.cjs`
+passed 18/18 (10 mounting and 8 preparation). Preparation also calls the actual
+Collab initializer with mocked vendor/service dependencies, checks reuse of local
+and remote resources, captured drop binding and pending-content routing. Full
+Node passed 1013/1013, zero failures/skips. User reported browser PASS: 28 checks,
+with the mocks and limitations above.
+The controller guards dispatch/completion, not internals of an already-started
+shared content loader. Audit remaining UI/state boundaries after browser testing.

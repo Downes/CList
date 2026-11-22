@@ -42,8 +42,8 @@ function fixture() {
         authorID:'fixture-author', referenceDisplayName: ref => ref.author_name || 'Author',
         showErrorModal: message => { throw Error(message); }, tinymce: {get:()=>tinymceEditor},
     });
-    for (const name of ['references-state', 'references-view', 'references', 'editors', 'tinymce', 'etherpad']) vm.runInContext(source(name), ctx);
-    const maps = {};
+    for (const name of ['collab_content_workflow','collab_content_view','collab_content','references-state', 'references-view', 'references', 'editors', 'tinymce', 'etherpad']) vm.runInContext(source(name), ctx);
+    const maps = {}; ctx.readerSession=()=>({}); ctx.showStatusMessage=()=>{}; const contentElement=element();contentElement.id='tiptap-editor';root.querySelector('#collabDiv').appendChild(contentElement);
     // Inject editor API/shared-map fakes into the real collaborative handlers' closures.
     for (const [name, variable, api] of [['collab', 'tiptapEditor', { commands: {insertContent() {}} }],
         ['latex', 'cmView', {state:{selection:{main:{from:0,to:0}}},dispatch() {},focus() {}}]]) {
@@ -52,6 +52,7 @@ function fixture() {
         const registration = `editorHandlers.${name} = ${name}Handler`;
         assert.ok(code.includes(registration));
         code = code.replace(registration, registration + `; ${variable} = testAPI; sharedRefs = testMap`);
+        if(name==='collab')code=code.replace('sharedRefs = testMap','sharedRefs = testMap; connectionLifecycle={owned:()=>true}');
         vm.runInContext(code, ctx);
     }
     return { ctx, CList, root, refs, maps, handlers:vm.runInContext('editorHandlers',ctx),
@@ -88,6 +89,7 @@ test('insertLink and insertLinkVia retain resolved references after source rows 
 test('collaborative loading/link insertion still mirrors attribution into each shared document map', () => {
     const f = fixture();
     for (const name of ['collab','latex']) {
+        vm.runInContext('currentEditor = '+JSON.stringify(name),f.ctx);
         f.handlers[name].loadContent({type:'text/plain',value:'Quote'},'item-0');
         f.handlers[name].insertLink({content:{type:'text/plain',value:'More'},entryUrl:f.refs[1].url,feedTitle:'Feed',reference:f.refs[1]});
         assert.equal(f.maps[name].size,2);

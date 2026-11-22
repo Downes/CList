@@ -13,7 +13,7 @@
 
 
 // Temporary visible build marker for browser testing; bump with each test revision.
-const EDITOR_TEST_VERSION = '2026-11-21.20';
+const EDITOR_TEST_VERSION = '2026-11-22.2';
 
 // Name of the current editor
 let currentEditor = 'texteditor'; // Default editor is plain text

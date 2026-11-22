@@ -325,6 +325,45 @@ These constants are declared in the inline `<script>` block in `index.html` and 
 
 ## Cautions
 
+Collab Post composer uses `collab_composer.js` (captured lifecycle/controller)
+and `collab_composer_view.js` (overlay DOM). Preserve unique TinyMCE targets,
+owned cleanup/restoration, fallback drafts and captured publication completion
+hooks; closing a composer cannot cancel an already captured publication.
+
+Collab links/invites use `collab_opening_workflow.js` (input normalization),
+`collab_opening.js` (captured opening controller) and `collab_opening_view.js`
+(title/error feedback). Reuse connection preparation/lifecycle; pass the caller
+guard through preparation and apply titles only after owned connection setup.
+Collection/chat creation uses `collab_creation_workflow.js` (captured seeds),
+`collab_creation.js` (opening/timer ownership) and `collab_creation_view.js`
+(titles, sanitized HTML and errors). Reuse selection/preparation/lifecycle;
+delayed seeding must check the exact resource, original session/editor and any
+content updates. An empty document after an edit must not be seeded. The 800 ms
+delay remains a heuristic, not a provider-synchronization guarantee.
+
+Collab header Share/Annotate controls use `collab_header.js` (captured action
+controller/reference preparation) and `collab_header_view.js` (header DOM,
+feedback and pane geometry). Preserve title/format/presence/status slots and
+reject old controls after source/editor/header replacement. Share may create a
+document through existing preparation/lifecycle; never recapture another target
+after waiting.
+
+Collab loads/link quotes/reference resync use `collab_content.js` (captured
+controller), `collab_content_workflow.js` (explicit shared-map data operations)
+and `collab_content_view.js` (HTML, editor commands and feedback). Keep plaintext
+literal, retain live reference identity/extensions and capture the editor/map,
+session/selection and source reference before callbacks. Reject read-only
+insertions and reentrant operations. Map-write failure must not reinsert content;
+corrupt resync records produce visible warnings without deleting shared entries.
+
+Collab mounting/reactivation uses `collab_mount.js` (captured activation lifecycle)
+and `collab_mount_view.js` (persistent surface/styles, titles and drop binding).
+Reuse existing title/header/format controllers and connection preparation/lifecycle.
+Keep local/remote resources when reactivating; pass activation ownership to local
+preparation, reject stale library/drop callbacks and propagate failed initialization
+or pending-content delivery as `false`. Never rebuild an incomplete existing surface
+by discarding its content. Full editor-switch internals and live sync need separate evidence.
+
 - `interface.js` must load last (depends on all other scripts)
 - All shared state lives under `window.CList`: `config.flaskSiteUrl`, `state.username`,
   `accounts`, `readers`, `publishers`, `savers`, `loaders`, `schemas`
@@ -759,6 +798,48 @@ Capture credentials, server lookup ownership and editor/status nodes before any
 await; recheck the returned commit guard before replacing live resources.
 Local/remote starts supersede each other. Use captured element, token, store URL
 and identity in the existing constructors, and expose phase/pending only through
-`state.collabPreparation`. Started lookup/import work is not aborted. Provider
-callbacks, resource cleanup, reference observation and awareness UI remain on
-their existing lifecycle and need separate migration.
+`state.collabPreparation`. Started lookup/import work is not aborted.
+
+`collab_connection.js` owns local/remote resource sets and callbacks;
+`collab_connection_view.js` owns captured status/presence/feedback. Invalidate
+the owned set before removing its timer/observers and destroying editor/provider/
+Y.Doc, and continue cleanup after individual failures. Local startup releases the
+old remote provider and clears document identity/presence. Background connections
+survive hiding; reference callbacks use their captured map and merge only while
+Collab is visible. Rebuilt chrome is rebound explicitly on editor activation,
+never by an arbitrary saved callback. Session/target expiry cleans resources on
+activity; there is no new idle authentication observer. State contains phase/
+remote only. Vendor networking/reconnection behavior and remaining editor/sharing
+controls are not established by mocked lifecycle tests.
+
+Collab formatting uses `collab_format.js` (captured editor commands/active state
+and listener ownership) and `collab_format_view.js` (buttons/pressed/disabled
+presentation). Retain the eight existing chains, bind commands to their editor,
+disable read-only controls and guard saved clicks/events. Detach both listeners
+on disposal/rebuild; resource replacement disposes the toolbar before destroying
+the editor. Rebuild on intentional resume. State contains enabled/count only;
+editor handles, command callbacks and selection details remain private.
+
+Collab duplicate-title checks use `collab_title_requests.js` (captured identity/
+server/auth read), `collab_title.js` (debounce/candidate/action ownership) and
+`collab_title_view.js` (mirroring/warnings/retry/listeners). Keep 404 distinct from
+read failures. Load-existing and Enter decisions use the private candidate, not
+DOM buttons. Capture server/ID for opening and pass a caller guard through
+`connectToDoc` into preparation so newer titles prevent late resource commits.
+Dispose old title listeners/timers when rebuilding editor chrome. State exposes
+phase/busy only. Existing new-document and pasted-link opening internals remain
+delegated paths; these title checks do not establish same-editor draft recovery.
+
+Collab Share uses `collab_share_requests.js` (captured metadata/access transport),
+`collab_share.js` (settings receipt/lock and captured action controllers) and
+`collab_share_view.js` (modal DOM/feedback). Capture document/server/credentials;
+only changed confirmed values may PATCH. Pending locks and uncertain receipts
+survive panel rebuilds privately; require a fresh read before retrying uncertain
+writes. Never infer rejected writes from lost responses or default failed reads
+to writable private access. Copy uses the shared helper's optional ownership
+guard; Chat projects public invite fields and checks the captured discussion.
+Post hands captured content/context to the existing composer, whose internal
+mount/publish lifecycle remains a separate boundary. State holds phase/busy/
+receipt only. Real authorization and cross-client ordering are not proven by mocks.
+Direct compatibility share helpers also validate connection ownership before
+capturing a target, so a new session cannot reuse an old document with new credentials.

@@ -1,0 +1,10 @@
+<!doctype html><meta charset="utf-8"><title>CList Collab header check</title>
+<h1>Collab Share and Annotate controls</h1>
+<p>Real header controller/view and reference preparation. Sessions, document creation/sharing, references, content loading, pane geometry and modal mocked. Header controls use browser DOM. No external requests or writes. Full initialization, editor loading, provider lifecycle and live collaboration not exercised. Test 2026-11-21.28.</p>
+<pre id="result">Checking...</pre>
+<script src="../js/collab_header_view.js?v=2026-11-21.28"></script>
+<script src="../js/collab_header.js?v=2026-11-21.28"></script>
+<script src="helpers/collab-header-fixture.js?v=2026-11-21.28"></script>
+<script>
+(async()=>{let checks=0;for(const[name,run]of collabHeaderCases)await run((condition,message)=>{if(!condition)throw Error(name+': '+message);checks++;});document.getElementById('result').textContent='PASS: '+checks+' checks. Real Collab header controller/view and reference preparation, structural slots/standard controls, captured Share/create handoff, duplicate locks, exact annotation references, staged load/reveal, visible failure/explicit retry and stale source/document/menu/disposal guards. Session, creation/sharing, reference/editor, pane and modal effects mocked; no external requests or writes. Full initialization, editor loading, provider lifecycle and live collaboration not exercised.';})().catch(error=>{document.getElementById('result').textContent='FAIL: '+error.stack;console.error(error);});
+</script>

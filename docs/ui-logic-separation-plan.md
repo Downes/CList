@@ -170,8 +170,53 @@ The user-approved remaining order is:
    `collab_connection_preparation.js` (21 focused and 924/924 full Node pass;
    user-reported browser PASS, 20 checks). Node additionally exercises real Collab initializers
    with resource/dependency fakes; browser fixture covers preparation only.
-   Provider callbacks, teardown, awareness and remaining editor internals remain
-   separate follow-ups.
+   Provider/resource lifecycle and status/presence now use `collab_connection.js`
+   and `collab_connection_view.js`, with captured callbacks, owned cleanup,
+   background/reference guards and explicit resume rebinding (22 focused and
+   932/932 full Node pass; user-reported browser PASS, 22 checks). Resource/timer/session/reference
+   APIs mocked. Real vendor synchronization/authentication remain unverified;
+   Formatting controls now use `collab_format.js` and `collab_format_view.js`,
+   captured editor chains, read-only/active presentation and listener cleanup
+   (23 focused and 939/939 full Node pass; user-reported browser PASS, 18 checks). TipTap events/
+   chains, ownership and feedback mocked. Duplicate-title checks, warning choices
+   and title-listener ownership now use `collab_title*`, with captured checked
+   targets and guarded existing-document loading (23 focused and 947/947 full
+   Node pass; user-reported browser PASS, 26 checks). Identity/HTTP/server/ownership/timers/opening
+   effects mocked. Share panel/access-setting requests and captured Copy/Chat/
+   Post handoff now use `collab_share*`, with per-target pending/uncertain locks
+   and read-only recovery (25 focused and 956/956 full Node pass; user-reported browser PASS, 27 checks).
+   HTTP/session/document/chat/clipboard/composer/modal effects mocked. Post
+   composer now uses `collab_composer.js` and `collab_composer_view.js`, with
+   owned delayed initialization, temporary-handler restoration, draft protection
+   and captured publication completion hooks (26 focused and 966/966 full Node
+   pass; user-reported browser PASS, 21 checks). TinyMCE/session/publishing/timers mocked.
+   Link/invite opening now uses `collab_opening*` for normalization, duplicate and
+   superseded intents, captured session/editor guards and owned title feedback
+   (17 focused and 975/975 full Node pass; user-reported browser PASS, 27 checks). Editor selection,
+   connection and modal effects mocked in its browser fixture; Node also checks
+   the actual Collab adapter with mocked provider dependencies. Collection/chat
+   creation now uses `collab_creation*`, with captured seeds, shared selection,
+   namespace/connection-intent guards and owned timer/update-listener cleanup.
+   Delayed seeds skip changed/nonempty or replaced resources (27 focused and
+   985/985 full Node pass; user-reported browser PASS, 27 checks). Sessions, editor/provider APIs,
+   sanitizer, timers and invitations mocked; live synchronization remains untested.
+   Header Share/Annotate controls now use `collab_header.js` and
+   `collab_header_view.js`, retaining structural slots and guarding captured
+   targets, local creation, annotation references and staged load/reveal
+   (17 focused and 994/994 full Node pass; user-reported browser PASS, 20 checks). Services, sessions,
+   editor/reference effects and pane/modal APIs mocked. Content/reference
+   insertion/resync now use `collab_content*`, with captured resources/source
+   references, literal plaintext, retained reference identity/extensions,
+   guarded operation stages and partial-failure feedback (23 focused and
+   1003/1003 full Node pass; user-reported browser PASS, 25 checks). Editor/session/source/panel APIs
+   mocked; maps/JSON and reference deduplication real. Main Collab mounting now
+   uses `collab_mount.js` and `collab_mount_view.js`, preserving local/remote
+   resources and guarding library/local/drop/pending-content stages, duplicate
+   activations and newer titles/intents (18 focused and 1013/1013 full Node pass;
+   user-reported browser PASS, 28 checks). Selection, library, resources, loader and modal mocked in
+   its fixture; Node also runs the actual initializer with mocked provider APIs.
+   Audit remaining UI/state boundaries after its browser result; full editor
+   switching and live vendor synchronization remain separately unverified.
 
 For each slice: keep current behavior, reuse registries/helpers, capture inputs
 and operation lifetime, keep views free of writes, and test stale/duplicate/error

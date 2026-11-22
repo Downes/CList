@@ -170,13 +170,14 @@ async function postAll() {
         view.fail(new Error('Finish or cancel the current publication before publishing to other destinations.'));
         return;
     }
+    const completion = typeof window._onPostAllComplete === 'function' ? window._onPostAllComplete : null;
     publishing.busy = true;
     publishing.operation = { status: 'capturing', primaryUrl: null, destinations: [] };
     try {
         view.setBusy(true);
         const annotationSession = typeof captureAnnotationSession === 'function' ? captureAnnotationSession() : undefined;
         const request = await capturePublicationRequest();
-        if (request) return await _postAllSelected(request, annotationSession);
+        if (request) return await _postAllSelected(request, annotationSession, completion);
         publishing.operation = { ...publishing.operation, status: 'cancelled' };
         return null;
     } catch (error) {
@@ -196,7 +197,7 @@ async function postAll() {
  * @param {CListPublicationRequest} request
  * @returns {Promise<CListPublishingOutcome>}
  */
-async function _postAllSelected(request, annotationSession) {
+async function _postAllSelected(request, annotationSession, completion) {
     const view = window.CList.ui.publishing;
     const publishing = window.CList.state.publishing;
     view.begin();
@@ -245,10 +246,9 @@ async function _postAllSelected(request, annotationSession) {
         try { await sendWebMentions(outcome.primaryUrl, structuredClone(request.references)); }
         catch (error) { view.notice('Published, but could not send WebMentions: ' + error.message); }
     }
-    if (typeof window._onPostAllComplete === 'function') {
-        const callback = window._onPostAllComplete;
-        window._onPostAllComplete = null;
-        try { callback(); }
+    if (typeof completion === 'function') {
+        if (window._onPostAllComplete === completion) window._onPostAllComplete = null;
+        try { completion(); }
         catch (error) { view.notice('Publication finished, but its completion action failed: ' + error.message); }
     }
     return outcome;

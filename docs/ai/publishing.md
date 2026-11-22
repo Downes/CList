@@ -628,5 +628,90 @@ not cancel effects inside the existing live connection lifecycle.
 connection preparation, then recheck its commit guard before destroying any
 existing resources. Server/dependency awaits cannot switch to newer credentials
 or editor nodes. Provider/editor constructors use captured token/store/identity/
-element values. Started lookup/import work still completes, and existing provider
-callbacks, reference/awareness behavior and resource teardown remain separate.
+element values. Started lookup/import work still completes.
+
+The Collab resource controller now invalidates old callbacks before cleanup and
+owns the editor/provider/Y.Doc, observers and delayed awareness update. References
+come from the captured map and merge only into visible Collab state. Cleanup
+attempts all resources even after a destroy failure; failures are reported and
+do not guarantee actual socket closure. Hidden live documents remain connected;
+returning to the editor explicitly rebinds status/presence chrome. Session/editor
+target expiry is checked on activity. These guards do not verify real provider
+authentication/reconnect behavior, replace vendor synchronization or migrate
+remaining document creation/publication/sharing controls.
+
+Collab formatting callbacks now capture one editor rather than reading the
+mutable editor alias. Reject read-only/hidden/stale session/editor/bar actions,
+guard synchronous reentrant commands, and detach selection/transaction listeners
+before resource destruction or toolbar rebuild. Returning to a parked document
+refreshes or rebuilds the toolbar. These controls do not change document data
+formats or establish live TipTap behavior from mocked command-chain tests.
+
+Collab duplicate-title reads/choices now use captured controller/view/request
+modules. Preserve namespacing and per-path-segment encoding; capture credentials
+before lookup, then carry the checked server/ID into explicit loading. Stale
+input/session/editor/listener/timer results cannot expose a Load choice. Pass
+the action guard through connection preparation before replacing resources.
+Normalize title fields only while the choice still owns them. General new-doc
+and pasted-link opening paths remain delegated; do not claim these checks cancel
+all their internal work or protect newer editor body content.
+
+Collab sharing settings now use captured GET/PATCH transport and a modal
+controller/view. Keep original document/server/token for both reads and writes;
+only changed known values may write. Retain pending/uncertain target locks across
+rebuilt panels, classify network/408/429/5xx failures as uncertain, and require
+read-only reconciliation before another explicit write. A 2xx records acceptance
+without requiring a JSON body. No automatic PATCH retries, durable recovery or
+server compare-and-swap is provided. Live anonymous-read enforcement is untested.
+
+Copy/Chat/Post panel actions capture links/document metadata. Preserve strict
+synchronous chat invite acceptance and exclude private target fields from packets.
+Shared clipboard feedback takes an optional owner guard (existing callers remain
+unchanged). The Post composer uses `collab_composer.js` and
+`collab_composer_view.js`: captured link/title, unique TinyMCE targets, owned
+instance cleanup and temporary-handler restoration. Preserve edited fallback
+drafts, explicit initialization retry and newer draft/editor protection.
+`postAll` captures its completion hook before asynchronous content preparation;
+an older publication must not consume a newer composer's hook. Completion keeps
+the existing workflow semantics: it is not proof of successful remote delivery.
+Closing the composer does not cancel an already captured publication.
+
+Collab public links/chat invites use `collab_opening*` for normalization,
+captured session/editor ownership and title/error presentation. Validate before
+switching, pass caller guards through shared connection preparation and avoid
+stale title/error commits. Setup completion is not provider synchronization or
+authorization proof.
+
+Collection/chat document creation uses `collab_creation*` and shared selection,
+connection preparation and lifecycle. Capture source content before asynchronous
+work; reject namespace expansion after newer connection intent. Seeding owns its
+exact editor, timer and update listener, skips nonempty or updated documents,
+and releases controls on completion/replacement. Use the shared HTML sanitizer
+at the seed view boundary. Preserve captured invitation routing and distinguish
+invite failure from successful document setup; never automatically resend.
+The retained 800 ms seed delay does not guarantee remote synchronization; these
+client guards do not provide server-side add-only creation or concurrent-edit CAS.
+
+Collab header Share/Annotate controls now use `collab_header.js` and
+`collab_header_view.js`. Keep document/session/input captures private and action
+state credential-free. Capture the Share target before handoff; local-title
+creation must revalidate source/input/intent before connecting. Annotation keeps
+the exact structural reference and guards later load/reveal effects. Reject
+pending or detached controls, and keep explicit failure/retry feedback in the
+view.
+
+Collab content/reference insertion now uses `collab_content*`. Capture the
+original editor/map/source reference, preserve live reference identity and shared
+metadata, and check ownership between operation stages. Plaintext is escaped;
+HTML retains its existing editor route. Do not retry body insertion after an
+attribution/map failure. Resync retains unreadable shared records, warns visibly,
+and preserves existing local references if map iteration fails before replacement.
+
+Collab activation uses `collab_mount.js` and `collab_mount_view.js`: source/pane
+ownership, preserved background resources, captured drop binding and guarded
+library/local/pending-content stages. Reuse the existing connection preparation
+and lifecycle, passing the activation guard into local initialization. Return
+`false` for initialization or pending-content failure so the editor switch can
+handle it. Do not overwrite newer title input or start a local editor over a newer
+connection intent. This boundary does not generically cancel already dispatched
+loaders or prove live provider synchronization.

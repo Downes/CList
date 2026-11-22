@@ -39,52 +39,6 @@ window.CList.schemas['Collab'] = {
 
     const COLLAB_WS_URL = window.CList.defaults.COLLAB.replace(/^http/, 'ws')
 
-    // --- Minimal styles, injected once ---
-
-    function injectStyles() {
-        if (document.getElementById('collab-styles')) return
-        const s = document.createElement('style')
-        s.id = 'collab-styles'
-        s.textContent = `
-            #collabDiv { display: flex; flex-direction: column; height: 100%; position: relative; }
-            #collab-share-post-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-                z-index: 20; display: flex; flex-direction: column;
-                padding: 12px; border: 1px solid; border-radius: 4px; }
-            #collab-share-post-overlay .overlay-instructions { font-size: 0.85em;
-                margin: 0 0 8px; }
-            #collab-share-post-overlay .overlay-toolbar { display: flex; gap: 6px; margin-top: 8px;
-                justify-content: flex-end; }
-            #collab-doc-picker { display: flex; gap: 6px; align-items: center; }
-            #collab-doc-id { font-size: 0.85em; padding: 4px 6px; border: 1px solid;
-                             border-radius: 4px; width: 200px; }
-            #collab-doc-warning { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-            #collab-doc-warning button { font-size: 0.8em; padding: 1px 7px; border: 1px solid;
-                border-radius: 3px; cursor: pointer; }
-            #collab-format-toolbar { display: flex; gap: 3px; }
-            #collab-who { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; flex: 1; padding: 0 4px; }
-            .collab-user { font-size: 0.75em; white-space: nowrap; }
-            #collab-status { font-size: 0.75em; }
-            #collab-editor-container { flex: 1; overflow-y: auto; border: 1px solid;
-                                       border-radius: 4px; }
-            #tiptap-editor .ProseMirror { outline: none; min-height: 200px; padding: 10px; }
-            #tiptap-editor .ProseMirror p { margin: 0.5em 0; }
-            #tiptap-editor .ProseMirror h1 { font-size: 1.6em; margin: 0.8em 0 0.3em; }
-            #tiptap-editor .ProseMirror h2 { font-size: 1.3em; margin: 0.7em 0 0.3em; }
-            #tiptap-editor .ProseMirror h3 { font-size: 1.1em; margin: 0.6em 0 0.3em; }
-            #tiptap-editor .ProseMirror ul, #tiptap-editor .ProseMirror ol { padding-left: 1.5em; }
-            #tiptap-editor .ProseMirror blockquote { border-left: 3px solid; margin: 0.5em 0;
-                padding-left: 1em; }
-            /* Collaboration cursors */
-            .collaboration-cursor__caret { border-left: 2px solid; border-right: 2px solid;
-                margin-left: -1px; margin-right: -1px; position: relative; }
-            .collaboration-cursor__label { border-radius: 3px 3px 3px 0; color: #fff;
-                font-size: 0.7em; font-weight: 600; left: -1px; line-height: normal;
-                padding: 1px 4px; position: absolute; top: -1.5em;
-                user-select: none; white-space: nowrap; }
-        `
-        document.head.appendChild(s)
-    }
-
     // --- Module-level state ---
 
     let deps               = null  // loaded TipTap / Hocuspocus modules (cached after first load)
@@ -93,7 +47,6 @@ window.CList.schemas['Collab'] = {
     let currentDocId       = null
     let currentDocTitle    = ''
     let currentWsUrl       = COLLAB_WS_URL  // updated each time we connect
-    let dupCheckTimer      = null  // debounce timer for duplicate-title check
     let sharedRefs         = null  // Y.Map synced across all collaborators: url → JSON ref string
 
     // Capture asynchronous preparation before replacing any live resources.
@@ -116,6 +69,31 @@ window.CList.schemas['Collab'] = {
             state: value => { window.CList.state.collabPreparation = value }
         })
         return connectionPreparation
+    }
+
+    let formatToolbarController = null
+    let connectionLifecycle = null
+    function getConnectionLifecycle() {
+        if (!connectionLifecycle) connectionLifecycle = createCollabConnectionLifecycle({
+            source: () => JSON.stringify([readerSession(), window.CList.state.authEpoch || 0]),
+            targetCurrent: target => !!target.element?.isConnected && document.getElementById('tiptap-editor') === target.element,
+            visible: () => currentEditor === 'collab',
+            view: (target, rebind = false) => createCollabConnectionView(rebind ? { ...target, statusElement: document.getElementById('collab-status') } : target),
+            clearReferences: () => setReferences([]),
+            pushReference: reference => { if (typeof pushReference === 'function') pushReference(reference) },
+            install(resources) {
+                if (!resources) { formatToolbarController?.dispose(); formatToolbarController = null }
+                tiptapEditor = resources?.editor || null
+                hocuspocusProvider = resources?.provider || null
+                sharedRefs = resources?.map || null
+                currentDocId = resources?.target.docId || null
+                if (resources?.target.wsUrl) currentWsUrl = resources.target.wsUrl
+            },
+            ready: () => buildFormatToolbar(),
+            schedule: (callback, delay) => setTimeout(callback, delay), clear: timer => clearTimeout(timer),
+            state: value => { window.CList.state.collabConnection = value }
+        })
+        return connectionLifecycle
     }
 
     // --- Load vendored dependencies lazily ---
@@ -157,28 +135,35 @@ window.CList.schemas['Collab'] = {
         try { return new URL(str).pathname.startsWith('/doc/') } catch { return false }
     }
 
-    // Parse a collab share URL and open the document in the collab editor.
-    // Works for both /doc/{id}/edit and /doc/{id}/read forms.
-    async function openCollabUrl(href) {
-        try {
-            const url    = new URL(href)
-            const segs   = url.pathname.slice(5).split('/').filter(Boolean).map(decodeURIComponent)
-            const last   = segs[segs.length - 1]
-            const mode   = (last === 'edit' || last === 'read') ? last : 'edit'
-            const docId  = (last === 'edit' || last === 'read') ? segs.slice(0, -1).join('/') : segs.join('/')
-            if (!docId) return
-            const wsUrl  = url.origin.replace(/^https:\/\//, 'wss://').replace(/^http:\/\//, 'ws://')
-            if (typeof initializeEditor === 'function' && currentEditor !== 'collab') {
-                await initializeEditor('collab')
-            }
-            setDocTitle(localPartOf(docId))
-            currentDocTitle = ''
-            await connectToDoc(docId, mode, wsUrl)
-        } catch (e) {
-            console.error('openCollabUrl failed:', e)
-            showErrorModal('Could not open collab link: ' + e.message, { title: 'Could not open collab link' })
-        }
+    async function selectCollabOpening(current) {
+        if (!current()) return null
+        const pending = currentEditor !== 'collab' ? initializeEditor('collab') : null
+        const switchId = window.CList.state.editorSwitching?.id
+        if (pending && await pending === false) return null
+        if (!current() || currentEditor !== 'collab' || switchId !== window.CList.state.editorSwitching?.id) return null
+        const element = document.getElementById('tiptap-editor'), account = currentEditorAccount
+        return () => currentEditor === 'collab' && currentEditorAccount === account &&
+            window.CList.state.editorSwitching?.id === switchId && !!element?.isConnected &&
+            document.getElementById('tiptap-editor') === element
     }
+
+    let openingController = null
+    function getOpeningController() {
+        if (!openingController) openingController = createCollabOpeningController({
+            capture: () => JSON.stringify([readerSession(), window.CList.state.authEpoch || 0, window.CList.accounts || []]),
+            current: source => source === JSON.stringify([readerSession(), window.CList.state.authEpoch || 0, window.CList.accounts || []]),
+            select: selectCollabOpening,
+            connect: (target, current) => connectToDoc(target.docId, target.mode, target.server, current),
+            state: value => { window.CList.state.collabOpening = value }
+        }, createCollabOpeningView((label, title) => { setDocTitle(label); currentDocTitle = title }))
+        return openingController
+    }
+    function openIncomingCollab(kind, input) {
+        try { normalizeCollabOpening(kind, input); creationController?.dispose() }
+        catch { /* The opening controller owns invalid-input feedback. */ }
+        return getOpeningController().open(kind, input)
+    }
+    function openCollabUrl(href) { return openIncomingCollab('url', href) }
     window.openCollabUrl = openCollabUrl
 
     // Set the document title in both the collab input and the CList write-title field.
@@ -201,148 +186,68 @@ window.CList.schemas['Collab'] = {
 
     // Initialize TipTap with a local Y.Doc only (no Hocuspocus) so the editor is
     // immediately usable before the user commits a document title.
-    async function initLocalEditor() {
-        const prepared = await getConnectionPreparation().prepare({ local: true })
-        prepared.assertCurrent()
-        const { Editor, StarterKit, Collaboration, Link, Y } = prepared.modules
-        if (tiptapEditor) { tiptapEditor.destroy(); tiptapEditor = null }
-        const ydoc = new Y.Doc()
-        sharedRefs = ydoc.getMap('clist_refs')
-        tiptapEditor = new Editor({
-            element:    prepared.element,
-            editable:   true,
-            extensions: [
-                StarterKit.configure({ history: false }),
-                Collaboration.configure({ document: ydoc }),
-                Link.configure({ openOnClick: false, validate: href => /^https?:\/\//i.test(href) }),
-            ],
-        })
-        buildFormatToolbar()
+    async function initLocalEditor(current = () => true) {
+        connectionIntent++
+        const prepared = await getConnectionPreparation().prepare({ local: true, current })
+        return getConnectionLifecycle().start(prepared)
     }
 
     // Read the current title input, expand it to a full doc ID, and connect.
-    async function connectFromInput() {
+    async function connectFromInput(current = () => true) {
         const input = document.getElementById('collab-doc-id')
         const localName = input ? input.value.trim() : ''
         if (!localName) return
         const docId = await expandDocId(localName)
+        if (!current()) return
         currentDocTitle = ''
         try {
-            await connectToDoc(docId)
-            setDocTitle(localPartOf(docId))
+            await connectToDoc(docId, 'edit', null, current)
+            if (current()) setDocTitle(localPartOf(docId))
         } catch (e) {
+            if (!current()) return
             console.error('Collab connect error:', e)
             showErrorModal('Connection failed: ' + e.message, { title: 'Collab connection failed' })
         }
     }
 
-    // Check whether a document already exists with the ID derived from the current
-    // title input.  Debounced — call on every input event.
-    function scheduleDupCheck() {
-        if (dupCheckTimer) clearTimeout(dupCheckTimer)
-        dupCheckTimer = setTimeout(checkTitleForDuplicate, 500)
-    }
-
-    async function checkTitleForDuplicate() {
-        const input   = document.getElementById('collab-doc-id')
-        const warning = document.getElementById('collab-doc-warning')
-        if (!input || !warning) return
-
-        const localName = input.value.trim()
-        if (!localName) { warning.style.display = 'none'; pendingDocId = localName; return }
-
-        const docId = await expandDocId(localName)
-        pendingDocId = docId
-
-        // If already connected to this doc, no warning needed
-        if (currentDocId === docId) { warning.style.display = 'none'; return }
-
-        const wsUrl = await getCollabWsUrl()
-        const base  = wsUrlToRestBase(wsUrl)
-        try {
-            const pathId = docId.split('/').map(encodeURIComponent).join('/')
-            const resp = await fetch(`${base}/api/documents/${pathId}`, {
-                headers: kvstoreAuthHeader()
-            })
-            if (!resp.ok) { warning.style.display = 'none'; return }
-
-            // Document exists — show warning
-            const hasContent = tiptapEditor && tiptapEditor.getText().trim().length > 0
-            const loseWarn   = hasContent ? ' <strong>Your current content will be lost.</strong>' : ''
-            warning.innerHTML = `Document already exists.${loseWarn}
-                <button id="collab-load-existing">Load it</button>`
-            warning.style.display = 'block'
-
-            document.getElementById('collab-load-existing').addEventListener('click', async () => {
-                warning.style.display = 'none'
-                currentDocTitle = ''
-                try {
-                    await connectToDoc(docId, 'edit', null, null)
-                    if (input) input.value = localPartOf(docId)
-                } catch (e) {
-                    showErrorModal('Connection failed: ' + e.message, { title: 'Collab connection failed' })
-                }
-            })
-        } catch {
-            warning.style.display = 'none'
-        }
+    let titleController = null
+    function getTitleController() {
+        if (titleController?.owned()) return titleController
+        titleController?.dispose()
+        const view = createCollabTitleView()
+        if (!view.alive()) return null
+        const source = JSON.stringify([readerSession(), window.CList.state.authEpoch || 0, currentEditorAccount, window.CList.accounts || [], window.CList.defaults.COLLAB])
+        titleController = createCollabTitleController({
+            current: () => currentEditor === 'collab' && source === JSON.stringify([readerSession(), window.CList.state.authEpoch || 0, currentEditorAccount, window.CList.accounts || [], window.CList.defaults.COLLAB]),
+            capture: () => ({ token: readerSession().token }), editor: () => tiptapEditor, currentDocId: () => currentDocId,
+            inspect: (text, snapshot, assertCurrent) => inspectCollabTitle(text, snapshot, { assertCurrent,
+                expand: expandDocId, server: getCollabWsUrl, restBase: wsUrlToRestBase, fetch: (...args) => fetch(...args) }),
+            hasContent: () => !!tiptapEditor?.getText().trim(), shortId: localPartOf,
+            open: (target, current) => { currentDocTitle = ''; return connectToDoc(target.docId, 'edit', target.wsUrl, current) },
+            connectNew: current => connectFromInput(current), openUrl: openCollabUrl, isUrl: isCollabUrl,
+            schedule: (callback, delay) => setTimeout(callback, delay), clear: timer => clearTimeout(timer),
+            state: value => { window.CList.state.collabTitle = value }
+        }, view)
+        return titleController
     }
 
     // --- Formatting toolbar ---
 
-    const FORMAT_BUTTONS = [
-        { label: 'B',   title: 'Bold',          cmd: e => e.chain().focus().toggleBold().run(),               active: e => e.isActive('bold') },
-        { label: 'I',   title: 'Italic',         cmd: e => e.chain().focus().toggleItalic().run(),             active: e => e.isActive('italic') },
-        { label: 'H1',  title: 'Heading 1',      cmd: e => e.chain().focus().toggleHeading({ level: 1 }).run(), active: e => e.isActive('heading', { level: 1 }) },
-        { label: 'H2',  title: 'Heading 2',      cmd: e => e.chain().focus().toggleHeading({ level: 2 }).run(), active: e => e.isActive('heading', { level: 2 }) },
-        { label: 'H3',  title: 'Heading 3',      cmd: e => e.chain().focus().toggleHeading({ level: 3 }).run(), active: e => e.isActive('heading', { level: 3 }) },
-        { label: '•',   title: 'Bullet list',    cmd: e => e.chain().focus().toggleBulletList().run(),         active: e => e.isActive('bulletList') },
-        { label: '1.',  title: 'Ordered list',   cmd: e => e.chain().focus().toggleOrderedList().run(),        active: e => e.isActive('orderedList') },
-        { label: '❝',   title: 'Blockquote',     cmd: e => e.chain().focus().toggleBlockquote().run(),         active: e => e.isActive('blockquote') },
-    ]
-
     function buildFormatToolbar() {
-        const bar = document.getElementById('collab-format-toolbar')
-        if (!bar) return
-        bar.innerHTML = ''
-        FORMAT_BUTTONS.forEach(({ label, title, cmd }) => {
-            const btn = document.createElement('button')
-            btn.className = 'btn btn-small'
-            btn.textContent = label
-            btn.title = title
-            btn.addEventListener('click', () => { cmd(tiptapEditor); refreshToolbar() })
-            bar.appendChild(btn)
-        })
-        tiptapEditor.on('selectionUpdate', refreshToolbar)
-        tiptapEditor.on('transaction',     refreshToolbar)
-    }
-
-    function refreshToolbar() {
-        const bar = document.getElementById('collab-format-toolbar')
-        if (!bar || !tiptapEditor) return
-        bar.querySelectorAll('button').forEach((btn, i) => {
-            btn.classList.toggle('is-active', FORMAT_BUTTONS[i].active(tiptapEditor))
-        })
+        if (formatToolbarController?.owned()) { formatToolbarController.refresh(); return }
+        formatToolbarController?.dispose(); formatToolbarController = null
+        const editor = tiptapEditor, view = createCollabFormatView()
+        if (!editor || !view.alive()) return
+        const source = JSON.stringify([readerSession(), window.CList.state.authEpoch || 0, currentEditorAccount])
+        formatToolbarController = createCollabFormatController({ editor,
+            current: () => tiptapEditor === editor && currentEditor === 'collab' && source === JSON.stringify([readerSession(), window.CList.state.authEpoch || 0, currentEditorAccount]),
+            state: value => { window.CList.state.collabFormatting = value }
+        }, view)
     }
 
     // --- Social: "who's here" awareness list ---
 
-    function updateWhoList() {
-        const whoEl = document.getElementById('collab-who')
-        if (!whoEl || !hocuspocusProvider) return
-        whoEl.textContent = ''
-        ;[...hocuspocusProvider.awareness.getStates().values()]
-            .filter(s => s.user)
-            .forEach((s, i) => {
-                if (i > 0) whoEl.appendChild(document.createTextNode(' '))
-                const span = document.createElement('span')
-                span.className = 'collab-user'
-                const safeColor = /^#[0-9a-f]{3,6}$/i.test(s.user.color || '') ? s.user.color : '#888'
-                span.style.color = safeColor
-                span.textContent = '● ' + (s.user.name || 'Anonymous')
-                whoEl.appendChild(span)
-            })
-    }
+    function updateWhoList() { connectionLifecycle?.refresh() }
 
     // --- Sharing helpers ---
 
@@ -350,255 +255,92 @@ window.CList.schemas['Collab'] = {
         return getRealtimeDocShareLink(currentWsUrl, currentDocId, mode)
     }
 
-    window.copyCollabLink = function(mode) {
-        copyToClipboard(getCollabShareLink(mode), { successMsg: 'Link copied to clipboard.' })
+    function captureShareTarget() {
+        if (!connectionLifecycle?.owned() || !currentDocId) throw Error('Join a document first before sharing.')
+        const session = readerSession()
+        return { docId: currentDocId, server: currentWsUrl, title: currentDocTitle || currentDocId,
+            inviteTitle: currentDocTitle || localPartOf(currentDocId), token: session.token,
+            source: JSON.stringify([session, window.CList.state.authEpoch || 0]), editor: tiptapEditor,
+            element: document.getElementById('tiptap-editor'),
+            discussion: typeof activeDiscussionName !== 'undefined' ? activeDiscussionName : null,
+            chatOwner: typeof _p2pSession !== 'undefined' ? _p2pSession : null,
+            links: { edit: getCollabShareLink('edit'), read: getCollabShareLink('read') } }
     }
-
-    window.shareCollabViaChat = function(mode) {
-        if (!currentDocId) return
-        const invite = {
-            type:   'collab-invite',
-            docId:  currentDocId,
-            server: currentWsUrl,
-            mode,
-            title:  currentDocTitle || localPartOf(currentDocId),
-            link:   getCollabShareLink(mode),
-        }
-        if (typeof window.sendCollabInvite === 'function') {
-            const sent = window.sendCollabInvite(invite)
-            if (sent) {
-                showStatusMessage('Invite sent to chat discussion.')
-            } else {
-                showErrorModal('No connected peers to send to.', { title: 'Could not send invite' })
-            }
+    function shareDependencies(target) {
+        const contextCurrent = () => target.source === JSON.stringify([readerSession(), window.CList.state.authEpoch || 0]) &&
+            currentDocId === target.docId && currentWsUrl === target.server && tiptapEditor === target.editor &&
+            target.element?.isConnected && document.getElementById('tiptap-editor') === target.element
+        return {
+            current: () => contextCurrent() && currentEditor === 'collab', contextCurrent,
+            writeKey: JSON.stringify([target.source, target.server, target.docId]),
+            read: (captured, assertCurrent) => readCollabAccess(captured, { assertCurrent, restBase: wsUrlToRestBase, fetch: (...args) => fetch(...args) }),
+            write: (captured, value, operation, assertCurrent) => writeCollabAccess(captured, value, operation, { assertCurrent, restBase: wsUrlToRestBase, fetch: (...args) => fetch(...args) }),
+            link: mode => target.links[mode],
+            copy: (link, isCurrent) => copyToClipboard(link, { successMsg: 'Link copied to clipboard.', isCurrent }),
+            chatCurrent: () => !!target.discussion && target.discussion === (typeof activeDiscussionName !== 'undefined' ? activeDiscussionName : null) &&
+                target.chatOwner === (typeof _p2pSession !== 'undefined' ? _p2pSession : null),
+            chat: invite => typeof window.sendCollabInvite === 'function' && window.sendCollabInvite(invite),
+            post: captured => window.openCollabSharePost(captured.mode, captured),
+            state: value => { window.CList.state.collabSharing = value }
         }
     }
+    function directShareAction(action, mode) {
+        try {
+            const target = captureShareTarget()
+            return createCollabShareActions(target, shareDependencies(target), {
+                status: showStatusMessage,
+                error: error => { console.error('Collab share action failed:', error); showStatusMessage(error.message || String(error)) }
+            })[action](mode)
+        } catch (error) { console.error('Collab share action failed:', error); showStatusMessage(error.message || String(error)); return false }
+    }
+    window.copyCollabLink = mode => directShareAction('copy', mode)
+    window.shareCollabViaChat = mode => directShareAction('chat', mode)
 
     // Open an overlay editor above the collab pane so the user can compose a message
     // containing the share link and post it to any configured account via playPost().
-    window.openCollabSharePost = function(mode) {
-        const m = document.getElementById('generic-modal')
-        if (m) m.remove()
-
-        const link     = getCollabShareLink(mode)
-        const docTitle = currentDocTitle || currentDocId
-        const linkHtml = mode === 'edit'
-            ? `<a href="${link}">${docTitle}</a>`
-            : `<a href="${link}">${docTitle} (view only)</a>`
-
-        const existing = document.getElementById('collab-share-post-overlay')
-        if (existing) existing.remove()
-
-        const overlay = document.createElement('div')
-        overlay.id = 'collab-share-post-overlay'
-        overlay.innerHTML = `
-            <p class="overlay-instructions">Create a message to share this link, then Post it to any of your accounts using 'Post'.</p>
-            <textarea id="collab-share-post-editor"></textarea>
-            <div class="overlay-toolbar">
-                <button class="btn-small" id="collab-share-post-btn">Post</button>
-                <button class="btn-small" id="collab-share-close-btn">Cancel</button>
-            </div>
-        `
-        document.getElementById('collabDiv').appendChild(overlay)
-
-        const prevEditor = typeof currentEditor !== 'undefined' ? currentEditor : null
-
-        function closeOverlay() {
-            if (typeof tinymce !== 'undefined') {
-                const ed = tinymce.get('collab-share-post-editor')
-                if (ed) ed.remove()
-            }
-            if (typeof editorHandlers !== 'undefined') delete editorHandlers['collab-share']
-            if (prevEditor !== null && typeof currentEditor !== 'undefined') currentEditor = prevEditor
-            overlay.remove()
-        }
-
-        document.getElementById('collab-share-close-btn').addEventListener('click', closeOverlay)
-        document.getElementById('collab-share-post-btn').addEventListener('click', () => {
-            if (typeof playPost === 'function') {
-                window._onPostAllComplete = closeOverlay
-                playPost()
-            }
-        })
-
-        if (typeof editorHandlers !== 'undefined') {
-            editorHandlers['collab-share'] = {
-                label: 'Share Post',
-                getContent: async () => {
-                    const ed = typeof tinymce !== 'undefined' && tinymce.get('collab-share-post-editor')
-                    return ed ? ed.getContent() : (document.getElementById('collab-share-post-editor')?.value || '')
+    window.openCollabSharePost = function(mode, captured = null) {
+        try {
+            if (captured && !captured.current()) return false
+            if (!['collab', 'collab-share'].includes(currentEditor)) return false
+            const target = captured || (() => { const value = captureShareTarget(); return { ...value, mode, link: value.links[mode], current: shareDependencies(value).contextCurrent } })()
+            let previous = null
+            return openCollabComposer(target, {
+                install(handler) {
+                    previous = { editor:currentEditor, account:currentEditorAccount, switchId:window.CList.state.editorSwitching?.id, handler:editorHandlers['collab-share'] }
+                    editorHandlers['collab-share'] = handler; currentEditor = 'collab-share'
                 },
-            }
-        }
-        if (typeof currentEditor !== 'undefined') currentEditor = 'collab-share'
-
-        setTimeout(() => {
-            if (typeof tinymce !== 'undefined') {
-                tinymce.init({
-                    selector: '#collab-share-post-editor',
-                    height: 200,
-                    menubar: false,
-                    plugins: 'link',
-                    toolbar: 'bold italic link | undo redo',
-                    statusbar: false,
-                    setup(editor) {
-                        editor.on('init', () => editor.setContent(`<p>${linkHtml}</p>`))
-                    },
-                })
-            } else {
-                const ta = document.getElementById('collab-share-post-editor')
-                if (ta) {
-                    ta.style.cssText = 'width:100%;flex:1;font-size:0.9em;padding:7px;border:1px solid #ccc;border-radius:3px;box-sizing:border-box;font-family:inherit'
-                    ta.value = `${docTitle}: ${link}`
-                }
-            }
-        }, 50)
+                owns: handler => currentEditor === 'collab-share' && editorHandlers['collab-share'] === handler &&
+                    currentEditorAccount === previous?.account && window.CList.state.editorSwitching?.id === previous?.switchId,
+                release(handler) {
+                    if (editorHandlers['collab-share'] !== handler) return
+                    const restore = currentEditor === 'collab-share' && currentEditorAccount === previous.account && window.CList.state.editorSwitching?.id === previous.switchId
+                    if (previous.handler) editorHandlers['collab-share'] = previous.handler; else delete editorHandlers['collab-share']
+                    if (restore) currentEditor = previous.editor
+                },
+                hasRich: () => typeof tinymce !== 'undefined', init: config => tinymce.init(config),
+                schedule: (callback, delay) => setTimeout(callback,delay), clear: timer => clearTimeout(timer),
+                getCompletion: () => window._onPostAllComplete, setCompletion: callback => { window._onPostAllComplete = callback },
+                publishing: () => !!window.CList.state.publishing?.busy,
+                post: () => { if (typeof playPost !== 'function') throw Error('Publishing is unavailable.'); return playPost() },
+                state: value => { window.CList.state.collabComposer = value }
+            })
+        } catch(error) { console.error('Could not open share composer:',error); showStatusMessage(error.message || String(error)); return false }
     }
 
     async function shareCollabDoc() {
-        if (!currentDocId) { showErrorModal('Join a document first before sharing.', { title: 'No document to share' }); return }
-
-        const base     = wsUrlToRestBase(currentWsUrl)
-        const docTitle = currentDocTitle || currentDocId
-
-        let allowAnon = false
-        try {
-            const resp = await fetch(`${base}/api/documents/${encodeURIComponent(currentDocId)}`, {
-                headers: kvstoreAuthHeader()
-            })
-            if (resp.ok) allowAnon = !!(await resp.json()).allow_anonymous
-        } catch { /* use default */ }
-
-        // Chat buttons only shown when a P2P discussion is currently active
-        const chatActive = typeof activeDiscussionName !== 'undefined' && !!activeDiscussionName
-
-        function linkRow(mode, label) {
-            const link = getCollabShareLink(mode)
-            const chatBtn = chatActive
-                ? `<button class="btn-small" onclick="window.shareCollabViaChat('${mode}')">Chat</button>`
-                : ''
-            return `
-                <div style="margin-bottom:14px">
-                    <div style="font-weight:600;font-size:0.85em;margin-bottom:4px">${label}</div>
-                    <div style="display:flex;gap:5px;align-items:center;margin-bottom:5px">
-                        <code class="share-link-code">${link}</code>
-                        <button class="btn-small" onclick="window.copyCollabLink('${mode}')">Copy</button>
-                    </div>
-                    <div style="display:flex;gap:5px">
-                        ${chatBtn}
-                        <button class="btn-small" onclick="window.openCollabSharePost('${mode}')">Post</button>
-                    </div>
-                </div>`
-        }
-
-        showModal(`
-            <div style="width:min(640px,88vw)">
-                <h3 style="margin:0 0 14px">Share &ldquo;${docTitle}&rdquo;</h3>
-                <label style="display:flex;align-items:center;gap:8px;margin-bottom:16px;cursor:pointer;font-size:0.9em">
-                    <input type="checkbox" id="collab-anon-check"${allowAnon ? ' checked' : ''}>
-                    <span>Allow anyone to read (no login required)</span>
-                </label>
-                ${linkRow('edit', 'Co-edit link')}
-                ${linkRow('read', 'Read-only link')}
-            </div>
-        `)
-
-        setTimeout(() => {
-            const check = document.getElementById('collab-anon-check')
-            if (!check) return
-            check.addEventListener('change', async () => {
-                try {
-                    const r = await fetch(`${base}/api/documents/${encodeURIComponent(currentDocId)}`, {
-                        method:  'PATCH',
-                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                        body:    JSON.stringify({ allow_anonymous: check.checked }),
-                    })
-                    if (!r.ok) throw new Error(r.status)
-                    showStatusMessage(check.checked
-                        ? 'Anyone can now read this document.'
-                        : 'Login now required to read this document.')
-                } catch (e) {
-                    console.error('allow_anonymous update failed:', e)
-                    showErrorModal('Could not update sharing settings: ' + e.message, { title: 'Could not update sharing settings' })
-                    check.checked = !check.checked
-                }
-            })
-        }, 50)
+        try { const target = captureShareTarget(); return await openCollabSharePanel(target, shareDependencies(target)) }
+        catch (error) { console.error('Could not open Collab sharing:', error); showErrorModal(error.message || String(error), { title: 'Could not share document' }) }
     }
 
     window.shareCollabDoc = shareCollabDoc
 
     // --- Connect to a collaborative document ---
 
-    async function connectToDoc(docId, mode = 'edit', overrideWsUrl = null) {
-        const prepared = await getConnectionPreparation().prepare({ docId, mode, wsUrl: overrideWsUrl })
-        prepared.assertCurrent()
-        const { wsUrl, token, storeUrl, username: userName, color: userColor, statusElement: statusEl } = prepared
-        const { Editor, StarterKit, Collaboration, CollaborationCursor, Link, HocuspocusProvider, Y } = prepared.modules
-        currentWsUrl = wsUrl
-        if (statusEl) statusEl.textContent = 'connecting…'
-
-        // Preparation must still own its target before any existing resources change.
-        if (hocuspocusProvider) { hocuspocusProvider.destroy(); hocuspocusProvider = null }
-        if (tiptapEditor)       { tiptapEditor.destroy();       tiptapEditor = null }
-
-        // Different document than whatever was previously merged in (if any) — start the
-        // locally-displayed reference list clean rather than carrying over the old doc's
-        // entries; the sync below repopulates it from this doc's own clist_refs Map.
-        setReferences([])
-
-        const ydoc = new Y.Doc()
-        sharedRefs = ydoc.getMap('clist_refs')
-        sharedRefs.observe((event) => {
-            // Only merge into the shared global reference list while Collab is the editor
-            // actually on screen — the Hocuspocus connection itself stays alive in the
-            // background after switching away (so returning to it is instant), but without
-            // this guard its observer would keep overwriting the global list with this
-            // document's entries even while a different, currently-visible editor (e.g. a
-            // second Collab/LaTeX doc) owns that list.
-            if (currentEditor !== 'collab') return
-            event.keysChanged.forEach(url => {
-                const jsonStr = sharedRefs.get(url)
-                if (!jsonStr) return
-                try {
-                    if (typeof pushReference === 'function') pushReference(JSON.parse(jsonStr))
-                } catch { /* skip corrupt entries */ }
-            })
-        })
-
-        hocuspocusProvider = new HocuspocusProvider({
-            url:        wsUrl,
-            name:       docId,
-            document:   ydoc,
-            token,
-            parameters: { kvstoreUrl: storeUrl, ...(mode === 'read' ? { mode: 'read' } : {}) },
-            onStatus: ({ status }) => {
-                if (statusEl) statusEl.textContent = status
-            },
-            onAuthenticationFailed: () => {
-                showErrorModal('Collaboration: authentication failed — make sure you are logged in.', { title: 'Collab authentication failed' })
-            },
-        })
-
-        hocuspocusProvider.awareness.on('update', updateWhoList)
-
-        tiptapEditor = new Editor({
-            element:    prepared.element,
-            editable:   mode !== 'read',
-            extensions: [
-                StarterKit.configure({ history: false }),
-                Collaboration.configure({ document: ydoc }),
-                CollaborationCursor.configure({
-                    provider: hocuspocusProvider,
-                    user: { name: userName, color: userColor },
-                }),
-                Link.configure({ openOnClick: false, validate: href => /^https?:\/\//i.test(href) }),
-            ],
-        })
-
-        buildFormatToolbar()
-        currentDocId = docId
-        setTimeout(updateWhoList, 200)  // show self after awareness propagates
+    let connectionIntent = 0
+    async function connectToDoc(docId, mode = 'edit', overrideWsUrl = null, current = () => true) {
+        connectionIntent++
+        const prepared = await getConnectionPreparation().prepare({ docId, mode, wsUrl: overrideWsUrl, current })
+        return getConnectionLifecycle().start(prepared)
     }
 
     // --- Load handler: browse and open existing collab documents ---
@@ -625,6 +367,79 @@ window.CList.schemas['Collab'] = {
         })
     })()
 
+    let headerController = null
+    function mountCollabHeader(menu) {
+        const element = document.getElementById('tiptap-editor')
+        const source = JSON.stringify([readerSession(), window.CList.state.authEpoch || 0, currentEditorAccount,
+            window.CList.state.editorSwitching?.id, window.CList.accounts || []])
+        return createCollabHeaderController({
+            current: () => currentEditor === 'collab' && element?.isConnected && document.getElementById('tiptap-editor') === element &&
+                source === JSON.stringify([readerSession(), window.CList.state.authEpoch || 0, currentEditorAccount,
+                    window.CList.state.editorSwitching?.id, window.CList.accounts || []]),
+            capture: () => ({ target: currentDocId ? captureShareTarget() : null,
+                name: document.getElementById('collab-doc-id')?.value.trim() || '', editor: tiptapEditor, intent: connectionIntent }),
+            targetCurrent: target => shareDependencies(target).contextCurrent(), now: () => new Date().toISOString(),
+            async ensure(snapshot, current) {
+                if (!snapshot.name) throw Error('Enter a document title before sharing.')
+                const docId = await expandDocId(snapshot.name)
+                const unchanged = () => current() && snapshot.name === document.getElementById('collab-doc-id')?.value.trim()
+                if (!unchanged() || snapshot.editor !== tiptapEditor || snapshot.intent !== connectionIntent) return null
+                const resource = await connectToDoc(docId, 'edit', null, unchanged)
+                if (!current() || tiptapEditor !== resource.editor || currentDocId !== docId) return null
+                currentDocTitle = ''; setDocTitle(localPartOf(docId)); return captureShareTarget()
+            },
+            share: target => openCollabSharePanel(target, shareDependencies(target)),
+            reference: reference => { if (typeof pushReference === 'function') return pushReference(reference) },
+            load: () => { if (typeof loadContent === 'function') return loadContent({ type: 'text/plain', value: '' }, null) },
+            state: value => { window.CList.state.collabHeader = value }
+        }, createCollabHeaderView(menu))
+    }
+
+    let contentController = null
+    function getContentController() {
+        if (!contentController) contentController = createCollabContentController({
+            capture: () => ({ editor: tiptapEditor, map: sharedRefs, docId: currentDocId,
+                container: document.getElementById('collabDiv'), element: document.getElementById('tiptap-editor'),
+                source: preparationSource(), switchId: window.CList.state.editorSwitching?.id }),
+            current: target => currentEditor === 'collab' && target.source === preparationSource() &&
+                target.switchId === window.CList.state.editorSwitching?.id && target.editor === tiptapEditor &&
+                target.map === sharedRefs && target.docId === currentDocId && !!target.container && !!target.element &&
+                document.getElementById('collabDiv') === target.container && document.getElementById('tiptap-editor') === target.element &&
+                !!connectionLifecycle?.owned(),
+            reference: itemId => itemId ? document.getElementById(itemId)?.reference : null,
+            push: reference => pushReference(reference), replace: references => setReferences(references),
+            state: value => { window.CList.state.collabContent = value }
+        }, createCollabContentView())
+        return contentController
+    }
+
+    let mountController = null
+    function mountSource() {
+        return JSON.stringify([preparationSource(), window.CList.state.editorSwitching?.id])
+    }
+    function getMountController() {
+        if (!mountController) mountController = createCollabMountController({
+            capture: () => ({ source: mountSource(), pane: window.CList.ui.view.writePaneContent }),
+            current: snapshot => currentEditor === 'collab' && snapshot.source === mountSource() &&
+                snapshot.pane === window.CList.ui.view.writePaneContent,
+            view: snapshot => createCollabMountView(snapshot.pane),
+            controls() {
+                titleController?.dispose(); titleController = null
+                headerController?.dispose(); headerController = null
+                const menu = document.getElementById('editor-menu')
+                if (menu) headerController = mountCollabHeader(menu)
+                getTitleController()
+            },
+            intent: () => connectionIntent, load: () => loadDeps(),
+            resource() { connectionLifecycle?.owned(); return { editor: tiptapEditor, docId: currentDocId } },
+            shortId: localPartOf, slug: generateDocSlug, local: current => initLocalEditor(current),
+            rebind() { connectionLifecycle?.rebind(); buildFormatToolbar() },
+            predefined: () => loadPredefinedContent('collab'), drop: event => window._attributeDroppedContent(event),
+            state: value => { window.CList.state.collabMount = value }
+        })
+        return mountController
+    }
+
     // --- editorHandlers entry ---
 
     const collabHandler = {
@@ -634,139 +449,9 @@ window.CList.schemas['Collab'] = {
         requiresAccount: false,
         visible:         () => typeof isRegistered === 'function' && isRegistered(),
 
-        initialize: async () => {
+        initialize: () => {
             currentEditor = 'collab'
-            injectStyles()
-
-            const writePaneContent = window.CList.ui.view.writePaneContent
-            let collabDiv = document.getElementById('collabDiv')
-
-            if (!collabDiv) {
-                collabDiv = document.createElement('div')
-                collabDiv.id = 'collabDiv'
-                collabDiv.innerHTML = `
-                    <div id="collab-editor-container">
-                        <div id="tiptap-editor"></div>
-                    </div>`
-                writePaneContent.appendChild(collabDiv)
-            }
-
-            collabDiv.style.display = 'block'
-
-            // The toolbar lives in the shared above-title #editor-menu bar, which
-            // initializeEditor() wipes on every editor switch — rebuild it (and its
-            // wiring) each time this editor is activated.
-            const editorMenu = document.getElementById('editor-menu')
-            if (editorMenu) {
-                editorMenu.innerHTML = `
-                    <div id="collab-doc-picker">
-                        <input id="collab-doc-id" type="hidden">
-                        <button id="collab-invite-btn" class="btn btn-small" title="Share this document">Share</button>
-                        <button id="collab-annotate-btn" class="btn btn-small" title="Annotate this document">Annotate</button>
-                    </div>
-                    <div id="collab-doc-warning" style="display:none;font-size:0.8em;color:#a00;padding:2px 0;gap:6px;align-items:center"></div>
-                    <div id="collab-format-toolbar"></div>
-                    <div id="collab-who"></div>
-                    <div id="collab-status"></div>`
-                editorMenu.style.display = ''
-
-                const input = document.getElementById('collab-doc-id')
-
-                input.addEventListener('input', scheduleDupCheck)
-
-                input.addEventListener('keydown', async (e) => {
-                    if (e.key !== 'Enter') return
-                    e.preventDefault()
-                    if (dupCheckTimer) { clearTimeout(dupCheckTimer); dupCheckTimer = null }
-                    const warning = document.getElementById('collab-doc-warning')
-                    // If warning is visible with a load button, Enter loads the existing doc
-                    const loadBtn = warning && warning.querySelector('#collab-load-existing')
-                    if (loadBtn) { loadBtn.click(); return }
-                    await connectFromInput()
-                })
-
-                document.getElementById('collab-invite-btn').addEventListener('click', async () => {
-                    if (!currentDocId) await connectFromInput()
-                    if (currentDocId) shareCollabDoc()
-                })
-
-                document.getElementById('collab-annotate-btn').addEventListener('click', () => {
-                    if (!currentDocId) {
-                        showErrorModal('Open a document first before annotating.', { title: 'No document to annotate' })
-                        return
-                    }
-                    const url   = getCollabShareLink('read')
-                    const title = currentDocTitle || currentDocId
-                    if (typeof pushReference === 'function') {
-                        pushReference({ url, title, service: 'Collab', feed: 'Collab', author_name: '', created_at: '', cited_at: new Date().toISOString() })
-                    }
-                    if (typeof loadContent === 'function') {
-                        loadContent({ type: 'text/plain', value: '' }, null)
-                    }
-                    if (typeof snapPanes === 'function' && typeof mainContent !== 'undefined' && typeof readPane !== 'undefined') {
-                        const ratio = readPane.getBoundingClientRect().width / mainContent.getBoundingClientRect().width
-                        if (ratio > 0.65) snapPanes('left')
-                    }
-                })
-            }
-
-            // Keep write-title in sync with the collab doc input — wired once ever on the
-            // persistent write-title element; looks up the (possibly rebuilt) input fresh.
-            const writeTitle = window.CList.ui.view.writeTitle
-            if (writeTitle && !writeTitle.dataset.collabWired) {
-                writeTitle.addEventListener('input', () => {
-                    if (currentEditor !== 'collab') return
-                    const el = document.getElementById('collab-doc-id')
-                    if (el) el.value = writeTitle.textContent.trim()
-                    scheduleDupCheck()
-                })
-                // If the user pastes a collab share URL into the title field, open it directly
-                writeTitle.addEventListener('paste', (e) => {
-                    const text = e.clipboardData.getData('text').trim()
-                    if (isCollabUrl(text)) {
-                        e.preventDefault()
-                        openCollabUrl(text)
-                    }
-                })
-                writeTitle.dataset.collabWired = '1'
-            }
-
-            // Wire the drop zone once — #collab-editor-container persists across activations
-            if (!collabDiv.dataset.wired) {
-                document.getElementById('collab-editor-container').addEventListener('drop', function(e) {
-                    window._attributeDroppedContent(e);
-                }, true);
-
-                collabDiv.dataset.wired = '1'
-            }
-
-            // Preload deps so the first connect is fast
-            try {
-                await loadDeps()
-            } catch (e) {
-                console.error('Failed to load collab dependencies:', e)
-                showErrorModal('Could not load collaboration library — check your network connection.', { title: 'Collab library failed to load' })
-                return
-            }
-
-            if (currentDocId) {
-                // Re-activating after switching away — restore display title
-                setDocTitle(localPartOf(currentDocId))
-            } else if (!tiptapEditor) {
-                // Truly fresh open (no doc connected, no local editor yet) — show a slug
-                // and start a local editor; press Enter to connect.
-                setDocTitle(generateDocSlug())
-                try {
-                    await initLocalEditor()
-                } catch (e) {
-                    console.error('Failed to initialize local editor:', e)
-                    showErrorModal('Could not start editor — check your network connection.', { title: 'Editor failed to start' })
-                }
-            }
-            // else: resuming an already-active local (not-yet-connected) editor —
-            // leave the existing TipTap instance and title untouched.
-
-            loadPredefinedContent('collab')
+            return getMountController().activate()
         },
 
         getContent: async () => {
@@ -780,68 +465,11 @@ window.CList.schemas['Collab'] = {
         // stale local snapshot. null when not connected (e.g. local-only, pre-title).
         getDocId: () => currentDocId,
 
-        // Rebuild the shared global reference list from this document's own clist_refs
-        // Map's current, authoritative state — used on reactivation (switching back to
-        // Collab) instead of trusting whatever was parked, since the Map keeps syncing
-        // in the background (observe() above is gated to skip the global list) while
-        // this editor isn't the one on screen.
-        resyncReferences: () => {
-            setReferences([])
-            if (!sharedRefs) return
-            sharedRefs.forEach((jsonStr) => {
-                try {
-                    if (typeof pushReference === 'function') pushReference(JSON.parse(jsonStr))
-                } catch { /* skip corrupt entries */ }
-            })
-        },
-
-        loadContent: ({ type, value }, itemId) => {
-            if (!tiptapEditor) {
-                showErrorModal('Join a document first, then load content into it.', { title: 'No document loaded' })
-                return
-            }
-            const html = (type === 'text/html') ? value : `<p>${value}</p>`
-            tiptapEditor.commands.insertContent(html)
-
-            if (itemId) {
-                const editorDiv = document.getElementById('collabDiv')
-                createReference(itemId, editorDiv)
-                displayReferences(editorDiv)
-                if (sharedRefs) {
-                    const specificEl = document.getElementById(itemId)
-                    const ref = specificEl?.reference
-                    if (ref?.url) sharedRefs.set(ref.url, JSON.stringify(ref))
-                }
-            }
-        },
-
-        insertLink: ({ content, entryUrl, feedTitle, reference }) => {
-            if (!tiptapEditor) {
-                showErrorModal('Join a document first, then load content into it.', { title: 'No document loaded' })
-                return
-            }
-            if (content.value) tiptapEditor.commands.insertContent(`${content.value} [<a href="${escapeHtml(entryUrl)}">${escapeHtml(feedTitle)}</a>]`)
-            _pushCollabReference(reference)
-        },
-        insertLinkVia: ({ content, linkedUrl, linkedTitle, entryUrl, authorOrFeedTitle, reference }) => {
-            if (!tiptapEditor) {
-                showErrorModal('Join a document first, then load content into it.', { title: 'No document loaded' })
-                return
-            }
-            if (content.value) tiptapEditor.commands.insertContent(`${content.value} [<a href="${escapeHtml(linkedUrl)}">${escapeHtml(linkedTitle)}</a>, via <a href="${escapeHtml(entryUrl)}">${escapeHtml(authorOrFeedTitle)}</a>]`)
-            _pushCollabReference(reference)
-        },
-    }
-
-    // Pushes/displays a reference and mirrors it into the shared clist_refs Y.Map (same
-    // sequence loadContent's itemId branch already does) — for insertLink/insertLinkVia,
-    // where the reference may come from a dragged-from window rather than a live DOM element.
-    function _pushCollabReference(reference) {
-        if (!reference) return
-        const editorDiv = document.getElementById('collabDiv')
-        pushReference(reference)
-        displayReferences(editorDiv)
-        if (sharedRefs && reference.url) sharedRefs.set(reference.url, JSON.stringify(reference))
+        // Shared references remain authoritative when this document is reactivated.
+        resyncReferences: () => getContentController().resync(),
+        loadContent: (content, itemId) => getContentController().load(content, itemId),
+        insertLink: input => getContentController().link(input),
+        insertLinkVia: input => getContentController().via(input),
     }
 
     if (typeof editorHandlers !== 'undefined') {
@@ -860,92 +488,36 @@ window.CList.schemas['Collab'] = {
         }
     })
 
-    // Opens a collab document seeded from a collection.
-    // Creates a new doc (slug derived from collection name), switches to the Collab
-    // editor, connects, then inserts the item list if the doc is empty.
-    // If a chat session is active, broadcasts a collab invite to peers.
-    window.openCollabWithCollection = async function(collectionName, items) {
-        try {
-            if (typeof initializeEditor === 'function' && currentEditor !== 'collab') {
-                await initializeEditor('collab')
-            }
-            const slug = slugify(collectionName, { maxLength: 40, fallback: generateDocSlug() })
-            const docId = await expandDocId(slug)
-            setDocTitle(slug)
-            currentDocTitle = collectionName || slug
-            await connectToDoc(docId)
-
-            // Seed content if the doc is new (empty after sync settles).
-            setTimeout(() => {
-                if (tiptapEditor && tiptapEditor.isEmpty && items?.length) {
-                    const itemHtml = items
-                        .filter(i => i.url)
-                        .map(i => `<p><a href="${escapeHtml(i.url)}">${escapeHtml(i.title || i.url)}</a></p>`)
-                        .join('')
-                    tiptapEditor.commands.setContent(
-                        `<h2>${escapeHtml(collectionName || slug)}</h2>${itemHtml}`
-                    )
-                }
-            }, 800)
-
-            // Broadcast a collab invite to any active chat session.
-            if (typeof window.sendCollabInvite === 'function') {
-                window.sendCollabInvite({ docId, title: collectionName || slug, mode: 'edit', server: currentWsUrl })
-            }
-        } catch (e) {
-            showErrorModal('Failed to open collection in Collab: ' + e.message, { title: 'Could not open collection' })
-            console.error('openCollabWithCollection failed:', e)
-        }
+    let creationController = null
+    function creationSource(kind) {
+        return JSON.stringify([readerSession(), window.CList.state.authEpoch || 0, window.CList.accounts || [],
+            kind === 'chat' && typeof activeDiscussionName !== 'undefined' ? activeDiscussionName : null])
     }
-
-    // Opens a new collab document seeded with recent chat messages as context.
-    // Called by startCollabFromChat() in dynamicp2p.js.
-    window.openCollabFromChat = async function(contextHtml, discussionName) {
-        try {
-            if (typeof initializeEditor === 'function' && currentEditor !== 'collab') {
-                await initializeEditor('collab')
-            }
-            const now     = new Date()
-            const dateStr = now.toISOString().slice(0, 10)
-            const slug    = 'discussion-' + now.toISOString().slice(0, 19).replace(/[T:]/g, '-')
-            const docId   = await expandDocId(slug)
-            const title   = discussionName ? `Discussion: ${discussionName}` : `Discussion — ${dateStr}`
-            setDocTitle(slug)
-            currentDocTitle = title
-            await connectToDoc(docId)
-
-            if (contextHtml) {
-                setTimeout(() => {
-                    if (tiptapEditor && tiptapEditor.isEmpty) {
-                        tiptapEditor.commands.setContent(
-                            `<h2>${escapeHtml(title)}</h2><blockquote>${contextHtml}</blockquote><p></p>`
-                        )
-                        tiptapEditor.commands.focus('end')
-                    }
-                }, 800)
-            }
-
-            if (typeof window.sendCollabInvite === 'function') {
-                window.sendCollabInvite({ docId, title, mode: 'edit', server: currentWsUrl })
-            }
-        } catch (e) {
-            showErrorModal('Failed to start document from chat: ' + e.message, { title: 'Could not start document' })
-            console.error('openCollabFromChat failed:', e)
-        }
+    function getCreationController() {
+        if (!creationController) creationController = createCollabCreationController({
+            prepare: (kind, input) => prepareCollabCreation(kind, input, {
+                slug: name => slugify(name, { maxLength: 40, fallback: generateDocSlug() }), now: () => new Date()
+            }),
+            before: () => openingController?.dispose(),
+            capture: kind => ({ key: creationSource(kind), invite: window.sendCollabInvite }),
+            current: (source, kind) => source.key === creationSource(kind),
+            select: selectCollabOpening, intent: () => connectionIntent, expand: slug => expandDocId(slug),
+            async connect(docId, current) {
+                const resource = await connectToDoc(docId, 'edit', null, current)
+                return { resource, editor: resource.editor, docId, server: resource.target.wsUrl }
+            },
+            resourceCurrent: target => !!target?.editor && tiptapEditor === target.editor && currentDocId === target.docId &&
+                currentWsUrl === target.server && !target.resource.closed && getConnectionLifecycle().owned(),
+            invite: (source, packet) => { if (typeof source.invite === 'function') source.invite(packet) },
+            schedule: (callback, delay) => setTimeout(callback, delay), clear: timer => clearTimeout(timer),
+            state: value => { window.CList.state.collabCreation = value }
+        }, createCollabCreationView((slug, title) => { setDocTitle(slug); currentDocTitle = title }))
+        return creationController
     }
+    window.openCollabWithCollection = (name, items) => getCreationController().create('collection', { name, items })
+    window.openCollabFromChat = (html, name) => getCreationController().create('chat', { html, name })
 
     // Called by chat invite cards — switches to Collab editor and connects.
-    window.openCollabInvite = async function(invite) {
-        try {
-            if (typeof initializeEditor === 'function' && currentEditor !== 'collab') {
-                await initializeEditor('collab')
-            }
-            setDocTitle(localPartOf(invite.docId))
-            currentDocTitle = invite.title || ''
-            await connectToDoc(invite.docId, invite.mode || 'edit', invite.server || null)
-        } catch (e) {
-            showErrorModal('Failed to open collab document: ' + e.message, { title: 'Could not open collab document' })
-        }
-    }
+    window.openCollabInvite = invite => openIncomingCollab('invite', invite)
 
 })()

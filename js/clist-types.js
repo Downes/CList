@@ -834,3 +834,23 @@
 /** @typedef {{phase:('loading'|'ready'|'empty'|'error'),count:number,opening:boolean}} CListCollabDocumentsState Safe browser progress/count only; document rows, captured servers and credentials stay private. */
 
 /** @typedef {{phase:('preparing'|'ready'|'error'),pending:number}} CListCollabPreparationState Safe preparation summary only; credentials, module resources, DOM targets and document identities remain private. */
+
+/** @typedef {{phase:('local'|'connecting'|'connected'|'disconnected'|'closed'|'error'),remote:boolean}} CListCollabConnectionState Safe lifecycle summary only; resource handles, user identities, references and credentials remain private. */
+
+/** @typedef {{enabled:boolean,count:number}} CListCollabFormattingState Safe toolbar availability/count only; editor handles and command callbacks remain private. */
+
+/** @typedef {{phase:('idle'|'checking'|'current'|'available'|'exists'|'opening'|'error'),busy:boolean}} CListCollabTitleState Safe check/choice progress only; titles, document IDs, credentials and callbacks remain private. */
+
+/** @typedef {{phase:('loading'|'pending'|'ready'|'error'|'writing'|'uncertain'),busy:boolean,receipt:('none'|'pending'|'accepted'|'rejected'|'uncertain')}} CListCollabShareState Safe panel/update progress only; targets, credentials, links and settings remain private. */
+
+/** @typedef {{phase:('editing'|'mounting'|'posting'|'error'|'closed'),busy:boolean}} CListCollabComposerState Safe composer lifecycle only; draft content, editor handles and completion callbacks remain private. */
+
+/** @typedef {{phase:('opening'|'ready'|'cancelled'|'error'),busy:boolean}} CListCollabOpeningState Public link/invite lifecycle only; document targets, sessions and editor guards remain private. */
+
+/** @typedef {{phase:('opening'|'waiting'|'ready'|'skipped'|'cancelled'|'error'),busy:boolean}} CListCollabCreationState Safe creation progress only; seeds, sessions, resources and invite dispatch remain private. */
+
+/** @typedef {{busy:boolean,action:('share'|'annotate'|null)}} CListCollabHeaderState Safe action progress only; targets, references, sessions and input snapshots remain private. */
+
+/** @typedef {{phase:('inserting'|'syncing'|'ready'|'error'),busy:boolean}} CListCollabContentState Safe operation progress only; content, live references, editor handles and shared maps remain private. */
+
+/** @typedef {{phase:('mounting'|'loading'|'local'|'ready'|'cancelled'|'error'),busy:boolean}} CListCollabMountState Safe activation progress only; source sessions, DOM targets and resources remain private. */

@@ -853,3 +853,143 @@ only after the commit guard passes. Old lookup/import work is not aborted;
 resource cleanup, provider callbacks, awareness and reference observers remain
 on their existing implementation. Mocked preparation evidence does not verify
 those lifecycles or live authentication/WebSockets.
+
+`CListCollabConnectionState` contains phase/remote only. Resource handles, map
+entries, participant names, credential/configuration captures and timer/listener
+callbacks remain private to the owned local/remote resource set. Construction
+uses the prepared values. Replacement/failed construction invalidates the old
+set before detaching map/awareness listeners, clearing its timer and destroying
+editor, provider and Y.Doc. Cleanup continues after failures and is idempotent;
+failed destroys are reported without a guarantee of release or automatic retry.
+
+Status/authentication/awareness/reference/timer callbacks reject replaced sets,
+expired sessions and replaced editor nodes. Connections remain active while
+their mounted editor is hidden; reference merges are limited to visible Collab
+and read their original map, retaining structural metadata. Corrupt map entries
+produce owned feedback. Presence names render literally with vetted colors.
+Captured chrome nodes reject incidental replacement; intentional reactivation
+rebinds the active connection view. Local startup releases remote resources and
+clears the remote document identity/presence. Expiry cleanup occurs on activity,
+not through a newly installed idle session observer. Real vendor synchronization,
+authentication and reconnect behavior remain outside mocked validation.
+
+`CListCollabFormattingState` exposes enabled/count only. Command definitions,
+captured editor, event listeners and selection/active flags stay private. The
+view renders active/pressed/read-only state from controller-provided values;
+DOM classes are not input state. Commands retain Bold/Italic/H1–H3/Bullet list/
+Ordered list/Blockquote chains and run only for the owned editable editor/bar/
+session. Reentrant dispatch is locked. Saved events and controls cannot target
+new editors or rebuilt bars; disposal attempts both event removals once and keeps
+failed-detach callbacks inert. Failures produce owned feedback, and only a later
+explicit command retries a failed command. Existing resource/activation bridges
+dispose and rebuild formatting controls as required.
+
+`CListCollabTitleState` exposes phase/busy only. Raw/expanded titles, candidate
+document/server, credential captures, editor identity and action callbacks stay
+private. Duplicate checks use a 500ms debounce, guarded namespace expansion and
+captured auth/server. Blank/current documents skip HTTP; 404 is available and
+other failures are visible with explicit Retry. Warning/Load choices are driven
+by the current private candidate rather than DOM inspection.
+
+Duplicate actions coalesce. Title edits, source/editor/document/panel changes,
+old timers and saved choice callbacks reject stale work. Existing loading uses
+the checked server and passes its caller guard through preparation. Successful
+loading normalizes both title fields only while the original intent is current.
+Mirroring/paste/Enter listeners are captured and detached on rebuild. Enter's
+new-document fallback and the pasted-link API retain their existing delegated
+behavior; started HTTP and downstream editor work are not generically aborted,
+and editor body draft protection remains outside this title-only boundary.
+
+`CListCollabShareState` contains phase/busy/receipt only. Document/server/token,
+settings value, links, discussion/session/resource references and write registry
+remain private. Reads accept boolean `allow_anonymous` (missing/null retains the
+legacy false default); malformed/failed reads disable changes rather than treating
+the setting as known. PATCH sends only changed confirmed boolean intent with the
+captured token, fixing the old free-variable credential access.
+
+Write dispatch records uncertainty until a response arrives. 2xx is accepted,
+ordinary 4xx rejected, and network/408/429/5xx uncertain. Uncertain settings remain
+indeterminate/locked until an explicit successful GET; a later explicit user
+change may retry. A private per-target registry keeps pending/uncertain locks
+across panel rebuilds, and late results cannot repaint replacement panels. These
+are client guards without durable receipts, backend CAS or cross-client ordering.
+
+Copy captures its link and uses the shared clipboard helper with an optional
+`isCurrent` feedback guard. Chat validates the captured discussion/session owner
+and sends only public invite fields. Post passes captured mode/link/title and a
+document-context guard into the existing composer; text is escaped at its HTML
+boundary. Composer internals and actual clipboard/chat/publishing effects are
+outside the panel fixture's mocked evidence. Local acceptance is not delivery.
+Direct compatibility helpers first validate the active resource set; expired
+connection aliases are cleared before any new credential/target capture.
+
+Collab Post composer presentation state contains only `phase` and `busy`.
+Draft content, TinyMCE instances, temporary editor handlers and completion hooks
+remain private. Restore only the owned editor slot; reject delayed instances
+and callbacks after replacement. Publication captures its original completion
+hook and first content snapshot; later edits remain in the composer. Completion
+retains workflow semantics and does not confirm remote publication success.
+
+`CListCollabOpeningState` exposes phase/busy only. Links normalize decoded
+namespace/document IDs, edit/read mode and HTTP(S) origin to WS(S). Invites
+capture only document ID, optional title/mode/server; missing mode means edit,
+missing server uses existing configured-server resolution. Reject empty/control
+IDs, unsupported modes and credential-bearing/unsupported server URLs before
+editor effects. Duplicate pending targets share one promise; newer targets,
+session changes, editor switches/replacement and disposal invalidate old work.
+The adapter passes ownership through existing connection preparation, commits
+literal titles after setup and treats expired preparation as cancellation.
+This does not await provider synchronization or verify live access permissions.
+
+`CListCollabCreationState` exposes phase/busy only. Collection creation snapshots
+URL/title projections for HTML export without replacing membership data or
+extensions; chat captures its context/title/time before asynchronous selection.
+Namespace expansion is guarded against newer connection intent. Links/invites
+and creation cancel each other's pending controllers, while existing preparation
+and resource lifecycle arbitrate actual connections. Seed callbacks retain the
+exact editor/document/server, session/discussion and selected DOM/editor owner.
+The 800 ms callback seeds once only when the resource remains empty and has had
+no update events, including edits later deleted. Clear timers/detach listeners
+on replacement/completion, retaining inert guards for already queued callbacks.
+HTML serialization/sanitization belongs in the view. Invites use captured dispatch
+and connection metadata; failures never undo the document or automatically retry.
+Setup is not a synchronization barrier or server-side creation receipt.
+
+`CListCollabHeaderState` exposes busy/action only. Header controls capture the
+current document or local title, source/editor ownership and citation time before
+dispatch. Share uses the captured target; local creation revalidates input,
+resource and connection intent before using shared preparation/lifecycle. One
+pending action locks both controls. Annotation prepares a `CListReference` with
+the exact read link, captured title and ISO citation time, then dispatches the
+existing blank-content load and pane reveal only while the original target is
+current. Rebuilt/disposed headers and stale failures cannot affect newer UI.
+This action boundary does not migrate editor mounting or insertion internals.
+
+`CListCollabContentState` exposes phase/busy only. Loads/link/via operations
+capture editor/shared map/document, mounted nodes, selection/session source and
+source-row reference before editor callbacks. Reuse the shared `pushReference`
+deduplication; keep the live reference object and open-ended fields. Shared-map
+serialization writes captured JSON only to the original map. Presentation owns
+HTML serialization, plaintext escaping, editor insertion and reference feedback.
+Check ownership between insertion, reference push, display and mirroring; reject
+read-only writes and reentrancy. A later attribution failure leaves the inserted
+content intact and visibly fails without automatic reinsertion.
+
+Resync reads all raw records before clearing the local reference list, preserving
+the existing list on iteration failure. Parse valid JSON objects, skip corrupt
+records with a visible warning and retain raw map entries. Parsed references
+retain structural metadata/extensions; no new saved-reference shape is added.
+Editor mounting and real TipTap/Yjs synchronization remain outside this slice.
+
+`CListCollabMountState` exposes phase/busy only. Mounting captures the selected
+editor/session/account/switch generation and write-pane target, coalesces duplicate
+pending activation and keeps the existing surface/resource set on reactivation.
+The view owns surface construction, one-time styles, title display and the captured
+drop listener; replacing activation releases the listener without destroying
+background editor/provider resources. Deferred library/local/pending-content
+completion requires the original selection/source/surface. Local preparation uses
+the shared caller guard; newer connection intent or title edits are preserved.
+Failures propagate `false` to editor mounting, with owned visible feedback.
+Shared pending-content loading retains its own contract: guarding dispatch does
+not abort a loader already started. Full editor switching, vendor resource behavior
+and live WebSockets remain outside the isolated mounting fixture.

@@ -1366,6 +1366,7 @@ textarea.collection-editor-input { min-height: 60px; resize: vertical; }
 #collab-status { color: var(--text-muted); }
 #collab-share-post-overlay { background: var(--bg-overlay); border-color: var(--border-main); }
 #collab-share-post-overlay .overlay-instructions { color: var(--text-muted); }
+#collab-share-post-overlay textarea { width: 100%; flex: 1; min-height: 120px; box-sizing: border-box; }
 
 /* Share-link snippet box — used by collab.js's and latex.js's share-link modals */
 .share-link-code {

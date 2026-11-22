@@ -60,5 +60,7 @@ const collabPreparationCases = [
         await collabPreparationRejects(()=>target.assertCurrent(),check);
         const g=collabPreparationFixture(),first=await g.controller.prepare();await g.controller.prepare({local:true});
         await collabPreparationRejects(()=>first.assertCurrent(),check);
+        const h=collabPreparationFixture();let caller=true;const guarded=await h.controller.prepare({current:()=>caller});caller=false;
+        await collabPreparationRejects(()=>guarded.assertCurrent(),check);
     }]
 ];

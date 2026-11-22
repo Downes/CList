@@ -1027,10 +1027,11 @@ window.showServiceError = window.CList.ui.serviceError;
 // ── copyToClipboard ───────────────────────────────────────────────────────────
 // Copies text and reports success/failure via showStatusMessage/showErrorModal
 // — the pattern repeated at every "copy link"/"copy URL" button.
-window.CList.ui.copyToClipboard = function(text, { successMsg = 'Copied to clipboard.', failMsg = 'Copy failed — select the text and copy manually.' } = {}) {
+// Optional ownership suppresses late feedback without changing default callers.
+window.CList.ui.copyToClipboard = function(text, { successMsg = 'Copied to clipboard.', failMsg = 'Copy failed — select the text and copy manually.', isCurrent = () => true } = {}) {
     return navigator.clipboard.writeText(text)
-        .then(() => showStatusMessage(successMsg))
-        .catch(() => showErrorModal(failMsg, { title: 'Copy failed' }));
+        .then(() => { if (isCurrent()) showStatusMessage(successMsg); })
+        .catch(() => { if (isCurrent()) showErrorModal(failMsg, { title: 'Copy failed' }); });
 };
 window.copyToClipboard = window.CList.ui.copyToClipboard;
 
