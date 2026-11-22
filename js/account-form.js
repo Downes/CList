@@ -24,6 +24,14 @@ function createAccountForm(root, callbacks) {
         if (publicControl) data.public = publicControl.checked;
         if (validate && !key) throw new Error('Please enter a value for "' + schema.kvKey.label + '".');
         if (validate && !data.title) throw new Error('Please enter a Title.');
+        if (validate) for (const field of schema.fields) {
+            if (field.inputType !== 'url' || !data[field.key]) continue;
+            let parsed;
+            try { parsed = new URL(data[field.key]); } catch { parsed = null; }
+            if (!parsed || !/^https?:$/.test(parsed.protocol)) {
+                throw new Error('Please enter a valid URL (starting with http:// or https://) for "' + field.label + '".');
+            }
+        }
         return { key, data };
     }
 
@@ -68,7 +76,7 @@ function createAccountForm(root, callbacks) {
                 row.appendChild(manual);
             }
         } else {
-            input.type = field.inputType === 'password' ? 'password' : 'text';
+            input.type = field.inputType === 'password' ? 'password' : field.inputType === 'url' ? 'url' : 'text';
             input.placeholder = field.placeholder || '';
             row.appendChild(input);
         }

@@ -261,6 +261,10 @@ Each selectable item is an `.account-button`: a full-width button with a leading
 
 Icons use either a Material Icons ligature (string name) or `.account-icon-img` for SVG service icons (see `accountIcon()` in `reader.js`).
 
+The Read pane's Annotations, Collections and Calendar entry points are plain `.account-button`
+elements appended after the main account list — see `accounts()` in `reader-view.js`, not
+`makeAccountList()` below (that builds only the account list itself).
+
 ---
 
 ## Building lists in JS

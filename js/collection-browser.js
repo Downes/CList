@@ -165,6 +165,7 @@ async function _showCollectionDetail(col, token, encKey) {
             back: () => { if (current()) history.back(); },
             load: act(() => _loadCollectionIntoEditor(collection, token, encKey, current)),
             nest: act(anchor => _showAddToCollectionPicker(collection, token, encKey, anchor, current)),
+            calendar: act(() => showCalendarForCollection(collection, token, encKey)),
             collab: act(async () => {
                 if (typeof window.openCollabWithCollection !== 'function') throw new Error('Collab editor not available.');
                 const flat = await _flattenForExport(collection.items, collection.id, token, encKey);

@@ -739,6 +739,21 @@ function referenceDisplayName(ref) {
     return ref.service || 'Unknown';
 }
 
+// Formats a CListCalendarEvent's start (and, if present, end) for display — shared by
+// calendar-browser-view.js's own event rows and collection-members-view.js's role:'event'
+// membership rows, so both show the same date format rather than duplicating it.
+function _calendarEventWhen(event) {
+    const format = (iso, allDay) => {
+        if (!iso) return '';
+        if (allDay) return new Date(iso + 'T00:00:00').toLocaleDateString();
+        const date = new Date(iso);
+        return isNaN(date.getTime()) ? iso : date.toLocaleString();
+    };
+    const start = format(event.start, event.allDay);
+    const end = event.end ? format(event.end, event.allDay) : '';
+    return end ? `${start} – ${end}` : start;
+}
+
 // ============================================================================
 // 10. Global error handling
 // ============================================================================

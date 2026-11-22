@@ -350,3 +350,76 @@ Mastodon safe read state stores `{kind, value}`; annotation read state stores on
 `{generation, phase, error}`. Service sessions, forms, bodies and credentials remain
 transient. `CListPublisherOptions.assertCurrent` is an optional Mastodon form guard
 checked before its write, not a general cancellation guarantee for other publishers.
+
+## Calendar
+
+A calendar is a collection, not a separate storage concept. Events themselves stay
+stand-alone, independently stored records exactly as before — `CListCalendarEvent`
+(`id`, `title`, `start`/`end` ISO 8601, optional `allDay`, `location`, `description`,
+and optional `sourceType`/`sourceId` for a future feature to link a derived event
+back to whatever created it, mirroring `sourceUri`/`sourceId` on PageStore records;
+still no recurrence/RRULE field or virtual-derived-event registry, deferred until a
+second real consumer exists). `calendar.js` remains a DOM-free data layer over
+`window.CList.storage.kv` (`fetchDecryptedKvRecordsByPrefix`, `encryptWithKey`,
+`kvErrorMessage`) for `listCalendarEvents`/`getCalendarEvent`/`saveCalendarEvent`/
+`deleteCalendarEvent`, unchanged. It reuses `CListCollectionSession` and its
+`beginCollectionSession`/`assertCollectionSession`/`prepareCollectionSession`
+helpers directly rather than duplicating them under a calendar-specific name, since
+that session shape is generic storage auth/crypto state, not collection-specific.
+
+A calendar is reached by referencing events from an ordinary collection's `items`
+array with a new membership entry kind, alongside the existing `role:'contains'`
+sub-collection reference (see "Collection browsing, importing and memberships"
+above): `{ role: 'event', eventId, title, start, allDay, membershipId }`. `eventId`
+is the real reference — the stand-alone `calendar:{eventId}` record is the source
+of truth; `title`/`start`/`allDay` are a cached snapshot for cheap chronological
+sorting and flat-list rendering, the same bounded-staleness tradeoff leaf entries
+already accept for `title`/`author_name`/`summary`. `addCollectionMembership`/
+`removeCollectionMembership` (`collection-workflow.js`) handle `role:'event'`
+entries unchanged — `duplicate` detection never fires since events have no `url`,
+so the same event can belong to more than one calendar with no dedup. An event can
+belong to more than one calendar simultaneously, exactly like a post can belong to
+more than one collection.
+
+A collection's `type` field is cache-derived, never user-set: `_recomputeCollectionType`
+(`collection-workflow.js`) sets `type: 'calendar'` whenever more than half of a
+non-empty collection's items are `role:'event'`, and clears it again otherwise, live
+after every membership add/remove — never a kind picked at creation time, consistent
+with the app's capability-over-identity rule. `calendar.js#listEventsForCollection`
+resolves a given collection's current `role:'event'` members against one
+`listCalendarEvents` call (filtered/sorted client-side), rather than one
+`getCalendarEvent` round-trip per row.
+
+The top-level "Calendar" sidebar button opens a dedicated meta-collection — found by
+a one-time sentinel KV key (`getCalendarSidebarCollection`, key
+`_calendar_sidebar_set_id`), not by title, so renaming it in My Collections never
+breaks the button. Its items are plain `role:'contains'` references to whichever
+`type: 'calendar'` collections the user has chosen to merge into that view
+(`addCalendarToSidebar`/`removeCalendarFromSidebar`, `calendar.js`), reusing
+collection nesting exactly as it already works for a folder of collections — no new
+reference shape. Opening a single collection's own detail view instead gets its own
+"View as Calendar" action, independent of what's merged into the top-level button.
+`calendar-browser.js`'s owner is constructed either way: `calendarBrowserOwner`
+single-collection mode scopes `owner.events` to `listEventsForCollection(collection,
+...)`, while sidebar/merged mode fans out across every `role:'contains'` member of
+the meta-collection, concatenating each one's events and tagging each with its
+source collection (needed so save/delete know which collection's membership to
+touch) — the same shape of fan-out `recomputeMerged` already used for merging
+multiple ICS subscription sources. ICS subscriptions and calendar-publishing
+(`calendar-subscriptions.js`, `calendar-publish.js`) stay global per-account rather
+than per-collection, merging into whichever view (single or merged) is open.
+
+`migrateLegacyCalendarEvents` (`calendar.js`) is a one-time, idempotent migration
+from the pre-collection architecture, gated on its own sentinel KV key
+(`_calendar_migration_v1`) rather than title text: if unset, and if any pre-existing
+`calendar:{id}` events exist, it creates a "My Calendar" collection with one
+`role:'event'` entry per event (immediately recognized as `type: 'calendar'`, since
+every item is an event) and wires it into the sidebar meta-collection, so an existing
+account's top-level Calendar button shows exactly what it did before. The sentinel
+is still written when there is nothing to migrate, so later loads short-circuit on
+one cheap key check rather than re-listing every `calendar:{id}` record.
+
+`CListCalendarBrowseState` describes `CList.state.calendarBrowsing`: generation,
+phase, inline delete-confirm ID, busy flag and error, mirroring
+`CListCollectionBrowseState` but with no detail-view phase or selected-record field,
+since the calendar browser only ever shows a flat list.

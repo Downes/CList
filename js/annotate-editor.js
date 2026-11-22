@@ -104,11 +104,12 @@ function _initAnnotateTinyMCE() {
             ? 'body { background:#1e1e1e; color:#e0e0e0; font-size:14px; }'
             : 'body { font-size:14px; }',
         setup: (editor) => {
-            // Smaller toolbar than the main write-column editor's — see .annotate-mini-toolbar
-            // in interface.css. Added on init rather than via a fixed selector since TinyMCE
-            // generates the toolbar container itself.
+            // Smaller toolbar than the main write-column editor's — see .tinymce-mini-toolbar
+            // in interface.css (shared with other scoped TinyMCE instances, e.g.
+            // event-editor.js's Description field). Added on init rather than via a fixed
+            // selector since TinyMCE generates the toolbar container itself.
             editor.on('init', () => {
-                editor.getContainer().classList.add('annotate-mini-toolbar');
+                editor.getContainer().classList.add('tinymce-mini-toolbar');
                 const textarea = document.getElementById('annotate-edit-body');
                 if (textarea?.value) editor.setContent(textarea.value);
             });

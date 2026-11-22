@@ -1,8 +1,9 @@
 # Reader account selection and loading
 
 CList's Read menu lists readable accounts, followed by Annotations (where
-available) and Collections (for registered users). Logged-out visitors see the
-public collections. Account icons and normal service feed actions are preserved.
+available), Collections and Calendar (for registered users). Logged-out
+visitors see the public collections. Account icons and normal service feed
+actions are preserved.
 
 The first reader refactoring step separates selection/loading state from panel
 rendering. It does not yet rewrite every service's network and rendering code.

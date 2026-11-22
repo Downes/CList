@@ -30,6 +30,10 @@ window.makeListing = item => {
  const actions = document.createElement('div'); actions.className = 'clist-actions'; row.append(title, actions); return row;
 };
 window._showCollectionDetail = async col => messages.push('Nested: ' + col.title);
+window._calendarEventWhen = event => new Date(event.start).toISOString();
+const eventEditorCalls = [], liveEvents = new Map();
+window.openEventEditor = (owner, event) => eventEditorCalls.push({ owner, event });
+window.getCalendarEvent = async id => liveEvents.get(id) || null;
 CList.storage.kv = {
  list: async () => [...records].map(([key, value]) => ({ key, value })),
  get: async key => records.has(key) ? { value: records.get(key) } : null,
@@ -133,7 +137,28 @@ CList.storage.kv = {
   await fire(pickerButton('Cycle B'));
   check(writes.length === beforeCycle && errors.some(message => message.includes('nest a collection inside itself')), 'Nested collection cycle prevented before persistence');
   check(!JSON.stringify(CList.state.collectionMemberships).includes('fixture-key') && !JSON.stringify(CList.state.collectionMemberships).includes('fixture-token'), 'Shared membership state excludes credentials');
-  document.getElementById('result').textContent = 'PASS: real collection session/workflow/membership controller/view, original reference capture, independent duplicate removals, incoming member and extension preservation, failed-write isolation, replaced row/picker/session guards, busy cleanup and nested-cycle prevention. ' + count + ' checks. KV/encryption/crypto/listing APIs mocked; no external requests or file/storage writes.';
+
+  document.querySelectorAll('.collection-picker').forEach(node => node.remove());
+  liveEvents.set('evt-1', { id: 'evt-1', title: 'Live title', start: '2026-03-01T15:00:00.000Z', allDay: false });
+  const eventMember = { membershipId: 'event-member-a', role: 'event', eventId: 'evt-1', title: 'Cached title', start: '2026-03-01T15:00:00.000Z', allDay: false };
+  setRecord('collection:cal-a', { id: 'urn:uuid:cal-a', title: 'Calendar A', items: [eventMember] });
+  setRecord('collection:cal-b', { id: 'urn:uuid:cal-b', title: 'Calendar B', items: [{ ...eventMember, membershipId: 'event-member-b' }] });
+  const calA = await snapshot('collection:cal-a');
+  _renderCollectionItems(calA, token, 'fixture-key', countEl, rows);
+  check(rows.querySelector('.saved-collection-name')?.textContent === 'Cached title', 'Event row renders its cached title, not the leaf/listing styling');
+  check(!rows.querySelector('.fixture-listing'), 'Event row does not use the leaf listing renderer');
+  check(rows.querySelector('.saved-collection-count')?.textContent === new Date(eventMember.start).toISOString(), 'Event row renders a formatted date');
+  await fire(rows.querySelector('.saved-collection-name'));
+  check(eventEditorCalls.length === 1 && eventEditorCalls[0].event.id === 'evt-1' && eventEditorCalls[0].event.title === 'Live title',
+    'Edit resolves the live stand-alone event record, not the cached snapshot');
+  check(eventEditorCalls[0].owner.collection === calA, "Event editor opens with this row's own collection as context");
+  await removeButtons()[0].onclick();
+  check(getRecord('collection:cal-a').items.length === 0, 'Remove deletes only this calendar\'s membership row');
+  check(liveEvents.has('evt-1'), 'Remove never deletes the stand-alone event record');
+  check(getRecord('collection:cal-b').items.length === 1 && getRecord('collection:cal-b').items[0].eventId === 'evt-1',
+    "A second calendar's reference to the same event is left untouched");
+
+  document.getElementById('result').textContent = 'PASS: real collection session/workflow/membership controller/view, original reference capture, independent duplicate removals, incoming member and extension preservation, failed-write isolation, replaced row/picker/session guards, busy cleanup, nested-cycle prevention and event-membership rendering/edit/remove. ' + count + ' checks. KV/encryption/crypto/listing APIs mocked; no external requests or file/storage writes.';
  } catch (error) { console.error(error); document.getElementById('result').textContent = 'FAIL: ' + error.stack; }
 })();
 </script>

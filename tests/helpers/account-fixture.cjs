@@ -77,7 +77,7 @@ function fixture({ panel = false } = {}) {
         } },
     };
     const sandbox = {
-        window: { CList: cList }, console: { error() {}, log() {}, warn() {} }, structuredClone,
+        window: { CList: cList }, console: { error() {}, log() {}, warn() {} }, structuredClone, URL,
         getSiteSpecificCookie: () => 'token', getEncKey: async () => 'key',
         encryptWithKey: async (key, data) => 'encrypted:' + data,
         decryptWithKey: async (key, data) => { if (!data.startsWith('encrypted:')) throw Error('bad ciphertext'); return data.slice(10); },

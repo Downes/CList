@@ -73,7 +73,17 @@ async function removeCollectionMembership(captured, member, deps) {
         if (index < 0) throw new Error('The selected membership is no longer current.');
     }
     current.items.splice(index, 1);
+    _recomputeCollectionType(current);
     return saveCollectionRecord(current.key, current, deps);
+}
+// A collection whose members are mostly event references is a calendar -- derived from
+// content, never a kind the user picks, and recomputed on every membership change so it
+// can gain or lose the tag as items are added/removed.
+function _recomputeCollectionType(collection) {
+    const total = collection.items.length;
+    const events = collection.items.filter(item => item.role === 'event').length;
+    if (total > 0 && events > total / 2) collection.type = 'calendar';
+    else delete collection.type;
 }
 async function collectionWouldCycle(parentId, childId, deps, seen = new Set()) {
     if (!parentId || !childId) return false;
@@ -103,6 +113,7 @@ async function addCollectionMembership(target, title, member, deps) {
     }
     const duplicate = !!member.url && current.items.some(item => item.url === member.url);
     current.items.push({ ...structuredClone(member), membershipId: deps.createMemberId() });
+    _recomputeCollectionType(current);
     const saved = await saveCollectionRecord(current.key, current, deps, { createOnly: !target });
     return { collection: saved, duplicate };
 }

@@ -110,3 +110,19 @@ test('session changes during key acquisition or encryption stop writes',async()=
  const g=fixture();g.encrypt(async value=>{g.ctx.window.CList.config.flaskSiteUrl='https://other.invalid';return value;});
  await assert.rejects(g.ctx.saveCollectionRecord('collection:new',col([]),g.deps),/no longer current/);assert.equal(g.writes.length,0);
 });
+const event=(membershipId,eventId)=>({membershipId,role:'event',eventId,title:'Event',start:'2026-01-01T00:00:00.000Z',allDay:false});
+test('_recomputeCollectionType tags a collection as a calendar only once a strict majority of its items are event references, and clears again on removal',async()=>{
+ const f=fixture({'collection:a':col([member('one')])});const target=await f.ctx.readCollectionSnapshot('collection:a',f.deps);
+ const afterOneEvent=await f.ctx.addCollectionMembership(target,target.title,{role:'event',eventId:'e1',title:'E1',start:'2026-01-01T00:00:00.000Z',allDay:false},f.deps);
+ assert.ok(!('type' in afterOneEvent.collection),'one event against one leaf is a tie, not yet a majority');
+ const afterTwoEvents=await f.ctx.addCollectionMembership(afterOneEvent.collection,afterOneEvent.collection.title,{role:'event',eventId:'e2',title:'E2',start:'2026-01-02T00:00:00.000Z',allDay:false},f.deps);
+ assert.equal(afterTwoEvents.collection.type,'calendar','two events against one leaf is a majority');
+ const reopened=await f.ctx.readCollectionSnapshot('collection:a',f.deps);
+ const removed=await f.ctx.removeCollectionMembership(reopened,reopened.items.find(item=>item.eventId==='e1'),f.deps);
+ assert.ok(!('type' in removed),'removing an event back down to a tie clears the calendar tag (absent, not merely falsy)');
+});
+test('_recomputeCollectionType never tags an empty collection',async()=>{
+ const f=fixture({'collection:a':col([member('one')])});const target=await f.ctx.readCollectionSnapshot('collection:a',f.deps);
+ const removed=await f.ctx.removeCollectionMembership(target,target.items[0],f.deps);
+ assert.equal(removed.items.length,0);assert.ok(!('type' in removed));
+});

@@ -240,7 +240,7 @@ function kvstoreAccountsPanel() {
         heading.textContent = 'Pick an account type to add'; flow.appendChild(heading);
         const list = document.createElement('div'); list.className = 'account-list';
         const local = window.CList.isLocalMode?.();
-        const types = ['Mastodon', 'Bluesky', 'WordPress', 'Blogger', 'Etherpad', 'Collab', 'AI', 'Proxyp', 'Annotate', 'Hypothesis', 'gRSShopper', 'JSONBin', 'Gist', '0x0', 'CListBin', 'Dropbox', 'Discord', 'LOCALRSS'];
+        const types = ['Mastodon', 'Bluesky', 'WordPress', 'Blogger', 'Etherpad', 'Collab', 'AI', 'Proxyp', 'Annotate', 'Hypothesis', 'gRSShopper', 'JSONBin', 'Gist', '0x0', 'CListBin', 'Dropbox', 'Discord', 'LOCALRSS', 'Calendar'];
         for (const type of types.filter(type => !local || (type !== 'Collab' && type !== 'Annotate'))) {
             const button = document.createElement('button'); button.className = 'account-button';
             button.onclick = () => selectAccountType(type); button.appendChild(typePickerIcon(type));
@@ -296,6 +296,7 @@ function kvstoreAccountsPanel() {
             Dropbox:   'cloud_download',
             Discord:   'forum',
             LOCALRSS:  'rss_feed',
+            Calendar:  'event_available',
         };
         if (type === 'Mastodon') {
             const span = document.createElement('span');
@@ -340,6 +341,7 @@ function kvstoreAccountsPanel() {
             'Blogger':   'article',
             'Annotate':  'rate_review',
             'gRSShopper': 'article',
+            'Calendar': 'event_available',
         };
         const span = document.createElement('span');
         span.className = 'material-icons';

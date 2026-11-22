@@ -85,6 +85,7 @@ window.CList.ui.collectionBrowser = {
         icon(right, 'Open in Collab', 'edit_note', actions.collab);
         icon(right, 'Share to chat', 'chat', actions.share, ' chat-only-btn');
         const nest = icon(right, 'Add to another collection', 'playlist_add', () => actions.nest(nest));
+        icon(right, 'View as Calendar', 'event', actions.calendar);
         icon(right, 'Load all to editor', 'arrow_forward', actions.load);
         header.appendChild(left); header.appendChild(title); header.appendChild(right); view.root.appendChild(header);
         const error = document.createElement('p'); error.className = 'error-message'; error.hidden = true; view.root.appendChild(error);

@@ -21,6 +21,8 @@ function accountIcon(type, accountData) {
         'Bluesky':   'cloud',
         'WordPress': 'article',
         'Blogger':   'article',
+        'Calendar': 'event_available',
+        'CalendarOwn': 'calendar_month',
     };
     const span = document.createElement('span');
     span.className = 'material-icons';
@@ -40,13 +42,14 @@ window.CList.ui.reader = {
         openLeftInterface(document.createElement('div'));
         if (typeof renderPublicFeedsList === 'function') renderPublicFeedsList(document.getElementById('left-content'));
     },
-    accounts(accounts, { annotations, collections, onAccount, onAnnotations, onCollections }) {
+    accounts(accounts, { annotations, collections, calendar, onAccount, onAnnotations, onCollections, onCalendar }) {
         const container = document.getElementById('read-account-list'); if (!container) return;
         container.innerHTML = '';
         const list = makeAccountList('Select an account to read', accounts,
-            account => (account.permissions || '').includes('r') && !['Annotate', 'Hypothesis'].includes(account.type), onAccount);
+            account => (account.permissions || '').includes('r') && !['Annotate', 'Hypothesis', 'Calendar'].includes(account.type), onAccount);
         for (const [visible, label, icon, action] of [[annotations, 'Annotations', 'rate_review', onAnnotations],
-            [collections, 'Collections', 'collections_bookmark', onCollections]]) {
+            [collections, 'Collections', 'collections_bookmark', onCollections],
+            [calendar, 'Calendar', 'calendar_month', onCalendar]]) {
             if (!visible) continue;
             const button = document.createElement('button'); button.className = 'account-button'; button.onclick = action;
             const symbol = document.createElement('span'); symbol.className = 'material-icons'; symbol.textContent = icon;
@@ -54,19 +57,22 @@ window.CList.ui.reader = {
         }
         container.appendChild(list);
     },
-    menu(names, selected, onAction, busy) {
+    menu(names, selected, onAction, busy, { translate = true } = {}) {
         const container = window.CList.ui.view.feedMenu; if (!container) return;
         container.innerHTML = '';
         if (!names.length) return;
+        const selectedKeys = selected instanceof Set ? selected : new Set(Array.isArray(selected) ? selected : [selected]);
         for (const name of names) {
             const button = document.createElement('button'); button.className = 'btn btn-small feed-filter-btn';
             button.textContent = name; button.disabled = busy;
-            if (name === selected) button.classList.add('is-active');
+            if (selectedKeys.has(name)) button.classList.add('is-active');
             button.onclick = () => onAction(name); container.appendChild(button);
         }
-        const translate = document.createElement('button'); translate.id = 'translation-toggle-btn'; translate.className = 'btn btn-small';
-        translate.textContent = 'Translate: ' + (translationEnabled ? 'ON' : 'OFF'); translate.onclick = toggleTranslation;
-        container.appendChild(translate);
+        if (translate) {
+            const translateBtn = document.createElement('button'); translateBtn.id = 'translation-toggle-btn'; translateBtn.className = 'btn btn-small';
+            translateBtn.textContent = 'Translate: ' + (translationEnabled ? 'ON' : 'OFF'); translateBtn.onclick = toggleTranslation;
+            container.appendChild(translateBtn);
+        }
     },
     busy(value) { window.CList.ui.view.feedMenu?.querySelectorAll('.feed-filter-btn').forEach(button => button.disabled = value); },
     selected(account) {

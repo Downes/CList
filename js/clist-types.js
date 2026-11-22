@@ -682,3 +682,35 @@
  * @property {Object.<string, {page: CListWebPageSource|null, references: CListReference[]}>} parked Detached metadata; never editor bodies.
  * @property {string|null} error
  */
+
+/**
+ * A stored calendar event; the single source of truth for calendar-based
+ * events in CList. Stored at KV key `calendar:{id}`.
+ * @typedef {Object} CListCalendarEvent
+ * @property {string} id uuid, used as the KV key suffix: `calendar:{id}`
+ * @property {string} title
+ * @property {string} start ISO 8601 datetime
+ * @property {string} [end] ISO 8601 datetime; omitted for a point-in-time event
+ * @property {boolean} [allDay]
+ * @property {string} [location]
+ * @property {string} [description]
+ * @property {string} [sourceType] Set when another feature created this event.
+ * @property {string} [sourceId]
+ * @property {number} created epoch ms
+ * @property {number} updated epoch ms
+ */
+
+/**
+ * Calendar browser UI state, mirroring CListCollectionBrowseState.
+ * @typedef {Object} CListCalendarBrowseState
+ * @property {number} generation
+ * @property {string} phase
+ * @property {string|null} confirmId
+ * @property {boolean} busy
+ * @property {string|null} error
+ * @property {Set<string>} visibleKeys Toggled-on calendar sources: '__own__'
+ *   plus each visible Calendar account key. In-memory only, not
+ *   persisted; defaults to all sources visible.
+ * @property {Object.<string, string>} sourceErrors Per-source fetch error
+ *   message, keyed by account key, for subscriptions whose last refresh failed.
+ */

@@ -365,6 +365,7 @@ From `storage-architecture-plan.md` §2 and §8, confirmed against current code:
 | `social:following:*` | Following relationships | Excluded from Manage Accounts |
 | `clist:*` | Other namespaced records | Excluded from Manage Accounts; full ownership not yet separately inventoried |
 | `page:{urn:uuid:...}` | "My Pages" — remote, KVStore-backed page records, written automatically on publish | Distinct from PageStore (`clist_pages` IndexedDB, always local) — not a `savers` entry, created by `publish.js`/`collections.js`'s publish flow |
+| `calendar:{id}` | A stored `CListCalendarEvent` — the single source of truth for calendar-based events | One event per key, same shape as `collection:{id}`; no `type` field, so it's naturally excluded from Manage Accounts by the allowlist-by-schema check, same as `collection:*` |
 | (no prefix / account type keys) | Service accounts | Everything else — shown in Manage Accounts via allowlist-by-schema as of 2026-10-28 (see status table); previously a denylist |
 
 Two non-KV facilities, kept separate from generic KV storage (not touched by this refactor):

@@ -67,6 +67,16 @@ function _renderCollectionItems(col, token, encKey, countSpan, itemsDiv, isCurre
                 _showCollectionDetail(nested, token, encKey);
             } catch (error) { window.CList.ui.collectionMembers.error(error); }
         },
+        edit: async item => {
+            if (!valid() || collectionMembershipState().busy) return;
+            try {
+                await prepareCollectionSession(owner.session);
+                const event = await getCalendarEvent(item.eventId, owner.session);
+                if (!valid()) return;
+                if (!event) throw new Error('That event could not be found.');
+                window.openEventEditor({ session: owner.session, collection: col }, event);
+            } catch (error) { window.CList.ui.collectionMembers.error(error); }
+        },
     });
     try {
         const annotations = window.checkAnnotationsBatch?.();

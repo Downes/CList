@@ -43,6 +43,16 @@ window.CList.ui.collectionMembers = {
                 const label = document.createElement('span'); label.className = 'saved-collection-count'; label.textContent = 'Nested collection';
                 row.append(title, label); remove(row, item); wrapper.appendChild(row); root.appendChild(wrapper); continue;
             }
+            if (item.role === 'event' && item.eventId) {
+                const wrapper = document.createElement('div'); wrapper.className = 'saved-collection-wrapper';
+                const row = document.createElement('div'); row.className = 'saved-collection-row';
+                const title = document.createElement('span'); title.className = 'saved-collection-name';
+                title.textContent = item.title || 'Untitled event'; title.title = 'Edit event';
+                title.onclick = () => actions.edit(item);
+                const when = document.createElement('span'); when.className = 'saved-collection-count';
+                when.textContent = _calendarEventWhen(item);
+                row.append(title, when); remove(row, item); wrapper.appendChild(row); root.appendChild(wrapper); continue;
+            }
             if (!item.url) continue;
             try {
                 const title = _collectionItemDisplayTitle(item);

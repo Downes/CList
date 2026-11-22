@@ -108,6 +108,7 @@ function populateReadAccountList(accounts) {
     else if (state?.accountKey && _readerSelection && !readerSelectionCurrent(_readerSelection)) invalidateReader();
     window.CList.ui.reader.accounts(accounts, {
         annotations: !(window.CList.isLocalMode && window.CList.isLocalMode()), collections: isRegistered(),
+        calendar: isRegistered(),
         onAccount: switchReaderAccount,
         onAnnotations: async () => {
             invalidateReader('annotations');
@@ -116,6 +117,10 @@ function populateReadAccountList(accounts) {
         onCollections: async () => {
             invalidateReader('collections');
             try { await window.showSavedCollections(); } catch (error) { window.CList.ui.reader.failed(error); }
+        },
+        onCalendar: async () => {
+            invalidateReader('calendar');
+            try { await window.showCalendar(); } catch (error) { window.CList.ui.reader.failed(error); }
         },
     });
     if (typeof rssBackgroundFetchAll === 'function') Promise.resolve().then(() => rssBackgroundFetchAll(accounts))
