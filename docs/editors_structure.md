@@ -79,6 +79,26 @@ file/page content at all" — never a wildcard. It's excluded from every `conten
 path (`loadSavedPage()`, `populateLoadOptions()`'s auto-switch) and only ever reached through
 its own structured My Collections flow.
 
+The Event editor (`js/event-editor.js`) is the same: `contentTypes: []`, so it's never
+auto-switched into by a generic file/page load. It does, however, have a `loadContent()` —
+reached only via a thread's or feed-container header's `arrow_right` button
+(`loadContentToEditor`) while the Event editor is already the active one — that button is
+reserved for those batch-level exports; individual feed items (calendar rows included) never
+carry it, only "Write about this" below (see `docs/feed-structure.md`). It tries
+`_detectCalendarEventFromHtml()` (structural-marker detection only — schema.org Event microdata
+or a bare `<time datetime>`, no guessing from prose) to populate the event's fields directly; on
+no match, it appends the incoming content into the Description field instead. Either way it
+pushes a reference, exactly like every other editor's `loadContent` — see
+`docs/feed-structure.md`'s Calendar note and `docs/data-contracts.md`'s Calendar section for the
+`references` field this populates.
+
+The Event editor also has `insertLink`/`insertLinkVia`, for the per-item action every feed item
+actually has — calendar rows included: "Write about this" (`clistAnnotate`, `annotate.js`), the
+`arrow_forward` button in each item's `clist-actions` bar. These always append the
+(already-attributed) quote into the Description field — never through
+`_detectCalendarEventFromHtml()`, since a quoted selection or status summary is never structured
+calendar markup — and push the reference, same as `loadContent`'s fallback branch.
+
 ---
 
 ## `initialize()` contract

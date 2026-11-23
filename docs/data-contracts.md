@@ -359,7 +359,11 @@ stand-alone, independently stored records exactly as before — `CListCalendarEv
 and optional `sourceType`/`sourceId` for a future feature to link a derived event
 back to whatever created it, mirroring `sourceUri`/`sourceId` on PageStore records;
 still no recurrence/RRULE field or virtual-derived-event registry, deferred until a
-second real consumer exists). `calendar.js` remains a DOM-free data layer over
+second real consumer exists). It also carries an optional `references` field
+(`CListReference[]`, same shape every other editor's references list uses) —
+populated by the Event editor's `loadContent` when an incoming item is pulled in via
+its arrow button, and round-tripped through `_eventEditorBuildDraft`/`saveCalendarEvent`
+exactly like any other field. `calendar.js` remains a DOM-free data layer over
 `window.CList.storage.kv` (`fetchDecryptedKvRecordsByPrefix`, `encryptWithKey`,
 `kvErrorMessage`) for `listCalendarEvents`/`getCalendarEvent`/`saveCalendarEvent`/
 `deleteCalendarEvent`, unchanged. It reuses `CListCollectionSession` and its

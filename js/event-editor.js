@@ -7,11 +7,13 @@
 //             — loads before this file), calendar-browser.js (runCalendarBrowserAction,
 //             currentCalendarBrowser, recomputeMerged, renderCalendarBrowser, _createOwnCalendar
 //             — loads before this file), calendar-browser-view.js (_buildCalendarEventFields,
-//             _applyCalendarEventFieldValues, _calendarFieldToIso — loads before this file),
+//             _applyCalendarEventFieldValues, _calendarFieldToIso, _calendarInputValue — loads before this file),
 //             collection-workflow.js / collection-session.js (listCollectionRecords,
 //             collectionDependencies, beginCollectionSession — loads before this file),
 //             save-panel.js (window.CList.savers — loads before this file), ics.js
-//             (buildIcsCalendar), utilities.js (downloadBlob, showStatusMessage), the global
+//             (buildIcsCalendar), utilities.js (downloadBlob, showStatusMessage, escapeHtml),
+//             references.js (getReferences, setReferences, clearReferences), tinymce.js
+//             (createReference, displayReferences — loads before this file), the global
 //             `tinymce` library object (same script tag tinymce.js uses) for the Description
 //             field's own small, separate TinyMCE instance (selector '#event-edit-description' —
 //             independent of tinymce.js's 'write-column' instance, own init-once flag — see
@@ -55,7 +57,7 @@
 // Bumped by hand whenever this file changes — shown in the editor's own header (see
 // _reloadEventEditorFields()) so a visible build marker confirms the browser is actually
 // running the latest fetched copy of this file, independent of the index.html ?v= cache-bust.
-const _EVENT_EDITOR_BUILD = '2026-11-22.2';
+const _EVENT_EDITOR_BUILD = '2026-11-23.1';
 
 // Editor to switch back to once a save succeeds — captured by window.openEventEditor().
 let _eventEditorReturnEditor = null;
@@ -154,6 +156,7 @@ function _reloadEventEditorFields() {
     if (_eventEditorHeader) _eventEditorHeader.textContent = (_eventEditorOriginal ? 'Edit event' : 'Add event') + ` (build ${_EVENT_EDITOR_BUILD})`;
     if (!_eventEditorFields) return;
     _applyCalendarEventFieldValues(_eventEditorFields, _eventEditorOriginal);
+    setReferences(_eventEditorOriginal?.references || []);
     _eventEditorFields.titleInput.focus();
 }
 
@@ -163,7 +166,47 @@ function _reloadEventEditorFields() {
 // annotate-editor.js's _annotateClear().
 function _eventEditorClear() {
     _eventEditorOriginal = null;
+    clearReferences();
     _reloadEventEditorFields();
+}
+
+// Structural-marker detection only — mirrors js/file-recognition.js's
+// _recognitionHTMLAnnotation discipline: recognize explicit schema.org Event microdata or an
+// HTML5 <time datetime>, never infer a date from unstructured prose. Returns null when no
+// marker is present, so the caller falls back to appending the raw content into Description.
+function _detectCalendarEventFromHtml(html) {
+    if (typeof DOMParser === 'undefined' || !html) return null;
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const event = doc.querySelector('[itemtype*="schema.org/Event" i]');
+    const field = (scope, name) => {
+        const el = scope?.querySelector(`[itemprop="${name}"]`);
+        return el ? (el.getAttribute('datetime') || el.getAttribute('content') || el.textContent).trim() : '';
+    };
+    const start = (event && field(event, 'startDate')) || doc.querySelector('time[datetime]')?.getAttribute('datetime')?.trim();
+    if (!start) return null;
+    return {
+        title: (event && field(event, 'name')) || '',
+        start,
+        end: (event && field(event, 'endDate')) || '',
+        location: (event && field(event, 'location')) || '',
+        description: (event && field(event, 'description')) || '',
+    };
+}
+
+// Writes/appends into the Description field — same belt-and-suspenders sync between the
+// backing textarea and the live TinyMCE instance (which may not be ready yet) that
+// _applyCalendarEventFieldValues() uses.
+function _setEventDescriptionContent(html) {
+    const fields = _eventEditorFields;
+    fields.descriptionInput.value = html;
+    const editor = typeof tinymce !== 'undefined' && tinymce.get(fields.descriptionInput.id);
+    if (editor) editor.setContent(html);
+}
+function _appendEventDescriptionContent(html) {
+    const fields = _eventEditorFields;
+    const editor = typeof tinymce !== 'undefined' && tinymce.get(fields.descriptionInput.id);
+    const current = (editor ? editor.getContent() : fields.descriptionInput.value) || '';
+    _setEventDescriptionContent(current + html);
 }
 
 // Resolve-or-create fallback for the (currently unreachable — see the header comment) case
@@ -252,6 +295,54 @@ async function _eventEditorDelete() {
         // the generic Save button (window.CList.savers), not exported as plain text. Still
         // defined (not optional-chained everywhere it's read, e.g. file-save-workflow.js).
         getContent: () => '',
+
+        // Feed items' existing arrow_right button reaches here via loadContentToEditor()/
+        // loadContent() (editors.js) whenever this editor is active — no dispatch changes
+        // needed there, since that path only checks for this function's existence. Tries
+        // structured recognition first (_detectCalendarEventFromHtml); on success, populates
+        // the event fields as a new (unsaved) draft, otherwise appends the raw content to
+        // Description. Either way, a reference to the source is always kept — provenance
+        // matters even when the fields were confidently recognized.
+        loadContent: ({ type, value }, itemId) => {
+            const fields = _eventEditorFields;
+            const detected = _detectCalendarEventFromHtml(value);
+            if (detected) {
+                _eventEditorOriginal = null; // populating a new draft, not editing one
+                const allDay = !detected.start.includes('T');
+                fields.allDayInput.checked = allDay;
+                fields.startInput.type = allDay ? 'date' : 'datetime-local';
+                fields.endInput.type = allDay ? 'date' : 'datetime-local';
+                fields.titleInput.value = detected.title || document.getElementById(itemId)?.reference?.title || '';
+                fields.startInput.value = allDay ? detected.start : _calendarInputValue(_calendarFieldToIso(detected.start, false), false);
+                fields.endInput.value = detected.end
+                    ? (allDay ? detected.end : _calendarInputValue(_calendarFieldToIso(detected.end, false), false)) : '';
+                fields.locationInput.value = detected.location || '';
+                if (_eventEditorHeader) _eventEditorHeader.textContent = `Add event (build ${_EVENT_EDITOR_BUILD})`;
+                if (detected.description) _setEventDescriptionContent(detected.description);
+            } else {
+                _appendEventDescriptionContent(type === 'text/html' ? value : escapeHtml(value));
+            }
+            if (itemId && document.getElementById(itemId)?.reference) {
+                createReference(itemId, null);
+                displayReferences(null);
+            }
+        },
+
+        // "Write about this" (clistAnnotate, annotate.js) — the per-item quote-into-active-editor
+        // action every feed item actually has (the arrow_right/loadContentToEditor button above is
+        // thread/feed-container level only). Always a plain quote, never worth running
+        // _detectCalendarEventFromHtml on — just append to Description and push the reference,
+        // same as loadContent's fallback branch.
+        insertLink: ({ content, entryUrl, feedTitle, reference }) => {
+            const quote = content.type === 'text/html' ? content.value : escapeHtml(content.value);
+            if (quote) _appendEventDescriptionContent(`${quote} [<a href="${escapeHtml(entryUrl)}">${escapeHtml(feedTitle)}</a>]`);
+            if (reference) pushAndDisplayReference(reference, null);
+        },
+        insertLinkVia: ({ content, linkedUrl, linkedTitle, entryUrl, authorOrFeedTitle, reference }) => {
+            const quote = content.type === 'text/html' ? content.value : escapeHtml(content.value);
+            if (quote) _appendEventDescriptionContent(`${quote} [<a href="${escapeHtml(linkedUrl)}">${escapeHtml(linkedTitle)}</a>, via <a href="${escapeHtml(entryUrl)}">${escapeHtml(authorOrFeedTitle)}</a>]`);
+            if (reference) pushAndDisplayReference(reference, null);
+        },
     };
 
     // Reads and validates the form into a CListCalendarEvent-shaped draft — shared by both
@@ -272,6 +363,7 @@ async function _eventEditorDelete() {
             end: endIso,
             location: fields.locationInput.value.trim() || undefined,
             description: ((typeof tinymce !== 'undefined' && tinymce.get('event-edit-description')?.getContent()) || fields.descriptionInput.value).trim() || undefined,
+            references: structuredClone(getReferences()),
         };
     }
 

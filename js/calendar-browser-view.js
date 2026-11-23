@@ -64,6 +64,28 @@ window.CList.ui.calendarBrowser = {
             const statusBox = document.createElement('div'); statusBox.className = 'status-box';
             const statusContent = document.createElement('div'); statusContent.className = 'status-content';
             const statusSpecific = document.createElement('div'); statusSpecific.className = 'statusSpecific';
+            // Stable id + .reference live on statusSpecific, not statusBox -- same convention
+            // js/ui.js's makeListing and js/annotate_view.js use. Global feed-navigation code in
+            // interface.js (j/k, Alt+A quick-annotate, dblclick-toggle) finds both by querying
+            // `.statusSpecific` off the current entry, so they have to live here to work for
+            // calendar rows the same way they do for every other feed item.
+            statusSpecific.id = 'calendar-event-' + event.id;
+            // Plain-text rendering of the (HTML) description, same tempDiv.textContent trick
+            // mastodon.js uses to derive its own reference.summary from HTML status content --
+            // this is what "Write about this" (clistAnnotate) quotes when nothing is selected.
+            const descriptionText = (() => {
+                if (!event.description) return '';
+                const tempDiv = document.createElement('div'); tempDiv.innerHTML = event.description;
+                return (tempDiv.textContent || tempDiv.innerText || '').replace(/\s+/g, ' ').trim();
+            })();
+            // `url` is a synthetic pseudo-URL (events have no natural one) since references.js's
+            // dedup keys on exact url match.
+            statusSpecific.reference = {
+                service: 'Calendar', author_name: '', author_id: '',
+                feed: 'Calendar', url: 'clist:event:' + event.id, title: event.title,
+                created_at: event.start, cited_at: new Date().toISOString(),
+                id: statusSpecific.id, summary: descriptionText || event.location || '',
+            };
             const titleEl = document.createElement('strong'); titleEl.textContent = event.title;
             statusSpecific.appendChild(titleEl);
             statusSpecific.appendChild(document.createElement('br'));
@@ -91,6 +113,22 @@ window.CList.ui.calendarBrowser = {
             }
             statusContent.appendChild(statusActions);
             statusBox.appendChild(statusContent);
+
+            // Same per-item "Write about this" action every feed item has (js/ui.js's
+            // makeListing -> clistAnnotate/annotate.js) -- not a separate loadContentToEditor
+            // arrow button. That mechanism is reserved for batch-level exports (thread/
+            // feed-container headers); individual items, events included, all go through
+            // clistAnnotate so there's exactly one way to carry an item's content from the
+            // read pane into whichever editor is active. Appended as a sibling of
+            // statusContent (not nested inside it), matching js/ui.js's makeListing -- that's
+            // what lets .status-box's flex/space-between push it to the right of the row.
+            const clistActions = document.createElement('div'); clistActions.className = 'clist-actions';
+            const annotateButton = document.createElement('button'); annotateButton.className = 'clist-action-btn';
+            annotateButton.title = 'Write about this';
+            annotateButton.innerHTML = '<span class="material-icons md-18 md-light">arrow_forward</span>';
+            annotateButton.onclick = () => clistAnnotate(statusSpecific.id);
+            clistActions.appendChild(annotateButton);
+            statusBox.appendChild(clistActions);
             if (model.confirmId === event.id) {
                 const confirm = document.createElement('div'); confirm.className = 'collection-delete-confirm';
                 const label = document.createElement('span'); label.textContent = `Delete "${event.title}"? `; confirm.appendChild(label);

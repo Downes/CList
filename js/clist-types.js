@@ -696,6 +696,8 @@
  * @property {string} [description]
  * @property {string} [sourceType] Set when another feature created this event.
  * @property {string} [sourceId]
+ * @property {CListReference[]} [references] Cited/pulled-in sources, same shape as every
+ *     other editor's references list (see CListReference above).
  * @property {number} created epoch ms
  * @property {number} updated epoch ms
  */
