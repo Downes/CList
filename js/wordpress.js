@@ -157,28 +157,9 @@ async function publishPost(
 // WordPress enforces HTTPS on success_url. When running locally over HTTPS
 // (mkcert, Windows/macOS) we can use window.location.origin directly.
 // On Linux we fall back to plain HTTP; in that case we bounce through the
-// production callback URL so WordPress accepts it (HACK — see comment below).
-function wpAuthStart(siteUrl) {
-    const mode = OAuthStrategies.detectRuntimeMode();
-    let callbackUrl;
-    if (mode === 'desktop-local' && window.location.protocol === 'http:' && window._launcherConfig) {
-        // HACK: http://localhost is rejected by WordPress. Use the production
-        // callback URL with local_port so it can bounce credentials back here.
-        // Only needed on Linux where mkcert is not bundled. On Windows/macOS
-        // the launcher serves HTTPS and the branch above handles it cleanly.
-        callbackUrl = 'https://clist.mooc.ca/callback.html?local_port=' + window._launcherConfig.port;
-    } else {
-        callbackUrl = window.location.origin + '/callback.html';
-    }
-    const appId = crypto.randomUUID ? crypto.randomUUID()
-                                    : Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
-    const params = new URLSearchParams({
-        app_name:    'CList',
-        app_id:      appId,
-        success_url: callbackUrl,
-        reject_url:  callbackUrl,
-    });
-    window.location.href = siteUrl.replace(/\/$/, '') + '/wp-admin/authorize-application.php?' + params;
+// production callback URL so WordPress accepts it; see wordpress_auth_workflow.js.
+function wpAuthStart(siteUrl, options = {}) {
+    return startWordPressAuth(siteUrl, options);
 }
 
 // On page load, check whether we're returning from a WordPress authorization.
@@ -186,11 +167,12 @@ function wpAuthStart(siteUrl) {
 // saves to kvstore via OAuthClient.saveAccount. (WordPress's own callback flow doesn't go
 // through OAuthClient.login() — its result shape is siteUrl/userLogin/password rather than
 // accessToken/extra — but it's stored under the same shared key, so onCallback still applies.)
-OAuthClient.onCallback('WordPress', async data => {
+OAuthClient.onCallback('WordPress', async (data, context) => {
     const host = new URL(data.siteUrl).host;
     const accountKey = `${data.userLogin}@${host}`;
     const instanceData = { type: 'WordPress', id: data.password, title: host, permissions: 'w' };
     await OAuthClient.saveAccount('WordPress', accountKey, instanceData, {
+        isCurrent: context.isCurrent,
         afterRefresh: () => populatePostOptions(window.CList.accounts),
     });
 });
@@ -204,35 +186,13 @@ window.CList.accountFlows = window.CList.accountFlows || {};
  * @returns {CListAccountFlow}
  */
 window.CList.accountFlows['WordPress'] = function (context) {
-    const div = context.container;
-    const showTypePicker = context.back;
-
-    function open() {
-        const flow = div;
-        const inputStyle = 'display:block;width:100%;box-sizing:border-box;padding:0.2rem;font-size:0.8rem;margin:2px 0 8px;';
-        const labelStyle = 'font-variant:small-caps;font-size:0.8rem;color:#555;display:block;margin-top:6px;';
-        flow.innerHTML = `
-            <h3 style="margin:0 0 8px;">Add WordPress Account</h3>
-            <label style="${labelStyle}">Site URL</label>
-            <input type="url" id="wp-site-url"
-                   placeholder="https://your-site.com"
-                   style="${inputStyle}">
-            <div class="kv-action-buttons">
-                <button class="kv-action-btn kv-save-btn" id="wp-auth-btn">Authorize with WordPress</button>
-                <button class="kv-action-btn kv-cancel-btn" id="wp-back-btn">Back</button>
-            </div>`;
-        flow.querySelector('#wp-auth-btn').onclick = () => authorizeWordPress();
-        flow.querySelector('#wp-back-btn').onclick = () => showTypePicker();
-    }
-
-    function authorizeWordPress() {
-        let siteUrl = div.querySelector('#wp-site-url').value.trim();
-        if (!siteUrl) {
-            showErrorModal('Please enter your WordPress site URL.', { title: 'WordPress account failed' });
-            return;
-        }
-        if (!/^https?:\/\//i.test(siteUrl)) siteUrl = 'https://' + siteUrl;
-        wpAuthStart(siteUrl);
-    }
-    return { open };
+    let controller;
+    return { open() {
+        controller ||= createWordPressSetupController({
+            capture: captureOAuthIssuerSource, current: currentOAuthIssuerSource, back: context.back,
+            state: value => { window.CList.state.wordPressSetup = value; },
+            authorize: (site, options) => wpAuthStart(site, options), log: error => console.error('[WordPress setup]', error),
+        });
+        controller.mount(createWordPressSetupView(context.container));
+    } };
 };

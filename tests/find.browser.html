@@ -2,7 +2,7 @@
 <meta charset="utf-8">
 <title>CList Find boundary regression</title>
 <h1>Find search boundary</h1>
-<p>Real Find state/controller/view, shared feed renderer, and OpenAlex/Commons request and normalization code. API responses, listing widgets, feedback, and reader invalidation are mocked. No external API requests or storage writes; this does not verify live services or the full reader controller.</p>
+<p>Real Find state/controller/view, shared feed renderer, OpenAlex/Commons request and normalization code, and real bound row controls. API responses, listing widgets, feedback, and reader invalidation are mocked. No external API requests or storage writes; this does not verify live services or the full reader controller.</p>
 <pre id="result">Checking Find boundary…</pre>
 <div id="left-content"></div><div id="feed-container"></div>
 <script>
@@ -16,18 +16,21 @@ window.invalidateReader = () => { invalidateFindRequest(); CList.state.reader.re
 window.fetch = () => { throw Error('Unexpected API request'); };
 window.escapeHtml = value => String(value).replaceAll('&','&amp;').replaceAll('<','&lt;');
 </script>
-<script src="../js/ui.js?v=2026-11-19.1"></script>
+<script src="../js/ui.js?v=2026-11-20.1"></script>
 <script src="../js/find-state.js?v=2026-11-19.1"></script>
 <script src="../js/find-view.js?v=2026-11-19.1"></script>
-<script src="../js/find.js?v=2026-11-19.1"></script>
-<script src="../js/openalex.js?v=2026-11-19.1"></script>
-<script src="../js/commons.js?v=2026-11-19.1"></script>
+<script src="../js/find.js?v=2026-11-20.1"></script>
+<script src="../js/search-provider-view.js?v=2026-11-20.2"></script>
+<script src="../js/openalex.js?v=2026-11-20.3"></script>
+<script src="../js/commons.js?v=2026-11-20.3"></script>
 <script>
 (async () => {
  const check = (value,message) => { if (!value) throw Error(message); };
  const deferred = () => { let resolve,reject; const promise=new Promise((yes,no)=>{resolve=yes;reject=no;}); return {promise,resolve,reject}; };
  const feed = document.getElementById('feed-container');
- const errors = [], requests = [], responses = [];
+ const errors = [], requests = [], responses = [], rowActions = [];
+ window.openInBrowser=(url,id)=>rowActions.push({url,id});window.toggleEntryExpanded=id=>rowActions.push({id});
+ window.SafeHtml=class{constructor(value){this.value=value;}toString(){return this.value;}};
  let checks = 0;
  const assert = (value,message) => { check(value,message); checks++; };
  const query = value => { const input=document.getElementById('find-input'); input.value=value; input.dispatchEvent(new Event('input',{bubbles:true})); };
@@ -38,7 +41,11 @@ window.escapeHtml = value => String(value).replaceAll('&','&amp;').replaceAll('<
  window.showErrorModal = (message,options) => errors.push({message,title:options.title});
  window.showServiceError = (container,title,message) => { errors.push({title,message}); const el=document.createElement('p'); el.textContent=message; container.appendChild(el); };
  // Keep the actual shared renderFeed and renderLoadMoreButton, with small safe listing widgets.
- window.makeListing = item => { const el=document.createElement('article'); el.textContent=item.title; return el; };
+ window.makeListing = (item,{rowContext}={}) => {
+  const el=document.createElement('article');el.textContent=item.title;el.id='fixture-row-'+feed.children.length;
+  const bar=document.createElement('div');bar.className='service-status-actions';el.appendChild(bar);
+  CList.readers[item.service]?.bindRow?.({...item,_hasExpandableContent:!!item.full_content},el,rowContext);return el;
+ };
  window.fetch = async (input,options) => {
   const url=new URL(input); requests.push({url,options});
   if(!['api.openalex.org','commons.wikimedia.org'].includes(url.hostname)) throw Error('Unexpected API host');
@@ -46,7 +53,7 @@ window.escapeHtml = value => String(value).replaceAll('&','&amp;').replaceAll('<
   const body=await responses.shift();
   return {ok:true,json:async()=>body};
  };
- const work = title => ({id:'https://openalex.org/W1',display_name:title,publication_year:2026});
+ const work = title => ({id:'https://openalex.org/W1',display_name:title,publication_year:2026,abstract_inverted_index:{Abstract:[0]}});
  const image = title => ({pageid:1,title:'File:'+title,imageinfo:[{url:'https://fixture.invalid/image.jpg',descriptionurl:'https://fixture.invalid/File',extmetadata:{ObjectName:{value:title}}}]});
  try {
   CList.readers.hidden={label:'Hidden',visible:()=>false,search:()=>{throw Error('Hidden provider ran');}};
@@ -91,16 +98,23 @@ window.escapeHtml = value => String(value).replaceAll('&','&amp;').replaceAll('<
 
   open(); query('openalex captured');
   responses.push({results:[work('OpenAlex first')],meta:{count:26}}); await select('OpenAlex');
+  const firstOpenAlexRow=feed.querySelector('article'),oldOpenAlexControl=firstOpenAlexRow.querySelector('button[title="Open in browser"]');
+  assert(oldOpenAlexControl&&oldOpenAlexControl.getAttribute('onclick')===null,'OpenAlex controls use callbacks without inline state');
+  await firstOpenAlexRow.querySelector('button[title="Expand"]').onclick();assert(rowActions.at(-1).id===firstOpenAlexRow.id,'OpenAlex expand uses captured row');
   const oldOpenAlexMore=document.getElementById('openalex-load-more').onclick;
   assert(feed.textContent.includes('OpenAlex first')&&requests.at(-1).url.searchParams.get('search')==='openalex captured','Actual OpenAlex request and normalization render');
   query('edited after request'); responses.push({results:[work('OpenAlex second')],meta:{count:26}});
   await oldOpenAlexMore();
   assert(requests.at(-1).url.searchParams.get('search')==='openalex captured'&&requests.at(-1).url.searchParams.get('page')==='2'&&feed.querySelectorAll('article').length===2,'OpenAlex pagination keeps captured query and appends');
   const countBeforeStale=requests.length;
+  await oldOpenAlexControl.onclick();assert(rowActions.at(-1).url==='https://openalex.org/W1','Earlier-page OpenAlex control survives paging');
   await oldOpenAlexMore(); assert(requests.length===countBeforeStale,'Old OpenAlex page callback expires after next request');
 
   query('commons captured');
   responses.push({query:{pages:{1:image('Commons first')}},continue:{gsroffset:20}}); await select('Wikimedia Commons');
+  const commonsRow=feed.querySelector('article'),commonsControl=commonsRow.querySelector('button[title="Open in browser"]');
+  const replacedCount=rowActions.length;await oldOpenAlexControl.onclick();assert(rowActions.length===replacedCount,'Replaced OpenAlex row expires');
+  assert(commonsControl&&commonsControl.getAttribute('onclick')===null,'Commons controls use callbacks without inline state');
   const commonsMore=document.getElementById('commons-load-more').onclick;
   assert(feed.textContent.includes('Commons first')&&requests.at(-1).url.searchParams.get('gsrsearch')==='commons captured','Actual Commons request and normalization render');
   const obsoleteButton=button('Wikimedia Commons');
@@ -109,6 +123,8 @@ window.escapeHtml = value => String(value).replaceAll('&','&amp;').replaceAll('<
   assert(requests.length===beforeClose,'Closing panel expires its provider controls');
   responses.push({query:{pages:{2:image('Commons second')}}}); await commonsMore();
   assert(requests.at(-1).url.searchParams.get('gsrsearch')==='commons captured'&&requests.at(-1).url.searchParams.get('gsroffset')==='20'&&feed.querySelectorAll('article').length===2,'Closing panel retains feed pagination with captured Commons query');
+  await commonsControl.onclick();assert(rowActions.at(-1).url==='https://fixture.invalid/File','Earlier-page Commons control survives paging and panel close');
+  const beforeSessionAction=rowActions.length;fixtureToken='row-expired';await commonsControl.onclick();assert(rowActions.length===beforeSessionAction,'Session-stale Commons row expires');fixtureToken='fixture-token';
   const beforeOldCallbacks=requests.length; await commonsMore(); await oldOpenAlexMore();
   assert(requests.length===beforeOldCallbacks,'Replaced provider and page callbacks cannot fetch');
 
@@ -124,7 +140,7 @@ window.escapeHtml = value => String(value).replaceAll('&','&amp;').replaceAll('<
   await settle();
   assert(responses.length===0,'Every mocked API response was consumed');
   document.body.dataset.result='PASS';
-  document.getElementById('result').textContent=`PASS: ${checks} checks. Real Find controls/state/controller, shared progressive renderer, actual OpenAlex/Commons API construction and normalizers, captured pagination, stale work/session/reader guards, safe text, and legacy compatibility. API responses, listing widgets, reader invalidation and feedback are mocked; no live service or complete reader integration verified.`;
+  document.getElementById('result').textContent=`PASS: ${checks} checks. Real Find controls/state/controller, shared progressive renderer, actual OpenAlex/Commons API construction and normalizers, captured pagination, stale work/session/reader guards, safe text, callback row controls/earlier-page actions/stale rows, and legacy compatibility. API responses, listing widgets, reader invalidation and feedback are mocked; no live service or complete reader integration verified.`;
  } catch(error) {
   console.error(error); document.body.dataset.result='FAIL'; document.getElementById('result').textContent='FAIL: '+error.message;
  }

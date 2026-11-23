@@ -1,0 +1,14 @@
+<!doctype html><meta charset="utf-8"><title>CList local-page Save check</title>
+<h1>Local-page Save</h1>
+<p>Real Save controller/workflow/view, registry entry, shared Save owner helper and PageStore API. IndexedDB transactions, editor/session APIs, loaded-page setter and feedback helpers mocked. No external requests or actual storage writes. Real IndexedDB durability, full Save panel and editor mounting not exercised. Test 2026-11-22.3.</p>
+<pre id="result">Checking...</pre>
+<script>window.CList={state:{},savers:[],loaders:[]};</script>
+<script src="../js/page-store.js?v=2026-11-22.3"></script>
+<script src="../js/save-panel.js?v=2026-11-22.3"></script>
+<script src="../js/page-store-save-workflow.js?v=2026-11-22.3"></script>
+<script src="../js/page-store-save-view.js?v=2026-11-22.3"></script>
+<script src="../js/page-store-save.js?v=2026-11-22.3"></script>
+<script src="helpers/page-store-save-fixture.js?v=2026-11-22.3"></script>
+<script>
+(async()=>{let checks=0;for(const[name,run]of localPageSaveCases)await run((condition,message)=>{if(!condition)throw Error(name+': '+message);checks++;});document.getElementById('result').textContent='PASS: '+checks+' checks. Real local-page Save controller/workflow/view, registry/owner and PageStore API, captured editor/title/identity/references, duplicate and stale source/page/session/document guards, accepted-write isolation, native revision conflicts/metadata retention, newer draft preservation and metadata-only recovery. IndexedDB/editor/session/loaded-page/feedback APIs mocked; no external requests or actual storage writes. Real IndexedDB durability, full Save panel and editor mounting not exercised.';})().catch(error=>{document.getElementById('result').textContent='FAIL: '+error.stack;console.error(error);});
+</script>

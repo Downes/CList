@@ -1,0 +1,11 @@
+<!doctype html>
+<meta charset="utf-8"><title>CList post-login setup regression</title>
+<link rel="stylesheet" href="../css/interface.css">
+<style>html,body{display:block;height:auto;min-height:100%;overflow:auto}body{max-width:960px;box-sizing:border-box;margin:auto;padding:24px;font:16px/1.5 system-ui,sans-serif}#result{padding:16px;border:1px solid currentColor;white-space:pre-wrap;overflow-wrap:anywhere}</style>
+<h1>Post-login account setup and seeding</h1>
+<p>Real setup workflow/controller/view, service descriptors and public-feed discovery. Login/session, HTTP, KV storage, crypto, account loading, reader navigation and modal shell are mocked. No external requests or real writes; live service registration and real cryptography are not exercised.</p>
+<p id="result" role="status">Checking setup...</p><div id="fixture"></div>
+<script>window.CList={ui:{},defaults:{LOCALRSS:'https://rss.invalid'}};window.fixtureAttach=root=>document.getElementById('fixture').appendChild(root);window.fixtureDetach=root=>root.remove();</script>
+<script src="../js/collab_account.js?v=2026-11-20.18"></script><script src="../js/annotate_account.js?v=2026-11-20.18"></script><script src="../js/clistbin.js?v=2026-11-20.18"></script><script src="../js/public-feeds.js?v=2026-11-20.18"></script>
+<script src="../js/post-login-workflow.js?v=2026-11-20.18"></script><script src="../js/post-login-view.js?v=2026-11-20.18"></script><script src="../js/post-login.js?v=2026-11-20.18"></script><script src="helpers/post-login-fixture.js?v=2026-11-20.18"></script>
+<script>(async()=>{let checks=0;for(const [name,run] of postLoginCases)await run((condition,message)=>{if(!condition)throw Error(name+': '+message);checks++;});document.getElementById('result').textContent='PASS: '+checks+' checks. Real post-login workflow/controller/view, captured service/default/session targets, registration-only public seeding, Local exclusions, add-only preservation, accepted/uncertain receipts, read-only refresh/check, explicit remaining/service retries, stale ownership and newer-reader protection. Login/session, HTTP, KV, crypto, account loading, reader and modal shell mocked; no external requests or real writes.';})().catch(error=>{document.getElementById('result').textContent='FAIL: '+error.stack;console.error(error);});</script>

@@ -2,7 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const { Element } = require('./helpers/account-fixture.cjs');
+const { NavigationElement: Element } = require('./helpers/navigation-dom.cjs');
+const {createAnnotationTinyFake}=require('./helpers/annotation-tiny-fixture.js');
 function fixture(ui = false) {
     const CList = { config: { flaskSiteUrl: 'https://kv.test' }, keys: { ACCESS_TOKEN: 'access_token' },
         state: {}, publishers: {}, ui: {}, readers: {} };
@@ -184,13 +185,14 @@ test('Hypothesis transport retains private permissions and selected account cred
 function editorFixture() {
     const f = fixture(true), refs = [{ url: 'https://primary', id: 'primary' }], switched = [];
     let html = '<p>Original HTML</p>';
-    const textarea = new Element('textarea'); textarea.value = 'stale textarea';
-    f.ctx.document.getElementById = id => id === 'annotate-edit-body' ? textarea : null;
+    const textarea = new Element('textarea');textarea.value=html;const bodyRoot=new Element('div');bodyRoot.id='annotateEditDiv';bodyRoot.appendChild(textarea);
+    f.ctx.document.getElementById = id => id===bodyRoot.id?bodyRoot:bodyRoot.querySelector('#'+id);
     f.ctx.tinymce = { get: () => ({ getContent: () => html, setContent: value => html = value }) };
     f.ctx.editorHandlers = {}; f.ctx.currentEditor = 'annotate-edit';
     f.ctx.hasValidSession = () => true;
     f.ctx.getReferences = () => refs;
-    f.ctx.ensureAccountsLoaded = async () => [{ value: JSON.stringify(f.account) }];
+    f.CList.accounts=[{key:'store',value:JSON.stringify(f.account)}];
+    f.ctx.ensureAccountsLoaded = async () => f.CList.accounts;
     f.ctx.parseAccountValue = record => JSON.parse(record.value);
     f.ctx.buildAccountSelect = () => { const el = new Element('select'); el.value = '0'; return el; };
     f.ctx.buildVisibilitySelect = () => { const el = new Element('select'); el.value = 'private'; return el; };
@@ -198,12 +200,14 @@ function editorFixture() {
     f.ctx.switchToEditor = async name => { switched.push(name); f.ctx.currentEditor = name; };
     f.ctx.cleanHTMLContent = s => s; f.ctx.escapeHtml = s => s;
     f.ctx.pushAndDisplayReference = ref => { if (!refs.includes(ref)) refs.push(ref); };
+    for(const name of ['annotate_draft_state', 'annotate_draft_view', 'annotate_draft', 'annotate_body_view', 'annotate_body', 'annotate_send_view', 'annotate_send'])f.load(name);
     f.load('annotate-editor');
+    f.ctx.tinymce=createAnnotationTinyFake({read:()=>html,write:value=>{html=value;}});vm.runInContext('_initAnnotateTinyMCE()',f.ctx);textarea.value='stale textarea';
     // The field renderer is outside these tests; retain its reference/editing logic.
     vm.runInContext('_refreshAnnotateRefFields = () => {}; _annotateReturnEditor = "tinymce";', f.ctx);
-    const section = new Element('div');
+    const section = new Element('div');section.id='annotate-send-section';bodyRoot.appendChild(section);
     return { ...f, refs, switched, section, setHTML: value => html = value, getHTML: () => html,
-        async sendButton() { await f.ctx._renderSendControls(section); return section.querySelector('button'); } };
+        async sendButton() { await f.ctx._renderSendControls(section);const selects=section.querySelectorAll('select');if(selects[1]){selects[1].value='private';selects[1].onchange();}return section.querySelector('button'); } };
 }
 
 test('Send reads TinyMCE HTML via the editor API, sends only primary target and selected tags/visibility, then returns', async () => {
@@ -212,7 +216,8 @@ test('Send reads TinyMCE HTML via the editor API, sends only primary target and 
     const body = JSON.parse(f.calls[0].body);
     assert.equal(body.body, '<p>Original HTML</p>'); assert.equal(body.target_url, 'https://primary');
     assert.deepEqual(body.tags, ['editor-tag']); assert.equal(body.visibility, 'private');
-    assert.equal(f.calls.length, 1); assert.deepEqual(f.switched, ['tinymce']); assert.equal(button.disabled, false);
+    assert.equal(f.calls.length, 1); assert.deepEqual(f.switched, ['tinymce']); assert.equal(button.disabled, true);
+    assert.equal(f.CList.state.annotationSend.busy,false,'shared lock settles without touching hidden old controls');
 });
 
 test('Send preserves newer draft body and editor while a write is pending', async () => {
@@ -230,10 +235,11 @@ test('Send captures target/account/session before awaiting an asynchronous edito
     const f = editorFixture(); let resolve;
     f.ctx.editorHandlers['annotate-edit'].getContent = () => new Promise(r => resolve = r);
     const button = await f.sendButton(); const pending = button.listeners.click();
+    await new Promise(r=>setImmediate(r));
     f.refs[0].url = 'https://new-target'; f.setToken('new-session');
     resolve('captured body'); await pending;
-    assert.equal(f.calls.length, 0); assert.deepEqual(f.switched, []); assert.equal(f.errors.length, 1);
-    assert.equal(button.disabled, false);
+    assert.equal(f.calls.length, 0); assert.deepEqual(f.switched, []); assert.equal(f.errors.length, 0);
+    assert.equal(button.disabled, true,'expired controls are not repainted');
 });
 
 test('incoming HTML keeps append-only description behaviour and additional references preserve the primary target', () => {
@@ -292,7 +298,7 @@ test('two accounts can annotate the same target independently and retain their c
 
 test('Send guards stale rendered controls and retains changed targets/editor context', async () => {
     const stale = editorFixture(); const button = await stale.sendButton(); stale.setToken('other-login');
-    await button.listeners.click(); assert.equal(stale.calls.length, 0); assert.equal(stale.errors.length, 1);
+    await button.listeners.click(); assert.equal(stale.calls.length, 0); assert.equal(stale.errors.length, 0,'stale feedback suppressed');
     const f = editorFixture(); let resolve;
     f.ctx.fetch = () => new Promise(r => resolve = r);
     const send = await f.sendButton(); const pending = send.listeners.click();

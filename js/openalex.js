@@ -9,13 +9,8 @@
         icon: 'auto_stories',
         requiresLogin:   false,
         requiresAccount: false,
-        statusActions: (item, itemID, itemLink) => {
-            let actions = openInBrowserButton(itemLink, itemID);
-            if (item._hasExpandableContent) {
-                actions += `<button class="clist-action-btn" title="Expand" onClick="toggleEntryExpanded('${itemID}');"><span class="material-icons md-18 md-light">zoom_out_map</span></button>`;
-            }
-            return actions;
-        },
+        statusActions: () => '',
+        bindRow: (item,row,context) => bindSearchProviderRow(item,row,context),
         supportsFindContext: true,
         search: async (query, context) => {
             const searchString = query === undefined ? finderString() : query;

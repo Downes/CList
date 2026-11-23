@@ -1,5 +1,15 @@
 # Publishing instructions for AI coding tools
 
+Current user-directed testing cadence (2026-11-23): run only the immediately
+relevant Node checks for each small refactor, and defer the full sweep until later.
+This overrides the per-stage full-suite directions below. Report the exact tested
+scope; do not describe focused checks as full validation.
+
+Closing validation update (2026-11-23): the user subsequently authorized the deferred
+full sweep. `node --test tests/*.test.cjs` passed 1288/1288, zero failures/skips.
+Small-stage targeted testing remains the default; do not repeat an unchanged full
+suite. Final normal-application checks are user-pending in docs/testing.md.
+
 Read this document before writing or changing code that supports or affects
 publishing: service adapters, editor exports, account/session handling, workflow
 state, publication tracking, or result/progress UI. Read the affected implementation
@@ -35,6 +45,7 @@ web-page workflow. Preserve the reviewed behaviour of each publishing path.
 | Service API operations | Service files, including `mastodon_publish.js`, `bluesky_publish.js`, `wordpress.js`, `blogger.js` | Use explicit account/session values. Return data or reject; never display publication feedback. |
 | Annotation publishing | `annotation-workflow.js`, `annotation-publishing.js`, `annotation-view.js`, `annotate_publish.js`, `hypothesis_publish.js` | Explicit captured targets/session; per-target receipts; transport has no feedback. |
 | Collection browse/import/member operations | `collection-session.js`, `collection-workflow.js`, `collection-browser*`, `collection-import*`, `collection-members*`, `collection-opening*`, `collection-entry-*` | Preserve latest record extensions/publications, explicit conflicts, independent duplicate memberships and captured original drafts. Views own choices/feedback; accepted writes reconcile only current owners. Collection Save/publication remains separate. |
+| Collection draft rows | `collection-draft-state.js`, `collection-draft.js`, `collection-draft-view.js`, `collection-editor.js` | Preserve the shared live member array and extensions. Expire retired row/source callbacks; metadata-only identity reconciliation must keep current editing usable. Existing opening/import/publication APIs own effects after dispatch. |
 | Collection Post / To Web Page / Republish | `collection-publishing.js`, `collection-publishing-workflow.js`, `collection-publishing-view.js`, [collection-publishing.md](../collection-publishing.md) | Capture collection/account/session before awaits; state owns selection/busy; workflow emits data; view owns choices/results. |
 | Local-entry Publish | `collection-entry-publishing.js`, `web-page-workflow.js`, `web-page-records.js` | Capture member/session/account/authorship, retain receipts, and reconcile only the unchanged original member; feedback remains in the collection view. |
 
@@ -170,11 +181,49 @@ status. Keep busy/result state in `CList.state.publishing` and
 Preserve cleanup after failure/cancellation and the guards that prevent ordinary
 posting from erasing an outstanding web-page version choice.
 
+Annotation draft fields use `annotate_draft_state.js`, `annotate_draft.js` and
+`annotate_draft_view.js`. Preserve live target/reference identity, source metadata,
+extensions and manual-URL registration for generic publication. Pending field
+edits are private and conflict-checked; expired form/editor/session callbacks
+must not change a new target. Native annotation file behavior and body publication
+remain distinct.
+`annotate_body.js` / `annotate_body_view.js` now own the description instance,
+unique target, delayed setup, textarea fallback and cleanup. Read/write APIs use
+the captured instance, propagate failures and retain fallback data; never export
+from a different global TinyMCE instance. Initialization failure can still mount
+a usable annotation textarea and consume queued content exactly once. Explicit
+rich retry seeds the latest retained content.
+Send controls use `annotate_send.js` and `annotate_send_view.js`, directly reusing
+`captureAnnotationRequest` / `runAnnotationOperation` rather than the inline
+compatibility wrapper's UI effects. Preserve primary-target selectors and
+captured account/tags/privacy/session before async body reads. Keep cross-panel
+pending locks and private account/privacy preferences, validate the live account
+registry before dispatch and suppress stale results/return callbacks. Accepted
+writes are distinct from failed draft-return checks; never repeat publication to
+recover UI. Uncertain results advise server review before an explicit retry.
+
 Native PageStore documents and encrypted `page:*` publication metadata are
 different records. Preserve local document identity, HTML identity embedding,
 plain-text contents, My Pages indexing, and verified DID alias/derived-copy
 behaviour. Overwrite requires a captured matching service/account/resource.
 Reconcile the loaded-page pointer only if the original editor/page is still active.
+Native local-page Save now uses `page-store-save*` with captured source metadata
+before the editor read, existing PageStore revision handling and owner-safe
+completion. Keep newer title/reference edits while attaching native identity.
+If editor metadata fails after an accepted write, retry that reconciliation
+without another write. Never route this operation through remote page indexing.
+Native local-page listing/opening uses `page-store-browser*`. Preserve native
+identity/revision, structural references and latest publication metadata in the
+shared saved-content handoff. Keep pre-read editor/page/session guards distinct
+from the session/control guard used during intended editor selection/mounting.
+Do not treat the listing controller as proof of full editor integration.
+Bundle import/export uses `page-store-bundle*` with captured methods/file/policy,
+guarded pre-write dispatch, private accepted/uncertain receipts and visible partial
+results. Never repeat the entire import automatically after partial failure or
+uncertainty. Result review performs no writes; already dispatched PageStore work
+may finish after navigation and must not refresh a replacement UI. Browser export
+reports a handoff, without claiming disk persistence. Native storage conflict and
+reference-remapping semantics remain in the existing data API.
 Keep `_saveWebPageRecord` / `_touchOrForkWebPageRecord` compatibility for file saving
 and the existing `showRepublishStatus` UI for collection republishing. The old
 `_findAccountForPage` compatibility controller has been removed after migration.
@@ -391,3 +440,343 @@ changing collection serialization or overwriting existing records. Confirmed
 AlreadyExists and a failed/uncertain write remain different outcomes. Guard every
 key/encryption/write boundary against a changed session and never automatically
 retry. Tags tests mock KV/crypto; they do not establish live authorization.
+
+Existing DID-key publication uses `did-publication-workflow.js`,
+`did-publication.js` and `did-publication-view.js`. Keep captured stored-key/session
+checks, matching-document reconciliation, uncertainty checks and receipts separate
+from account/collaboration refresh outcomes. Generation/regeneration, Update DID,
+removal and migration remain separate paths; do not infer that the new publication
+controller guards those legacy write lifecycles.
+
+First-time identity generation uses `did-generation-*` and add-if-absent storage,
+then reuses existing-key publication with an expected did:key guard. Preserve the
+stored-key receipt across publication failures/uncertainty; never regenerate to
+retry publication. Regeneration/key rotation remains a separate legacy workflow.
+
+Confirmed key rotation uses `did-rotation-*` plus the shared one-shot
+`sendDidPublication` transport. Preserve the captured original key/public identity,
+latest linked metadata, accepted replacement and publication receipts, and explicit
+read checks/continuation after uncertain outcomes. Do not retry by generating a
+new key or roll back automatically. Follow-up refresh failures are separate from
+accepted rotation. Update DID, removal and migration remain separate.
+
+DID removal uses `did-removal-*` with separate key/document receipts and captured
+target checks. Reconcile uncertain outcomes by reads before explicit remaining-step
+retries; never replay accepted steps or restore a key automatically. Migrated key
+operations share mutation-busy checks; legacy Update DID/migration Run are only
+wrapped at dispatch, with their internal lifetime still separate. UI refresh failure
+after accepted removal must not become another delete attempt.
+
+Public-account Update DID uses `did-update-*` and shared publication transport.
+Preserve state-owned choices, captured account/private-key/catalog/profile versions,
+separate visibility/publication receipts and explicit remaining-step recovery.
+Retain credentials/extensions and unmapped public links; never silently discard
+unreadable metadata. Migration remains a separate legacy internal workflow.
+
+
+Migration preparation/preview uses `migration-preparation-workflow.js`,
+`migration-preparation.js` and `migration-preparation-view.js`. Capture all inputs
+before awaits; fail closed on unreadable source or failed/malformed destination
+lists. Keep registration side effects explicit, retain accepted/uncertain receipts
+across panel rebuilds within the captured source session, and never automatically
+repeat registration. Run consumes one state-approved plan after checking both
+record snapshots. Execution now uses `migration-execution-workflow.js`, `migration-execution.js`,
+`migration-execution-view.js` and `migration-identity-workflow.js`. Private plans
+retain each ciphertext and accepted/uncertain copy/publication receipt. Read-only
+Check migration reconciles remote results before an explicit Retry remaining steps;
+never repeat accepted steps or fall back from add conflict to overwrite. Recheck
+source/destination records and public documents before each write, and guard after
+every asynchronous boundary. Preserve captured local/hosted identities and public
+metadata. Reuse `sendDidPublication` for one-shot identity writes; HTTP failure
+must not become success feedback. Recovery is tab/source-session scoped, not
+persistent across reload or a new login; expired destination authorization stops
+rather than silently changing credentials. Mock registration/login, copy/link
+writes, storage and crypto in regressions. No client-side reads provide server CAS.
+
+
+Auth form and account-server picker now use `auth-panel-*` state/controller/view.
+Capture form mode/credentials before dispatch; keep passwords and attempts out of
+UI state. Preserve registration validation, exact server choices/Local behavior,
+secret clearing and the shared pending-submission lock. Persist server preference
+before switching config, and distinguish a rejected preference write from accepted
+selection with a failed reader refresh. While credential work is pending, the UI
+blocks closing/reopening/changing servers because the existing auth helpers are
+not all cancellable. `submitAuthModal` bridges private attempts to captured
+`auth-credentials-*` and `auth-session-workflow.js`. Credentials use explicit
+transport/crypto/storage dependencies; captured server/mode/Local-adapter/source
+session guards apply before/after async boundaries. Registration receipts survive
+panel replacement and distinguish created/rejected/uncertain results. A normal retry
+checks login without resending an attempted registration; resending uncertain or
+rejected creation requires explicit Retry registration. Never retry accepted creation.
+Validate username/token/future expiry, export the encryption key before storage,
+write the token last and verify saved values. On failure restore only original or
+owned values and show incomplete-rollback feedback. Cookie helpers/key slots and
+Local direct-adapter routing remain compatible. Post-login setup now uses
+`post-login-*`, with service-specific descriptors in the existing service modules.
+Capture defaults, installed session and reader generation before awaits; register
+services and add encrypted records with separate accepted/uncertain receipts.
+Never overwrite an existing record or recreate accepted seeds during recovery.
+Public feeds seed only for registration; Local mode excludes hosted registration
+and CListBin. Await all attempts before refreshing account controls once. Refresh
+accounts and Check setup perform reads only; ordinary remaining-step retry must
+not resend unknown service registration. Its named retry action requires the
+user to check that service first. Keep late acceptance against the original
+target, reject stale panel/session/modal callbacks, preserve newer reader content,
+and report setup failure separately from the accepted login. Credential-only
+fixtures do not establish setup coverage. Startup/logout/storage-event restoration
+now uses `session-lifecycle-*`. Capture server, Local mode, cookie/tab-key values
+and auth epoch before asynchronous reads; reject missing/invalid/expired sessions
+without deleting their persisted values or seeding anything. Import/read failures
+are separate: keep a verified identity when only account loading failed. Expire
+old delayed callbacks, read completions and retry controls on source changes.
+New authentication attempts and logout advance the auth epoch so an old direct
+credential helper cannot install a session after logout, including an originally
+empty source. Logout verifies token removal before clearing the captured user key,
+legacy key and all tab draft-prefix entries. Preserve unrelated/other-server keys,
+avoid repeating accepted cleanup, scope reload-only retry and report partial
+cleanup without claiming remote session revocation. Legacy management `getAccounts`
+and administrative workflows remain separate from this restoration boundary.
+
+Administrative GET/PUT settings now use `admin-settings-*`, with no DOM in the
+workflow. App metadata and session headers are captured before requests; only the
+configured LocalRSS app gets the issuing `X-Kvstore-Url`. A Local account cannot
+authorize hosted administrative settings. Desktop/mobile picker callbacks expire
+on account changes, as do replaced form rows and Help callbacks. Form values,
+drafts and PUT receipts stay private; public state is counts/phases/errors only.
+Preserve newer text/secret edits during saves and reads. Accepted PUT followed by
+an unreadable/incomplete body requires GET, not another write. An uncertain save
+blocks writes until Check current settings; only a later explicit Save reviewed
+changes may resend intent. Masked secrets cannot be confirmed by GET. These client
+guards are not backend authorization or server compare-and-swap.
+
+Pane commands now dispatch through `panes.js` and render via `pane-view.js`.
+Preserve `closeRightPane({preserveEditorControls:true})` and the existing
+Save/editor-picker/editor-controls invalidations. Revealing an editor changes
+layout/focus without remounting its DOM. Signed-in/out preference names remain
+unchanged; restoration applies a complete state without intermediate writes.
+Drag preview never persists, and mouseup may persist only for its captured
+source/profile context. Annotation/collab aliases and public pane helpers remain
+compatible. Keyboard/swipe interpretation uses the separate navigation modules.
+
+Alt+A in `navigation.js` captures the selected reference and text before
+`annotateNavigationReference` reuses the existing editor-switch queue. Reject
+superseded reader/session/row/selection and editor-switch completions before
+dispatching insertion. These guards do not cancel an editor handler's mounting or
+its internal asynchronous insertion; do not claim full draft protection from them.
+
+Chat session teardown now expires Peer/channel callbacks and clears only its
+owned heartbeat. Signed sends capture sender/recipient channels and check session
+ownership after signing; DID installation and verified incoming output have
+completion guards. Preserve these in `dynamicp2p_session*` and the legacy bridge.
+Popup/share/collaboration workflows and legacy key/storage reads remain separate.
+
+Create/Leave now use `dynamicp2p_discussion_*` captured receipts and recovery.
+HTTP 2xx is accepted without requiring JSON; ordinary 4xx is rejected and lost/
+408/5xx responses remain uncertain. Read-only review cannot prove the write or
+visibility; only explicit retry repeats its original payload/server/session.
+Accepted writes retry local updates only. Leave pauses its captured heartbeat
+before DELETE; rejected/uncertain Leave retains connections without automatic
+re-advertisement. New peer/discussion/channel activity prevents stale cleanup.
+No server CAS/idempotency, live authorization or reload durability is implied.
+
+Popup commands now capture one chat session, channel and client load through
+`dynamicp2p_popup*`. Pass the owned guard into signed sends; teardown/reload must
+expire late results and clear only the original client draft. Collaboration popup
+acknowledgements confirm dispatch only; legacy collaboration/card workflows are
+not made cancellable or remotely confirmed by this boundary.
+
+Main card actions now capture source/session, detached row data and selected
+editor handler/generation in `dynamicp2p_cards*`. Retain exact structural reference
+URLs and collection/invite extensions. Await handler/import/invite results and
+show owned-row errors; stale results must not add references or affect newer rows.
+These dispatch guards do not cancel existing APIs' internal writes/mounts or
+fully protect same-editor newer drafts.
+
+Outgoing Share now uses `dynamicp2p_share*` with captured source/session and
+one-pass recipient dispatch. Automatic Create delegates to the existing receipt
+controller via captured values; its private outcome must be accepted/complete
+before sharing. Unknown/blocked Create never implicitly retries or broadcasts,
+including after local recovery; the user explicitly chooses Share again.
+Snapshot recipients and verify channel identity before every attempt. Local
+send acceptance is not remote delivery; thrown sends are uncertain, with no
+automatic retry. Preview failures must not repeat dispatched packets. Preserve
+the strict synchronous collaboration-invite boolean and extension fields.
+
+Ordinary text messages now capture detached packets/senders/recipient channels
+through `dynamicp2p_message*` and reuse the one-pass broadcast workflow. Keep
+dedup reservation before verification, source/connection/DOM completion guards,
+literal sender presentation and sanitized/escaped popup output. Partial sends
+must not automatically repeat. This boundary does not confirm delivery or migrate
+the key-loading/crypto and peer-control workflows.
+
+Peer control dispatch and Follow join cards now use `dynamicp2p_control*` with
+captured channel/source/identity/row guards. Pass the fourth guard argument to the
+existing `_followUser` API, preserving its captured-session persistence checks.
+Outgoing handshakes/replies contain explicit public fields only; do not forward
+the whole identity object. Directory/service announcements remain unverified
+peer claims. Identity key/signature operations use the boundary described below.
+
+Chat identity uses `dynamicp2p_identity_workflow.js` (explicit read/codec operations),
+`dynamicp2p_identity.js` (captured ownership/private key lifetime and legacy wrappers)
+and `dynamicp2p_identity_view.js` (feedback). Reuse the shared identity crypto helpers;
+preserve the URL-safe chat wire format and true/false/null verification policy.
+Keep keys/ciphertext/signatures out of `CList.state.chatIdentity`, which contains
+availability/phase/counts only. Capture hosted/Local targets, check ownership after
+awaits and reread ciphertext before accepting keys. Reject stale signing and
+replaced-peer-key verification; never turn a stale signature into an unsigned send.
+Missing/unavailable keys retain the existing unsigned fallback with owned failure
+feedback. Separate announcement failures from successful identity loading.
+
+Heartbeat POSTs now use `dynamicp2p_heartbeat*`: the workflow owns transport, the
+controller captures endpoint/token/discussion/peer and timer lifetime, and the
+view owns expiry/failure feedback. Preserve Create/Leave/session compatibility
+wrappers. Invalidate stale results before feedback or stopping timers; an old
+response cannot stop its replacement. Prevent overlap, stop on 401, and retain
+the existing one-minute schedule after other failures without immediate retries.
+Successful heartbeat HTTP is an activity receipt, not publication confirmation.
+
+Chat-to-document preparation/dispatch uses `dynamicp2p_collaboration*`. Preserve
+the existing last-15 nonempty, non-card transcript HTML and captured discussion.
+Keep API/transcript snapshots private; `chatCollaboration` exposes busy only.
+Queued stale calls must not dispatch; pending duplicate clicks share one promise.
+The existing `openCollabFromChat` API retains document creation, delayed insertion
+and invitation effects, including its own failure reporting. Dispatch completion
+does not establish successful publication, cancel its internals or protect newer
+editor content within that API.
+
+Summarize now uses an explicit request workflow and captured controller/view.
+The output Load action retains `loadContentToEditor` with an output-specific
+content ID and bound node/reader/account/input guards. It selects the active
+editor when clicked; these guards do not cancel editor internals after dispatch.
+Keep generated text literal and credential/content snapshots out of public state.
+
+ChatGPT template requests now use an explicit transport/continuation workflow
+and captured account/session controller. Preserve model/prompt/token settings
+and exact chunk concatenation; fail closed after account-loading failure or
+session/credential replacement. Request helpers propagate failures to their
+callers. Request-only guards do not own form cancellation or editor transfer.
+
+Template generation controls now use `chatgpt_template_form.js` and
+`chatgpt_template_view.js`. Keep choices/pending content private and return the
+existing MIME/value record to the shared Load controller. Capture session/editor/
+account and control/load/switch identities; reject late results for changed
+owners. Back/removal/replacement settles null and expires the request caller
+guard. Form-local progress cannot hide another panel's shared loader. These
+guards neither abort started HTTP nor cancel editor mounting/insertion after
+the shared Load boundary dispatches returned content. Same-editor drafts still
+use existing load/overwrite protections.
+
+Collab document listing/selection now uses explicit captured requests and
+controller/view modules. The opening hook retains editor initialization, title
+updates and connection in `collab.js`, receiving the listed document/server and
+session/request guard. Recheck before/after mounting and before pane close;
+never redirect a saved row to another listed server. These dispatch checks do
+not cancel effects inside the existing live connection lifecycle.
+
+`connectToDoc` and local editor initialization now await shared captured
+connection preparation, then recheck its commit guard before destroying any
+existing resources. Server/dependency awaits cannot switch to newer credentials
+or editor nodes. Provider/editor constructors use captured token/store/identity/
+element values. Started lookup/import work still completes.
+
+The Collab resource controller now invalidates old callbacks before cleanup and
+owns the editor/provider/Y.Doc, observers and delayed awareness update. References
+come from the captured map and merge only into visible Collab state. Cleanup
+attempts all resources even after a destroy failure; failures are reported and
+do not guarantee actual socket closure. Hidden live documents remain connected;
+returning to the editor explicitly rebinds status/presence chrome. Session/editor
+target expiry is checked on activity. These guards do not verify real provider
+authentication/reconnect behavior, replace vendor synchronization or migrate
+remaining document creation/publication/sharing controls.
+
+Collab formatting callbacks now capture one editor rather than reading the
+mutable editor alias. Reject read-only/hidden/stale session/editor/bar actions,
+guard synchronous reentrant commands, and detach selection/transaction listeners
+before resource destruction or toolbar rebuild. Returning to a parked document
+refreshes or rebuilds the toolbar. These controls do not change document data
+formats or establish live TipTap behavior from mocked command-chain tests.
+
+Collab duplicate-title reads/choices now use captured controller/view/request
+modules. Preserve namespacing and per-path-segment encoding; capture credentials
+before lookup, then carry the checked server/ID into explicit loading. Stale
+input/session/editor/listener/timer results cannot expose a Load choice. Pass
+the action guard through connection preparation before replacing resources.
+Normalize title fields only while the choice still owns them. General new-doc
+and pasted-link opening paths remain delegated; do not claim these checks cancel
+all their internal work or protect newer editor body content.
+
+Collab sharing settings now use captured GET/PATCH transport and a modal
+controller/view. Keep original document/server/token for both reads and writes;
+only changed known values may write. Retain pending/uncertain target locks across
+rebuilt panels, classify network/408/429/5xx failures as uncertain, and require
+read-only reconciliation before another explicit write. A 2xx records acceptance
+without requiring a JSON body. No automatic PATCH retries, durable recovery or
+server compare-and-swap is provided. Live anonymous-read enforcement is untested.
+
+Copy/Chat/Post panel actions capture links/document metadata. Preserve strict
+synchronous chat invite acceptance and exclude private target fields from packets.
+Shared clipboard feedback takes an optional owner guard (existing callers remain
+unchanged). The Post composer uses `collab_composer.js` and
+`collab_composer_view.js`: captured link/title, unique TinyMCE targets, owned
+instance cleanup and temporary-handler restoration. Preserve edited fallback
+drafts, explicit initialization retry and newer draft/editor protection.
+`postAll` captures its completion hook before asynchronous content preparation;
+an older publication must not consume a newer composer's hook. Completion keeps
+the existing workflow semantics: it is not proof of successful remote delivery.
+Closing the composer does not cancel an already captured publication.
+
+Collab public links/chat invites use `collab_opening*` for normalization,
+captured session/editor ownership and title/error presentation. Validate before
+switching, pass caller guards through shared connection preparation and avoid
+stale title/error commits. Setup completion is not provider synchronization or
+authorization proof.
+
+Collection/chat document creation uses `collab_creation*` and shared selection,
+connection preparation and lifecycle. Capture source content before asynchronous
+work; reject namespace expansion after newer connection intent. Seeding owns its
+exact editor, timer and update listener, skips nonempty or updated documents,
+and releases controls on completion/replacement. Use the shared HTML sanitizer
+at the seed view boundary. Preserve captured invitation routing and distinguish
+invite failure from successful document setup; never automatically resend.
+The retained 800 ms seed delay does not guarantee remote synchronization; these
+client guards do not provide server-side add-only creation or concurrent-edit CAS.
+
+Collab header Share/Annotate controls now use `collab_header.js` and
+`collab_header_view.js`. Keep document/session/input captures private and action
+state credential-free. Capture the Share target before handoff; local-title
+creation must revalidate source/input/intent before connecting. Annotation keeps
+the exact structural reference and guards later load/reveal effects. Reject
+pending or detached controls, and keep explicit failure/retry feedback in the
+view.
+
+Collab content/reference insertion now uses `collab_content*`. Capture the
+original editor/map/source reference, preserve live reference identity and shared
+metadata, and check ownership between operation stages. Plaintext is escaped;
+HTML retains its existing editor route. Do not retry body insertion after an
+attribution/map failure. Resync retains unreadable shared records, warns visibly,
+and preserves existing local references if map iteration fails before replacement.
+
+Collab activation uses `collab_mount.js` and `collab_mount_view.js`: source/pane
+ownership, preserved background resources, captured drop binding and guarded
+library/local/pending-content stages. Reuse the existing connection preparation
+and lifecycle, passing the activation guard into local initialization. Return
+`false` for initialization or pending-content failure so the editor switch can
+handle it. Do not overwrite newer title input or start a local editor over a newer
+connection intent. This boundary does not generically cancel already dispatched
+loaders or prove live provider synchronization.
+
+
+Standard OAuth callbacks now forward an original-session `isCurrent` guard into
+account saving. Preserve it across encryption, persistence and recovery; a fresh
+save-time capture alone must not authorize credentials from an earlier session.
+Exchange is one-shot; never retry an uncertain token exchange automatically.
+WordPress's separate application-password callback now uses the same shared
+binding receipt and must forward the original-session guard into account saving.
+
+
+Personal Options' WebMention setter now persists before updating its runtime flag.
+Keep a denied preference write from enabling publication-side WebMentions. Options
+transfer controls and data operations now carry captured source/destination guards.
+Retain accepted import receipts and add-only conflict preservation; never repeat an
+uncertain write before a read-only check. Dispatched original writes/downloads are
+not cancelled by ownership checks.

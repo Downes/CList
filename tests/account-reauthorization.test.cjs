@@ -1,0 +1,10 @@
+const test = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm');
+const { menuShellDocument } = require('./helpers/menu-shell-dom.cjs'); const document = menuShellDocument();
+const context = vm.createContext({ document, structuredClone, URL, URLSearchParams, console: { error() {} }, window: { CList: { state: {}, config: {} }, location: { origin: 'https://localhost:51888', hostname: 'localhost', protocol: 'https:' }, addEventListener() {} } });
+for (const name of ['account-state', 'ui', 'oauth-config', 'oauth-strategies', 'oauth_start_workflow', 'oauth_callback', 'oauth_account', 'oauth-client', 'account-reauthorization', 'account-form']) vm.runInContext(fs.readFileSync('js/' + name + '.js', 'utf8'), context);
+context.OAuthProviders = context.window.OAuthProviders; vm.runInContext('OAuthClient.onCallback = () => {};', context);
+for (const name of ['mastodon', 'mastodon_account', 'dropbox', 'dropbox_account']) vm.runInContext(fs.readFileSync('js/' + name + '.js', 'utf8'), context);
+for (const name of ['oauth-account', 'account-reauthorization']) vm.runInContext(fs.readFileSync('tests/helpers/' + name + '-fixture.js', 'utf8'), context);
+let checks = 0;
+for (const [name, run] of vm.runInContext('accountReauthorizationCases', context)) test(name, { timeout: 2000 }, () => run((condition, message) => { assert.ok(condition, message); checks++; }));
+test.after(() => console.log('Account reauthorization fixture assertions:', checks));

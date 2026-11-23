@@ -2,8 +2,10 @@
 <meta charset="utf-8">
 <title>CList saved-file recognition regression</title>
 <h1>Saved-file recognition</h1><pre id="result">Checking...</pre>
+<p>Annotation lifecycle dependencies: test 2026-11-22.8.</p>
 <div id="write-title"></div><div id="load-options"></div><div id="writeReferences"></div>
 <div id="fixture-editor-root"><div id="annotateEditDiv"><textarea id="annotate-edit-body"></textarea></div></div>
+<script src="helpers/annotation-tiny-fixture.js?v=2026-11-22.7"></script>
 <script>
 window.CList={state:{},config:{},keys:{EDITOR_DRAFT_PREFIX:'clist_draft_'},accounts:[],ui:{view:{}}};
 const fixtureDraftStorage = new Map();
@@ -23,7 +25,7 @@ let refs=[];window.getReferences=()=>refs;window.setReferences=value=>refs=struc
 window.pushReference=ref=>{if(!refs.some(r=>r.url===ref.url))refs.push(ref);};
 window.clearReferences=()=>{refs=[];};
 let annotationBody='';
-window.tinymce={get:()=>({getContent:()=>annotationBody,setContent:value=>{annotationBody=value;}}),init:async()=>[]};
+window.tinymce=createAnnotationTinyFake({read:()=>annotationBody,write:value=>{annotationBody=value;},container:document.createElement('div')});
 window.sanitizeHtml=html=>{const doc=new DOMParser().parseFromString(html,'text/html');
  for(const el of doc.querySelectorAll('script,iframe,object'))el.remove();return doc.body.innerHTML;};
 </script>
@@ -43,9 +45,17 @@ window.sanitizeHtml=html=>{const doc=new DOMParser().parseFromString(html,'text/
 <script src="../js/file-save-workflow.js"></script>
 <script src="../js/file-save-view.js"></script>
 <script src="../js/file-save.js"></script>
-<script src="../js/annotate-editor.js"></script>
+<script src="../js/annotate_draft_state.js?v=2026-11-22.6"></script>
+<script src="../js/annotate_draft_view.js?v=2026-11-22.6"></script>
+<script src="../js/annotate_draft.js?v=2026-11-22.6"></script>
+<script src="../js/annotate_body_view.js?v=2026-11-22.7"></script>
+<script src="../js/annotate_body.js?v=2026-11-22.7"></script>
+<script src="../js/annotate_send_view.js?v=2026-11-22.8"></script>
+<script src="../js/annotate_send.js?v=2026-11-22.8"></script>
+<script src="../js/annotate-editor.js?v=2026-11-22.8"></script>
 <script>
 (async()=>{
+ await _initAnnotateTinyMCE();
  const check=(ok,label)=>{if(!ok)throw Error(label);};
  const messages=[];let collection=null,textBody='',htmlBody='',saved='';
  window.buildDialogModal=(title,message,buttons)=>{

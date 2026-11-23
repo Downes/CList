@@ -27,7 +27,7 @@ window.fetch=async(url,options={})=>{
  throw Error('Unexpected external request: '+url);
 };
 </script>
-<script src="../js/annotate.js"></script><script src="../js/annotate_requests.js"></script><script src="../js/annotate_view.js"></script><script src="../js/annotate_reader.js"></script>
+<script src="../js/annotate.js"></script><script src="../js/annotate_requests.js"></script><script src="../js/annotate_view.js?v=2026-11-20.4"></script><script src="../js/annotate_reader.js?v=2026-11-20.4"></script>
 <script>
 (async()=>{
  let checks=0;const check=(ok,label)=>{if(!ok)throw Error(label);checks++;};const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
@@ -57,7 +57,20 @@ window.fetch=async(url,options={})=>{
  const writing=_followUser('did:web:person.invalid:users:other',token,follow);token='new-session';releaseKey('fixture-key');
  try{await writing;}catch(error){check(error.message.includes('no longer current'),'Expired follow preparation rejected');}
  check(writes.length===0,'Expired follow never writes credentials under another session');token='fixture-token';behavior={};
- document.getElementById('result').textContent='PASS: real annotation discovery/requests/controller/view, structural references, captured share/stale rows, partial failure visibility, original-node/scroll thread restoration, stale close and same-ID batch protection, scoped follow preparation and no stale writes. '+checks+' checks. HTTP, encryption, storage, reader surfaces and sharing mocked; no external requests or writes.';
+ behavior.read=async()=>({ok:true,json:async()=>({items:[]})});await showAnnotations('all');
+ check(root.querySelector('.feed-status-message').textContent==='No annotations in the last 14 days.','View owns empty feed presentation');
+ CList.accounts[0].value=JSON.stringify({type:'Annotate',instance:'https://annotations.invalid',permissions:'rw'});
+ behavior.read=async()=>({ok:true,json:async()=>({items:[annotation('other','did:web:person.invalid:users:other')]})});
+ const flows=[];window._flowAnnotation=async(...args)=>flows.push(args);await showAnnotations('all');
+ const followPerson=root.querySelector('[title="Follow this person"]'),flow=root.querySelector('[title="Flow — add to your annotations"]');
+ check(followPerson&&flow,'Controller supplies follow and Flow commands to row view');
+ const beforeFollow=writes.length;followPerson.click();await until(()=>writes.length>beforeFollow&&!followPerson.disabled);
+ check(followPerson.title==='Following'&&followPerson.querySelector('.material-icons').textContent==='how_to_reg','View reflects accepted follow');
+ flow.click();await tick();check(flows.length===1&&flows[0][1]==='https://source.invalid'&&flows[0][5].token==='fixture-token','Flow uses captured controller session and target');
+ const followedRow=root.querySelector('.status-box');behavior.read=async()=>({ok:true,json:async()=>({items:[]})});await showAnnotations('all');
+ const beforeDetached=writes.length;followPerson.click();flow.click();await tick();check(!followedRow.isConnected&&writes.length===beforeDetached&&flows.length===1,'Removed follow and Flow controls cannot dispatch');
+ const label=document.createElement('span');CList.ui.annotationReading.feedAuthorFollowed(label,'did:web:person.invalid:users:other');check(label.textContent==='Following other','Follow banner text belongs to view');
+ document.getElementById('result').textContent='PASS: real annotation discovery/requests/controller/view, structural references, captured share/stale rows, partial failure visibility, original-node/scroll thread restoration, stale close and same-ID batch protection, scoped follow preparation, view-owned empty/follow feedback, captured row Flow commands and no stale writes. '+checks+' checks. HTTP, encryption, storage, reader surfaces and sharing mocked; no external requests or writes.';
  }catch(error){console.error(error);document.getElementById('result').textContent='FAIL: '+error.message+'\n'+error.stack;}
 })();
 </script>

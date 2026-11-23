@@ -155,6 +155,7 @@ test('Discord edit controls dispatch through the panel-scoped service instance',
     const f = await setup(); f.schema('Discord');
     f.cList.schemas.Discord.fields.push({ key: 'bot_token', label: 'Bot', editable: true });
     f.add('d', { type: 'Discord', title: 'Channel', bot_token: 'secret' });
+    vm.runInContext(source('discord_setup_view.js'), f.ctx);
     vm.runInContext(source('discord_account.js'), f.ctx);
     const controls = []; f.cList.accountFlows.Discord = () => ({ open() {}, manageChannels: ctx => controls.push(ctx) });
     const root = f.ctx.kvstoreAccountsPanel(); await f.flush();

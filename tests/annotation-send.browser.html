@@ -1,0 +1,13 @@
+<!doctype html><meta charset="utf-8"><title>CList annotation Send check</title>
+<h1>Annotation Send controls</h1>
+<p>Real Send controller/view, annotation editor bridge, request/workflow and annotation-server transport. HTTP, accounts/session, body API, shared picker/feedback helpers and editor switching mocked. Controls use browser DOM. No external requests or writes. Actual Send services, TinyMCE and full editor switching not exercised. Test 2026-11-22.9.</p>
+<pre id="result">Checking...</pre>
+<script>window.CList={state:{},config:{},ui:{},publishers:{}};var editorHandlers={};</script>
+<script src="../js/annotation-workflow.js"></script><script src="../js/annotation-publishing.js"></script><script src="../js/annotation-view.js"></script><script src="../js/annotate_publish.js"></script>
+<script src="../js/annotate_draft_state.js?v=2026-11-22.6"></script><script src="../js/annotate_draft_view.js?v=2026-11-22.6"></script><script src="../js/annotate_draft.js?v=2026-11-22.6"></script>
+<script src="../js/annotate_body_view.js?v=2026-11-22.7"></script><script src="../js/annotate_body.js?v=2026-11-22.7"></script>
+<script src="../js/annotate_send_view.js?v=2026-11-22.8"></script><script src="../js/annotate_send.js?v=2026-11-22.8"></script><script src="../js/annotate-editor.js?v=2026-11-22.8"></script>
+<script src="helpers/annotation-send-fixture.js?v=2026-11-22.9"></script>
+<script>
+(async()=>{let checks=0;for(const[name,run]of annotationSendCases){document.getElementById('result').textContent='Checking: '+name;let timeout;try{await Promise.race([run((condition,message)=>{if(!condition)throw Error(name+': '+message);checks++;}),new Promise((_,reject)=>{timeout=setTimeout(()=>reject(Error(name+': fixture timed out')),5000);})]);}finally{clearTimeout(timeout);}}document.getElementById('result').textContent='PASS: '+checks+' checks. Real annotation Send controller/view, editor/request/workflow/transport, private captured account/target/tags/body/session, state-owned choices, duplicate/rebuilt locks, stale account/source/panel guards, visible load/retry and accepted/rejected/uncertain results, newer-draft and safe-return protection. HTTP/accounts/session/body/pickers/feedback/editor switching mocked; no external requests or writes. Actual Send services, TinyMCE and full editor switching not exercised.';})().catch(error=>{document.getElementById('result').textContent='FAIL: '+error.stack;console.error(error);});
+</script>

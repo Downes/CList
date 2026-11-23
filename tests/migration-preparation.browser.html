@@ -1,0 +1,75 @@
+<!doctype html>
+<meta charset="utf-8"><title>CList migration preparation regression</title>
+<link rel="stylesheet" href="../css/interface.css">
+<style>
+html, body { display: block; height: auto; min-height: 100%; overflow: auto; }
+body { box-sizing: border-box; max-width: 960px; margin: 0 auto; padding: 24px; font: 16px/1.5 system-ui, sans-serif; }
+h1 { margin-top: 0; }
+#result { padding: 16px; border: 1px solid currentColor; border-radius: 6px; white-space: pre-wrap; overflow-wrap: anywhere; }
+#fixture { margin-top: 24px; }
+#fixture label { display: block; margin: 12px 0; }
+</style>
+<h1>Migration preparation and preview</h1>
+<p>Real preparation workflow/controller/view and shared identity coordination. The panel shell and execution handoff are fixtures. Source storage, destination registration/login/listing and cryptography are mocked. No external requests or real writes; migration execution is not exercised.</p>
+<p id="result" role="status">Checking preparation…</p><div id="fixture"></div>
+<script>
+let token='source-secret',local=false,source=[],destination=[],behavior={},requests=[],handed=0;
+window.CList={config:{flaskSiteUrl:'https://source.invalid'},keys:{ACCESS_TOKEN:'access_token',DID_IDENTITY_KEY:'_did_identity_key'},state:{username:'alice'},ui:{},isLocalMode:()=>local,storage:{mode:'remote',kv:{list:async()=>behavior.list?behavior.list():source}}};
+window.getSiteSpecificCookie=()=>token;
+window.getEncKey=async()=>behavior.key?behavior.key():'source-key';
+window.decryptWithKey=async(key,value)=>{if(behavior.corrupt)throw Error('Unreadable');return value;};
+window.deriveEncKey=async()=> 'destination-key';window.deriveAuthHash=async()=> 'hash-secret';
+window.fetch=async(url,options)=>{requests.push({url,options});if(behavior.fetch)return behavior.fetch(url,options);
+ if(url.endsWith('/auth/register'))return {ok:true};
+ if(url.endsWith('/auth/login'))return {ok:!behavior.loginFail,status:401,json:async()=>({token:'destination-secret'})};
+ if(url.endsWith('/get_kvs/'))return {ok:!behavior.listFail,status:503,json:async()=>destination};
+ throw Error('Unexpected request: '+url);
+};
+</script>
+<script src="../js/did-identity.js?v=2026-11-20.15"></script>
+<script src="../js/migration-preparation-workflow.js?v=2026-11-20.15"></script>
+<script src="../js/migration-preparation-view.js?v=2026-11-20.15"></script>
+<script src="../js/migration-preparation.js?v=2026-11-20.15"></script>
+<script>
+(async()=>{
+ let checks=0;const check=(condition,label)=>{if(!condition)throw Error(label);checks++;};
+ const reset=()=>{behavior={};source=[{key:'account',value:'source-cipher',extension:'kept'},{key:'_did_identity_key',value:'identity-cipher'}];destination=[];local=false;token='source-secret';};
+ const gate=()=>{let resolve;const promise=new Promise(done=>resolve=done);return {promise,resolve};};
+ function open(){
+ const root=document.createElement('section');root.innerHTML=`
+ <div id="migrate-step-1"><label>Server <input id="migrate-new-url" value="https://destination.invalid"></label>
+ <label>Username <input id="migrate-new-username" value="bob"></label><label>Password <input id="migrate-new-password" type="password" value="password-secret"></label>
+ <label><input id="migrate-register" type="checkbox">Register</label><button id="migrate-prepare-btn" class="btn-small">Preview Migration</button></div>
+ <div id="migrate-step-2"><div id="migrate-preview"></div><button id="migrate-run-btn" class="btn-small">Run Migration</button><button id="migrate-cancel-btn" class="btn-small btn-secondary">Cancel</button></div><div id="migrate-progress"></div>`;
+ document.getElementById('fixture').replaceChildren(root);const get=id=>root.querySelector('#migrate-'+id),controller=createMigrationPreparation(root);
+ get('run-btn').onclick=async()=>{const plan=await controller.beginRun();if(plan)handed++;return plan;};
+ return {root,get,controller,prepare:()=>get('prepare-btn').onclick(),password:()=>get('new-password').value='password-secret'};
+ }
+ reset();local=true;destination=[{key:'_did_identity_key',value:'destination-cipher'}];let p=open();await p.prepare();
+ check(CList.state.migrationPreparation.phase==='ready','Ready preview');check(p.root.textContent.includes('this device (Local)'),'Local source captured');
+ check(CList.state.migrationPreparation.preview.didConflict,'Identity conflict shown');check(p.get('run-btn').disabled,'Run waits for approval');
+ const safe=JSON.stringify(CList.state.migrationPreparation);check(!['source-secret','destination-secret','password-secret','source-cipher','identity-cipher','hash-secret'].some(value=>safe.includes(value)),'Secret-free state');
+ check(p.get('new-password').value==='','Password field cleared');const oldBox=p.get('overwrite-confirm');oldBox.checked=true;
+ check(await p.controller.beginRun()===null,'DOM tampering cannot approve');const box=p.get('overwrite-confirm');box.checked=true;box.onchange();oldBox.checked=false;oldBox.onchange();
+ check(CList.state.migrationPreparation.overwrite,'Expired checkbox rejected');const plan=await p.get('run-btn').onclick();check(plan.kvs[0].extension==='kept'&&plan.newUsername==='bob','Exact captured handoff');check(await p.controller.beginRun()===null&&handed===1,'One-use execution handoff');
+ reset();behavior.corrupt=true;p=open();await p.prepare();check(CList.state.migrationPreparation.phase==='failed'&&await p.controller.beginRun()===null,'Unreadable source stops preview');
+ reset();behavior.listFail=true;p=open();await p.prepare();check(CList.state.migrationPreparation.phase==='failed','Failed destination check stops preview');
+ reset();destination={malformed:true};p=open();await p.prepare();check(CList.state.migrationPreparation.phase==='failed','Malformed destination stops preview');
+ reset();p=open();p.get('new-url').value='https://user:password@destination.invalid';await p.prepare();check(CList.state.migrationPreparation.phase==='failed','Embedded URL credentials refused');
+ reset();const pending=gate();behavior.key=()=>pending.promise;p=open();const before=requests.length,first=p.prepare();await p.prepare();p.get('new-username').value='edited';p.get('new-username').oninput();pending.resolve('source-key');await first;
+ check(requests.length===before&&CList.state.migrationPreparation.phase==='idle','Duplicate/input guards before side effects');
+ reset();p=open();await p.prepare();source=[];check(await p.controller.beginRun()===null,'Changed source invalidates handoff');
+ reset();p=open();await p.prepare();destination=[{key:'late',value:'new'}];check(await p.controller.beginRun()===null,'Changed destination invalidates handoff');
+ reset();p=open();await p.prepare();token='new-session';check(await p.controller.beginRun()===null,'Changed login rejects handoff');
+ reset();behavior.loginFail=true;p=open();p.get('register').checked=true;const registrations=requests.filter(row=>row.url.endsWith('/auth/register')).length;await p.prepare();
+ check(CList.state.migrationPreparation.registration==='created','Accepted registration receipt retained after login failure');behavior.loginFail=false;p=open();p.get('register').checked=true;await p.prepare();
+ check(requests.filter(row=>row.url.endsWith('/auth/register')).length===registrations+1&&CList.state.migrationPreparation.phase==='ready','Rebuilt preview does not repeat accepted registration');
+ reset();p=open();p.get('new-url').value='https://uncertain.invalid';p.get('register').checked=true;behavior.fetch=async url=>{if(url.endsWith('/auth/register'))throw Error('Lost response');return {ok:false,status:401};};await p.prepare();
+ check(CList.state.migrationPreparation.registration==='uncertain','Uncertain registration recorded');const registrationCount=requests.filter(row=>row.url.endsWith('/auth/register')).length;await p.prepare();
+ check(requests.filter(row=>row.url.endsWith('/auth/register')).length===registrationCount,'Ordinary retry checks login without re-registering');await p.get('retry-registration').onclick();
+ check(requests.filter(row=>row.url.endsWith('/auth/register')).length===registrationCount+1,'Registration resend requires explicit retry');
+ reset();p=open();await p.prepare();p.get('cancel-btn').onclick();check(await p.controller.beginRun()===null,'Cancel discards plan');
+ check(requests.every(row=>/auth\/login|auth\/register|get_kvs/.test(row.url)),'No record copy or identity publication');
+ document.getElementById('result').textContent='PASS: '+checks+' checks. Real migration preparation workflow/controller/view, captured source/destination, conflicts, state-owned overwrite approval, single-use revalidated handoff, cancellation/session/input guards, registration receipts and explicit retry, safe state and fail-closed reads. Storage, auth, crypto and execution handoff mocked; no external requests or real writes. Execution/recovery not exercised.';
+})().catch(error=>{document.getElementById('result').textContent='FAIL: '+error.stack;console.error(error);});
+</script>

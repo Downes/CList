@@ -1,0 +1,51 @@
+<!doctype html>
+<meta charset="utf-8"><title>CList Following regression</title>
+<h1>Following panel</h1>
+<p>Real Following workflow/controller/view. Session, encrypted storage, keys and history mocked. No external requests or real storage writes.</p>
+<pre id="result">Checking Following…</pre><div id="left-content"></div>
+<script>
+let token='fixture-token',entries=[],behavior={},writes=[],invalidations=0,backs=0;
+window.CList={config:{flaskSiteUrl:'https://store.invalid'},keys:{ACCESS_TOKEN:'access_token'},state:{username:'alice'},ui:{},storage:{mode:'remote',kv:{}}};
+window.getSiteSpecificCookie=()=>token;window.getEncKey=async()=>behavior.key?behavior.key():'fixture-key';
+window.decryptWithKey=async(key,value)=>{if(value==='bad')throw Error('Unreadable');return value;};
+window._clistAnnotateInvalidateFollowCache=()=>invalidations++;
+CList.storage.kv.list=async()=>behavior.list?behavior.list():entries;
+CList.storage.kv.remove=async key=>{writes.push(key);if(behavior.remove)return behavior.remove(key);entries=entries.filter(entry=>entry.key!==key);};
+window.fetch=()=>{throw Error('Unexpected network request');};
+</script>
+<script src="../js/following-workflow.js?v=2026-11-20.5"></script><script src="../js/following-view.js?v=2026-11-20.5"></script><script src="../js/following.js?v=2026-11-20.5"></script>
+<script>
+(async()=>{let checks=0;const check=(ok,label)=>{if(!ok)throw Error(label);checks++;};const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
+ const until=async fn=>{for(let i=0;i<40&&!fn();i++)await tick();if(!fn())throw Error('Async fixture did not settle');};
+ const host=document.getElementById('left-content'),open=()=>{const root=kvstoreFollowingPanel();host.replaceChildren(root);return root;};
+ const rowButton=root=>[...root.querySelectorAll('button')].find(button=>button.textContent==='Unfollow');
+ const entry=(key='did:web:store.invalid:users:alice',did=key)=>({key:'social:following:'+key,value:JSON.stringify({did})});
+ try{
+ entries=[entry('original','did:web:elsewhere.invalid:users:bob'),entry('literal','<img src=x>'),{key:'social:following:fallback',value:'bad'}];
+ let root=open();await until(()=>CList.state.following.phase==='ready');
+ check(root.querySelectorAll('.following-item').length===3,'All entries retained, including unreadable record fallback');
+ check(root.textContent.includes('<img src=x>')&&!root.querySelector('img'),'Untrusted identity rendered as text');
+ check(root.querySelector('a').href==='https://elsewhere.invalid/users/bob/did.html','Profile link retained');
+ check(root.querySelector('.error-message').textContent.includes('could not be decrypted'),'Partial decryption warning visible');
+ check(!JSON.stringify(CList.state.following).includes('fixture-token'),'Presentation state excludes credentials');
+ let release;behavior.remove=()=>new Promise(resolve=>release=resolve);const old=rowButton(root),pending=old.onclick();await old.onclick();
+ check(writes.length===1&&writes[0]==='social:following:original'&&old.disabled,'Exact stored key and duplicate guard retained');
+ await _clistRefreshFollowingPanel();const replacement=rowButton(root);check(replacement!==old&&replacement.disabled,'Refresh retains pending delete lock');
+ entries=entries.filter(item=>item.key!=='social:following:original');release();await pending;
+ check(!root.textContent.includes('bob')&&invalidations===1,'Accepted delete reconciles refreshed list and invalidates discovery');
+ behavior={};entries=[entry()];root=open();await until(()=>CList.state.following.phase==='ready');
+ behavior.remove=async()=>{throw Error('Response lost');};await rowButton(root).onclick();
+ check(root.textContent.includes('Response lost')&&!rowButton(root).disabled,'Failure visible and control restored');const attempts=writes.length;await tick();check(writes.length===attempts,'Uncertain delete not retried automatically');
+ behavior={};await rowButton(root).onclick();check(root.textContent.includes('Not following anyone yet.'),'Explicit retry removes accepted row');
+ entries=[entry()];let releaseKey;behavior.key=()=>new Promise(resolve=>releaseKey=resolve);const stale=open();await until(()=>releaseKey);token='new-token';releaseKey('fixture-key');await tick();
+ check(!rowButton(stale),'Stale key completion cannot render into old session');
+ behavior={};entries=[];root=open();await until(()=>CList.state.following.phase==='ready');check(root.textContent.includes('Not following anyone yet.'),'Empty list visible');
+ token=null;root=open();await until(()=>CList.state.following.phase==='failed');check(root.textContent.includes('Not logged in'),'Logged-out panel visible without reads');
+ token='fixture-token';entries=[entry()];root=open();await until(()=>CList.state.following.phase==='ready');const detached=rowButton(root);host.replaceChildren();const count=writes.length;await detached.onclick();check(writes.length===count,'Detached panel action rejected');
+ behavior.list=async()=>{throw Error('List offline');};root=open();await until(()=>CList.state.following.phase==='failed');check(root.textContent.includes('List offline'),'List failure visible');
+ behavior={};await _clistRefreshFollowingPanel();check(CList.state.following.phase==='ready'&&rowButton(root),'Explicit read refresh recovers');
+ document.getElementById('result').textContent='PASS: real Following workflow/controller/view, exact stored keys, safe labels/links, unreadable-entry warnings, duplicate and refresh locks, uncertain failure/explicit retry, stale session/panel guards, empty/login/error feedback and credential-free presentation state. '+checks+' checks. Storage, encryption and session APIs mocked; no external requests or real storage writes.';
+ document.body.dataset.result='PASS';
+ }catch(error){console.error(error);document.getElementById('result').textContent='FAIL: '+error.stack;document.body.dataset.result='FAIL';}
+})();
+</script>

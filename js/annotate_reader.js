@@ -19,6 +19,22 @@ async function annotationReaderInputs(owner) {
     return { accounts, followed: discovery.dids, warnings: discovery.warnings,
         write: capturedAnnotationAccounts().filter(account => account.type === 'Annotate' && account.instance && (account.permissions || 'rw').includes('w')) };
 }
+// Supply captured row commands; the view only renders and invokes them.
+function annotationRowOptions(options) {
+    const flowSession = options.token && options.writeAccts?.length ? captureAnnotationSession() : null;
+    return {...options,
+        onFollow: async (did,button,guard) => {
+            if (!guard()) return;
+            try { await _followUser(did,options.token,button,guard); }
+            catch (error) { window.CList.ui.annotationReading.actionError('Follow',error,guard()); }
+        },
+        onFlow: async (annotation,url,button,guard) => {
+            if (!guard()) return;
+            try { await _flowAnnotation(annotation,url,options.writeAccts,options.token,button,flowSession,guard); }
+            catch (error) { window.CList.ui.annotationReading.actionError('Flow',error,guard()); }
+        },
+    };
+}
 window.showAnnotations = async function(filter = 'all') {
     const surface = captureReaderSurface('annotations'), session = annotationSessionSnapshot();
     const owner = _annotationFeedOwner = { surface, session, readerId: window.CList.state.reader?.requestId, accounts: JSON.stringify(window.CList.accounts || []) };
@@ -35,7 +51,7 @@ window.showAnnotations = async function(filter = 'all') {
             .sort((a, b) => new Date(b.created) - new Date(a.created));
         view.feed(root, { items, warnings: [...inputs.warnings, ...result.warnings],
             emptyText: 'No annotations in the last 14 days.',
-            rowOptions: { myDid, token: session.token, writeAccts: inputs.write, followedDids: inputs.followed, isCurrent: current } });
+            rowOptions: annotationRowOptions({ myDid, token: session.token, writeAccts: inputs.write, followedDids: inputs.followed, isCurrent: current }) });
         state.phase = 'ready'; await window.checkAnnotationsBatch();
     } catch (error) { if (current()) { state.phase = 'failed'; state.error = error.message; view.message(root, error.message, true); console.error('[annotation reader]', error); } }
 };
@@ -65,16 +81,16 @@ window.showAnnotationsForItem = async function(itemId) {
         owner.thread = view.thread(root, source, annotations.length, () => closeCapturedAnnotationThread(owner), !!session.token);
         if (owner.previous?.popstate) window.removeEventListener('popstate', owner.previous.popstate);
         view.warnings(owner.thread.root, [...inputs.warnings, ...results.flatMap(result => result.warnings)]);
-        view.rows(owner.thread.root, annotations, { showUrl: false,
-            myDid, token: session.token, writeAccts: inputs.write, followedDids: inputs.followed, url: reference.url, isCurrent: current });
+        view.rows(owner.thread.root, annotations, annotationRowOptions({ showUrl: false,
+            myDid, token: session.token, writeAccts: inputs.write, followedDids: inputs.followed, url: reference.url, isCurrent: current }));
         if (reference.feedUrl && session.token) {
             _getAuthorDidFromFeed(reference.feedUrl).then(did => {
                 if (!current() || !did || did === myDid || inputs.followed.has(did)) return;
                 view.feedAuthor(owner.thread.root, did, async (button, label) => {
-                    if (!current() || button.disabled) return;
+                    if (!current()) return;
                     try {
                         const followed = await _followUser(did, session.token, button, current);
-                        if (followed && current()) label.textContent = 'Following ' + did.replace(/^did:web:[^:]+:users:/, '');
+                        if (followed && current()) view.feedAuthorFollowed(label,did);
                     } catch (error) { if (current()) view.error(error); }
                 });
             }).catch(error => { if (current()) view.error(error); });
@@ -178,7 +194,7 @@ window.checkAnnotationsBatch = async function() {
                             invalidateAnnotationDiscovery(); if (!actionCurrent(entry)) return;
                             shared.following = result.following;
                             for (const control of shared.buttons) if (actionCurrent(control.entry)) view.followState(control.button, shared.following, did.replace(/^did:web:[^:]+:users:/, ''));
-                            showStatusMessage(shared.following ? 'Now following feed author.' : 'Unfollowed feed author.'); window._clistRefreshFollowingPanel?.();
+                            view.followFeedback(shared.following); window._clistRefreshFollowingPanel?.();
                         } catch (error) { if (actionCurrent(entry)) view.error(error); }
                         finally { shared.busy = false; shared.buttons.forEach(control => { if (actionCurrent(control.entry)) view.followBusy(control.button, false); }); }
                     };
@@ -187,6 +203,6 @@ window.checkAnnotationsBatch = async function() {
                 }
             }));
         }
-        if (current() && warnings.length) { console.error('[annotation batch] partial failures', warnings); showStatusMessage(warnings.join(' ')); }
+        if (current() && warnings.length) window.CList.ui.annotationReading.batchWarnings(warnings);
     } catch (error) { if (current()) window.CList.ui.annotationReading.error(error); }
 };

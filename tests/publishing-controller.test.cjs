@@ -119,3 +119,17 @@ test('ordinary posting cannot remove an outstanding web-page version choice', as
     assert.equal(f.events.includes('begin'), false); assert.equal(f.records.length, 0);
     assert.match(f.failures[0], /Finish or cancel/); assert.equal(f.cList.state.publishing.busy, false);
 });
+
+test('publication completion keeps its captured callback and preserves a newer hook', async () => {
+    const f=fixture();let release,old=0,newer=0;
+    f.context.packagePost=async()=>new Promise(resolve=>{release=resolve;});
+    f.context.window._onPostAllComplete=()=>{old++;};const pending=f.context.postAll();
+    const replacement=()=>{newer++;};f.context.window._onPostAllComplete=replacement;release('<p>Captured</p>');await pending;
+    assert.equal(old,1);assert.equal(newer,0);assert.equal(f.context.window._onPostAllComplete,replacement);
+});
+
+test('publication started without a completion hook cannot consume a later composer hook', async () => {
+    const f=fixture();let release,completed=0;f.context.packagePost=async()=>new Promise(resolve=>{release=resolve;});
+    const pending=f.context.postAll(),replacement=()=>{completed++;};f.context.window._onPostAllComplete=replacement;release('<p>Captured</p>');await pending;
+    assert.equal(completed,0);assert.equal(f.context.window._onPostAllComplete,replacement);
+});

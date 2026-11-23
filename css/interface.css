@@ -625,6 +625,16 @@ body a:hover, html a:hover { text-decoration: underline; }
 
 #feed-options-section { z-index: 6; }
 
+/* An overlay moved into the shared modal flows within that modal's bounds. */
+.left-pane-overlay-section.menu-shell-surface {
+  position: static;
+  margin-left: 0;
+  direction: ltr;
+}
+.left-pane-overlay-section.menu-shell-surface > .left-pane-overlay-header {
+  display: none;
+}
+
 .left-pane-overlay-section * { direction: ltr; }
 
 .left-pane-overlay-section::-webkit-scrollbar,
@@ -1371,6 +1381,7 @@ textarea.collection-editor-input { min-height: 60px; resize: vertical; }
 #collab-status { color: var(--text-muted); }
 #collab-share-post-overlay { background: var(--bg-overlay); border-color: var(--border-main); }
 #collab-share-post-overlay .overlay-instructions { color: var(--text-muted); }
+#collab-share-post-overlay textarea { width: 100%; flex: 1; min-height: 120px; box-sizing: border-box; }
 
 /* Share-link snippet box — used by collab.js's and latex.js's share-link modals */
 .share-link-code {
@@ -1393,3 +1404,6 @@ textarea.collection-editor-input { min-height: 60px; resize: vertical; }
 #latex-editor-container .cm-activeLineGutter { background: var(--bg-hover); }
 #latex-editor-container .cm-selectionBackground { background: var(--bg-active) !important; }
 #latex-editor-container .cm-cursor { border-left-color: var(--text-main); }
+
+.annotation-send-controls { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.annotation-send-controls select { font-size:0.85rem; padding:2px 4px; }

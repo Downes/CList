@@ -11,12 +11,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CList</title>
     <script>
-        const _savedTheme = localStorage.getItem('clist-dark-mode');
-        if (_savedTheme === '1' || (_savedTheme === null && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-            document.documentElement.classList.add('dark-mode');
-        }
+        window.CList = { keys: { DARK_MODE: 'clist-dark-mode', WEBMENTION_ENABLED: 'clist_webmention_enabled' } };
+        try {
+            const _savedTheme = localStorage.getItem(window.CList.keys.DARK_MODE);
+            if (_savedTheme === '1' || (_savedTheme === null && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark-mode');
+            }
+        } catch (error) { console.error('Could not restore the saved colour scheme.', error); }
     </script>
-    <link rel="stylesheet" href="css/interface.css?v=9">
+    <link rel="stylesheet" href="css/interface.css?v=2026-11-23.1">
     <link rel="stylesheet" href="css/reader.css?v=1">
     <link rel="stylesheet" href="css/kvlist.css">
     <link rel="stylesheet" href="css/sidebar.css">
@@ -47,12 +50,22 @@
             loaders:    [],
             ui:         {},
             keys: {
+                DARK_MODE:             window.CList.keys.DARK_MODE,
+                WEBMENTION_ENABLED:    window.CList.keys.WEBMENTION_ENABLED,
                 ACCESS_TOKEN:          'access_token',
                 USERNAME:              'username',
                 TOKEN_EXPIRES:         'token_expires',
                 OAUTH_CALLBACK_RESULT: 'oauth_callback_result',
+                OAUTH_STATE_PREFIX:    'oauth_state_',
                 KVSTORE_URL:           'clist_kvstore_url',
+                TRANSLATION_ENABLED:   'translationEnabled',
+                PAGES_CATALOG:         'clist:pages-catalog',
+                DID_IDENTITY_KEY:      '_did_identity_key',
                 EDITOR_DRAFT_PREFIX:   'clist_draft_',
+                LOGOUT_MESSAGE:        'clist_logout_message',
+                SESSION_SIGNAL:        'kvstore',
+                PANE_STATE_LOGGED_OUT:  'clist_pane_state',
+                PANE_STATE_LOGGED_IN:   'clist_pane_state_loggedin',
             }
         };
         // Launcher's configured default applies first; an explicit saved user choice
@@ -176,7 +189,7 @@
                                     <label for="discussionNameInput" class="visually-hidden">Discussion Name:</label>
                                     <input type="text" id="discussionNameInput" placeholder="Enter discussion name">
                                     <label style="font-size:0.85em;margin-left:4px"><input type="checkbox" id="discussionPublicCheckbox"> Public</label>
-                                    <button id="advertiseDiscussionButton" class="btn" onClick="advertiseDiscussion()">Create</button>
+                                    <button id="advertiseDiscussionButton" class="btn" onClick="advertiseDiscussion(this)">Create</button>
                                     <button id="refreshDiscussionsButton" class="btn" onClick="refreshDiscussions()">Join</button>
                                     <button id="chat-advanced-button" class="btn btn-small" onclick="toggleDiv('chat-advanced')">Advanced</button>
                                 </div>
@@ -184,7 +197,7 @@
                                     <ul id="discussion-list"></ul>
                                 </div>
                                 <div id="end-discussion-div" style="display: none;">
-                                    <button id="endDiscussionButton" class="btn" onClick="endDiscussion()">Leave Discussion</button>
+                                    <button id="endDiscussionButton" class="btn" onClick="endDiscussion(this)">Leave Discussion</button>
                                     <button id="startDocButton" class="btn" onclick="startCollabFromChat()" title="Start a shared document from this discussion">Start document</button>
                                 </div>
                                 <div id="chat-messages"></div>
@@ -317,20 +330,77 @@
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="js/local-kvstore.js" defer></script>
 <script src="js/utilities.js?v=1" defer></script>
-<script src="js/ui.js?v=2026-11-22.1" defer></script>
-<script src="js/account-transfer.js" defer></script>  <!-- Export/import account data (Local or hosted); calls window.CList.storage.kv.* (storage.js + adapters below), crypto_utils.js, ui.js, kvstore.js's getEncKey -- all resolved by call time since nothing here runs until a button click, well after every deferred script has executed -->
+<script src="js/ui.js?v=2026-11-23.1" defer></script>
+<script src="js/account-transfer-workflow.js?v=2026-11-23.14" defer></script>
+<script src="js/account-transfer-controller.js?v=2026-11-23.14" defer></script>
+<script src="js/account-transfer.js?v=2026-11-23.14" defer></script>  <!-- Export/import account data (Local or hosted); calls window.CList.storage.kv.* (storage.js + adapters below), crypto_utils.js, ui.js, kvstore.js's getEncKey -- all resolved by call time since nothing here runs until a button click, well after every deferred script has executed -->
 <script src="js/references-state.js?v=2026-11-20.1" defer></script>
 <script src="js/references-view.js?v=2026-11-20.1" defer></script>
-<script src="js/references.js?v=2026-11-20.1" defer></script>
+<script src="js/references.js?v=2026-11-22.8" defer></script>
 <script src="js/crypto_utils.js" defer></script>
 <script src="js/storage.js" defer></script>          <!-- window.CList.storage.kv.* facade; defines KvStoreError, must load before the two adapters below -->
 <script src="js/kvstore-remote.js" defer></script>  <!-- storage.js facade: HTTP adapter -->
 <script src="js/kvstore-local.js" defer></script>   <!-- storage.js facade: IndexedDB adapter; must load after local-kvstore.js and storage.js -->
-<script src="js/account-state.js" defer></script>
-<script src="js/account-form.js" defer></script>
+<script src="js/account-state.js?v=2026-11-23.4" defer></script>
+<script src="js/account-reauthorization.js?v=2026-11-23.15" defer></script>
+<script src="js/account-form.js?v=2026-11-23.15" defer></script>
 <script src="js/account-panel.js" defer></script>
-<script src="js/kvstore.js?v=8" defer></script>     <!-- Loads usere and account data -->
-<script src="js/editors.js?v=2026-11-20.2" defer></script>
+<script src="js/personal-options-workflow.js?v=2026-11-23.13" defer></script>
+<script src="js/personal-options.js?v=2026-11-23.13" defer></script>
+<script src="js/personal-options-view.js?v=2026-11-23.13" defer></script>
+<script src="js/personal-options-transfer.js?v=2026-11-23.14" defer></script>
+<script src="js/kvstore.js?v=2026-11-23.13" defer></script>
+<script src="js/auth-panel-state.js?v=2026-11-20.20" defer></script>
+<script src="js/auth-panel-view.js?v=2026-11-20.20" defer></script>
+<script src="js/auth-panel.js?v=2026-11-20.20" defer></script>
+<script src="js/auth-credentials-workflow.js?v=2026-11-20.20" defer></script>
+<script src="js/auth-session-workflow.js?v=2026-11-20.20" defer></script>
+<script src="js/auth-credentials.js?v=2026-11-20.20" defer></script>
+<script src="js/post-login-workflow.js?v=2026-11-20.20" defer></script>
+<script src="js/post-login-view.js?v=2026-11-20.20" defer></script>
+<script src="js/post-login.js?v=2026-11-20.20" defer></script>
+<script src="js/session-lifecycle-workflow.js?v=2026-11-20.20" defer></script>
+<script src="js/session-lifecycle-view.js?v=2026-11-20.20" defer></script>
+<script src="js/session-lifecycle.js?v=2026-11-20.20" defer></script>
+<script src="js/admin-settings-apps.js?v=2026-11-20.20" defer></script>
+<script src="js/admin-settings-workflow.js?v=2026-11-20.20" defer></script>
+<script src="js/admin-settings-view.js?v=2026-11-20.20" defer></script>
+<script src="js/admin-settings.js?v=2026-11-20.20" defer></script>
+<script src="js/password-confirmation-workflow.js?v=2026-11-20.9" defer></script>
+<script src="js/password-confirmation-view.js?v=2026-11-20.9" defer></script>
+<script src="js/password-confirmation.js?v=2026-11-20.11" defer></script>
+<script src="js/did-identity-workflow.js?v=2026-11-20.13" defer></script>
+<script src="js/did-identity-view.js?v=2026-11-20.13" defer></script>
+<script src="js/did-identity.js?v=2026-11-20.13" defer></script>
+<script src="js/did-proof-workflow.js?v=2026-11-20.11" defer></script>
+<script src="js/did-proof-view.js?v=2026-11-20.7" defer></script>
+<script src="js/did-proof.js?v=2026-11-20.11" defer></script>
+<script src="js/did-publication-workflow.js?v=2026-11-20.11" defer></script>
+<script src="js/did-publication-view.js?v=2026-11-20.8" defer></script>
+<script src="js/did-publication.js?v=2026-11-20.12" defer></script>
+<script src="js/did-generation-workflow.js?v=2026-11-20.10" defer></script>
+<script src="js/did-generation-view.js?v=2026-11-20.10" defer></script>
+<script src="js/did-generation.js?v=2026-11-20.12" defer></script>
+<script src="js/did-rotation-workflow.js?v=2026-11-20.11" defer></script>
+<script src="js/did-rotation-view.js?v=2026-11-20.11" defer></script>
+<script src="js/did-rotation.js?v=2026-11-20.12" defer></script>
+<script src="js/did-removal-workflow.js?v=2026-11-20.12" defer></script>
+<script src="js/did-removal-view.js?v=2026-11-20.12" defer></script>
+<script src="js/did-removal.js?v=2026-11-20.12" defer></script>
+<script src="js/did-update-workflow.js?v=2026-11-20.13" defer></script>
+<script src="js/did-update-view.js?v=2026-11-20.13" defer></script>
+<script src="js/did-update.js?v=2026-11-20.13" defer></script>
+<script src="js/migration-preparation-workflow.js?v=2026-11-20.15" defer></script>
+<script src="js/migration-preparation-view.js?v=2026-11-20.15" defer></script>
+<script src="js/migration-preparation.js?v=2026-11-20.15" defer></script>
+<script src="js/migration-identity-workflow.js?v=2026-11-20.15" defer></script>
+<script src="js/migration-execution-workflow.js?v=2026-11-20.15" defer></script>
+<script src="js/migration-execution-view.js?v=2026-11-20.15" defer></script>
+<script src="js/migration-execution.js?v=2026-11-20.15" defer></script>
+<script src="js/following-workflow.js?v=2026-11-20.5" defer></script>
+<script src="js/following-view.js?v=2026-11-20.5" defer></script>
+<script src="js/following.js?v=2026-11-20.5" defer></script>     <!-- Loads usere and account data -->
+<script src="js/editors.js?v=2026-11-23.17" defer></script>
 <script src="js/editor-state.js?v=2026-11-20.1" defer></script>
 <script src="js/editor-switch-view.js?v=2026-11-20.1" defer></script>
 <script src="js/editor-switch.js?v=2026-11-20.1" defer></script>
@@ -344,21 +414,36 @@
 <script src="js/editor-load-view.js?v=2026-11-20.1" defer></script>
 <script src="js/editor-load.js?v=2026-11-20.1" defer></script>   <!-- Major function handlers-->
 <script src="js/reader-state.js" defer></script>
-<script src="js/reader-view.js" defer></script>
+<script src="js/action-menu-view.js?v=2026-11-20.23" defer></script>
+<script src="js/action-menu.js?v=2026-11-20.23" defer></script>
+<script src="js/menu-shell-view.js?v=2026-11-21.2" defer></script>
+<script src="js/menu-shell.js?v=2026-11-21.1" defer></script>
+<script src="js/reader-view.js?v=2026-11-21.1" defer></script>
 <script src="js/reader.js?v=2026-11-20.1" defer></script>
 <script src="js/find-state.js?v=2026-11-20.1" defer></script>
 <script src="js/find-view.js?v=2026-11-20.1" defer></script>
 <script src="js/find.js?v=2026-11-20.1" defer></script>
-<script src="js/oauth-config.js" defer></script>
+<script src="js/oauth-config.js?v=2026-11-23.5" defer></script>
 <script src="js/oauth-strategies.js" defer></script>
-<script src="js/oauth-client.js" defer></script>
-<script src="js/mastodon.js?v=2026-11-20.1" defer></script>
+<script src="js/oauth_start_workflow.js?v=2026-11-23.5" defer></script>
+<script src="js/oauth_account_workflow.js?v=2026-11-23.16" defer></script>
+<script src="js/oauth_account.js?v=2026-11-23.17" defer></script>
+<script src="js/oauth_account_view.js?v=2026-11-23.4" defer></script>
+<script src="js/oauth_callback_workflow.js?v=2026-11-23.5" defer></script>
+<script src="js/oauth_callback.js?v=2026-11-23.6" defer></script>
+<script src="js/oauth_callback_view.js?v=2026-11-23.5" defer></script>
+<script src="js/oauth-client.js?v=2026-11-23.5" defer></script>
+<script src="js/mastodon.js?v=2026-11-23.16" defer></script>
 <script src="js/mastodon_publish.js?v=2026-11-20.1" defer></script>
 <script src="js/mastodon_requests.js?v=2026-11-20.1" defer></script>
 <script src="js/mastodon_view.js?v=2026-11-20.1" defer></script>
 <script src="js/mastodon_actions.js?v=2026-11-20.1" defer></script>
 <script src="js/mastodon_reader.js?v=2026-11-20.1" defer></script>
-<script src="js/mastodon_account.js?v=2" defer></script>
+<script src="js/account-setup.js?v=2026-11-23.8" defer></script>
+<script src="js/account-setup-view.js?v=2026-11-23.8" defer></script>
+<script src="js/mastodon_setup.js?v=2026-11-23.8" defer></script>
+<script src="js/mastodon_setup_view.js?v=2026-11-23.8" defer></script>
+<script src="js/mastodon_account.js?v=2026-11-23.16" defer></script>
 <script src="js/bluesky.js?v=2026-11-20.1" defer></script>
 <script src="js/bluesky_publish.js" defer></script>
 <script src="js/bluesky_requests.js?v=2026-11-20.1" defer></script>
@@ -367,7 +452,12 @@
 <script src="js/discord.js?v=2026-11-20.1" defer></script>
 <script src="js/discord_view.js?v=2026-11-20.1" defer></script>
 <script src="js/discord_reader.js?v=2026-11-20.1" defer></script>
-<script src="js/discord_account.js?v=2" defer></script>
+<script src="js/discord_setup_requests.js?v=2026-11-23.12" defer></script>
+<script src="js/discord_setup.js?v=2026-11-23.12" defer></script>
+<script src="js/discord_setup_view.js?v=2026-11-23.12" defer></script>
+<script src="js/discord_admin.js?v=2026-11-23.12" defer></script>
+<script src="js/discord_admin_view.js?v=2026-11-23.12" defer></script>
+<script src="js/discord_account.js?v=2026-11-23.12" defer></script>
 <script src="js/opml.js" defer></script>
 <script src="js/localrss.js?v=2026-11-20.1" defer></script>
 <script src="js/localrss_requests.js" defer></script>
@@ -375,14 +465,14 @@
 <script src="js/localrss_row_view.js?v=2026-11-20.1" defer></script>
 <script src="js/localrss_reader.js" defer></script>
 <script src="js/localrss_actions.js?v=2026-11-20.1" defer></script>
-<script src="js/localrss_options_view.js" defer></script>
-<script src="js/localrss_options.js" defer></script>
+<script src="js/localrss_options_view.js?v=2026-11-21.2" defer></script>
+<script src="js/localrss_options.js?v=2026-11-21.2" defer></script>
 <script src="js/localrss_feeds_view.js" defer></script>
 <script src="js/localrss_feeds.js" defer></script>
 <script src="js/localrss_opml_requests.js" defer></script>
 <script src="js/localrss_opml_view.js" defer></script>
 <script src="js/localrss_opml.js" defer></script>
-<script src="js/public-feeds.js?v=2026-11-20.1" defer></script>
+<script src="js/public-feeds.js?v=2026-11-20.20" defer></script>
 <script src="js/public-feed-requests.js?v=2026-11-20.1" defer></script>
 <script src="js/public-feed-view.js?v=2026-11-20.1" defer></script>
 <script src="js/public-feed-reader.js?v=2026-11-20.1" defer></script>
@@ -392,28 +482,97 @@
 <script src="js/search-provider-view.js?v=2026-11-20.2" defer></script>
 <script src="js/googlesearch.js?v=2026-11-20.2" defer></script>
 <script src="js/duckduckgo.js?v=2026-11-20.2" defer></script>
-<script src="js/commons.js?v=2026-11-20.1" defer></script>
+<script src="js/commons.js?v=2026-11-20.3" defer></script>
 <script src="js/oasis.js?v=2026-11-20.2" defer></script>
-<script src="js/openalex.js?v=2026-11-20.1" defer></script>
+<script src="js/openalex.js?v=2026-11-20.3" defer></script>
 
 <!--script src="js/audio.js" defer></script -->          <!-- Audio -->
 
 <script src="js/page-store-idb.js" defer></script>  <!-- Save / Load --> <!-- Local IndexedDB layer for PageStore -->
-<script src="js/page-store.js?v=2026-11-22.1" defer></script>      <!-- PageStore public API + its savers/loaders registry entries -->
+<script src="js/page-store.js?v=2026-11-23.1" defer></script>      <!-- PageStore public API + its savers/loaders registry entries -->
+<script src="js/page-store-save-workflow.js?v=2026-11-22.3" defer></script>
+<script src="js/page-store-save-view.js?v=2026-11-22.3" defer></script>
+<script src="js/page-store-save.js?v=2026-11-22.3" defer></script>
+<script src="js/page-store-browser-workflow.js?v=2026-11-22.4" defer></script>
+<script src="js/page-store-browser-view.js?v=2026-11-22.4" defer></script>
+<script src="js/page-store-bundle-workflow.js?v=2026-11-22.5" defer></script>
+<script src="js/page-store-bundle-view.js?v=2026-11-22.5" defer></script>
+<script src="js/page-store-bundle.js?v=2026-11-22.5" defer></script>
+<script src="js/page-store-browser.js?v=2026-11-22.5" defer></script>
 <script src="js/file-recognition.js?v=2026-11-20.1" defer></script>
 <script src="js/files.js?v=2026-11-22.1" defer></script>
 <script src="js/file-save-workflow.js?v=2026-11-20.1" defer></script>
 <script src="js/file-save-view.js?v=2026-11-20.1" defer></script>
 <script src="js/file-save.js?v=2026-11-20.1" defer></script>
 
-<script src="js/wordpress.js?v=5" defer></script>      <!-- Posts -->
-<script src="js/blogger.js?v=1" defer></script>
+<script src="js/wordpress_auth_workflow.js?v=2026-11-23.6" defer></script>
+<script src="js/wordpress_auth.js?v=2026-11-23.9" defer></script>
+<script src="js/wordpress_auth_view.js?v=2026-11-23.6" defer></script>
+<script src="js/wordpress_setup.js?v=2026-11-23.9" defer></script>
+<script src="js/wordpress_setup_view.js?v=2026-11-23.9" defer></script>
+<script src="js/wordpress.js?v=2026-11-23.9" defer></script>      <!-- Posts -->
+<script src="js/blogger_setup.js?v=2026-11-23.8" defer></script>
+<script src="js/blogger_setup_view.js?v=2026-11-23.8" defer></script>
+<script src="js/blogger.js?v=2026-11-23.8" defer></script>
 <script src="js/tinymce.js?v=2" defer></script>
-<script src="js/etherpad.js?v=1" defer></script>
-<script src="js/collab.js?v=4" defer></script>
-<script src="js/collab_account.js" defer></script>
-<script src="js/latex.js?v=4" defer></script>
-<script src="js/slides.js?v=14" defer></script>
+<script src="js/etherpad_requests.js?v=2026-11-22.11" defer></script>
+<script src="js/etherpad_document_requests.js?v=2026-11-22.12" defer></script>
+<script src="js/etherpad_document_workflow.js?v=2026-11-22.12" defer></script>
+<script src="js/etherpad_document.js?v=2026-11-22.12" defer></script>
+<script src="js/etherpad_document_view.js?v=2026-11-22.12" defer></script>
+<script src="js/etherpad_connection.js?v=2026-11-22.12" defer></script>
+<script src="js/etherpad_connection_view.js?v=2026-11-22.12" defer></script>
+<script src="js/etherpad.js?v=2026-11-22.12" defer></script>
+<script src="js/collab_documents_requests.js?v=2026-11-21.19" defer></script>
+<script src="js/collab_documents_view.js?v=2026-11-21.19" defer></script>
+<script src="js/collab_documents.js?v=2026-11-21.19" defer></script>
+<script src="js/collab_connection_preparation.js?v=2026-11-21.23" defer></script>
+<script src="js/collab_connection_view.js?v=2026-11-21.21" defer></script>
+<script src="js/collab_connection.js?v=2026-11-21.21" defer></script>
+<script src="js/collab_format_view.js?v=2026-11-21.22" defer></script>
+<script src="js/collab_format.js?v=2026-11-21.22" defer></script>
+<script src="js/collab_title_requests.js?v=2026-11-21.23" defer></script>
+<script src="js/collab_title_view.js?v=2026-11-21.23" defer></script>
+<script src="js/collab_title.js?v=2026-11-21.23" defer></script>
+<script src="js/collab_share_requests.js?v=2026-11-21.24" defer></script>
+<script src="js/collab_share_view.js?v=2026-11-21.24" defer></script>
+<script src="js/collab_share.js?v=2026-11-21.24" defer></script>
+<script src="js/collab_composer_view.js?v=2026-11-21.25" defer></script>
+<script src="js/collab_composer.js?v=2026-11-21.25" defer></script>
+<script src="js/collab_opening_workflow.js?v=2026-11-21.26" defer></script>
+<script src="js/collab_opening_view.js?v=2026-11-21.26" defer></script>
+<script src="js/collab_opening.js?v=2026-11-21.26" defer></script>
+<script src="js/collab_creation_workflow.js?v=2026-11-21.27" defer></script>
+<script src="js/collab_creation_view.js?v=2026-11-21.27" defer></script>
+<script src="js/collab_creation.js?v=2026-11-21.27" defer></script>
+<script src="js/collab_header_view.js?v=2026-11-21.28" defer></script>
+<script src="js/collab_header.js?v=2026-11-21.28" defer></script>
+<script src="js/collab_content_workflow.js?v=2026-11-22.1" defer></script>
+<script src="js/collab_content_view.js?v=2026-11-22.1" defer></script>
+<script src="js/collab_content.js?v=2026-11-22.1" defer></script>
+<script src="js/collab_mount_view.js?v=2026-11-22.2" defer></script>
+<script src="js/collab_mount.js?v=2026-11-22.2" defer></script>
+<script src="js/collab.js?v=2026-11-22.2" defer></script>
+<script src="js/collab_setup_workflow.js?v=2026-11-23.10" defer></script>
+<script src="js/account-registration-setup.js?v=2026-11-23.11" defer></script>
+<script src="js/collab_setup.js?v=2026-11-23.11" defer></script>
+<script src="js/collab_setup_view.js?v=2026-11-23.10" defer></script>
+<script src="js/collab_account.js?v=2026-11-23.10" defer></script>
+<script src="js/latex_connection_preparation.js?v=2026-11-22.13" defer></script>
+<script src="js/latex_resource.js?v=2026-11-22.14" defer></script>
+<script src="js/latex_resource_view.js?v=2026-11-22.14" defer></script>
+<script src="js/latex_controls_workflow.js?v=2026-11-22.16" defer></script>
+<script src="js/latex_content.js?v=2026-11-22.16" defer></script>
+<script src="js/latex_controls.js?v=2026-11-22.16" defer></script>
+<script src="js/latex_controls_view.js?v=2026-11-22.16" defer></script>
+<script src="js/latex.js?v=2026-11-22.16" defer></script>
+<script src="js/slides_layout_workflow.js?v=2026-11-23.1" defer></script>
+<script src="js/slides_layout.js?v=2026-11-23.1" defer></script>
+<script src="js/slides_layout_view.js?v=2026-11-23.1" defer></script>
+<script src="js/slides_io_workflow.js?v=2026-11-23.2" defer></script>
+<script src="js/slides_io.js?v=2026-11-23.2" defer></script>
+<script src="js/slides_io_view.js?v=2026-11-23.2" defer></script>
+<script src="js/slides.js?v=2026-11-23.2" defer></script>
 <script src="js/tags-state.js?v=2026-11-20.1" defer></script>
 <script src="js/tags-workflow.js?v=2026-11-20.1" defer></script>
 <script src="js/tags-view.js?v=2026-11-20.1" defer></script>
@@ -422,12 +581,22 @@
 <script src="js/annotation-view.js" defer></script>
 <script src="js/annotation-publishing.js" defer></script>
 <script src="js/annotate_publish.js" defer></script>
-<script src="js/annotate.js?v=2026-11-20.1" defer></script>
+<script src="js/annotate.js?v=2026-11-20.23" defer></script>
 <script src="js/annotate_requests.js?v=2026-11-20.1" defer></script>
-<script src="js/annotate_view.js?v=2026-11-20.1" defer></script>
-<script src="js/annotate_reader.js?v=2026-11-20.1" defer></script>   <!-- Annotation store -->
-<script src="js/annotate_account.js" defer></script>
-<script src="js/annotate-editor.js?v=2026-11-22.1" defer></script>   <!-- Dedicated annotation editor -->
+<script src="js/annotate_view.js?v=2026-11-20.4" defer></script>
+<script src="js/annotate_reader.js?v=2026-11-20.4" defer></script>   <!-- Annotation store -->
+<script src="js/annotate_setup_workflow.js?v=2026-11-23.11" defer></script>
+<script src="js/annotate_setup.js?v=2026-11-23.11" defer></script>
+<script src="js/annotate_setup_view.js?v=2026-11-23.11" defer></script>
+<script src="js/annotate_account.js?v=2026-11-23.11" defer></script>
+<script src="js/annotate_draft_state.js?v=2026-11-22.6" defer></script>
+<script src="js/annotate_draft_view.js?v=2026-11-22.6" defer></script>
+<script src="js/annotate_draft.js?v=2026-11-22.6" defer></script>
+<script src="js/annotate_body_view.js?v=2026-11-22.7" defer></script>
+<script src="js/annotate_body.js?v=2026-11-22.7" defer></script>
+<script src="js/annotate_send_view.js?v=2026-11-22.8" defer></script>
+<script src="js/annotate_send.js?v=2026-11-22.8" defer></script>
+<script src="js/annotate-editor.js?v=2026-11-23.1" defer></script>   <!-- Dedicated annotation editor -->
 <script src="js/collection-formats.js?v=2026-11-20.1" defer></script> <!-- Collection format interpreters -->
 <script src="js/collections.js?v=2026-11-20.1" defer></script>
 <script src="js/collection-session.js?v=2026-11-20.1" defer></script>
@@ -445,15 +614,18 @@
 <script src="js/collection-entry-workflow.js?v=2026-11-20.1" defer></script>
 <script src="js/collection-entry-view.js?v=2026-11-20.1" defer></script>
 <script src="js/collection-entry.js?v=2026-11-20.1" defer></script> <!-- Collections -->
-<script src="js/collection-editor.js?v=2026-11-20.1" defer></script>
+<script src="js/collection-draft-state.js?v=2026-11-22.10" defer></script>
+<script src="js/collection-draft.js?v=2026-11-22.10" defer></script>
+<script src="js/collection-draft-view.js?v=2026-11-22.10" defer></script>
+<script src="js/collection-editor.js?v=2026-11-22.10" defer></script>
 <script src="js/calendar.js?v=2026-11-22.1" defer></script> <!-- Core calendar module: single source of truth for calendar events -->
-<script src="js/calendar-browser-view.js?v=2026-11-22.5" defer></script>
+<script src="js/calendar-browser-view.js?v=2026-11-23.1" defer></script>
 <script src="js/calendar-browser.js?v=2026-11-22.1" defer></script>
 <script src="js/ics.js?v=2026-11-21.1" defer></script> <!-- RFC5545 VEVENT parse/generate, no DOM/fetch -->
 <script src="js/calendar-subscription.js?v=2026-11-21.1" defer></script> <!-- Calendar (subscription) schema only -->
 <script src="js/calendar-subscriptions.js?v=2026-11-21.1" defer></script> <!-- fetch/parse/cache subscription events -->
 <script src="js/calendar-publish.js?v=2026-11-21.1" defer></script> <!-- publish/unpublish own calendar as ICS -->
-<script src="js/event-editor.js?v=2026-11-22.2" defer></script> <!-- Event editor (write pane), registers editorHandlers['event'] -->
+<script src="js/event-editor.js?v=2026-11-23.1" defer></script> <!-- Event editor (write pane), registers editorHandlers['event'] -->
 <script src="js/collection-publishing-workflow.js" defer></script>
 <script src="js/collection-publishing-view.js" defer></script>
 <script src="js/collection-publishing.js" defer></script>
@@ -462,25 +634,68 @@
 <script src="js/gist.js" defer></script>
 <script src="js/0x0.js" defer></script>
 <script src="js/clistbin.js" defer></script>
-<script src="js/dropbox.js?v=2026-11-20.1" defer></script>
+<script src="js/dropbox.js?v=2026-11-23.16" defer></script>
 <script src="js/dropbox_session.js?v=2026-11-20.1" defer></script>
 <script src="js/dropbox_save_workflow.js?v=2026-11-20.1" defer></script>
 <script src="js/dropbox_save_view.js?v=2026-11-20.1" defer></script>
 <script src="js/dropbox_save.js?v=2026-11-20.1" defer></script>
 <script src="js/dropbox_picker_view.js?v=2026-11-20.1" defer></script>
 <script src="js/dropbox_picker.js?v=2026-11-20.1" defer></script>
-<script src="js/dropbox_account.js?v=2" defer></script>
+<script src="js/dropbox_setup.js?v=2026-11-23.3" defer></script>
+<script src="js/dropbox_setup_view.js?v=2026-11-23.3" defer></script>
+<script src="js/dropbox_account.js?v=2026-11-23.16" defer></script>
 <script src="js/hypothesis.js?v=2" defer></script>
 <script src="js/hypothesis_publish.js" defer></script>
 <script src="js/grsshopper_publish.js" defer></script>
 <script src="js/grsshopper-editor.js" defer></script>   <!-- Dedicated gRSShopper post editor -->
-<script src="js/chatgpt.js" defer></script>
-<script src="js/summarize.js?v=2026-11-20.1" defer></script>
-<script src="js/translate.js" defer></script>
+<script src="js/chatgpt_requests.js?v=2026-11-21.17" defer></script>
+<script src="js/chatgpt_template_requests.js?v=2026-11-21.18" defer></script>
+<script src="js/chatgpt_template_view.js?v=2026-11-21.18" defer></script>
+<script src="js/chatgpt_template_form.js?v=2026-11-21.18" defer></script>
+<script src="js/chatgpt.js?v=2026-11-21.18" defer></script>
+<script src="js/summarize-workflow.js?v=2026-11-21.15" defer></script>
+<script src="js/summarize-view.js?v=2026-11-21.15" defer></script>
+<script src="js/summarize-controller.js?v=2026-11-21.15" defer></script>
+<script src="js/summarize.js?v=2026-11-21.15" defer></script>
+<script src="js/translate-workflow.js?v=2026-11-21.16" defer></script>
+<script src="js/translate-view.js?v=2026-11-21.16" defer></script>
+<script src="js/translate-controller.js?v=2026-11-21.16" defer></script>
+<script src="js/translate.js?v=2026-11-21.16" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"
         integrity="sha384-nlUQ8ZqCbvStErob+biJNzSgltf6urV3VGqhfIfzhmg9RXmpeRm76ELw0pYnKlTR"
         crossorigin="anonymous" defer></script>
-<script src="js/dynamicp2p.js?v=4" defer></script>
+<script src="js/dynamicp2p_session_view.js?v=2026-11-21.3" defer></script>
+<script src="js/dynamicp2p_session.js?v=2026-11-21.10" defer></script>
+<script src="js/dynamicp2p_session_bridge.js?v=2026-11-21.10" defer></script>
+<script src="js/dynamicp2p_discussions_requests.js?v=2026-11-21.4" defer></script>
+<script src="js/dynamicp2p_discussions_view.js?v=2026-11-21.4" defer></script>
+<script src="js/dynamicp2p_discussions.js?v=2026-11-21.4" defer></script>
+<script src="js/dynamicp2p_discussion_workflow.js?v=2026-11-21.5" defer></script>
+<script src="js/dynamicp2p_discussion_view.js?v=2026-11-21.5" defer></script>
+<script src="js/dynamicp2p_discussion_actions.js?v=2026-11-21.8" defer></script>
+<script src="js/dynamicp2p_discussion_bridge.js?v=2026-11-21.5" defer></script>
+<script src="js/dynamicp2p_popup.js?v=2026-11-21.6" defer></script>
+<script src="js/dynamicp2p_cards_view.js?v=2026-11-21.7" defer></script>
+<script src="js/dynamicp2p_cards.js?v=2026-11-21.7" defer></script>
+<script src="js/dynamicp2p_share_workflow.js?v=2026-11-21.8" defer></script>
+<script src="js/dynamicp2p_share_view.js?v=2026-11-21.8" defer></script>
+<script src="js/dynamicp2p_share.js?v=2026-11-21.8" defer></script>
+<script src="js/dynamicp2p_message_workflow.js?v=2026-11-21.14" defer></script>
+<script src="js/dynamicp2p_message_view.js?v=2026-11-21.14" defer></script>
+<script src="js/dynamicp2p_messages.js?v=2026-11-21.9" defer></script>
+<script src="js/dynamicp2p_control_workflow.js?v=2026-11-21.10" defer></script>
+<script src="js/dynamicp2p_control_view.js?v=2026-11-21.10" defer></script>
+<script src="js/dynamicp2p_control.js?v=2026-11-21.10" defer></script>
+<script src="js/dynamicp2p_identity_workflow.js?v=2026-11-21.11" defer></script>
+<script src="js/dynamicp2p_identity_view.js?v=2026-11-21.11" defer></script>
+<script src="js/dynamicp2p_identity.js?v=2026-11-21.11" defer></script>
+<script src="js/dynamicp2p_heartbeat_workflow.js?v=2026-11-21.12" defer></script>
+<script src="js/dynamicp2p_heartbeat_view.js?v=2026-11-21.12" defer></script>
+<script src="js/dynamicp2p_heartbeat.js?v=2026-11-21.12" defer></script>
+<script src="js/dynamicp2p_collaboration_workflow.js?v=2026-11-21.13" defer></script>
+<script src="js/dynamicp2p_collaboration_view.js?v=2026-11-21.13" defer></script>
+<script src="js/dynamicp2p_collaboration.js?v=2026-11-21.13" defer></script>
+<script src="js/dynamicp2p.js?v=2026-11-21.14" defer></script>
 <script src="js/publishing-workflow.js" defer></script>
 <script src="js/publishing-view.js" defer></script>
 <script src="js/web-page-records.js" defer></script>
@@ -494,9 +709,15 @@
 <script src="js/save-state.js?v=2026-11-20.1" defer></script>
 <script src="js/save-view.js?v=2026-11-20.1" defer></script>
 <script src="js/save-panel.js?v=2026-11-20.1" defer></script>
-<script src="js/publish.js?v=2026-11-20.1" defer></script>
-<script src="js/webmention.js" defer></script>
-<script src="js/interface.js?v=2026-11-20.1"></script>
+<script src="js/publish.js?v=2026-11-21.25" defer></script>
+<script src="js/webmention.js?v=2026-11-23.13" defer></script>
+<script src="js/pane-state.js?v=2026-11-20.21" defer></script>
+<script src="js/pane-view.js?v=2026-11-20.21" defer></script>
+<script src="js/panes.js?v=2026-11-20.21" defer></script>
+<script src="js/navigation-state.js?v=2026-11-20.23" defer></script>
+<script src="js/navigation-view.js?v=2026-11-20.23" defer></script>
+<script src="js/navigation.js?v=2026-11-20.23" defer></script>
+<script src="js/interface.js?v=2026-11-20.23"></script>
 
 <!-- Login / Register modal -->
 <div id="authModal" style="display:none; position:fixed; inset:0; background:var(--bg-modal-overlay); z-index:9999; align-items:center; justify-content:center;">
@@ -523,7 +744,7 @@
             <label style="display:block; margin-bottom:.5em;">Password<br>
                 <div style="position:relative;">
                     <input id="authPassword" type="password" autocomplete="current-password" style="width:100%; box-sizing:border-box; padding:.4em; padding-right:2.2em;">
-                    <span onclick="toggleAuthPassword('authPassword',this)" title="Show/hide password"
+                    <span id="authPasswordToggle" onclick="toggleAuthPassword('authPassword',this)" title="Show/hide password"
                           style="position:absolute; right:.4em; top:50%; transform:translateY(-50%); cursor:pointer; user-select:none; font-size:1.1em; color:var(--text-main);">👁</span>
                 </div>
             </label>
@@ -531,7 +752,7 @@
                 <label style="display:block; margin-bottom:.5em;">Confirm password<br>
                     <div style="position:relative;">
                         <input id="authConfirm" type="password" autocomplete="new-password" style="width:100%; box-sizing:border-box; padding:.4em; padding-right:2.2em;">
-                        <span onclick="toggleAuthPassword('authConfirm',this)" title="Show/hide password"
+                        <span id="authConfirmToggle" onclick="toggleAuthPassword('authConfirm',this)" title="Show/hide password"
                               style="position:absolute; right:.4em; top:50%; transform:translateY(-50%); cursor:pointer; user-select:none; font-size:1.1em; color:var(--text-main);">👁</span>
                     </div>
                 </label>

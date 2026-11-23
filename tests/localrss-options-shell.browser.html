@@ -1,0 +1,10 @@
+<!doctype html><meta charset="utf-8"><title>CList LocalRSS Options pop-out check</title>
+<link rel="stylesheet" href="../css/interface.css?v=2026-11-21.2">
+<style>body{padding:24px;font:16px/1.5 system-ui,sans-serif}#result{white-space:pre-wrap}#left-pane-body{position:relative;min-height:500px}</style>
+<h1>LocalRSS Options pop-out</h1><p>Real Options controller/view, shared shell and app modal. Transport, reader/account/session APIs, confirmation, feed/import sections, mutation notifications and error presentation are mocked. Browser DOM, focus and overlay CSS run directly. No external requests or writes; live services/full application are not exercised. Test 2026-11-21.2.</p>
+<p id="result">Checking...</p>
+<script>window.CList={accounts:[]};function paneController(){return{restore(){}};}function navigationController(){}window.fetch=()=>{throw Error('Unexpected network');};</script>
+<script src="../js/menu-shell-view.js?v=2026-11-21.2"></script><script src="../js/menu-shell.js?v=2026-11-21.1"></script>
+<script src="../js/localrss_options_view.js?v=2026-11-21.2"></script><script src="../js/localrss_options.js?v=2026-11-21.2"></script>
+<script src="helpers/localrss-options-shell-fixture.js?v=2026-11-21.2"></script><script src="../js/interface.js?v=2026-11-20.23"></script>
+<script>(async()=>{let checks=0;for(const [name,run] of optionsShellCases)await run((condition,message)=>{if(!condition)throw Error(name+': '+message);checks++;});previousOptionsShell?.dispose();document.getElementById('result').textContent='PASS: '+checks+' checks. Real LocalRSS Options controller/view, shared shell and app modal; same-node drafts/statistics, pop-out sizing, Back/focus return, pending Mark all guards/captured database, close/replacement/session expiry, database switching and visible conflict/retry. Transport, reader/account/session APIs, confirmation, feed/import sections, mutation notifications and errors mocked; no external requests or writes.';})().catch(error=>{document.getElementById('result').textContent='FAIL: '+error.stack;console.error(error);});</script>

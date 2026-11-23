@@ -97,7 +97,7 @@ function fixture({ panel = false } = {}) {
     const ctx = vm.createContext(sandbox);
     const load = name => vm.runInContext(source(name), ctx, { filename: name });
     load('account-state.js');
-    if (panel) { load('account-form.js'); load('account-panel.js'); }
+    if (panel) { load('oauth_callback.js'); load('account-reauthorization.js'); load('account-form.js'); load('account-panel.js'); }
     const session = { storeUrl: cList.config.flaskSiteUrl, token: 'token', encKey: 'key' };
     const add = (key, data) => records.set(key, 'encrypted:' + JSON.stringify(data));
     const flush = () => new Promise(resolve => setImmediate(resolve));

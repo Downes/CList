@@ -65,7 +65,8 @@ async function saveAccount(request, session) {
     assertAccountSession(session);
     const encrypted = await encryptWithKey(session.encKey, JSON.stringify(snapshot.data));
     assertAccountSession(session);
-    await window.CList.storage.kv.put(snapshot.key, encrypted);
+    if (session.put) await session.put(snapshot.key, encrypted);
+    else await window.CList.storage.kv.put(snapshot.key, encrypted);
     return snapshot;
 }
 

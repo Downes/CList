@@ -4,7 +4,7 @@
 //  Copyright Stephen Downes 2025
 //  Licensed under Creative Commons Attribution 4.0 International https://creativecommons.org/licenses/by/4.0/
 //
-//  Depends on: oauth-config.js, oauth-strategies.js
+//  Depends on: oauth-config.js, oauth-strategies.js, oauth_start_workflow.js
 //
 //  Multi-account design: each flow is identified by an accountKey (e.g. user@instance.social).
 //  Flow state (state token, PKCE verifier, etc.) is stored in sessionStorage keyed by the
@@ -20,53 +20,22 @@ const OAuthClient = {
     // accountKey   — stable identifier for this account (e.g. user@instance.social)
     // providerType — key into OAuthProviders (e.g. 'Mastodon')
     // instanceUrl  — base URL of the provider instance (e.g. 'https://mastodon.social')
-    // options      — { scope, forceLogin, extra: { title, permissions, ... } }
+    // options      — { scope, forceLogin, isCurrent?, extra: { title, permissions, ... } }
     async login(accountKey, providerType, instanceUrl, options = {}) {
-        const provider = OAuthProviders[providerType];
-        if (!provider) throw new Error(`Unknown OAuth provider: ${providerType}`);
-
-        const mode = OAuthStrategies.detectRuntimeMode();
-        if (mode === 'file') {
-            throw new Error('OAuth is not supported when opening CList directly from a file. Use manual token entry instead.');
-        }
-
-        const redirectUri = window.location.origin + '/callback.html';
-
-        const clientData = provider.dynamicRegistration
-            ? await this._getOrRegisterClient(instanceUrl, provider, redirectUri)
-            : { clientId: options.clientId || provider.clientId, clientSecret: null, redirectUri };
-
-        const { codeVerifier, codeChallenge } = await this._generatePKCE();
-        const state = this._randomState();
-
-        sessionStorage.setItem('oauth_state_' + state, JSON.stringify({
-            accountKey,
-            providerType,
-            instanceUrl,
-            clientId:     clientData.clientId,
-            clientSecret: clientData.clientSecret || null,
-            redirectUri,
-            codeVerifier,
-            mode,
-            extra:        options.extra || {},
-        }));
-
-        const authParams = new URLSearchParams({
-            client_id:             clientData.clientId,
-            redirect_uri:          redirectUri,
-            response_type:         'code',
-            scope:                 options.scope || provider.scopes,
-            state,
-            code_challenge:        codeChallenge,
-            code_challenge_method: 'S256',
+        const source = captureOAuthIssuerSource(), callerCurrent = options.isCurrent;
+        options = { ...options, extra: structuredClone(options.extra || {}) };
+        const current = () => currentOAuthIssuerSource(source) && (!callerCurrent || callerCurrent());
+        if (!current()) throw new Error('Authorization session expired.');
+        const issuer = await fingerprintOAuthIssuer(source);
+        if (!current()) throw new Error('Authorization session expired.');
+        options = { ...options, isCurrent: current };
+        return startOAuthAuthorization({ accountKey, providerType, instanceUrl, options }, {
+            issuer, now: Date.now, provider: type => OAuthProviders[type], mode: () => OAuthStrategies.detectRuntimeMode(), origin: () => window.location.origin,
+            register: (url, provider, redirect) => this._getOrRegisterClient(url, provider, redirect),
+            pkce: () => this._generatePKCE(), random: () => this._randomState(), prefix: window.CList.keys.OAUTH_STATE_PREFIX,
+            persist: (key, value) => sessionStorage.setItem(key, value), remove: key => sessionStorage.removeItem(key),
+            navigate: url => { window.location.href = url; },
         });
-        if (options.forceLogin) authParams.set('force_login', 'true');
-        if (provider.extraAuthParams) {
-            Object.entries(provider.extraAuthParams).forEach(([k, v]) => authParams.set(k, v));
-        }
-
-        const authUrl = provider.authorizationUrl || (instanceUrl + provider.authorizationPath);
-        window.location.href = authUrl + '?' + authParams.toString();
     },
 
     // Process an OAuth callback URL.
@@ -76,44 +45,12 @@ const OAuthClient = {
     // tokenData contains the full token response (including refresh_token when offline access was requested).
     // Returns null if the URL has no OAuth parameters (not a callback).
     async handleCallback() {
-        const params = new URLSearchParams(window.location.search);
-        const code   = params.get('code');
-        const state  = params.get('state');
-        const error  = params.get('error');
-
-        if (error) throw new Error(`Authorization denied: ${params.get('error_description') || error}`);
-        if (!code || !state) return null;
-
-        const rawFlow = sessionStorage.getItem('oauth_state_' + state);
-        if (!rawFlow) throw new Error('OAuth state not found — session may have expired or this is a CSRF attempt.');
-        sessionStorage.removeItem('oauth_state_' + state);
-
-        const flow     = JSON.parse(rawFlow);
-        const provider = OAuthProviders[flow.providerType];
-        if (!provider) throw new Error(`Unknown provider in saved flow state: ${flow.providerType}`);
-
-        const tokenData = await OAuthStrategies.exchangeCode(code, {
-            instanceUrl:  flow.instanceUrl,
-            tokenPath:    provider.tokenPath,
-            tokenUrl:     provider.tokenUrl || null,
-            clientId:     flow.clientId,
-            clientSecret: flow.clientSecret,
-            redirectUri:  flow.redirectUri,
-            codeVerifier: flow.codeVerifier,
-            mode:         flow.mode,
+        return exchangeOAuthCallback(window.location.search, {
+            prefix: window.CList.keys.OAUTH_STATE_PREFIX, now: Date.now,
+            read: key => sessionStorage.getItem(key), remove: key => sessionStorage.removeItem(key),
+            write: (key, value) => sessionStorage.setItem(key, value), provider: type => OAuthProviders[type],
+            exchange: (code, config) => OAuthStrategies.exchangeCode(code, config),
         });
-
-        // tokenData may be the full response object (preferred) or a bare string (legacy).
-        const accessToken = (typeof tokenData === 'object') ? tokenData.access_token : tokenData;
-
-        return {
-            accountKey:   flow.accountKey,
-            providerType: flow.providerType,
-            instanceUrl:  flow.instanceUrl,
-            accessToken,
-            tokenData:    (typeof tokenData === 'object') ? tokenData : null,
-            extra:        flow.extra || {},
-        };
     },
 
     // Fetch a cached client registration for instanceUrl, or register a new app and cache the result.
@@ -163,61 +100,21 @@ const OAuthClient = {
         return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
     },
 
-    // Shared "pick up an OAuth redirect" boilerplate. callback.html stores its result in
-    // localStorage under a single shared key regardless of provider; this reads it once per
-    // page load, fires onResult(data) only for the matching provider, and clears the key either
-    // way so a stale result can't be picked up twice or by the wrong provider's listener.
-    // Used both for flows started via login() above (data has accessToken/extra/accountKey) and
-    // for providers with their own non-standard callback shape (e.g. WordPress's siteUrl/
-    // userLogin/password) — this only standardizes the parse/match/remove, not the payload shape.
+    // One shared pickup owns parsing, receipt validation, duplicate locks and failures.
     onCallback(providerType, onResult) {
-        document.addEventListener('DOMContentLoaded', async function () {
-            const raw = localStorage.getItem(window.CList.keys.OAUTH_CALLBACK_RESULT);
-            if (!raw) return;
-            let data;
-            try { data = JSON.parse(raw); } catch (e) { console.error('Bad oauth_callback_result', e); return; }
-            if (data.providerType !== providerType) return;
-            localStorage.removeItem(window.CList.keys.OAUTH_CALLBACK_RESULT);
-            await onResult(data);
-        });
+        const controller = oauthCallbackController();
+        controller.register(providerType, onResult);
+        if (!this._pickupRegistered) {
+            this._pickupRegistered = true;
+            const pickup = () => { void controller.pickup(); };
+            // Deferred scripts run at "interactive"; wait for every provider to register.
+            if (document.readyState !== 'complete') document.addEventListener('DOMContentLoaded', pickup, { once: true });
+            else queueMicrotask(pickup);
+        }
     },
 
-    // Shared "finish OAuth flow" save: encrypts instanceData, stores it under accountKey in
-    // kvstore, refreshes the in-memory account list/UI, and reports success/failure via the
-    // standard modal/status helpers (see CLAUDE.md "Error Handling"). afterRefresh (optional,
-    // async) runs any provider-specific UI refresh beyond the universal updateUIVisibility()
-    // call (e.g. repopulating a reader/post-options list), before the "saved" status message.
-    async saveAccount(providerLabel, accountKey, instanceData, { afterRefresh } = {}) {
-        const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
-        if (!encKey) { showErrorModal('Encryption key missing — please log in again.', { title: 'Encryption key missing' }); return; }
-
-        let encryptedValue;
-        try {
-            encryptedValue = await encryptWithKey(encKey, JSON.stringify(instanceData));
-        } catch (err) {
-            console.error(`Failed to encrypt ${providerLabel} account data:`, err);
-            showErrorModal(`Could not save ${providerLabel} account — encryption failed. Try logging in again.`, { title: 'Save failed' });
-            return;
-        }
-
-        try {
-            await window.CList.storage.kv.put(accountKey, encryptedValue);
-        } catch (err) {
-            if (err.code === 'NotAuthenticated') showErrorModal(`Please log in to kvstore before authorizing ${providerLabel}.`, { title: 'Not logged in' });
-            else showErrorModal(`Failed to save ${providerLabel} account to kvstore.`, { title: 'Save failed' });
-            return;
-        }
-
-        try {
-            window.CList.accounts = await getAccounts(window.CList.config.flaskSiteUrl);
-            if (window.CList.accounts) {
-                updateUIVisibility();
-                if (afterRefresh) await afterRefresh();
-            }
-            showStatusMessage(`${providerLabel} account authorized and saved.`);
-        } catch (error) {
-            showErrorModal(`Account saved — but could not refresh: ${error.message}`, { title: 'Refresh failed' });
-        }
-        if (typeof playAccounts === 'function') playAccounts();
+    // Captured callback account persistence; token exchange/pickup stay above.
+    saveAccount(providerLabel, accountKey, instanceData, options = {}) {
+        return saveOAuthCallbackAccount(providerLabel, accountKey, instanceData, options);
     },
 };

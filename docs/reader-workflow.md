@@ -337,3 +337,70 @@ indices and feed selections are callback captures rather than inline JavaScript.
 Browser fixtures for this stage are prepared for user execution; Node results
 are separate evidence. Initial OAuth, identity/admin setup, service editor mounting,
 collaboration and AI feature workflows remain separate refactoring stages.
+
+
+## OpenAlex and Commons row controls — small follow-up
+
+Both providers now use `bindSearchProviderRow` instead of inline HTML action
+handlers. Existing request construction, normalization and pagination are retained.
+Controls capture the original URL/row ID, survive paging and Find panel closure,
+and reject detached/replaced rows and changed sessions. No new component or
+transport was introduced. Editor marker: `test 2026-11-20.3`.
+
+Fresh checks: **27 focused Node tests passed** with
+`node --test tests/find.test.cjs tests/reader-row-context.test.cjs`, then the full
+`node --test tests/*.test.cjs` suite passed **606/606**, with no failures or skips.
+App/fixture script paths and JavaScript syntax were checked separately.
+
+User browser rerun **pending**:
+[Find boundary](https://localhost:51888/tests/find.browser.html). Expect final
+**PASS**. This existing fixture now binds real provider row controls while keeping
+listing widgets, HTTP, external actions, feedback and reader invalidation mocked.
+It checks callback markup, OpenAlex expansion, earlier-page OpenAlex/Commons browser
+actions, replaced rows and session-stale actions alongside existing query/paging
+checks. It makes no external requests or writes and does not establish live API
+or complete reader integration behavior.
+
+
+User reran `find.browser.html` and reported **PASS (28 checks)**, including real
+OpenAlex/Commons request construction/normalization, captured pagination, callback
+row controls and earlier-page/stale-row guards. APIs, listing widgets, feedback,
+external actions and reader invalidation were mocked; no external requests or
+storage writes. This completes browser validation for this small follow-up and
+supersedes its pending rerun above. It does not establish live-service or full
+reader integration behavior.
+
+
+## Annotation presentation cleanup — small follow-up
+
+`annotate_reader.js` now supplies captured Follow/Flow row commands through
+`annotationRowOptions`; `annotate_view.js` renders and invokes those callbacks.
+Flow retains its captured annotation session and existing publishing workflow.
+Stale rows cannot dispatch commands, and follow errors route back to view feedback.
+The last feed-author label, follow/unfollow notice and partial-batch warning
+presentation now live in the view. Existing discovery, persistence, account/session
+ownership, duplicate guards and exact-node thread restoration are retained.
+
+Fresh checks: **31 focused Node tests passed** with
+`node --test tests/annotation-reader.test.cjs tests/annotation-publishing.test.cjs`,
+then `node --test tests/*.test.cjs` passed **607/607**, no failures or skips.
+App and annotation fixture script paths/JavaScript syntax were checked separately.
+Editor marker: `test 2026-11-20.4`.
+
+User browser rerun **pending**:
+[Annotation reader](https://localhost:51888/tests/annotation-reader.browser.html).
+Expect final **PASS**. Existing checks are extended with empty-feed presentation,
+real follow feedback using mocked persistence, captured Flow commands, detached
+follow/Flow controls and view-owned feed-author text. HTTP, encryption, storage,
+reader surfaces, sharing and Flow publication are mocked; no external requests
+or actual file/storage writes. Browser preparation does not establish execution,
+live-service or ordinary-account behavior.
+
+
+User reran `annotation-reader.browser.html` and reported **PASS (20 checks)**,
+including view-owned empty/follow feedback, captured row Flow commands, stale
+controls, exact-node thread restoration and session isolation. HTTP, encryption,
+storage, reader surfaces, sharing and Flow publication were mocked; no external
+requests or writes. This supersedes the pending annotation rerun above and
+completes browser validation for this small stage. It is separate from the
+recorded **607/607 Node** result and does not establish live-service behavior.

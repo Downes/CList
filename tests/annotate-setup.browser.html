@@ -1,0 +1,39 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Annotate account setup</title>
+<link rel="stylesheet" href="../css/interface.css">
+<h1>Annotate account setup</h1>
+<p>Real Annotate setup workflow/controller/view/factory, shared registration lifecycle, health/registration transport and account persistence/recovery. HTTP, cookie sessions, KV/encryption/keys and panel effects mocked; no external requests or real writes. Live registration, real crypto, annotation editor and full account-panel integration not exercised. Test 2026-11-23.11.</p>
+<pre id="result">Checking…</pre>
+<script>
+window.CList={state:{},config:{}};
+window.fetch=()=>Promise.reject(new Error('Unexpected external request'));
+</script>
+<script src="../js/account-state.js?v=2026-11-23.4"></script>
+<script src="../js/ui.js?v=2026-11-23.1"></script>
+<script src="../js/oauth_account_workflow.js?v=2026-11-23.4"></script>
+<script src="../js/oauth_account.js?v=2026-11-23.17"></script>
+<script src="../js/oauth_account_view.js?v=2026-11-23.4"></script>
+<script src="../js/oauth-client.js?v=2026-11-23.5"></script>
+<script src="../js/account-setup.js?v=2026-11-23.8"></script>
+<script src="../js/account-setup-view.js?v=2026-11-23.8"></script>
+<script src="../js/annotate_setup_workflow.js?v=2026-11-23.11"></script>
+<script src="../js/account-registration-setup.js?v=2026-11-23.11"></script>
+<script src="../js/annotate_setup.js?v=2026-11-23.11"></script>
+<script src="../js/annotate_setup_view.js?v=2026-11-23.11"></script>
+<script src="../js/annotate_account.js?v=2026-11-23.11"></script>
+<script src="helpers/oauth-account-fixture.js?v=2026-11-23.17"></script>
+<script src="helpers/annotate-setup-fixture.js?v=2026-11-23.11"></script>
+<script>
+(async () => {
+    const result = document.getElementById('result'); let count = 0;
+    try {
+        for (const [name, run] of annotateSetupCases) {
+            result.textContent = 'Checking: ' + name; let timer;
+            try { await Promise.race([run((condition, message) => { if (!condition) throw new Error(message); count++; }), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Timed out: ' + name)), 5000); })]); }
+            finally { clearTimeout(timer); }
+        }
+        result.textContent = 'PASS: ' + count + ' checks. Real Annotate setup workflow/controller/view/factory, shared registration/account recovery, captured health and credentialed POST contracts, exact account fields, safe default/custom selection, guarded startup probes, validation/health retry, duplicate/remount locks, stale session/input/Back guards, accepted registration reuse, uncertain service retry and read-only account confirmation. HTTP/session/KV/key/encryption/panel effects mocked; no external requests or real writes. Live registration, real crypto, annotation editor and full account-panel integration not exercised.';
+    } catch (error) { result.textContent = 'FAIL: ' + (error.stack || error); }
+})();
+</script>

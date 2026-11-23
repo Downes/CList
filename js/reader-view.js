@@ -31,6 +31,7 @@ function accountIcon(type, accountData) {
 }
 
 
+const _readerFeedMenus = new WeakMap();
 function readPanel() {
     const panel = document.createElement('div'); panel.id = 'read-section';
     panel.innerHTML = '<div id="read-account-list"></div><div id="select-account"></div><div id="account-status"></div>';
@@ -59,22 +60,26 @@ window.CList.ui.reader = {
     },
     menu(names, selected, onAction, busy, { translate = true } = {}) {
         const container = window.CList.ui.view.feedMenu; if (!container) return;
+        _readerFeedMenus.get(container)?.dispose();
         container.innerHTML = '';
         if (!names.length) return;
         const selectedKeys = selected instanceof Set ? selected : new Set(Array.isArray(selected) ? selected : [selected]);
-        for (const name of names) {
-            const button = document.createElement('button'); button.className = 'btn btn-small feed-filter-btn';
-            button.textContent = name; button.disabled = busy;
-            if (selectedKeys.has(name)) button.classList.add('is-active');
-            button.onclick = () => onAction(name); container.appendChild(button);
-        }
+        const definitions = names.map(name => ({ id: name, label: name,
+            selected: selectedKeys.has(name), run: () => onAction(name) }));
+        const menu = createActionMenu(definitions,
+            createActionMenuView(container, 'btn btn-small feed-filter-btn'), error => this.failed(error));
+        menu.setBusy(busy);
         if (translate) {
             const translateBtn = document.createElement('button'); translateBtn.id = 'translation-toggle-btn'; translateBtn.className = 'btn btn-small';
             translateBtn.textContent = 'Translate: ' + (translationEnabled ? 'ON' : 'OFF'); translateBtn.onclick = toggleTranslation;
             container.appendChild(translateBtn);
         }
+        const shell = createMenuShell(createMenuShellView(container,
+            { title: 'Feed menu', popoutTitle: 'Pop out feed menu' }), error => showStatusMessage(error.message));
+        _readerFeedMenus.set(container, { setBusy: value => menu.setBusy(value),
+            dispose() { shell.dispose(); menu.dispose(); } });
     },
-    busy(value) { window.CList.ui.view.feedMenu?.querySelectorAll('.feed-filter-btn').forEach(button => button.disabled = value); },
+    busy(value) { const container = window.CList.ui.view.feedMenu; if (container) _readerFeedMenus.get(container)?.setBusy(value); },
     selected(account) {
         const container = document.getElementById('selectedAccount'); if (!container) return;
         container.innerHTML = ''; container.appendChild(accountIcon(account.type, account));
@@ -93,7 +98,9 @@ window.CList.ui.reader = {
     reset() {
         if (window.CList.ui.view.loadingIndicator) window.CList.ui.view.loadingIndicator.style.display = 'none';
         const selected = document.getElementById('selectedAccount'); if (selected) selected.innerHTML = '';
-        const menu = window.CList.ui.view.feedMenu; if (menu) menu.innerHTML = '';
+        const menu = window.CList.ui.view.feedMenu;
+        if (menu) _readerFeedMenus.get(menu)?.dispose();
+        if (menu) menu.innerHTML = '';
         this.clearStatus();
     },
     render(items, options) { return window.CList.ui.renderFeed(items, window.CList.ui.view.feedContainer, options); },

@@ -1,0 +1,15 @@
+<!doctype html><meta charset="utf-8"><title>CList Collab opening check</title>
+<h1>Collab links and invites</h1>
+<p>Real opening normalization/controller/view. Editor selection, connection, sessions and error modal mocked; title fields use browser DOM. No external requests or writes. Full editor switching, provider lifecycle and live collaboration not exercised. Test 2026-11-21.26.</p>
+<pre id="result">Checking...</pre>
+<script src="../js/collab_opening_workflow.js?v=2026-11-21.26"></script>
+<script src="../js/collab_opening_view.js?v=2026-11-21.26"></script>
+<script src="../js/collab_opening.js?v=2026-11-21.26"></script>
+<script src="helpers/collab-opening-fixture.js?v=2026-11-21.26"></script>
+<script>
+(async () => {
+    let checks = 0;
+    for (const [name, run] of collabOpeningCases) await run((condition, message) => { if (!condition) throw Error(name + ': ' + message); checks++; });
+    document.getElementById('result').textContent = 'PASS: ' + checks + ' checks. Real Collab link/invite normalization/controller/view, captured public inputs, URL/mode/server validation, literal metadata, duplicate/superseded opening, session/editor/surface/disposal guards, Cancel and visible failure/explicit retry. Selection, connection, session and modal effects mocked; no external requests or writes. Full editor switching, provider lifecycle and live collaboration not exercised.';
+})().catch(error => { document.getElementById('result').textContent = 'FAIL: ' + error.stack; console.error(error); });
+</script>

@@ -1,0 +1,37 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Mastodon account setup</title>
+<link rel="stylesheet" href="../css/interface.css">
+<h1>Mastodon account setup</h1>
+<p>Real setup controller/view/factory and OAuth helper, shared account-save controller/workflow, validator and loader. OAuth login, session/key/encryption/KV storage, reader/post options and panel navigation mocked. No external requests, redirects or real writes. Live Mastodon, real cryptography, OAuth transport and full account-panel integration not exercised. Test 2026-11-23.8.</p>
+<pre id="result">Checking…</pre>
+<script>window.CList={state:{},config:{}};</script>
+<script src="../js/account-state.js?v=2026-11-23.4"></script>
+<script src="../js/ui.js?v=2026-11-23.1"></script>
+<script src="../js/oauth_account_workflow.js?v=2026-11-23.4"></script>
+<script src="../js/oauth_account.js?v=2026-11-23.17"></script>
+<script src="../js/oauth_account_view.js?v=2026-11-23.4"></script>
+<script src="../js/oauth-client.js?v=2026-11-23.5"></script>
+<script>const savedMastodonCallbackRegistration = OAuthClient.onCallback; OAuthClient.onCallback = () => {};</script>
+<script src="../js/mastodon.js?v=2026-11-23.8"></script>
+<script>OAuthClient.onCallback = savedMastodonCallbackRegistration;</script>
+<script src="../js/account-setup.js?v=2026-11-23.8"></script>
+<script src="../js/account-setup-view.js?v=2026-11-23.8"></script>
+<script src="../js/mastodon_setup.js?v=2026-11-23.8"></script>
+<script src="../js/mastodon_setup_view.js?v=2026-11-23.8"></script>
+<script src="../js/mastodon_account.js?v=2026-11-23.8"></script>
+<script src="helpers/oauth-account-fixture.js?v=2026-11-23.17"></script>
+<script src="helpers/mastodon-setup-fixture.js?v=2026-11-23.8"></script>
+<script>
+(async () => {
+    const result = document.getElementById('result'); let count = 0;
+    try {
+        for (const [name, run] of mastodonSetupCases) {
+            result.textContent = 'Checking: ' + name; let timer;
+            try { await Promise.race([run((condition, message) => { if (!condition) throw new Error(message); count++; }), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Timed out: ' + name)), 5000); })]); }
+            finally { clearTimeout(timer); }
+        }
+        result.textContent = 'PASS: ' + count + ' checks. Real Mastodon setup controller/view/factory and OAuth helper, captured manual credentials/shared persistence, validation, guarded OAuth, duplicate/rebuilt locks, Back/input/session expiry, accepted/uncertain recovery, read-only checks, newer-draft/reader protection and secret-free state. OAuth login/session/key/encryption/KV/panel/reader effects mocked; no external requests, redirects or real writes. Live Mastodon, real cryptography, OAuth transport and full account-panel integration not exercised.';
+    } catch (error) { result.textContent = 'FAIL: ' + (error.stack || error); }
+})();
+</script>

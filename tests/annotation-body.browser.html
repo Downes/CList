@@ -1,0 +1,18 @@
+<!doctype html><meta charset="utf-8"><title>CList annotation description lifecycle check</title>
+<h1>Annotation description lifecycle</h1>
+<p>Real body controller/view and annotation handler. TinyMCE API, session/editor ownership, pending-content delivery, reference APIs and feedback mocked. Target/fallback/retry DOM is real. No external requests or writes. Actual TinyMCE rendering, Send/publication and full editor switching not exercised. Test 2026-11-22.7.</p>
+<pre id="result">Checking...</pre>
+<script>window.CList={state:{},config:{}};var editorHandlers={};</script>
+<script src="helpers/annotation-tiny-fixture.js?v=2026-11-22.7"></script>
+<script src="../js/annotate_draft_state.js?v=2026-11-22.6"></script>
+<script src="../js/annotate_draft_view.js?v=2026-11-22.6"></script>
+<script src="../js/annotate_draft.js?v=2026-11-22.6"></script>
+<script src="../js/annotate_body_view.js?v=2026-11-22.7"></script>
+<script src="../js/annotate_body.js?v=2026-11-22.7"></script>
+<script src="../js/annotate_send_view.js?v=2026-11-22.8"></script>
+<script src="../js/annotate_send.js?v=2026-11-22.8"></script>
+<script src="../js/annotate-editor.js?v=2026-11-22.8"></script>
+<script src="helpers/annotation-body-fixture.js?v=2026-11-22.7"></script>
+<script>
+(async()=>{let checks=0;for(const[name,run]of annotationBodyCases)await run((condition,message)=>{if(!condition)throw Error(name+': '+message);checks++;});document.getElementById('result').textContent='PASS: '+checks+' checks. Real annotation description controller/view and handler, captured unique TinyMCE targets, pending/fallback/native edits, mirrored events, duplicate/stale/session/replacement guards, fallback/explicit retry, background reactivation, append rules, API failure propagation and idempotent cleanup. TinyMCE/session/editor/pending-content/reference/feedback APIs mocked; no external requests or writes. Actual TinyMCE rendering, Send/publication and full editor switching not exercised.';})().catch(error=>{document.getElementById('result').textContent='FAIL: '+error.stack;console.error(error);});
+</script>

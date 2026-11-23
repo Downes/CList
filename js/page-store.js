@@ -9,8 +9,9 @@
 //
 //  Public API — see docs/storage-model.md "PageStore — target interface" for the authoritative
 //  surface this implements. Always local (IndexedDB via js/page-store-idb.js, loaded before this
-//  file), not aware of, and not called by, the KVStore facade. The save/load registry entries
-//  below require login (requiresLogin: true) even though the storage itself is login-independent —
+//  file), not aware of, and not called by, the KVStore facade. Registry entries in
+//  page-store-save.js and page-store-browser.js require login (requiresLogin: true)
+//  even though the storage itself is login-independent —
 //  logged-out IndexedDB usage was found to be unreliable, so the Save/Load panels hide this option
 //  until the visitor logs in.
 
@@ -132,6 +133,7 @@ window.CList = window.CList || {};
         }
     }
 
+    /** @param {string} id @returns {Promise<CListNativePageRecord|null>} */
     async function get(id) {
         if (!id) return null;
         try {
@@ -206,6 +208,7 @@ window.CList = window.CList || {};
         }
     }
 
+    /** @returns {Promise<CListNativePageBundle>} */
     async function exportPages() {
         let rows;
         try {
@@ -225,6 +228,10 @@ window.CList = window.CList || {};
         };
     }
 
+    /** @param {CListNativePageBundle} bundle Validated before writes, including legacy metadata.
+     * @param {{onConflict?:('skip'|'replace'|'duplicate')}} options
+     * @returns {Promise<CListNativePageImportResult>}
+     */
     async function importPages(bundle, options = {}) {
         const onConflict = options.onConflict || 'skip';
         _pageStoreValidateBundleTier1(bundle);
@@ -322,298 +329,4 @@ window.CList = window.CList || {};
     }
 
     window.CList.pageStore = { save, get, list, remove, exportPages, importPages, recordPublication };
-})();
-
-// -- Editor "Save / Load" registry wiring (docs/adding-a-service.md §4-5) -----------------
-
-(function () {
-    window.CList.savers = window.CList.savers || [];
-    window.CList.savers.push({
-        label: 'Save to CList (local)',
-        icon: 'save',
-        requiresLogin:   true,
-        requiresAccount: false,
-        // Gate on the active editor actually having an exportable flat content type (text/html/
-        // etc.) rather than naming editors — structured-data editors like 'event' and
-        // 'collection' declare contentTypes: [] for exactly this reason (collection never even
-        // reaches this list, since playSave() special-cases it before populateSaveOptions()).
-        visible: () => {
-            const handler = editorHandlers[currentEditor];
-            return !!(handler && Array.isArray(handler.contentTypes) && handler.contentTypes.length);
-        },
-        save: async () => {
-            const handler = editorHandlers[currentEditor];
-            const content = (handler && typeof handler.getContent === 'function') ? await handler.getContent() : '';
-            if (!content || !content.trim()) {
-                showErrorModal('Nothing to save — the editor is empty.', { title: 'Nothing to save' });
-                return;
-            }
-
-            const title = window.CList.ui.view.writeTitle.innerText.trim();
-            const contentType = (handler && Array.isArray(handler.contentTypes) && handler.contentTypes[0]) || 'text/plain';
-            const isSamePage = currentLoadedPage && currentLoadedPage.kind === 'local-page';
-
-            const page = {
-                id: isSamePage ? currentLoadedPage.id : undefined,
-                revision: isSamePage ? currentLoadedPage.revision : undefined,
-                title,
-                content,
-                contentType,
-                editorType: currentEditor,
-                references: getReferences().slice(),
-            };
-
-            try {
-                const saved = await window.CList.pageStore.save(page);
-                setLoadedPage({ kind: 'local-page', id: saved.id, title: saved.title, revision: saved.revision, references: page.references });
-                showStatusMessage('Saved to CList (local).');
-            } catch (e) {
-                console.error('[page-store saver] save failed', e);
-                if (e.code === 'RevisionConflict') {
-                    showErrorModal(
-                        'This page was changed elsewhere since it was opened. Reopen it from Load → CList (local) to see the latest version before saving again.',
-                        { title: 'Save conflict' }
-                    );
-                } else {
-                    showErrorModal('Save failed: ' + e.message, { title: 'Save failed' });
-                }
-            }
-        },
-    });
-})();
-
-// Re-render the "CList (local)" loader's own list — used after Export/Import so the
-// list reflects what's now in the store, without disturbing any other open surface.
-function _reloadLocalPagesLoader() {
-    const loader = window.CList.loaders.find(l => l.label === 'CList (local)');
-    if (loader) loader.load(); else populateLoadOptions();
-}
-
-// Export every locally saved page as a single JSON file (the PageStoreBundle shape
-// pageStore.exportPages() returns) and trigger a browser download — mirrors the
-// Blob/createObjectURL/anchor-click pattern used by collections.js's "Save to file".
-async function _exportAllPages() {
-    let bundle;
-    try {
-        bundle = await window.CList.pageStore.exportPages();
-    } catch (e) {
-        console.error('[page-store export] failed', e);
-        showErrorModal('Export failed: ' + e.message, { title: 'Export failed' });
-        return;
-    }
-
-    const content = JSON.stringify(bundle, null, 2);
-    downloadBlob(new Blob([content], { type: 'application/json' }), `clist-pages-${new Date().toISOString().slice(0, 10)}.json`);
-    showStatusMessage(`Exported ${bundle.manifest.count} page(s).`);
-}
-
-// Rendered into renderTarget when "Import pages..." is clicked. Lets the user pick a
-// previously exported JSON file and a conflict policy, then calls pageStore.importPages()
-// and surfaces the result. Tier-1 validation failures and per-record errors are both
-// reported without silently dropping anything the import did manage to write.
-function _showImportPagesPicker(renderTarget) {
-    const optionsDiv = renderTarget || window.CList.ui.view.loadOptions;
-    if (!optionsDiv) return;
-    optionsDiv.innerHTML = '';
-
-    const tip = document.createElement('p');
-    tip.className = 'list-tip';
-    tip.textContent = 'Choose a CList pages export file (.json) to import:';
-    optionsDiv.appendChild(tip);
-
-    const fileInput = document.createElement('input');
-    fileInput.type = 'file';
-    fileInput.accept = 'application/json,.json';
-    optionsDiv.appendChild(fileInput);
-
-    const policyTip = document.createElement('p');
-    policyTip.className = 'list-tip';
-    policyTip.textContent = 'If a page in the file has the same id as one already saved:';
-    optionsDiv.appendChild(policyTip);
-
-    const policySelect = document.createElement('select');
-    [
-        { value: 'skip', label: 'Skip it (default)' },
-        { value: 'replace', label: 'Replace it' },
-        { value: 'duplicate', label: 'Import as a new copy' },
-    ].forEach(opt => {
-        const optEl = document.createElement('option');
-        optEl.value = opt.value;
-        optEl.textContent = opt.label;
-        policySelect.appendChild(optEl);
-    });
-    optionsDiv.appendChild(policySelect);
-
-    const row = document.createElement('div');
-    row.className = 'published-page-confirm';
-
-    const importBtn = document.createElement('button');
-    importBtn.className = 'btn';
-    importBtn.textContent = 'Import';
-    importBtn.onclick = async () => {
-        const file = fileInput.files[0];
-        if (!file) { showErrorModal('Choose a file first.', { title: 'Import' }); return; }
-
-        importBtn.disabled = true;
-        try {
-            const text = await file.text();
-            let bundle;
-            try {
-                bundle = JSON.parse(text);
-            } catch (e) {
-                throw new Error('That file is not valid JSON.');
-            }
-
-            const result = await window.CList.pageStore.importPages(bundle, { onConflict: policySelect.value });
-            const parts = [];
-            if (result.imported) parts.push(`${result.imported} imported`);
-            if (result.replaced) parts.push(`${result.replaced} replaced`);
-            if (result.duplicated) parts.push(`${result.duplicated} duplicated`);
-            if (result.skipped) parts.push(`${result.skipped} skipped`);
-            if (result.errors.length) parts.push(`${result.errors.length} failed`);
-            const summary = parts.length ? parts.join(', ') : 'Nothing to import.';
-
-            if (result.errors.length || result.danglingReferences.length) {
-                console.error('[page-store import] partial failure', result);
-                showErrorModal(
-                    `Import finished with problems: ${summary}.` +
-                    (result.danglingReferences.length
-                        ? ` ${result.danglingReferences.length} reference(s) now point to pages that failed to import.`
-                        : ''),
-                    { title: 'Import problems' }
-                );
-            } else {
-                showStatusMessage(`Import complete: ${summary}.`);
-            }
-        } catch (e) {
-            console.error('[page-store import] failed', e);
-            showErrorModal('Import failed: ' + e.message, { title: 'Import failed' });
-        } finally {
-            importBtn.disabled = false;
-        }
-        _reloadLocalPagesLoader();
-    };
-    row.appendChild(importBtn);
-
-    const cancelBtn = document.createElement('button');
-    cancelBtn.className = 'btn btn-secondary';
-    cancelBtn.textContent = 'Cancel';
-    cancelBtn.onclick = () => _reloadLocalPagesLoader();
-    row.appendChild(cancelBtn);
-
-    optionsDiv.appendChild(row);
-}
-
-(function () {
-    window.CList.loaders = window.CList.loaders || [];
-    window.CList.loaders.push({
-        label: 'CList (local)',
-        icon: 'folder',
-        requiresLogin:   true,
-        requiresAccount: false,
-        load: async () => {
-            let summaries;
-            try {
-                summaries = await window.CList.pageStore.list();
-            } catch (e) {
-                console.error('[page-store loader] list failed', e);
-                showErrorModal('Could not list local pages: ' + e.message, { title: 'Could not list pages' });
-                return null;
-            }
-
-            const optionsDiv = window.CList.ui.view.loadOptions;
-            if (!optionsDiv) return null;
-            optionsDiv.innerHTML = '';
-
-            const tip = document.createElement('p');
-            tip.className = 'list-tip';
-            tip.textContent = summaries.length
-                ? 'Select a locally saved page to load:'
-                : 'No locally saved pages yet.';
-            optionsDiv.appendChild(tip);
-
-            const list = document.createElement('div');
-            list.className = 'account-list';
-
-            summaries.forEach(summary => {
-                const btn = document.createElement('button');
-                btn.className = 'account-button';
-
-                const iconEl = document.createElement('span');
-                iconEl.className = 'material-icons';
-                iconEl.textContent = 'description';
-
-                const nameEl = document.createElement('span');
-                nameEl.textContent = summary.title || '(untitled)';
-
-                btn.appendChild(iconEl);
-                btn.appendChild(nameEl);
-
-                btn.addEventListener('click', async () => {
-                    let record;
-                    try {
-                        record = await window.CList.pageStore.get(summary.id);
-                    } catch (e) {
-                        console.error('[page-store loader] get failed', e);
-                        showErrorModal('Could not load page: ' + e.message, { title: 'Could not load page' });
-                        return;
-                    }
-                    if (!record) {
-                        showErrorModal('That page no longer exists.', { title: 'Page not found' });
-                        populateLoadOptions();
-                        return;
-                    }
-                    const page = {
-                        kind: 'local-page',
-                        id: record.id,
-                        title: record.title,
-                        revision: record.revision,
-                        references: Array.isArray(record.references) ? record.references : [],
-                    };
-                    // Restore the most recent publication (recordPublication()'s upsert-by-
-                    // service history) so updateLoadedPageUI()'s hasPublicationLocation check
-                    // and the Republish button survive a reload, not just the live session.
-                    const publications = Array.isArray(record.publications) ? record.publications : [];
-                    if (publications.length) {
-                        const latest = publications.reduce((a, b) => (a.publishedAt > b.publishedAt ? a : b));
-                        page.service         = latest.service;
-                        page.accountInstance = latest.accountId;
-                        page.publicationUrl  = latest.url;
-                    }
-                    await loadSavedPage({ type: record.contentType, value: record.content }, page, optionsDiv, () => populateLoadOptions());
-                });
-
-                list.appendChild(btn);
-            });
-
-            optionsDiv.appendChild(list);
-
-            // Whole-store backup/restore, not a single-page action — kept here, on the
-            // one surface that already lists every locally saved page.
-            const toolsRow = document.createElement('div');
-            toolsRow.className = 'published-page-confirm';
-
-            const exportBtn = document.createElement('button');
-            exportBtn.className = 'btn btn-small';
-            exportBtn.textContent = 'Export all pages';
-            exportBtn.onclick = () => _exportAllPages();
-            toolsRow.appendChild(exportBtn);
-
-            const importBtn = document.createElement('button');
-            importBtn.className = 'btn btn-small';
-            importBtn.textContent = 'Import pages...';
-            importBtn.onclick = () => _showImportPagesPicker(optionsDiv);
-            toolsRow.appendChild(importBtn);
-
-            optionsDiv.appendChild(toolsRow);
-
-            const cancelBtn = document.createElement('button');
-            cancelBtn.className = 'btn btn-secondary';
-            cancelBtn.textContent = 'Cancel';
-            cancelBtn.onclick = () => populateLoadOptions();
-            optionsDiv.appendChild(cancelBtn);
-
-            return null; // this loader manages its own UI, like the built-in "Load blank"
-        },
-    });
 })();

@@ -1,0 +1,19 @@
+<!doctype html><meta charset="utf-8"><title>CList annotation draft fields check</title>
+<h1>Annotation draft and reference fields</h1>
+<p>Real draft state/controller/view, editor bridges, native file handlers and shared reference deduplication. Editor/session/reference-panel, TinyMCE/body, sanitizer and feedback APIs mocked. Fields render in browser DOM. No external requests or writes. Actual TinyMCE lifecycle, Send/publishing and sanitizer behavior not exercised. Test 2026-11-22.7.</p>
+<pre id="result">Checking...</pre>
+<script>window.CList={state:{},config:{}};var editorHandlers={};</script>
+<script src="../js/references-state.js?v=2026-11-22.7"></script>
+<script src="../js/annotate_draft_state.js?v=2026-11-22.7"></script>
+<script src="../js/annotate_draft_view.js?v=2026-11-22.7"></script>
+<script src="../js/annotate_draft.js?v=2026-11-22.7"></script>
+<script src="../js/annotate_body_view.js?v=2026-11-22.7"></script>
+<script src="../js/annotate_body.js?v=2026-11-22.7"></script>
+<script src="../js/annotate_send_view.js?v=2026-11-22.8"></script>
+<script src="../js/annotate_send.js?v=2026-11-22.8"></script>
+<script src="../js/annotate-editor.js?v=2026-11-22.8"></script>
+<script src="helpers/annotation-tiny-fixture.js?v=2026-11-22.7"></script>
+<script src="helpers/annotation-draft-fixture.js?v=2026-11-22.7"></script>
+<script>
+(async()=>{let checks=0;for(const[name,run]of annotationDraftCases)await run((condition,message)=>{if(!condition)throw Error(name+': '+message);checks++;});document.getElementById('result').textContent='PASS: '+checks+' checks. Real annotation draft state/controller/view and editor/native-file bridges, live target identity, structural fields/extensions, URL promotion/convergent dedup, unfinished edits/conflict protection, stale target/editor/account/session/load guards, Clear/native round-trip and visible failure/explicit retry. Editor/reference-panel/TinyMCE/body/sanitizer/feedback effects mocked; no external requests or writes. Actual TinyMCE lifecycle, Send/publishing and sanitizer behavior not exercised.';})().catch(error=>{document.getElementById('result').textContent='FAIL: '+error.stack;console.error(error);});
+</script>

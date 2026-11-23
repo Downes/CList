@@ -81,9 +81,12 @@ test('discovery failure preserves already saved changelog and reports failure to
     assert.equal(records.size, 1);
 });
 
-test('subscription seeding is guarded by registration, before account refresh', () => {
-    const source = fs.readFileSync(path.join(__dirname, '../js/kvstore.js'), 'utf8');
-    assert.match(source, /if \(mode === 'register'\) \{\s*try \{\s*await seedPublicFeedAccounts\(\);/);
-    const start = source.indexOf('await seedPublicFeedAccounts();');
-    assert.ok(source.indexOf('window.CList.accounts = await getAccounts', start) > start);
+test('public-feed setup descriptors use the captured service', async () => {
+    const { context } = setup();
+    const result = await context.discoverPublicFeedSetup('https://captured.example', {
+        assertCurrent() {}, fetch: async () => ({ ok: true, json: async () => [{ slug: 'news', title: 'Captured' }, { slug: null }] }),
+    });
+    assert.equal(result.length, 1);
+    assert.equal(result[0].data.serviceUrl, 'https://captured.example');
+    assert.equal(result[0].key, 'public-feed:https://captured.example:news');
 });

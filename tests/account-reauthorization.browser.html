@@ -1,0 +1,42 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Existing-account reauthorization</title>
+<link rel="stylesheet" href="../css/interface.css">
+<h1>Existing-account reauthorization</h1>
+<p>Real account form, reauthorization controller, Mastodon/Dropbox hooks/helpers and shared OAuth start/client bridge. Cookie session, fingerprint, registration, PKCE, state storage and navigation mocked. No external requests, real storage/account writes or redirects. Token exchange/callback save, real crypto, live OAuth and full account-panel integration not exercised. Test 2026-11-23.15.</p>
+<pre id="result">Checking…</pre>
+<script>
+window.CList={state:{},config:{}};
+Object.defineProperty(window,'sessionStorage',{configurable:true,value:{getItem(){return null;},setItem(){throw new Error('Unexpected storage write');},removeItem(){throw new Error('Unexpected storage mutation');}}});
+window.fetch=()=>Promise.reject(new Error('Unexpected external request'));
+</script>
+<script src="../js/account-state.js?v=2026-11-23.4"></script>
+<script src="../js/ui.js?v=2026-11-23.1"></script>
+<script src="../js/oauth-config.js?v=2026-11-23.5"></script>
+<script src="../js/oauth-strategies.js"></script>
+<script src="../js/oauth_start_workflow.js?v=2026-11-23.5"></script>
+<script src="../js/oauth_callback.js?v=2026-11-23.6"></script>
+<script src="../js/oauth_account.js?v=2026-11-23.17"></script>
+<script src="../js/oauth-client.js?v=2026-11-23.5"></script>
+<script src="../js/account-reauthorization.js?v=2026-11-23.15"></script>
+<script src="../js/account-form.js?v=2026-11-23.15"></script>
+<script>OAuthClient.onCallback = () => {};</script>
+<script src="../js/mastodon.js?v=2026-11-23.7"></script>
+<script src="../js/mastodon_account.js?v=2026-11-23.15"></script>
+<script src="../js/dropbox.js?v=2026-11-23.5"></script>
+<script src="../js/dropbox_account.js?v=2026-11-23.15"></script>
+<script src="helpers/oauth-account-fixture.js?v=2026-11-23.17"></script>
+<script src="helpers/account-reauthorization-fixture.js?v=2026-11-23.15"></script>
+<script>
+(async () => {
+    const result = document.getElementById('result'); let count = 0;
+    try {
+        for (const [name, run] of accountReauthorizationCases) {
+            result.textContent = 'Checking: ' + name; let timer;
+            try { await Promise.race([run((condition, message) => { if (!condition) throw new Error(message); count++; }), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Timed out: ' + name)), 5000); })]); }
+            finally { clearTimeout(timer); }
+        }
+        result.textContent = 'PASS: ' + count + ' checks. Real existing-account form/controller, Mastodon/Dropbox hooks/helpers and OAuth start/client bridge, detached account capture, duplicate/rebuilt locks, hidden/closed/session/raw-input/manual/checkbox guards, edit-and-revert/replaced-input expiry, inline error/retry and owned post-persist state cleanup. Session/fingerprint/registration/PKCE/storage/navigation mocked; no external requests, real writes or redirects. Callback exchange/save, real crypto, live OAuth and full panel integration not exercised.';
+    } catch (error) { result.textContent = 'FAIL: ' + (error.stack || error); }
+})();
+</script>

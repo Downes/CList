@@ -317,18 +317,71 @@ See `docs/adding-a-service.md` for the complete pattern.
 | `window.CList.keys.USERNAME` | `'username'` | logged-in username (site-specific cookie) |
 | `window.CList.keys.TOKEN_EXPIRES` | `'token_expires'` | token expiry timestamp (site-specific cookie) |
 | `window.CList.keys.OAUTH_CALLBACK_RESULT` | `'oauth_callback_result'` | OAuth popup result (localStorage) |
+| `window.CList.keys.OAUTH_STATE_PREFIX` | `'oauth_state_'` | Per-flow OAuth state prefix (sessionStorage; shared with callback page) |
 | `window.CList.keys.KVSTORE_URL` | `'clist_kvstore_url'` | selected kvstore server URL (localStorage) |
+| `window.CList.keys.TRANSLATION_ENABLED` | `'translationEnabled'` | translation preference (localStorage) |
 | `window.CList.keys.EDITOR_DRAFT_PREFIX` | `'clist_draft_'` | per-editor draft body and `_refs` sessionStorage keys |
 
 These constants are declared in the inline `<script>` block in `index.html` and are available before any deferred script loads. Using them ensures a rename is a one-line change and prevents typo-silent bugs.
 
 ## Cautions
 
+Collab Post composer uses `collab_composer.js` (captured lifecycle/controller)
+and `collab_composer_view.js` (overlay DOM). Preserve unique TinyMCE targets,
+owned cleanup/restoration, fallback drafts and captured publication completion
+hooks; closing a composer cannot cancel an already captured publication.
+
+Collab links/invites use `collab_opening_workflow.js` (input normalization),
+`collab_opening.js` (captured opening controller) and `collab_opening_view.js`
+(title/error feedback). Reuse connection preparation/lifecycle; pass the caller
+guard through preparation and apply titles only after owned connection setup.
+Collection/chat creation uses `collab_creation_workflow.js` (captured seeds),
+`collab_creation.js` (opening/timer ownership) and `collab_creation_view.js`
+(titles, sanitized HTML and errors). Reuse selection/preparation/lifecycle;
+delayed seeding must check the exact resource, original session/editor and any
+content updates. An empty document after an edit must not be seeded. The 800 ms
+delay remains a heuristic, not a provider-synchronization guarantee.
+
+Collab header Share/Annotate controls use `collab_header.js` (captured action
+controller/reference preparation) and `collab_header_view.js` (header DOM,
+feedback and pane geometry). Preserve title/format/presence/status slots and
+reject old controls after source/editor/header replacement. Share may create a
+document through existing preparation/lifecycle; never recapture another target
+after waiting.
+
+Collab loads/link quotes/reference resync use `collab_content.js` (captured
+controller), `collab_content_workflow.js` (explicit shared-map data operations)
+and `collab_content_view.js` (HTML, editor commands and feedback). Keep plaintext
+literal, retain live reference identity/extensions and capture the editor/map,
+session/selection and source reference before callbacks. Reject read-only
+insertions and reentrant operations. Map-write failure must not reinsert content;
+corrupt resync records produce visible warnings without deleting shared entries.
+
+Collab mounting/reactivation uses `collab_mount.js` (captured activation lifecycle)
+and `collab_mount_view.js` (persistent surface/styles, titles and drop binding).
+Reuse existing title/header/format controllers and connection preparation/lifecycle.
+Keep local/remote resources when reactivating; pass activation ownership to local
+preparation, reject stale library/drop callbacks and propagate failed initialization
+or pending-content delivery as `false`. Never rebuild an incomplete existing surface
+by discarding its content. Full editor-switch internals and live sync need separate evidence.
+
 - `interface.js` must load last (depends on all other scripts)
 - All shared state lives under `window.CList`: `config.flaskSiteUrl`, `state.username`,
   `accounts`, `readers`, `publishers`, `savers`, `loaders`, `schemas`
 - TinyMCE is loaded from `https://www.downes.ca/assets/tinymce/tinymce.min.js`
 - Do **not** use `flask-cors` for kvstore — handle CORS entirely in Caddy (see README.md)
+
+## Etherpad editor
+
+Etherpad document operations use `etherpad_document_requests.js`,
+`etherpad_document_workflow.js`, `etherpad_document.js` and
+`etherpad_document_view.js`; the handler/legacy names remain in `etherpad.js`.
+Capture account/guest pad and headers before awaits, preserve partial Create
+receipts and never replay uncertain creation or welcome seeds. Only accepted
+appends add references, and stale completions cannot affect another pad. Keep
+errors propagating to shared loaders and feedback in the owned view. Read/merge/
+write still lacks remote concurrency control; do not claim iframe/live-service
+coverage from mocked fixtures.
 
 ## Desktop LocalRSS bundles
 
@@ -342,6 +395,60 @@ are distinct from frozen builds, which must work without end-user pip installs.
 
 
 ## Local file saves and My Pages
+
+Annotation draft/target fields use `annotate_draft_state.js` (DOM-free target and
+field operations), `annotate_draft.js` (captured field/reference controller) and
+`annotate_draft_view.js` (form/feedback). Retain live reference identity, the
+standalone target until cited, shared URL registration/deduplication, structural
+metadata and service extensions. Keep unfinished values private and preserve
+them across same-target refreshes. A changed model field needs an explicit new
+input before an old pending value may overwrite it. Reject old target/form/
+editor/account/session/load callbacks; native annotation format/body stays in
+the existing handler.
+Annotation description resources use `annotate_body.js` and `annotate_body_view.js`.
+Use captured instances/unique textarea targets instead of global TinyMCE lookups;
+retain latest fallback/API edits while initializing and mirror input/change/undo/
+redo to the captured backing textarea. Preserve resources while hidden/reactivating
+within the same auth source. Replaced targets/auth sources expire callbacks and
+remove owned instances/listeners; continue cleanup after individual failures.
+Rich initialization failure leaves an editable textarea and explicit Retry, so
+queued native content can be delivered once to fallback. API read/write errors
+propagate to callers.
+Annotation Send uses `annotate_send.js` (captured controller/shared pending lock)
+and `annotate_send_view.js` (controls/results), reusing `captureAnnotationRequest`
+and `runAnnotationOperation`. Send keeps its existing primary-target contract;
+generic publication still handles convergent references separately. Capture the
+account/target/tags/visibility/session/return intent and body API before awaiting.
+Reject stale account registries, panels and pre-write draft changes. Return only
+for accepted, unchanged drafts; preserve newer body/metadata/tags/return intent.
+Keep credentials out of views/presentation state and preserve account/private
+visibility choices within the same auth session across rebuild/reactivation.
+Suppress old feedback and never automatically replay an uncertain write.
+
+Native local-page Save uses `page-store-save.js` (captured controller),
+`page-store-save-workflow.js` (explicit write through existing PageStore) and
+`page-store-save-view.js` (feedback). Capture editor/page/revision/title/references
+before awaiting content; cancel stale pre-write captures and never reconcile a
+completed write into another editor/session/document. Preserve newer visible
+title/references while attaching accepted identity/revision. UI reconciliation
+failure retains a private receipt for metadata-only retry, without another write.
+Keep native PageStore separate from remote My Pages and file exports.
+Local listing/opening now uses `page-store-browser.js`,
+`page-store-browser-workflow.js` and `page-store-browser-view.js`. Capture the
+PageStore API, panel/session/source/editor/live-document ownership before reads.
+Keep row/retry callbacks private and reject old generations; pass a session/
+controls guard into existing `loadSavedPage`, allowing its intended editor changes.
+Preserve native revision/references/latest publication metadata and existing
+editor-choice behavior.
+Bundle tools use `page-store-bundle.js` (captured controller/receipts),
+`page-store-bundle-workflow.js` (parse/summary) and `page-store-bundle-view.js`
+(picker/results/download feedback), through the unchanged PageStore data API.
+Capture file/policy/store/session/panel before reading; guard export download
+handoff and import dispatch. Keep partial counts/errors/dangling references visible.
+Accepted or uncertain attempts lock their captured file/policy; result review
+must not repeat writes. Rebuilt panels can explicitly inspect the private result.
+An import already dispatched may finish its original operations after navigation;
+never repaint/reload a replacement UI or claim those writes were cancelled.
 
 Local file saving uses `file-save.js` (captured controller),
 `file-save-workflow.js` (explicit export/write/index operations), and
@@ -393,7 +500,12 @@ additions use the analogous `collection-entry-*` modules. Keep original draft/pa
 account/session captures, shared content-first routing, explicit Open/Insert/Cancel,
 owned-page restrictions, anonymous local blobs and failed-mount rollback that does
 not overwrite a newer load. Nested file imports are add-only; conflicts are visible.
-The remaining editor row widgets and collection Save/publication paths stay separate.
+Draft row widgets now use `collection-draft-state.js`, `collection-draft.js` and
+`collection-draft-view.js`, with `collection-editor.js` retaining the editor bridge.
+Preserve `_draftItems` live-array compatibility and raw member extensions. Row
+generations and actual attachment reject retired controls. Metadata-only Save/
+publication identity updates must retain editing; explicit `_refreshIdDisplay`
+reconciliation adopts them. Collection Save/publication workflows stay separate.
 
 ## Migrated service readers and row bindings
 
@@ -412,5 +524,394 @@ for pagination. Reject detached/replaced rows and stale account/session callback
 LocalRSS row binding is in `localrss_row_view.js`. Google/DDG/OASIS now use captured
 Find contexts, explicit request functions and `search-provider-view.js` row controls.
 Google modes/pagination retain the original query and credential snapshot; reject
-changed accounts and stale menus. OpenAlex/Commons already use Find contexts but
-their stateless inline row controls remain a separate cleanup.
+changed accounts and stale menus. OpenAlex/Commons also use the shared row binder;
+keep earlier-page controls live while rejecting detached/replaced/session-stale rows.
+
+## Following identity panel
+
+Me → Following uses `following-workflow.js`, `following.js` and
+`following-view.js`. Preserve exact stored keys independently of decrypted DIDs,
+visible fallback warnings, captured login/server/storage-mode ownership and
+pending Unfollow locks across refresh. Do not retry uncertain deletes automatically.
+Keep transient credentials/nodes outside `CList.state.following`; the shared state
+holds only presentation summaries. Reuse the storage facade and annotation cache
+invalidation/refresh hook. Login/DID/migration/admin paths remain separate.
+
+## DID identity display reads
+
+DID identity/account listing uses `did-identity-workflow.js`, `did-identity.js`
+and `did-identity-view.js` inside the existing management panel. Capture read-only
+session/mode/panel and separate request lanes; reject stale responses/retries.
+Keep account projections and displayed metadata free of credentials and render
+untrusted text safely. Preserve local identity handling, 404 imported-key fallback,
+visible read errors/partial warnings and the existing checkbox contract for legacy
+Update DID. Reads use `CList.keys.DID_IDENTITY_KEY`. DID publication/removal/migration
+controllers remain legacy paths and are not protected by these read guards.
+
+Prove Same Identity uses `did-proof-workflow.js`, `did-proof.js` and
+`did-proof-view.js`. Capture panel/session/target; reject stale input/session/key
+continuations and guard duplicates. Reuse existing crypto helpers, never send own
+credentials/private key to the other account, and keep proof material outside
+shared summaries. Use safe text for untrusted public identity metadata. Mismatch
+is a completed verification result, separate from operational failure. Publication,
+removal and migration remain separate legacy lifecycles.
+
+Publish Existing Key uses `did-publication-workflow.js`, `did-publication.js` and
+`did-publication-view.js`. Preserve the stored key, captured session, fresh public
+preflight, ciphertext check, cross-panel pending lock and accepted receipts. Reconcile
+matching public identities without replacing documents; reject conflicting keys.
+Unknown outcomes require read-only Check publication before a separate explicit
+retry. Keep post-write account/collaboration refresh failures distinct from accepted
+publication. Do not add automatic PUT retries or leak credentials/private keys into
+summaries/payloads. Generation/regeneration, Update DID, removal and migration remain
+separate legacy controllers.
+
+Shared password confirmation uses `password-confirmation-workflow.js`,
+`password-confirmation.js` and `password-confirmation-view.js`. Preserve the public
+verifyPassword/confirmWithPassword APIs, custom import verifiers, trusted caller
+HTML and label/class options. New callers should supply `opts.isCurrent` for their
+captured source and own their async operation lifetime after confirmation dispatch.
+Keep passwords/verifier keys transient, clear closed-dialog inputs, reject stale or
+duplicate dispatch, and report async callback failure without replaying it or
+replacing a newer modal. This helper does not migrate legacy DID write workflows.
+
+First-time Generate Identity Key uses `did-generation-workflow.js`,
+`did-generation.js` and `did-generation-view.js`. Preserve existing/concurrent keys
+with add-if-absent; never fall back to put/update. Retain accepted storage receipts,
+read-check uncertain adds before a separate explicit retry, and hand hosted
+publication to the existing controller bound to the exact stored did:key. Local
+creation performs no hosted request. Keep private/encryption material transient.
+Regenerate Key, removal, Update DID and migration remain separate legacy paths.
+
+Confirmed Regenerate Key uses `did-rotation-workflow.js`, `did-rotation.js` and
+`did-rotation-view.js`. Capture the original key/public identity before confirmation;
+recheck after async preparation. Preserve latest services/extensions/non-key aliases.
+Keep replacement storage, publication and follow-up receipts distinct, with read-only
+checks before separate explicit continuation of unknown outcomes. Never regenerate
+or roll back to recover publication. Session-owned transient plans survive panel
+rebuilds; never put ciphertext/private keys into UI summaries. A new deliberate
+rotation needs fresh confirmation. Client key checks are not server-side CAS.
+Invalidate pending proof/read feedback; proof must reject a changed stored key.
+Update DID selection/publication, removal and migration remain separate lifecycles.
+
+Remove DID uses `did-removal-workflow.js`, `did-removal.js` and
+`did-removal-view.js`. Preserve password confirmation, original target/session
+checks, independent key/document receipts, read-only reconciliation and explicit
+remaining-step retry. Never replay accepted deletes, treat endpoint 404 alone as
+proof of absence, or report completion while a step is unconfirmed. Retain partial
+plans across panel rebuilds; completion rebuilds clean controls and clears obsolete
+rotation plans. Keep ciphertext/fingerprints out of UI summaries. New identity
+mutations must participate in the shared busy checks. Legacy Update DID/migration
+Run dispatch guards do not migrate their internal async/session behavior.
+
+Update DID/public choices use `did-update-workflow.js`, `did-update.js` and
+`did-update-view.js`, with selection owned by the identity read controller. Never
+infer choices from checked/data-key DOM properties. Keep source ciphertext versions
+transient and protect credentials/extensions, linked metadata and catalog endpoints.
+Account visibility and publication receipts are separate; checks are read-only,
+remaining-step retries explicit, and accepted writes never replayed. Changed source
+records/drafts/panels expire retries. Use `CList.keys.PAGES_CATALOG`. Update DID
+participates in mutation coordination; migration remains separately guarded legacy
+work. Client version checks are not backend compare-and-swap.
+
+
+Migration preparation uses `migration-preparation-*` (workflow/controller/view).
+Keep captured credentials/plans private, fail closed on unreadable records or
+failed destination checks, and preserve registration receipts/explicit retry.
+Migration execution uses `migration-execution-*` plus `migration-identity-workflow.js`.
+Keep per-step accepted/uncertain receipts and ciphertexts private. Check migration
+is read-only; explicit Retry remaining steps skips accepted copies/publications.
+Never fall back from a conflicting add to blind overwrite. Preserve captured
+source/destination/session and public metadata, recheck before each write, and
+retain late receipts across panel rebuilds. Recovery lasts only in this tab and
+source session; preview tests alone do not validate execution.
+
+
+Login/register modal navigation, validation and server-picker selection use
+`auth-panel-state.js`, `auth-panel.js` and `auth-panel-view.js`. Mode/draft server
+live in `CList.state.authPanel`; passwords stay in private submission captures.
+Keep duplicate/pending/rebuilt guards and distinguish preference-write failure
+from refresh failure after accepted server selection. Credential transport and
+session installation use `auth-credentials-workflow.js`, `auth-session-workflow.js`
+and `auth-credentials.js`. Capture server/Local adapter/source-session versions
+before awaits; validate returned username/token/expiry before saving. Keep
+registration receipts private and distinguish accepted creation from login failure;
+uncertain creation gets login checks or explicit registration retry only. Prepare
+key export before synchronous token-last saving and report incomplete rollback.
+Post-login setup uses `post-login-workflow.js`, `post-login.js` and
+`post-login-view.js`. Service descriptors remain in `collab_account.js`,
+`annotate_account.js`, `clistbin.js` and `public-feeds.js`. Preserve add-only
+account writes, registration-only public subscriptions and Local exclusions.
+Keep registration/account-save receipts separate; Refresh accounts and Check
+setup never seed. Unknown service registration needs its explicit retry. Await
+setup before one account refresh, expire old modal/session actions and retain
+newer reader navigation. Logout/startup/storage-event restoration use
+`session-lifecycle-workflow.js`, `session-lifecycle.js` and
+`session-lifecycle-view.js`. Keep captured server/mode/cookie/key versions and
+auth epochs private, reject malformed/expired sessions, and never seed accounts
+during restoration. Logout invalidates pending authentication/restoration first,
+removes the token before keys/drafts, verifies removal and reloads once. Retain
+other servers' keys and unrelated storage; report partial cleanup separately.
+Use `CList.keys.LOGOUT_MESSAGE` and `CList.keys.SESSION_SIGNAL` for existing names.
+
+Administrative settings use `admin-settings-apps.js` (captured app metadata),
+`admin-settings-workflow.js` (explicit GET/PUT/normalization), `admin-settings.js`
+(private draft/session/receipt controller) and `admin-settings-view.js` (picker,
+form, feedback and stacked Help). Resolve the selected KVStore when opening the
+picker. Keep values/secrets/tokens out of `CList.state.adminSettings`. Preserve
+boolean autosave, changed-only text saves and blank-secret omission. Retain newer
+edits across save/read responses. Unknown writes require a read check and an
+explicit reviewed save; HTTP acceptance survives a missing body/replaced panel.
+Backend authorization remains authoritative; fixtures never write live settings.
+
+Pane layout uses `pane-state.js` (pure transitions/legacy preference parsing),
+`panes.js` (canonical state/persistence/commands) and `pane-view.js` (styles,
+geometry/transitions/drag bindings). `CList.state.panes` contains layout only;
+source credentials remain in private drag guards. Preserve the two existing
+logged-in/out preference names via `CList.keys.PANE_STATE_LOGGED_IN/OUT`.
+Restore without writes, save canonical state rather than reading DOM styles,
+preserve editor nodes and close/invalidation options, and reject stale drag or
+transition callbacks. `mainContent`/`readPane` aliases remain for existing
+annotation/collab integrations.
+
+Keyboard/touch navigation uses `navigation-state.js` (pure event rules),
+`navigation.js` (private row/gesture/annotation ownership) and `navigation-view.js`
+(DOM/events). `CList.state.navigation` contains indices/counts/phases only.
+Preserve earlier-page selection during pagination, use shared row guards where
+available, and reject captured gestures after reader/session/pane/selection changes.
+One gesture dispatches one action; editing controls and modals suppress navigation.
+Alt+A captures the reference and selection before queued editor switching. Its
+completion guards do not cancel service editor mounting or internal insertion.
+
+Shared labelled commands use `action-menu.js` (captured definitions, disabled/
+pending ownership and keyboard focus) and `action-menu-view.js` (literal text and
+buttons). The reader feed-menu is the first consumer; legacy service dispatch and
+Translate stay in the reader bridge. Dispose replaced menus, suppress detached
+callbacks/late failures, and report action failures through the feature's existing
+feedback.
+
+Reader menu pop-outs use `menu-shell.js` (private inline/pop-out/disposed lifetime)
+and `menu-shell-view.js` (same-node movement, application stacked-modal shell,
+Back/Close/Escape, Tab boundaries and focus return). Preserve pending command state
+when moving surfaces. Expire old modal callbacks, retain replacement dialogs, and
+dispose the shell before replacing/resetting its menu. External removal returns
+owned nodes without restoring stale focus. LocalRSS Options now supplies its
+existing header trigger and captured target guard to the same shell. It moves the
+whole overlay, retaining draft fields/statistics/pending locks; Close or database
+switch disposes that presentation. Keep legacy database/feed/import workflows
+separate. `.menu-shell-surface` makes moved overlays flow inside the modal; skip
+non-rendered controls when setting/trapping focus.
+
+P2P chat initialization/connections use `dynamicp2p_session.js` (captured source,
+Peer/connection ownership and cleanup), `dynamicp2p_session_view.js` (control
+bindings/lifecycle feedback), and `dynamicp2p_session_bridge.js` (legacy globals
+and effects). `CList.state.chatSession` contains phase/count only. Hiding Chat
+keeps its peer alive; replaced controls/session sources expire callbacks. Preserve
+same-ID connection guards, one open handshake, stale identity/signature checks and
+owned heartbeat timer guards. Sharing/collaboration cards and remaining
+message/crypto/storage internals still have legacy paths. Source expiry is checked
+on activity/reopen, not by a new idle authentication observer.
+
+Discussion listing/Join use `dynamicp2p_discussions_requests.js` (captured GET and
+validation), `dynamicp2p_discussions.js` (private request/list/Join ownership and
+compatibility bridge) and `dynamicp2p_discussions_view.js` (literal rows/feedback).
+Keep directory rows/tokens out of `CList.state.chatDiscussions`; it holds phase/
+counts only. Supersede old reads, expire replaced/source/service/list controls,
+and reuse captured Peer-session dispatch. A requested/existing connection locks
+duplicate rows until refresh; never describe dispatch as confirmed connectivity.
+Remaining message and collaboration-editor internals migrate separately.
+
+Create/Leave use `dynamicp2p_discussion_workflow.js` (explicit write receipts),
+`dynamicp2p_discussion_actions.js` (private locks/review/recovery),
+`dynamicp2p_discussion_view.js` (controls/feedback/layout) and
+`dynamicp2p_discussion_bridge.js` (legacy effects). Keep payloads, credentials and
+channels outside `CList.state.chatDiscussionAction`. Accepted writes recover local
+updates without repeating POST/DELETE. Uncertain writes require read-only review
+before explicit original-target retry; directory data cannot prove the write or
+visibility. Leave pauses its owned heartbeat before dispatch, retaining local
+connections until acceptance. Preserve new discussions/channels/drafts and locks
+across rebuilt panels. Recovery is transient, without server CAS/idempotency.
+
+Chat popup communication uses `dynamicp2p_popup.js` (main ownership/bridge),
+`dynamicp2p_popup_client.js` (popup commands/acknowledgements) and
+`dynamicp2p_popup_view.js` (DOM and existing renderers). Each main presentation has
+an opaque private channel; each popup load has its own client identity. Expire old
+requests/close events across reload, source changes and replacement windows.
+`chatBc` is a guarded legacy forwarder, never a raw shared channel. Session teardown
+notifies/disconnects its owned popup. Acknowledgements mean action dispatch, not
+peer delivery or collaboration-document completion. Retain drafts on failures
+and clear acknowledged text only if unchanged. No channel/IDs/content enter
+`CList.state.chatPopup`. Real channel/window policy and legacy popup card rendering remain
+separate validation/migration work.
+
+Main share/invite cards now use `dynamicp2p_cards.js` (private snapshots/action
+ownership/legacy bridge) and `dynamicp2p_cards_view.js` (literal DOM/callbacks).
+`CList.state.chatCards` exposes counts only. Capture full import/invite extensions,
+guard session/root/row lifetimes and duplicate pending actions, and push references
+only for the original editor generation after loading. HTTP(S)-only card links
+and normalized popup link data prevent unsafe navigation schemes; escape invite
+relay text. Existing importer/editor/collaboration internals are not cancelled by
+these guards.
+
+Outgoing Share uses `dynamicp2p_share_workflow.js` (detached preparation/one-pass
+broadcast), `dynamicp2p_share.js` (pending operation/receipt/session ownership and
+compatibility bridge) and `dynamicp2p_share_view.js` (source capture/feedback).
+Capture content before peer readiness; retain one pending selection and expire
+old row/session/discussion continuations. Automatic discussion creation reuses
+the Create controller with captured values, without overwriting the form; only
+confirmed local completion permits broadcast. Unknown/blocked creation requires
+explicit recovery and another Share. Preserve collection/invite extensions and
+the synchronous `sendCollabInvite` boolean; reserve protocol identity fields.
+Transport counts mean local send acceptance, not peer delivery. Never repeat a
+partial/uncertain broadcast or resend to recover a preview failure.
+
+Ordinary chat text uses `dynamicp2p_message_workflow.js` (detached packet/ID
+preparation), `dynamicp2p_messages.js` (dedup/sign/verify/relay ownership and legacy
+wrappers), and `dynamicp2p_message_view.js` (literal sender labels, decorated/
+sanitized body, transcript and sanitizer compatibility helpers). Keep message
+content/IDs/signatures outside `CList.state.chatMessages`; it holds a busy count.
+Reserve duplicate IDs before awaiting verification and capture sender/recipients
+before signing or verification. Skip closed/replaced connections and stale source/
+DOM completions. Signature indicators retain the existing permissive render/relay
+policy; local send acceptance is not delivery. Identity key/signature operations use the boundary described below.
+
+Peer lists, username/DID claims, username requests, service announcements and
+handshakes use `dynamicp2p_control_workflow.js`, `dynamicp2p_control.js` and
+`dynamicp2p_control_view.js`. Validate/detach packets before cache mutation; replace
+absent identity claims and expire superseded Follow controls. Reuse `_followUser`
+with its fourth guard argument and captured token/DID/anchor. Escape join relay
+text, restrict annotation URLs to HTTP(S), and expose only safe counts through
+`CList.state.chatControl`. Announcements are peer claims, not verified identity.
+Keep per-peer registries free of inherited keys. Preserve own public-field
+projection, one-pass sends and original-channel guards; never retry uncertain sends.
+
+Chat identity uses `dynamicp2p_identity_workflow.js` (explicit read/codec operations),
+`dynamicp2p_identity.js` (captured ownership/private key lifetime and legacy wrappers)
+and `dynamicp2p_identity_view.js` (feedback). Reuse the shared identity crypto helpers;
+preserve the URL-safe chat wire format and true/false/null verification policy.
+Keep keys/ciphertext/signatures out of `CList.state.chatIdentity`, which contains
+availability/phase/counts only. Capture hosted/Local targets, check ownership after
+awaits and reread ciphertext before accepting keys. Reject stale signing and
+replaced-peer-key verification; never turn a stale signature into an unsigned send.
+Missing/unavailable keys retain the existing unsigned fallback with owned failure
+feedback. Separate announcement failures from successful identity loading.
+
+Discussion activity uses `dynamicp2p_heartbeat_workflow.js` (captured POST),
+`dynamicp2p_heartbeat.js` (timer/ownership/overlap controller and compatibility
+bridge) and `dynamicp2p_heartbeat_view.js` (feedback). Preserve the one-minute
+schedule and `startHeartbeat`/`stopHeartbeat` callers. Skip overlapping requests;
+invalidate old timers/results on discussion, peer, service or source changes.
+401 stops the timer; other failures remain visible and the next scheduled tick
+may try again. No immediate retry or publication/delivery confirmation is implied.
+`CList.state.chatHeartbeat` contains phase/busy only, never target credentials.
+
+Start document from chat uses `dynamicp2p_collaboration_workflow.js` (last-15
+transcript preparation), `dynamicp2p_collaboration.js` (captured dispatch/busy
+ownership) and `dynamicp2p_collaboration_view.js` (DOM snapshot/feedback). Reuse
+`openCollabFromChat` without duplicating editor creation. Capture the API and
+discussion before deferred dispatch, coalesce pending clicks and reject stale
+source/discussion/transcript callbacks. These guards do not cancel the existing
+collaboration API's internal mounting, writes or invitation dispatch.
+
+Stateless Etherpad chat decoration uses `prepareP2pEtherpadLink` in the existing
+message workflow and `renderP2pEtherpadLink` in its view. Keep legacy wrappers and
+the first quoted/bracketed HTTPS URL heuristic. Render sender labels as text,
+decode serialized link entities once, and retain the shared message sanitizer.
+Serialized links use safe ordinary navigation; DOM listeners do not survive HTML
+serialization. Do not add a separate controller/state for this synchronous step.
+
+Summarize uses `summarize-workflow.js` (explicit account/request/prompt),
+`summarize-controller.js` (captured reader/account/input and operation ownership),
+and `summarize-view.js` (DOM capture/output/Load feedback). Keep legacy APIs in
+`summarize.js` and reuse `requireAccountWithPermission('z', ...)`. Preserve model,
+prompts and token limits. Exclude nested summary output from source snapshots;
+coalesce duplicates and reject stale responses/Load controls. Request failures
+propagate to the view. No account credentials or content in `state.summarizing`.
+
+Translate uses `translate-workflow.js` (explicit detect/translate requests),
+`translate-controller.js` (preference, captured key/source, concurrent operations
+and deadline/form ownership) and `translate-view.js` (labels/form/feedback).
+`translate.js` retains compatibility APIs and the `translationEnabled` alias.
+Reuse the preference key constant and shared timeout helper. Preserve independent
+row requests, English/undefined-language and original-text fallbacks, and timed
+wrapper rejection on timeout. Source/key/toggle/deadline expiry prevents follow-up
+translation and stale form output; started HTTP is not cancelled. Public state
+holds enabled/pending only. Request adapters propagate errors, views own feedback.
+
+ChatGPT template transport/continuations use `chatgpt_requests.js`; captured
+account loading, session/credential checks and request counts use
+`chatgpt_template_requests.js`. Keep schema/loader/compatibility APIs in
+`chatgpt.js`. Account-loading failures must stop generation, and continuation
+chunks must retain one captured URL/key and exact assistant history. Reject
+malformed/nonprogressing responses without automatic retry. Errors propagate to
+callers; no UI in request helpers. Public request state holds pending only.
+
+The generation form uses `chatgpt_template_form.js` (private choices, pending
+intent, loader result and captured ownership) and `chatgpt_template_view.js`
+(controls/local progress/errors/observer cleanup). Keep schema, fence extraction
+and compatibility loader in `chatgpt.js`. Pass the optional caller guard through
+generation requests so Back/changed choices prevent subsequent chunks. Back and
+replaced/expired panels settle null; explicit retry preserves draft choices.
+Progress is form-owned, not a shared-loader mutation. Public form state contains
+phase/busy only. Existing editor controls still own returned-content routing.
+
+Collab document browsing uses `collab_documents_requests.js` (captured account/
+server/session GET and normalization), `collab_documents.js` (request/row lifetime
+and opening lock) and `collab_documents_view.js` (literal list/feedback/retry).
+The registered loader in `collab.js` supplies its existing title/opening hooks.
+Keep lazy/default account resolution, fail closed on unreadable accounts, pass
+the listed server into opening and reject stale saved rows. Opening errors may
+use session-owned status feedback after editor mounting removes the list. The
+legacy editor/dependency/WebSocket lifecycle itself is not cancelled by these
+guards. Public list state contains phase/count/opening only.
+
+Local/remote Collab initialization now shares `collab_connection_preparation.js`.
+Capture credentials, server lookup ownership and editor/status nodes before any
+await; recheck the returned commit guard before replacing live resources.
+Local/remote starts supersede each other. Use captured element, token, store URL
+and identity in the existing constructors, and expose phase/pending only through
+`state.collabPreparation`. Started lookup/import work is not aborted.
+
+`collab_connection.js` owns local/remote resource sets and callbacks;
+`collab_connection_view.js` owns captured status/presence/feedback. Invalidate
+the owned set before removing its timer/observers and destroying editor/provider/
+Y.Doc, and continue cleanup after individual failures. Local startup releases the
+old remote provider and clears document identity/presence. Background connections
+survive hiding; reference callbacks use their captured map and merge only while
+Collab is visible. Rebuilt chrome is rebound explicitly on editor activation,
+never by an arbitrary saved callback. Session/target expiry cleans resources on
+activity; there is no new idle authentication observer. State contains phase/
+remote only. Vendor networking/reconnection behavior and remaining editor/sharing
+controls are not established by mocked lifecycle tests.
+
+Collab formatting uses `collab_format.js` (captured editor commands/active state
+and listener ownership) and `collab_format_view.js` (buttons/pressed/disabled
+presentation). Retain the eight existing chains, bind commands to their editor,
+disable read-only controls and guard saved clicks/events. Detach both listeners
+on disposal/rebuild; resource replacement disposes the toolbar before destroying
+the editor. Rebuild on intentional resume. State contains enabled/count only;
+editor handles, command callbacks and selection details remain private.
+
+Collab duplicate-title checks use `collab_title_requests.js` (captured identity/
+server/auth read), `collab_title.js` (debounce/candidate/action ownership) and
+`collab_title_view.js` (mirroring/warnings/retry/listeners). Keep 404 distinct from
+read failures. Load-existing and Enter decisions use the private candidate, not
+DOM buttons. Capture server/ID for opening and pass a caller guard through
+`connectToDoc` into preparation so newer titles prevent late resource commits.
+Dispose old title listeners/timers when rebuilding editor chrome. State exposes
+phase/busy only. Existing new-document and pasted-link opening internals remain
+delegated paths; these title checks do not establish same-editor draft recovery.
+
+Collab Share uses `collab_share_requests.js` (captured metadata/access transport),
+`collab_share.js` (settings receipt/lock and captured action controllers) and
+`collab_share_view.js` (modal DOM/feedback). Capture document/server/credentials;
+only changed confirmed values may PATCH. Pending locks and uncertain receipts
+survive panel rebuilds privately; require a fresh read before retrying uncertain
+writes. Never infer rejected writes from lost responses or default failed reads
+to writable private access. Copy uses the shared helper's optional ownership
+guard; Chat projects public invite fields and checks the captured discussion.
+Post hands captured content/context to the existing composer, whose internal
+mount/publish lifecycle remains a separate boundary. State holds phase/busy/
+receipt only. Real authorization and cross-client ordering are not proven by mocks.
+Direct compatibility share helpers also validate connection ownership before
+capturing a target, so a new session cannot reuse an old document with new credentials.

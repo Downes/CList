@@ -16,7 +16,11 @@ window.summaryLimit=300;window.createUniqueIdFromUrl=()=> 'reader-row-'+ ++seria
 const actions=[],contexts=[];window.collectItem=id=>actions.push(['collect',id]);window.shareToChat=id=>actions.push(['share',id]);window.clistAnnotate=id=>actions.push(['annotate',id]);
 </script>
 <script src="../js/ui.js?v=2026-11-20.1"></script>
-<script src="../js/reader-state.js"></script><script src="../js/reader-view.js"></script><script src="../js/reader.js?v=2026-11-20.1"></script>
+<script src="../js/reader-state.js"></script><script src="../js/action-menu-view.js?v=2026-11-20.23"></script>
+<script src="../js/action-menu.js?v=2026-11-20.23"></script>
+<script src="../js/menu-shell-view.js?v=2026-11-21.2"></script>
+<script src="../js/menu-shell.js?v=2026-11-21.1"></script>
+<script src="../js/reader-view.js?v=2026-11-21.1"></script><script src="../js/reader.js?v=2026-11-20.1"></script>
 <script>
 (async()=>{let checks=0;const check=(value,label)=>{if(!value)throw Error(label);checks++;};
 try{

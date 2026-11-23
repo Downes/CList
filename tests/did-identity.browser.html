@@ -1,0 +1,196 @@
+<!doctype html>
+<meta charset="utf-8"><title>CList identity display regression</title>
+<h1>DID identity display and account listing</h1>
+<p>Real existing DID panel and extracted read workflow/controller/view. HTTP, session, storage and key derivation mocked. No external requests or writes; proof uses mocked cryptography and existing-key publication uses mocked HTTP; first-time generation uses mocked key/storage operations; regeneration and password verification are mocked; removal is mocked; Update DID is mocked; migration is not exercised.</p>
+<pre id="result">Checking identity display…</pre><div id="left-content"></div>
+<div hidden><div id="identityDiv"></div><button id="loginButton"></button><button id="logoutButton"></button><button id="accountButton"></button></div>
+<script>
+let token='fixture-token',behavior={},records=[],requests=[],writeAttempts=0,publicationRequests=[],generationAdds=[],generatedKeys=[],rotationUpdates=[],rotationConfirmations=[],removalKeyRequests=[],removalDocumentRequests=[],accountFlagWrites=[];
+window.CList={config:{flaskSiteUrl:'https://store.invalid'},keys:{ACCESS_TOKEN:'access_token',USERNAME:'username',DID_IDENTITY_KEY:'_did_identity_key',PAGES_CATALOG:'clist:pages-catalog'},state:{username:'alice'},schemas:{},ui:{},accounts:[],isLocalMode:()=>!!behavior.local,storage:{get mode(){return behavior.local?'local':'remote';},kv:{}}};
+window.getSiteSpecificCookie=(url,key)=>key==='username'?'alice':token;
+window.openLeftInterface=panel=>document.getElementById('left-content').replaceChildren(panel);
+// Application startup restoration is outside the DID panel fixture.
+window.sessionLifecycle=()=>({restore:async()=>{}});
+Object.defineProperty(window,'sessionStorage',{value:{getItem:()=>null},configurable:true});
+window.showModal=root=>{document.getElementById('generic-modal')?.remove();const modal=document.createElement('div');modal.id='generic-modal';modal.appendChild(root);document.body.appendChild(modal);};
+CList.storage.kv.list=async()=>behavior.list?behavior.list():records;
+CList.storage.kv.get=async key=>{if(key!=='_did_identity_key')throw Error('Unexpected key');return behavior.storedKey||null;};
+for(const method of ['put','update','add','remove'])CList.storage.kv[method]=()=>{writeAttempts++;throw Error('Unexpected storage write');};
+window.fetch=async(url,options={})=>{if(options.method&&options.method!=='GET'){
+ if(behavior.publish&&options.method==='PUT'&&String(url)===CList.config.flaskSiteUrl+'/auth/did'){
+  publicationRequests.push({url:String(url),options});const body=JSON.parse(options.body);behavior.published={id:behavior.published?.id||'did:web:published',service:body.service,alsoKnownAs:[body.didKey,...body.alsoKnownAs],verificationMethod:[{publicKeyJwk:body.publicKeyJwk}]};
+  if(behavior.publish==='lost')throw Error('Mock response lost');return{ok:true,json:async()=>({didKey:body.didKey})};
+ }
+ if(behavior.removal&&options.method==='DELETE'&&String(url)===CList.config.flaskSiteUrl+'/auth/did'){
+  removalDocumentRequests.push({url:String(url),options});if(behavior.documentReject)return{ok:false,status:503};behavior.published=null;behavior.http=async()=>({ok:false,status:404});if(behavior.documentLost)throw Error('Mock delete response lost');return{ok:true,status:204};
+ }
+ writeAttempts++;throw Error('Unexpected HTTP write');
+ }requests.push({url:String(url),options});
+ if(behavior.published&&String(url)===CList.config.flaskSiteUrl+'/users/'+encodeURIComponent(CList.state.username)+'/did.json')return{ok:true,json:async()=>structuredClone(behavior.published)};return behavior.http?behavior.http(url,options):{ok:true,json:async()=>({id:'did:web:store.invalid:users:alice',alsoKnownAs:['did:key:public']})};};
+</script>
+<script src="../js/kvstore.js?v=2026-11-20.19"></script>
+<script src="../js/did-identity-workflow.js?v=2026-11-20.13"></script><script src="../js/did-identity-view.js?v=2026-11-20.13"></script><script src="../js/did-identity.js?v=2026-11-20.13"></script>
+<script src="../js/did-proof-workflow.js?v=2026-11-20.11"></script><script src="../js/did-proof-view.js?v=2026-11-20.7"></script><script src="../js/did-proof.js?v=2026-11-20.11"></script>
+<script src="../js/did-publication-workflow.js?v=2026-11-20.11"></script><script src="../js/did-publication-view.js?v=2026-11-20.8"></script><script src="../js/did-publication.js?v=2026-11-20.12"></script>
+<script src="../js/did-generation-workflow.js?v=2026-11-20.10"></script><script src="../js/did-generation-view.js?v=2026-11-20.10"></script><script src="../js/did-generation.js?v=2026-11-20.12"></script>
+<script src="../js/password-confirmation-workflow.js?v=2026-11-20.9"></script><script src="../js/password-confirmation-view.js?v=2026-11-20.9"></script><script src="../js/password-confirmation.js?v=2026-11-20.11"></script>
+<script src="../js/did-rotation-workflow.js?v=2026-11-20.11"></script><script src="../js/did-rotation-view.js?v=2026-11-20.11"></script><script src="../js/did-rotation.js?v=2026-11-20.12"></script>
+<script src="../js/did-removal-workflow.js?v=2026-11-20.12"></script><script src="../js/did-removal-view.js?v=2026-11-20.12"></script><script src="../js/did-removal.js?v=2026-11-20.12"></script>
+<script src="../js/did-update-workflow.js?v=2026-11-20.13"></script><script src="../js/did-update-view.js?v=2026-11-20.13"></script><script src="../js/did-update.js?v=2026-11-20.13"></script>
+<script src="../js/migration-preparation-workflow.js?v=2026-11-20.15"></script>
+<script src="../js/migration-preparation-view.js?v=2026-11-20.15"></script>
+<script src="../js/migration-preparation.js?v=2026-11-20.15"></script>
+<script src="../js/migration-identity-workflow.js?v=2026-11-20.15"></script>
+<script src="../js/migration-execution-workflow.js?v=2026-11-20.15"></script>
+<script src="../js/migration-execution-view.js?v=2026-11-20.15"></script>
+<script src="../js/migration-execution.js?v=2026-11-20.15"></script>
+<script>
+// Isolate unrelated page bootstrap and cryptography; keep the actual DID panel builder.
+window.hasValidSession=()=>false;window.getAccounts=async()=>[];window.displayUsername=()=>{};window.updateUIVisibility=()=>{};
+window.getEncKey=async()=>behavior.key?behavior.key():'fixture-key';window.decryptWithKey=async(key,value)=>{if(value==='bad')throw Error('Unreadable');return value;};
+window.derivePublicKeyJwkAndDidKey=async()=>({didKey:'did:key:<literal>',privateKey:'never-display'});
+(async()=>{let checks=0;const check=(ok,label)=>{if(!ok)throw Error(label);checks++;};const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
+ const until=async fn=>{for(let i=0;i<40&&!fn();i++)await tick();if(!fn())throw Error('Async fixture did not settle');};
+ const host=document.getElementById('left-content'),open=()=>{const panel=kvstoreDidPanel();host.replaceChildren(panel);return panel;};
+ const settled=()=>until(()=>CList.state.identityDisplay.identity.phase!=='loading'&&CList.state.identityDisplay.identity.phase!=='idle'&&(behavior.local||CList.state.identityDisplay.accounts.phase==='ready'||CList.state.identityDisplay.accounts.phase==='failed'));
+ try{
+ records=[{key:'account:<literal>',value:JSON.stringify({type:'Mastodon',title:'<img src=x>',id:'private-api-key',public:true})},{key:'broken',value:'bad'},{key:'_private',value:'ignored'}];
+ behavior.http=async()=>({ok:true,json:async()=>({id:'<script>identity<\/script>'})});let panel=open();await settled();
+ check(panel.querySelector('#did-status').textContent.includes('<script>identity<\/script>')&&!panel.querySelector('script'),'Identity metadata uses safe text with missing aliases');
+ check(panel.querySelector('#did-btn').textContent==='Regenerate Key'&&panel.querySelector('#public-accounts-section').style.display==='','Existing active-state controls retained');
+ const checkbox=panel.querySelector('#account-list input[type="checkbox"]');check(checkbox.checked&&checkbox.dataset.key==='account:<literal>','Public selection retains legacy stored-key contract');
+ check(panel.querySelector('#account-list').textContent.includes('<img src=x>')&&!panel.querySelector('#account-list img'),'Account title rendered as text');
+ check(panel.querySelector('#account-list .error-message').textContent.includes('unreadable'),'Partial account decryption warning visible');
+ check(!panel.textContent.includes('private-api-key')&&!JSON.stringify(CList.state.identityDisplay).includes('fixture-token'),'Private credentials excluded from view/state');
+ checkbox.click();check(!checkbox.checked,'Public checkbox remains editable for legacy Update DID');
+ behavior={http:async()=>({ok:false,status:404}),storedKey:{value:'encrypted'}};panel=open();await settled();
+ check(panel.querySelector('#did-btn').textContent==='Publish Existing Key'&&panel.querySelector('#did-status').textContent.includes('not published'),'404 plus stored key retains Publish Existing mode');
+ behavior={http:async()=>({ok:false,status:503})};panel=open();await settled();check(panel.querySelector('#did-status').textContent.includes('503')&&panel.querySelector('#did-status button'),'HTTP failure visible with explicit retry');
+ const retry=panel.querySelector('#did-status button');behavior.http=async()=>({ok:true,json:async()=>({id:'Recovered',alsoKnownAs:[]})});await retry.onclick();
+ check(panel.querySelector('#did-status').textContent.includes('Recovered')&&panel.querySelector('#did-status').className==='me-status','Explicit retry recovers presentation');
+ const count=requests.length;await retry.onclick();check(requests.length===count,'Expired retry cannot start newer reads');
+ behavior={local:true,storedKey:{value:'encrypted'}};const beforeLocal=requests.length;panel=open();await settled();
+ check(panel.querySelector('#did-status').textContent.includes('did:key:<literal>')&&!panel.querySelector('#did-status literal')&&!panel.textContent.includes('never-display'),'Local display derives public data safely');
+ check(requests.length===beforeLocal&&panel.querySelector('#public-accounts-section').style.display==='none','Local identity avoids hosted reads and public-account section');
+ behavior={local:true};panel=open();await settled();check(panel.querySelector('#did-btn').textContent==='Generate Identity Key','Missing local key retains Generate mode');
+ behavior={};let release;behavior.http=()=>new Promise(resolve=>release=resolve);const stale=open();await until(()=>release);const oldSignal=requests.at(-1).options.signal;
+ behavior.http=async()=>({ok:true,json:async()=>({id:'Current identity'})});panel=open();await settled();release({ok:true,json:async()=>({id:'Old identity'})});await tick();
+ check(oldSignal.aborted&&panel.querySelector('#did-status').textContent.includes('Current identity')&&!stale.querySelector('#did-status').textContent.includes('Old identity'),'Replaced panel rejects old identity response');
+ let releaseKey;behavior.key=()=>new Promise(resolve=>releaseKey=resolve);const oldAccounts=open();await until(()=>releaseKey);token='changed-session';releaseKey('fixture-key');await tick();
+ check(!oldAccounts.querySelector('#account-list input'),'Session-stale account read rejected');
+ behavior={};token=null;panel=open();await settled();check(panel.querySelector('#did-status').textContent.includes('Not logged in'),'Logged-out read feedback visible');
+ check(writeAttempts===0,'No identity, account or migration writes attempted');
+ token='fixture-token';behavior={storedKey:{value:'encrypted'},http:async()=>({ok:true,json:async()=>({id:'did:web:self',verificationMethod:[{publicKeyJwk:{kty:'EC'}}],alsoKnownAs:['did:key:<img src=x>']})})};
+ const proofs=[];window.decryptIdentityPrivateKey=async()=> 'private-key';window.signWithIdentityKey=async(key,challenge)=>{proofs.push({key,challenge});return 'signature';};window.verifyIdentitySignature=async()=>behavior.match!==false;
+ panel=open();await settled();const proofButton=panel.querySelector('#prove-identity-btn'),proofResult=panel.querySelector('#prove-identity-result');
+ const proofInputs=(url,name)=>{panel.querySelector('#prove-other-url').value=url;panel.querySelector('#prove-other-username').value=name;panel.querySelector('#prove-other-username').dispatchEvent(new Event('input'));};
+ proofInputs('https://other.invalid','Other');const proving=proofButton.onclick();await proofButton.onclick();await proving;
+ check(proofs.length===1&&proofResult.textContent.includes('Proven.')&&!proofButton.disabled,'Captured proof and duplicate-click guard');
+ check(proofResult.textContent.includes('did:key:<img src=x>')&&!proofResult.querySelector('img'),'Proof key metadata rendered safely');
+ check(!JSON.stringify(CList.state.identityProof).includes('private-key')&&!JSON.stringify(CList.state.identityProof).includes('fixture-token'),'Proof summary excludes credentials/key material');
+ behavior.match=false;await proofButton.onclick();check(proofResult.textContent.includes('Not the same key.')&&CList.state.identityProof.phase==='complete','Key mismatch is a completed proof outcome');
+ proofInputs('javascript:bad','Other');const beforeInvalid=requests.length;await proofButton.onclick();check(requests.length===beforeInvalid&&proofResult.className==='error-message','Invalid proof target rejected before transport');
+ let releaseProof;behavior.match=true;behavior.http=()=>new Promise(resolve=>releaseProof=resolve);proofInputs('https://other.invalid','Old');const oldProof=proofButton.onclick();await until(()=>releaseProof);
+ proofInputs('https://other.invalid','New');check(!proofButton.disabled,'Editing proof inputs releases the current control');
+ behavior.http=async()=>({ok:true,json:async()=>({verificationMethod:[{publicKeyJwk:{}}]})});await proofButton.onclick();releaseProof({ok:true,json:async()=>({verificationMethod:[{publicKeyJwk:{}}]})});await oldProof;
+ check(proofResult.textContent.includes('new@other.invalid')&&!proofResult.textContent.includes('old@other.invalid'),'Edited target rejects late old proof');
+ let releaseProofKey;behavior.key=()=>new Promise(resolve=>releaseProofKey=resolve);const beforeSign=proofs.length;proofInputs('https://other.invalid','Other');const staleProof=proofButton.onclick();await until(()=>releaseProofKey);token='proof-session-changed';releaseProofKey('fixture-key');await staleProof;
+ check(proofs.length===beforeSign,'Changed session cannot sign after delayed key preparation');
+ check(writeAttempts===0,'Proof performs no storage or HTTP writes');
+ token='fixture-token';window.derivePublicKeyJwkAndDidKey=async()=>({didKey:'did:key:PUBLIC',publicKeyJwk:{kty:'OKP',crv:'Ed25519',x:'PUBLIC'},privateKey:'never-display'});
+ window.refreshCollabRegistrations=async()=>['mock-collaboration-failure'];
+ behavior={storedKey:{value:'encrypted'},publish:'ok',http:async()=>({ok:false,status:404})};panel=open();await settled();
+ const publishButton=panel.querySelector('#did-btn'),publishAction=publishButton.onclick;check(publishButton.textContent==='Publish Existing Key','Existing imported key publication control retained');
+ const publishing=publishAction();await publishAction();await publishing;
+ check(publicationRequests.length===1&&CList.state.identityPublication.phase==='confirmed','One accepted publication and duplicate guard');
+ const publication=publicationRequests[0],body=JSON.parse(publication.options.body);
+ check(publication.options.headers.Authorization==='Bearer fixture-token'&&body.publicKeyJwk.x==='PUBLIC'&&!publication.options.body.includes('never-display'),'Only captured public material sent');
+ check(panel.querySelector('#did-status').textContent.includes('DID published.')&&panel.querySelector('#did-status').textContent.includes('collaboration registrations'),'Refresh failure remains separate from publication success');
+ await publishAction();check(publicationRequests.length===1,'Confirmed receipt prevents repeat publication');
+ window.refreshCollabRegistrations=async()=>[];behavior={storedKey:{value:'encrypted'},publish:'lost',http:async()=>({ok:false,status:404})};panel=open();await settled();
+ const uncertainButton=panel.querySelector('#did-btn');await uncertainButton.onclick();check(uncertainButton.textContent==='Check publication'&&CList.state.identityPublication.phase==='uncertain','Lost response offers read-only publication check');
+ const beforeCheck=publicationRequests.length;await uncertainButton.onclick();check(publicationRequests.length===beforeCheck&&panel.querySelector('#did-status').textContent.includes('already published'),'Accepted uncertain publication reconciles without replay');
+ behavior={storedKey:{value:'encrypted'},publish:'ok',http:async()=>({ok:false,status:404})};panel=open();await settled();
+ const conflictingAction=panel.querySelector('#did-btn').onclick;behavior.published={alsoKnownAs:['did:key:PUBLIC'],verificationMethod:[{publicKeyJwk:{kty:'OKP',crv:'Ed25519',x:'DIFFERENT'}}]};const beforeConflict=publicationRequests.length;await conflictingAction();
+ check(publicationRequests.length===beforeConflict&&panel.querySelector('#did-status').textContent.includes('different identity'),'Different published key cannot be overwritten by stale imported-key control');
+ behavior={storedKey:{value:'encrypted'},publish:'ok',http:async()=>({ok:false,status:404})};panel=open();await settled();let releasePublicationKey;behavior.key=()=>new Promise(resolve=>releasePublicationKey=resolve);
+ const beforeStalePublication=publicationRequests.length,stalePublication=panel.querySelector('#did-btn').onclick();await until(()=>releasePublicationKey);token='changed-publication-session';releasePublicationKey('fixture-key');await stalePublication;
+ check(publicationRequests.length===beforeStalePublication,'Session change during key preparation prevents PUT');
+ check(writeAttempts===0,'Only explicitly mocked existing-key publication requests were permitted');
+ token='fixture-token';window.generateIdentityKeyPair=async()=>{generatedKeys.push(true);return{keyPair:{privateKey:'mock-generated-private'},didKey:'did:key:PUBLIC'};};
+ window.encryptIdentityPrivateKey=async()=> 'generated-ciphertext';
+ CList.storage.kv.add=async(key,value)=>{if(!behavior.generation){writeAttempts++;throw Error('Unexpected key creation');}if(behavior.storedKey){const error=new Error('Already exists');error.code='AlreadyExists';throw error;}generationAdds.push({key,value});behavior.storedKey={value};if(behavior.addLost)throw Error('Mock storage response lost');};
+ behavior={generation:true,publish:'ok',http:async()=>({ok:false,status:404})};panel=open();await settled();
+ const generateButton=panel.querySelector('#did-btn'),generateAction=generateButton.onclick,beforeGenerated=generatedKeys.length,beforeNewPublication=publicationRequests.length;
+ check(generateButton.textContent==='Generate Identity Key','Missing key selects first-time generation');const generating=generateAction();await generateAction();await generating;
+ check(generatedKeys.length===beforeGenerated+1&&generationAdds.at(-1).key==='_did_identity_key'&&generationAdds.at(-1).value==='generated-ciphertext','One generated key stored through add-only encrypted operation');
+ check(publicationRequests.length===beforeNewPublication+1&&CList.state.identityGeneration.phase==='stored'&&CList.state.identityPublication.phase==='confirmed','Stored generation reuses existing publication controller');
+ const afterGenerated=generatedKeys.length;await generateAction();check(generatedKeys.length===afterGenerated,'Retained Generate callback cannot regenerate');
+ behavior={generation:true,publish:'lost',http:async()=>({ok:false,status:404})};panel=open();await settled();await panel.querySelector('#did-btn').onclick();
+ check(CList.state.identityGeneration.phase==='stored'&&panel.querySelector('#did-btn').textContent==='Check publication','Publication uncertainty retains stored key');const afterStoredGeneration=generatedKeys.length;await panel.querySelector('#did-btn').onclick();check(generatedKeys.length===afterStoredGeneration,'Publication recovery never generates a replacement key');
+ behavior={generation:true,local:true};panel=open();await settled();const beforeLocalGeneration=requests.length;await panel.querySelector('#did-btn').onclick();
+ check(panel.querySelector('#did-status').textContent.includes('Identity key generated.')&&panel.querySelector('#did-status').textContent.includes('Stored locally only')&&requests.length===beforeLocalGeneration,'Local generation performs no hosted reads or publication');
+ behavior={generation:true,local:true,addLost:true};panel=open();await settled();await panel.querySelector('#did-btn').onclick();check(panel.querySelector('#did-btn').textContent==='Check stored identity','Unknown key-store outcome offers read-only recovery');
+ const beforeStorageCheck=generatedKeys.length,addsBeforeCheck=generationAdds.length;await panel.querySelector('#did-btn').onclick();check(generatedKeys.length===beforeStorageCheck&&generationAdds.length===addsBeforeCheck&&CList.state.identityGeneration.phase==='stored','Storage recovery preserves accepted key without replay');
+ behavior={generation:true,local:true};panel=open();await settled();let releaseGenerationKey;behavior.key=()=>new Promise(resolve=>releaseGenerationKey=resolve);const beforeStaleGeneration=generatedKeys.length,staleGeneration=panel.querySelector('#did-btn').onclick();await until(()=>releaseGenerationKey);token='generation-session-changed';releaseGenerationKey('fixture-key');await staleGeneration;check(generatedKeys.length===beforeStaleGeneration,'Session change during preparation prevents generation and storage');
+ check(!JSON.stringify(CList.state.identityGeneration).includes('mock-generated-private')&&writeAttempts===0,'Generation summary excludes private material and only mocked writes ran');
+ token='fixture-token';const confirmation=window.confirmWithPassword;
+ window.confirmWithPassword=(message,action,options={})=>{const handle=confirmation(message,action,{...options,verify:async()=>true});rotationConfirmations.push({...handle,approve:()=>{document.getElementById('confirm-pw-input').value='synthetic-password';return document.getElementById('confirm-pw-ok').onclick();}});return handle;};
+ window.generateIdentityKeyPair=async()=>{generatedKeys.push(true);return{keyPair:{privateKey:'mock-rotation-private'},publicKeyJwk:{kty:'OKP',crv:'Ed25519',x:'ROTATED'},didKey:'did:key:ROTATED'};};
+ window.encryptIdentityPrivateKey=async()=>behavior.rotationEncrypt?behavior.rotationEncrypt():'rotated-ciphertext';
+ CList.storage.kv.update=async(key,value)=>{if(!behavior.rotation){writeAttempts++;throw Error('Unexpected key update');}rotationUpdates.push({key,value});behavior.storedKey={value};if(behavior.rotationStoreLost)throw Error('Mock storage response lost');};
+ const rotationDoc=()=>({verificationMethod:[{publicKeyJwk:{kty:'OKP',crv:'Ed25519',x:'PUBLIC'}}],service:[{type:'KVStore',id:'server'},{type:'Blog',id:'keep',extension:{value:1}}],alsoKnownAs:['did:key:PUBLIC','https://keep.invalid']});
+ behavior={rotation:true,storedKey:{value:'original-ciphertext'},published:rotationDoc(),publish:'ok'};panel=open();await settled();
+ const rotateAction=panel.querySelector('#did-btn').onclick,beforeRotationKeys=generatedKeys.length,beforeRotationWrites=rotationUpdates.length;await rotateAction();await rotateAction();
+ check(rotationConfirmations.length===1&&generatedKeys.length===beforeRotationKeys&&rotationUpdates.length===beforeRotationWrites,'Rotation awaits one real password dialog before any key change');
+ rotationConfirmations.at(-1).cancel();check(rotationUpdates.length===beforeRotationWrites&&CList.state.identityRotation.phase==='idle','Cancel leaves identity unchanged');
+ await rotateAction();behavior.published.service.push({type:'SocialWebAccount',id:'incoming'});behavior.published.alsoKnownAs.push('https://incoming.invalid');await rotationConfirmations.at(-1).approve();
+ const rotatedPayload=JSON.parse(publicationRequests.at(-1).options.body);check(rotationUpdates.length===beforeRotationWrites+1&&CList.state.identityRotation.phase==='complete','Confirmed rotation stores one replacement and publishes it');
+ check(rotatedPayload.service.length===2&&rotatedPayload.service[0].extension.value===1&&rotatedPayload.alsoKnownAs.includes('https://incoming.invalid')&&!rotatedPayload.alsoKnownAs.includes('did:key:PUBLIC'),'Latest service extensions and aliases preserved while old did:key is removed');
+ const afterRotationKeys=generatedKeys.length;await rotateAction();check(generatedKeys.length===afterRotationKeys,'Retained old Regenerate action cannot rotate again');
+ behavior={rotation:true,storedKey:{value:'original-ciphertext'},published:rotationDoc(),publish:'ok'};panel=open();await settled();await panel.querySelector('#did-btn').onclick();const beforeChangedKey=generatedKeys.length;behavior.storedKey={value:'another-key'};await rotationConfirmations.at(-1).approve();check(generatedKeys.length===beforeChangedKey&&panel.querySelector('#did-status').textContent.includes('confirmed identity key changed'),'Changed confirmation target blocks generation');
+ behavior={rotation:true,local:true,storedKey:{value:'original-ciphertext'}};panel=open();await settled();const beforeLocalRotation=requests.length;await panel.querySelector('#did-btn').onclick();await rotationConfirmations.at(-1).approve();check(panel.querySelector('#did-status').textContent.includes('regenerated')&&requests.length===beforeLocalRotation,'Local rotation makes no hosted request');
+ behavior={rotation:true,rotationStoreLost:true,storedKey:{value:'original-ciphertext'},published:rotationDoc(),publish:'ok'};panel=open();await settled();await panel.querySelector('#did-btn').onclick();await rotationConfirmations.at(-1).approve();check(panel.querySelector('#did-btn').textContent==='Check stored key','Uncertain replacement storage offers read-only check');
+ const beforeStoreRecoveryKeys=generatedKeys.length,beforeStoreRecoveryPuts=publicationRequests.length;await panel.querySelector('#did-btn').onclick();check(panel.querySelector('#did-btn').textContent==='Continue publication'&&publicationRequests.length===beforeStoreRecoveryPuts,'Storage check does not publish or regenerate');await panel.querySelector('#did-btn').onclick();check(generatedKeys.length===beforeStoreRecoveryKeys&&CList.state.identityRotation.phase==='complete','Publication continuation reuses accepted replacement key');
+ behavior={rotation:true,storedKey:{value:'original-ciphertext'},published:rotationDoc(),publish:'lost'};panel=open();await settled();await panel.querySelector('#did-btn').onclick();await rotationConfirmations.at(-1).approve();check(panel.querySelector('#did-btn').textContent==='Check publication','Uncertain rotated publication offers read-only recovery');
+ const beforeRotatedCheck=publicationRequests.length,beforeRotatedCheckKeys=generatedKeys.length;await panel.querySelector('#did-btn').onclick();check(publicationRequests.length===beforeRotatedCheck&&generatedKeys.length===beforeRotatedCheckKeys&&CList.state.identityRotation.phase==='complete','Rotated publication check cannot replay key update or PUT');
+ behavior={rotation:true,storedKey:{value:'original-ciphertext'},published:rotationDoc(),publish:'ok'};panel=open();await settled();await panel.querySelector('#did-btn').onclick();let releaseRotationEncryption;behavior.rotationEncrypt=()=>new Promise(resolve=>releaseRotationEncryption=resolve);const beforeStaleRotation=rotationUpdates.length,pendingRotation=rotationConfirmations.at(-1).approve();await until(()=>releaseRotationEncryption);token='changed-rotation-session';releaseRotationEncryption('rotated-ciphertext');await pendingRotation;check(rotationUpdates.length===beforeStaleRotation,'Session change during rotation crypto blocks writes');
+ check(!JSON.stringify(CList.state.identityRotation).includes('mock-rotation-private')&&writeAttempts===0,'Rotation summaries exclude private key material and all writes were mocked');
+ token='fixture-token';CList.storage.kv.remove=async key=>{if(!behavior.removal){writeAttempts++;throw Error('Unexpected key removal');}removalKeyRequests.push(key);if(behavior.keyReject)throw Error('Mock key removal rejected');behavior.storedKey=null;if(behavior.keyLost)throw Error('Mock key removal response lost');};
+ behavior={removal:true,storedKey:{value:'original-ciphertext'},published:rotationDoc()};panel=open();await settled();const remove=panel.querySelector('#did-remove-btn').onclick,beforeRemoveKeys=removalKeyRequests.length,beforeRemoveDocs=removalDocumentRequests.length;await remove();
+ check(removalKeyRequests.length===beforeRemoveKeys&&removalDocumentRequests.length===beforeRemoveDocs,'Removal waits for password confirmation');rotationConfirmations.at(-1).cancel();check(CList.state.identityRemoval.phase==='idle'&&removalKeyRequests.length===beforeRemoveKeys,'Removal Cancel changes no data');
+ await remove();await rotationConfirmations.at(-1).approve();panel=host.firstElementChild;await settled();check(removalKeyRequests.length===beforeRemoveKeys+1&&removalDocumentRequests.length===beforeRemoveDocs+1&&CList.state.identityRemoval.phase==='complete','Confirmed removal acknowledges both key and public document');
+ check(panel.querySelector('#did-btn').textContent==='Generate Identity Key','Completion rebuilds fresh identity controls');await remove();check(removalDocumentRequests.length===beforeRemoveDocs+1,'Old removal callback cannot replay after rebuild');
+ behavior={removal:true,keyReject:true,storedKey:{value:'original-ciphertext'},published:rotationDoc()};panel=open();await settled();await panel.querySelector('#did-remove-btn').onclick();await rotationConfirmations.at(-1).approve();check(CList.state.identityRemoval.phase==='partial'&&panel.querySelector('#did-status').textContent.includes('Stored key removal is not confirmed'),'Failed key deletion is visibly partial even when DID deletion succeeds');
+ const beforePartialKeyRetry=removalKeyRequests.length,beforePartialDocRetry=removalDocumentRequests.length;await panel.querySelector('#did-remove-btn').onclick();check(panel.querySelector('#did-remove-btn').textContent==='Retry remaining removal'&&removalKeyRequests.length===beforePartialKeyRetry,'Removal check is read-only');behavior.keyReject=false;await panel.querySelector('#did-remove-btn').onclick();panel=host.firstElementChild;await settled();check(removalDocumentRequests.length===beforePartialDocRetry&&CList.state.identityRemoval.phase==='complete','Retry removes only remaining key without replaying public DELETE');
+ behavior={removal:true,documentLost:true,storedKey:{value:'original-ciphertext'},published:rotationDoc()};panel=open();await settled();await panel.querySelector('#did-remove-btn').onclick();await rotationConfirmations.at(-1).approve();check(panel.querySelector('#did-remove-btn').textContent==='Check removal','Uncertain public deletion offers read-only check');
+ const beforeUncertainDocCheck=removalDocumentRequests.length,beforeUncertainKeyCheck=removalKeyRequests.length;await panel.querySelector('#did-remove-btn').onclick();panel=host.firstElementChild;await settled();check(removalDocumentRequests.length===beforeUncertainDocCheck&&removalKeyRequests.length===beforeUncertainKeyCheck&&CList.state.identityRemoval.phase==='complete','Accepted uncertain deletion reconciles without replay');
+ behavior={removal:true,local:true,storedKey:{value:'original-ciphertext'}};panel=open();await settled();const beforeLocalRemoval=requests.length,beforeLocalDocDelete=removalDocumentRequests.length;await panel.querySelector('#did-remove-btn').onclick();await rotationConfirmations.at(-1).approve();panel=host.firstElementChild;await settled();check(requests.length===beforeLocalRemoval&&removalDocumentRequests.length===beforeLocalDocDelete&&CList.state.identityRemoval.phase==='complete','Local key removal makes no hosted request');
+ behavior={removal:true,storedKey:{value:'original-ciphertext'},published:rotationDoc()};panel=open();await settled();await panel.querySelector('#did-remove-btn').onclick();behavior.storedKey={value:'different-identity'};const beforeChangedRemoval=removalKeyRequests.length;await rotationConfirmations.at(-1).approve();check(removalKeyRequests.length===beforeChangedRemoval&&panel.querySelector('#did-status').textContent.includes('stored identity changed'),'Changed confirmation target cannot be removed');
+ check(!JSON.stringify(CList.state.identityRemoval).includes('original-ciphertext')&&writeAttempts===0,'Removal state excludes key material and only mocked writes ran');
+ token='fixture-token';window.encryptWithKey=async(key,value)=>value;
+ const previousUpdate=CList.storage.kv.update;
+ CList.storage.kv.update=async(key,value)=>{if(!behavior.accountUpdate)return previousUpdate(key,value);accountFlagWrites.push({key,value});if(behavior.flagReject&&key==='m')throw Error('Mock visibility failure');records=records.map(record=>record.key===key?{...record,value}:record);};
+ CList.storage.kv.get=async key=>key==='_did_identity_key'?behavior.storedKey||null:records.find(record=>record.key===key)||null;
+ const accountRows=()=>[{key:'m',value:JSON.stringify({type:'Mastodon',title:'Masto <literal>',instance:'https://mastodon.invalid',id:'private-token',public:false,extension:{keep:true}})},{key:'b',value:JSON.stringify({type:'Bluesky',title:'Bluesky',instance:'alice.test',id:'private-password',public:true})},{key:'clist:pages-catalog',value:JSON.stringify({opmlUrl:'https://pages.invalid/opml'})}];
+ const updateDoc=()=>({id:'did:web:account',verificationMethod:[{publicKeyJwk:{kty:'OKP',crv:'Ed25519',x:'PUBLIC'}}],service:[{id:'did:web:account#m',type:'SocialWebAccount',serviceEndpoint:'https://mastodon.invalid',extension:{retain:1}},{id:'external',type:'Custom',extra:{retain:true}}],alsoKnownAs:['did:key:PUBLIC','at://alice.test','https://profile.invalid']});
+ const choosePublic=(key,value)=>{const input=[...panel.querySelectorAll('#account-list input')].find(input=>input.dataset.key===key);input.checked=value;input.dispatchEvent(new Event('change'));return input;};
+ records=accountRows();behavior={accountUpdate:true,storedKey:{value:'original-ciphertext'},published:updateDoc(),publish:'ok'};panel=open();await settled();
+ const publicMasto=choosePublic('m',true);choosePublic('b',false);publicMasto.dataset.key='forged';publicMasto.checked=false;const beforeAccountPublish=publicationRequests.length;await panel.querySelector('#did-update-btn').onclick();
+ check(CList.state.identityUpdate.phase==='complete'&&publicationRequests.length===beforeAccountPublish+1,'State-owned choices update the DID without trusting changed checkbox attributes');
+ const savedMasto=JSON.parse(records.find(record=>record.key==='m').value),accountPayload=JSON.parse(publicationRequests.at(-1).options.body);
+ check(savedMasto.public===true&&savedMasto.id==='private-token'&&savedMasto.extension.keep,'Visibility changes preserve credential/extension fields');
+ check(accountPayload.service.find(service=>service.id==='external')&&accountPayload.service.find(service=>service.id==='did:web:account#m').extension.retain===1&&accountPayload.service.find(service=>service.type==='CListPages'),'Unmanaged links, service extensions and page catalogs preserved');
+ check(!accountPayload.alsoKnownAs.includes('at://alice.test')&&accountPayload.alsoKnownAs.includes('https://profile.invalid')&&!JSON.stringify(accountPayload).includes('private-token'),'Unchecked Bluesky alias removed without exposing credentials');
+ const beforeRepeatedUpdate=publicationRequests.length,beforeRepeatedFlags=accountFlagWrites.length;await panel.querySelector('#did-update-btn').onclick();check(publicationRequests.length===beforeRepeatedUpdate&&accountFlagWrites.length===beforeRepeatedFlags,'Unchanged choices cause no repeated writes');
+ records=accountRows();behavior={accountUpdate:true,flagReject:true,storedKey:{value:'original-ciphertext'},published:updateDoc(),publish:'ok'};panel=open();await settled();choosePublic('m',true);choosePublic('b',false);await panel.querySelector('#did-update-btn').onclick();
+ check(CList.state.identityUpdate.phase==='partial'&&panel.querySelector('#did-status').textContent.includes('unconfirmed'),'Visibility failure is separate from accepted publication');
+ const beforeFlagRecovery=accountFlagWrites.length,beforeFlagRecoveryPub=publicationRequests.length;await panel.querySelector('#did-update-btn').onclick();check(accountFlagWrites.length===beforeFlagRecovery&&panel.querySelector('#did-update-btn').textContent==='Retry remaining update','Partial update check is read-only');behavior.flagReject=false;await panel.querySelector('#did-update-btn').onclick();
+ check(accountFlagWrites.length===beforeFlagRecovery+1&&publicationRequests.length===beforeFlagRecoveryPub&&CList.state.identityUpdate.phase==='complete','Retry saves only remaining flag without replaying accepted DID publication');
+ records=accountRows();behavior={accountUpdate:true,storedKey:{value:'original-ciphertext'},published:updateDoc(),publish:'lost'};panel=open();await settled();choosePublic('m',true);choosePublic('b',false);await panel.querySelector('#did-update-btn').onclick();const beforeLostUpdatePub=publicationRequests.length,beforeLostUpdateFlags=accountFlagWrites.length;await panel.querySelector('#did-update-btn').onclick();
+ check(CList.state.identityUpdate.phase==='complete'&&publicationRequests.length===beforeLostUpdatePub&&accountFlagWrites.length===beforeLostUpdateFlags,'Lost update response reconciles without replaying either write');
+ check(!JSON.stringify(CList.state.identitySelection).includes('private-token')&&!JSON.stringify(CList.state.identityUpdate).includes('private-password')&&writeAttempts===0,'Selection/update summaries exclude credentials and only mocked writes ran');
+ document.getElementById('result').textContent='PASS: real existing DID panel and read workflow/controller/view, hosted/local/missing/unpublished display, safe metadata/account labels, legacy checkbox compatibility, partial warnings, HTTP failure/retry, stale panel/session/request guards, captured identity proof, duplicate/input/session guards, key mismatch, captured existing-key publication, receipts/uncertainty, stale publication/conflict guards, add-only first-time generation, storage/publication recovery, confirmed key rotation, preserved metadata, partial-rotation recovery, confirmed/partial removal, state-owned public choices, captured Update DID and partial-update recovery with private-data exclusion. '+checks+' checks. HTTP including publication, storage, sessions and key derivation mocked; no external requests or real writes.';document.body.dataset.result='PASS';
+ }catch(error){console.error(error);document.getElementById('result').textContent='FAIL: '+error.stack;document.body.dataset.result='FAIL';}
+})();
+</script>

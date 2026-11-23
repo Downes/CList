@@ -1,0 +1,12 @@
+<!doctype html><meta charset="utf-8"><title>CList Collab content check</title>
+<h1>Collab content and references</h1>
+<p>Real content controller/workflow/view and reference deduplication state. Editor commands, source/session/resource ownership, reference panel and modal/status effects mocked; shared maps and JSON are real. No external requests or writes. Full editor mounting, TipTap HTML parsing and live Yjs/provider synchronization not exercised. Test 2026-11-22.1.</p>
+<pre id="result">Checking...</pre>
+<script src="../js/references-state.js?v=2026-11-22.1"></script>
+<script src="../js/collab_content_workflow.js?v=2026-11-22.1"></script>
+<script src="../js/collab_content_view.js?v=2026-11-22.1"></script>
+<script src="../js/collab_content.js?v=2026-11-22.1"></script>
+<script src="helpers/collab-content-fixture.js?v=2026-11-22.1"></script>
+<script>
+(async()=>{let checks=0;for(const[name,run]of collabContentCases)await run((condition,message)=>{if(!condition)throw Error(name+': '+message);checks++;});document.getElementById('result').textContent='PASS: '+checks+' checks. Real Collab content controller/workflow/view and reference deduplication, literal plaintext/HTML and link/via output, captured structural references/live identity, shared-map mirroring/resync, corrupt-entry warnings, read-only and stale resource/source guards, reentrant locks and partial-failure feedback without automatic reinsertion. Editor/source/session/resource, reference panel and modal/status effects mocked; no external requests or writes. Full mounting, TipTap HTML parsing and live Yjs/provider synchronization not exercised.';})().catch(error=>{document.getElementById('result').textContent='FAIL: '+error.stack;console.error(error);});
+</script>

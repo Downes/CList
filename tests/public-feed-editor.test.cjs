@@ -10,6 +10,7 @@ class Element {
     appendChild(child) { child.parent = this; this.children.push(child); return child; }
     replaceChildren(...children) { this.children.forEach(child => { child.isConnected = false; }); this.children = []; this.text = ''; this.append(...children); }
     get parentElement() { return this.parent; }
+    get parentNode() { return this.parent; }
     append(...children) { children.forEach(child => this.appendChild(child)); }
     insertBefore(child, before) { child.parent = this; this.children.splice(this.children.indexOf(before), 0, child); }
     setAttribute(name, value) { this[name] = value; }
@@ -19,6 +20,7 @@ class Element {
     addEventListener(name, callback) { this.listeners[name] = callback; }
     async click() { return (this.onclick || this.listeners.click)?.({ stopPropagation() {} }); }
     querySelector(tag) { return find(this, node => node !== this && node.tagName === tag); }
+    querySelectorAll(tag) { const result = []; const visit = node => { for (const child of node.children) { if (child.tagName === tag) result.push(child); visit(child); } }; visit(this); return result; }
     focus() { this.focused = true; }
     remove() { this.parent.children = this.parent.children.filter(child => child !== this); }
 }
@@ -139,7 +141,7 @@ function fixture() {
         render: async (items, options) => { for (const item of items) context.makeListing(await options.normalize(item)); } });
     context._localrssAuthHeaders = () => ({ Authorization: 'Bearer ' + user, 'X-Kvstore-Url': 'https://kv.example' });
     vm.createContext(context);
-    for (const file of ['collection-formats.js', 'public-feeds.js', 'public-feed-editor.js', 'collection-editor.js']) {
+    for (const file of ['collection-formats.js', 'public-feeds.js', 'public-feed-editor.js', 'collection-draft-state.js', 'collection-draft.js', 'collection-draft-view.js', 'collection-editor.js']) {
         vm.runInContext(fs.readFileSync(path.join(__dirname, '../js/', file), 'utf8'), context);
     }
     for (const name of ['public-feed-requests','public-feed-view','public-feed-reader']) vm.runInContext(fs.readFileSync('js/' + name + '.js', 'utf8'), context);

@@ -1,0 +1,11 @@
+<!doctype html><meta charset="utf-8"><title>CList menu pop-out check</title>
+<style>body{max-width:960px;margin:auto;padding:24px;font:16px/1.5 system-ui,sans-serif}#result{white-space:pre-wrap}</style>
+<h1>Reader menu pop-out</h1>
+<p>Real menu shell controller/view, action menu, reader bridge and application stacked-modal shell. Service commands, reader state, translation, mutation notifications and keyboard delivery are mocked. DOM movement and focus use browser APIs. No external requests or writes; full reader/layout/live services not exercised. Test 2026-11-21.1.</p>
+<p id="result">Checking...</p>
+<script>window.CList={ui:{view:{}}};var translationEnabled=false;function toggleTranslation(){}function showStatusMessage(){}function paneController(){return{restore(){}};}function navigationController(){}</script>
+<script src="../js/action-menu-view.js?v=2026-11-20.23"></script><script src="../js/action-menu.js?v=2026-11-20.23"></script>
+<script src="../js/menu-shell-view.js?v=2026-11-21.2"></script><script src="../js/menu-shell.js?v=2026-11-21.1"></script>
+<script src="../js/reader-view.js?v=2026-11-21.1"></script><script src="helpers/menu-shell-fixture.js?v=2026-11-21.1"></script>
+<script src="../js/interface.js?v=2026-11-21.1"></script>
+<script>(async()=>{let checks=0;for(const [name,run] of menuShellCases)await run((condition,message)=>{if(!condition)throw Error(name+': '+message);checks++;});previousMenuShellFixture?.dispose();document.getElementById('result').textContent='PASS: '+checks+' checks. Real menu shell/controller/view, action menu, reader bridge and app modal; same-node/state preservation, Back/Close/Escape, Tab boundaries and focus return, stale/replaced/external dialog cleanup, visible open failure/retry, pending locks and reader rebuild/reset. Commands, reader state, translation, mutation notifications and keyboard delivery mocked; no external requests or writes.';})().catch(error=>{document.getElementById('result').textContent='FAIL: '+error.stack;console.error(error);});</script>

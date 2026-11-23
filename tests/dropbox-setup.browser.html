@@ -1,0 +1,25 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Dropbox authorization setup</title>
+<link rel="stylesheet" href="../css/interface.css">
+<h1>Dropbox authorization setup</h1>
+<p>Real setup factory/controller/view, Dropbox start helper and shared OAuth start workflow. PKCE, registration, storage, navigation and session mocked. No external requests, redirects or real writes. Callback exchange/persistence, real cryptography and live authorization not exercised. Test 2026-11-23.3.</p>
+<pre id="result">Checking…</pre>
+<script>window.CList={state:{}};</script>
+<script src="../js/oauth-config.js?v=2026-11-23.3"></script>
+<script src="../js/oauth-strategies.js"></script>
+<script src="../js/oauth_start_workflow.js?v=2026-11-23.3"></script>
+<script src="../js/oauth-client.js?v=2026-11-23.3"></script>
+<script>OAuthClient.onCallback=()=>{};</script>
+<script src="../js/dropbox_setup.js?v=2026-11-23.3"></script>
+<script src="../js/dropbox_setup_view.js?v=2026-11-23.3"></script>
+<script src="../js/dropbox.js?v=2026-11-23.3"></script>
+<script src="../js/dropbox_account.js?v=2026-11-23.3"></script>
+<script src="helpers/dropbox-setup-fixture.js?v=2026-11-23.3"></script>
+<script>
+(async()=>{const result=document.getElementById('result');let count=0;
+try{for(const[name,run]of dropboxSetupCases){result.textContent='Checking: '+name;let timer;
+try{await Promise.race([run((condition,message)=>{if(!condition)throw new Error(message);count++;}),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Timed out: '+name)),5000);})]);}finally{clearTimeout(timer);}}
+result.textContent='PASS: '+count+' checks. Real Dropbox setup/controller/view/helper and shared OAuth start workflow, captured values/PKCE parameters, duplicate locks, validation/retry, Back/input/session/panel expiry, state cleanup, dynamic registration compatibility and secret-free presentation. PKCE/registration/storage/navigation/session mocked; no external requests, redirects or real writes. Callback exchange/persistence, actual cryptography and live OAuth not exercised.';
+}catch(error){result.textContent='FAIL: '+(error.stack||error);}})();
+</script>

@@ -1,0 +1,13 @@
+<!doctype html><meta charset="utf-8"><title>CList shared action menu check</title>
+<style>body{max-width:960px;margin:auto;padding:24px;font:16px/1.5 system-ui,sans-serif}#result{white-space:pre-wrap}#fixture{position:absolute;left:-10000px}</style>
+<h1>Shared reader action menu</h1>
+<p>Real action-menu controller/view and reader menu bridge. Callback actions, reader state, translation, event delivery and focus recording are mocked. No external requests or writes; no full reader/service or pop-out integration exercised. Test 2026-11-20.23.</p>
+<p id="result">Checking...</p><div id="fixture"></div>
+<script>window.CList={ui:{view:{}}};var translationEnabled=false;function toggleTranslation(){}function fixtureAttach(root){document.getElementById('fixture').appendChild(root);}</script>
+<script src="../js/action-menu-view.js?v=2026-11-20.23"></script>
+<script src="../js/action-menu.js?v=2026-11-20.23"></script>
+<script src="../js/menu-shell-view.js?v=2026-11-21.2"></script>
+<script src="../js/menu-shell.js?v=2026-11-21.1"></script>
+<script src="../js/reader-view.js?v=2026-11-21.1"></script>
+<script src="helpers/action-menu-fixture.js?v=2026-11-20.23"></script>
+<script>(async()=>{let checks=0;for(const [name,run] of actionMenuCases)await run((condition,message)=>{if(!condition)throw Error(name+': '+message);checks++;});document.getElementById('result').textContent='PASS: '+checks+' checks. Real shared action-menu controller/view and reader menu bridge, literal labels, selected/disabled/unsupported controls, keyboard navigation, busy/duplicate guards, visible errors and explicit retry, stale controls/failures, captured definitions, Translate and empty/reset compatibility. Actions, reader state, translation, events and focus recording mocked; no external requests or writes.';})().catch(error=>{document.getElementById('result').textContent='FAIL: '+error.stack;console.error(error);});</script>

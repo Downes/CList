@@ -1,0 +1,39 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Collab account setup</title>
+<link rel="stylesheet" href="../css/interface.css">
+<h1>Collab account setup</h1>
+<p>Real Collab setup workflow/controller/view/factory, registration transport and shared account persistence/recovery. HTTP, cookie sessions, KV/encryption/keys and panel effects mocked; no external requests or real writes. Live registration, real crypto, WebSocket/editor connections and full account-panel integration not exercised. Test 2026-11-23.11.</p>
+<pre id="result">Checking…</pre>
+<script>
+window.CList={state:{},config:{}};
+window.fetch=()=>Promise.reject(new Error('Unexpected external request'));
+</script>
+<script src="../js/account-state.js?v=2026-11-23.4"></script>
+<script src="../js/ui.js?v=2026-11-23.1"></script>
+<script src="../js/oauth_account_workflow.js?v=2026-11-23.4"></script>
+<script src="../js/oauth_account.js?v=2026-11-23.17"></script>
+<script src="../js/oauth_account_view.js?v=2026-11-23.4"></script>
+<script src="../js/oauth-client.js?v=2026-11-23.5"></script>
+<script src="../js/account-setup.js?v=2026-11-23.8"></script>
+<script src="../js/account-setup-view.js?v=2026-11-23.8"></script>
+<script src="../js/collab_setup_workflow.js?v=2026-11-23.11"></script>
+<script src="../js/account-registration-setup.js?v=2026-11-23.11"></script>
+<script src="../js/collab_setup.js?v=2026-11-23.11"></script>
+<script src="../js/collab_setup_view.js?v=2026-11-23.11"></script>
+<script src="../js/collab_account.js?v=2026-11-23.11"></script>
+<script src="helpers/oauth-account-fixture.js?v=2026-11-23.17"></script>
+<script src="helpers/collab-setup-fixture.js?v=2026-11-23.11"></script>
+<script>
+(async () => {
+    const result = document.getElementById('result'); let count = 0;
+    try {
+        for (const [name, run] of collabSetupCases) {
+            result.textContent = 'Checking: ' + name; let timer;
+            try { await Promise.race([run((condition, message) => { if (!condition) throw new Error(message); count++; }), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Timed out: ' + name)), 5000); })]); }
+            finally { clearTimeout(timer); }
+        }
+        result.textContent = 'PASS: ' + count + ' checks. Real Collab setup workflow/controller/view/factory, captured registration endpoint/auth/DID, exact account fields, validation, duplicate/remount locks, stale session/input/Back guards, accepted/uncertain registration receipts and explicit retry, account-only recovery/read-only checks, newer-draft/reader protection and safe state. HTTP/session/KV/key/encryption/panel effects mocked; no external requests or real writes. Live registration, real crypto, WebSocket/editor connections and full account-panel integration not exercised.';
+    } catch (error) { result.textContent = 'FAIL: ' + (error.stack || error); }
+})();
+</script>

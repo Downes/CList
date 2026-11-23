@@ -1,0 +1,14 @@
+<!doctype html><meta charset="utf-8"><title>CList local-page browser check</title>
+<h1>Local-page listing and opening</h1>
+<p>Real browser controller/workflow/view, registry/Save owner helper and PageStore list/get APIs. IndexedDB reads, editor/session, shared saved-content loader and import/export dispatch mocked. No external requests or actual storage writes. Real IndexedDB, full editor choice/mounting and import/export internals not exercised. Test 2026-11-22.4.</p>
+<pre id="result">Checking...</pre>
+<script>window.CList={state:{},savers:[],loaders:[]};</script>
+<script src="../js/page-store.js?v=2026-11-22.4"></script>
+<script src="../js/save-panel.js?v=2026-11-22.4"></script>
+<script src="../js/page-store-browser-workflow.js?v=2026-11-22.4"></script>
+<script src="../js/page-store-browser-view.js?v=2026-11-22.4"></script>
+<script src="../js/page-store-browser.js?v=2026-11-22.4"></script>
+<script src="helpers/page-store-browser-fixture.js?v=2026-11-22.4"></script>
+<script>
+(async()=>{let checks=0;for(const[name,run]of localPageBrowserCases)await run((condition,message)=>{if(!condition)throw Error(name+': '+message);checks++;});document.getElementById('result').textContent='PASS: '+checks+' checks. Real native page listing/opening controller/workflow/view, registry/owner and PageStore APIs, safe titles/empty states, captured reads/native revision/references/latest publication, duplicate/stale row/source/session/panel guards, shared-loader handoff and Cancel/retry, preserved tool dispatch. IndexedDB/editor/session/shared loader/import-export effects mocked; no external requests or actual storage writes. Real IndexedDB, full editor choices/mounting and import/export internals not exercised.';})().catch(error=>{document.getElementById('result').textContent='FAIL: '+error.stack;console.error(error);});
+</script>

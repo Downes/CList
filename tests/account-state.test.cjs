@@ -88,7 +88,7 @@ test('legacy getAccounts delegates to the same data loader while retaining its l
     const f = fixture(); f.schema('Example'); f.add('account', { type: 'Example', title: 'Name' });
     const text = source('kvstore.js');
     const start = text.indexOf('async function getAccounts(');
-    vm.runInContext(text.slice(start, text.indexOf('// Event listener for changes in localStorage', start)), f.ctx);
+    vm.runInContext(text.slice(start, text.indexOf('function updateIdentityDiv()', start)), f.ctx);
     const result = await f.ctx.getAccounts();
     assert.equal(result.length, 1); assert.equal(result[0].key, 'account');
     let message; f.ctx.loginRequired = text => { message = text; };

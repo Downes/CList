@@ -159,7 +159,8 @@
  * Captured loaded-page properties used by page/collection publication; extensible.
  * @typedef {Object.<string, *> & {kind: string, id?: string, pageKey?: string,
  * service?: string, accountInstance?: string, serviceId?: string, url?: string,
- * title?: string, mimeType?: string, collectionKey?: string, format?: string}} CListWebPageSource
+ * title?: string, mimeType?: string, collectionKey?: string, format?: string,
+ * revision?: number, references?: CListReference[]}} CListWebPageSource
  */
 
 /**
@@ -229,6 +230,7 @@
  * @property {string} token
  * @property {CryptoKey} encKey
  * @property {function(): boolean} [isCurrent] Optional owner-lifetime guard, checked before encryption and persistence.
+ * @property {function(string,string): Promise<void>} [put] Optional captured encrypted-account persistence dependency.
  */
 
 /**
@@ -281,7 +283,7 @@
  * @typedef {Object} CListAccountHooks
  * @property {function(CListAccountData): (CListAccountData|Promise<CListAccountData>)} [prepareSave]
  * @property {function(CListAccountFormContext): void} [decorateForm]
- * @property {function(CListAccountSaveRequest): (void|Promise<void>)} [reauthorize]
+ * @property {function(CListAccountSaveRequest, CListAccountReauthorizationOptions=): (void|Promise<void>)} [reauthorize]
  */
 
 /**
@@ -339,6 +341,30 @@
  * @typedef {Object} CListCollectionIdentity
  * @property {string} key KV storage key.
  * @property {string} id Collection identifier.
+ */
+
+/**
+ * Public collection draft summary. Members, credentials, callbacks and expansion stay private.
+ * @typedef {Object} CListCollectionDraftState
+ * @property {number} generation
+ * @property {number} count
+ * @property {boolean} busy Row resource action pending.
+ */
+
+/**
+ * Etherpad connection presentation only; API keys, headers and pad names stay private.
+ * @typedef {Object} CListEtherpadConnectionState
+ * @property {'ready'|'loading'|'failed'} phase
+ * @property {'none'|'account'|'guest'} mode
+ * @property {number} count
+ */
+
+/**
+ * Etherpad operation presentation. Bodies, targets, credentials and receipts stay private.
+ * @typedef {Object} CListEtherpadDocumentState
+ * @property {string} phase
+ * @property {boolean} busy
+ * @property {'none'|'accepted'|'rejected'|'uncertain'} receipt
  */
 
 /**
@@ -437,7 +463,7 @@
  * @property {string} title
  * @property {string} created_at Source ISO timestamp, or empty string.
  * @property {string} cited_at Capture ISO timestamp.
- * @property {string} id DOM item identifier.
+ * @property {string|null} id DOM item identifier; standalone annotation drafts have no item.
  * @property {string} summary
  * @property {string} [image]
  * @property {CListReplyToken|null} replyToken
@@ -715,4 +741,244 @@
  *   persisted; defaults to all sources visible.
  * @property {Object.<string, string>} sourceErrors Per-source fetch error
  *   message, keyed by account key, for subscriptions whose last refresh failed.
+ */
+
+/** @typedef {{key:string,did:string}} CListFollowingEntry Exact stored key, separate from displayed decrypted DID. */
+/**
+ * @typedef {Object} CListFollowingState
+ * @property {number} panelId
+ * @property {number} requestId
+ * @property {'idle'|'loading'|'ready'|'failed'} phase
+ * @property {string|null} error
+ * @property {number} pendingCount
+ */
+
+/** @typedef {CListAnnotationSession & {username:string,local:boolean,mode:string}} CListDidIdentitySession Transient read-only owner capture. */
+/** @typedef {{key:string,title:string,type:string,public:boolean}} CListDidPublicAccount Safe account-list projection; never credentials. */
+/** @typedef {{requestId:number,phase:('idle'|'loading'|'ready'|'failed'),error:(string|null)}} CListIdentityReadLane */
+/** @typedef {{panelId:number,identity:CListIdentityReadLane,accounts:CListIdentityReadLane}} CListIdentityDisplayState */
+
+/** @typedef {{panelId:number,requestId:number,phase:('idle'|'fetching'|'signing'|'verifying'|'complete'|'failed'),error:(string|null)}} CListIdentityProofState Safe UI summary; no keys, signatures or tokens. */
+
+/** @typedef {{panelId:number,phase:('preparing'|'publishing'|'confirmed'|'uncertain'|'failed'),error:(string|null)}} CListIdentityPublicationState Safe summary; no credentials or receipts. */
+/** @typedef {{publicKeyJwk:JsonWebKey,didKey:string,service:Object[],alsoKnownAs:string[]}} CListDidPublicationPayload Public identity transport; no private key. */
+/** @typedef {{didKey:string,existing:boolean,warning?:string}} CListDidPublicationReceipt Public accepted/reconciled identity information. */
+
+/** @typedef {{id:number,phase:('ready'|'verifying'|'rejected'|'confirmed'|'cancelled'|'expired'|'failed'|'action-failed'),error:(string|null)}} CListPasswordConfirmationState Generic UI summary; never passwords or verifier/session keys. */
+
+/** @typedef {{panelId:number,phase:('preparing'|'generating'|'storing'|'stored'|'uncertain'|'failed'),error:(string|null)}} CListDidGenerationState Safe first-time generation summary. */
+/** @typedef {{didKey:string,existing:boolean}} CListDidKeyReceipt Accepted or reconciled stored identity; no key material. */
+
+/** @typedef {{panelId:number,phase:('idle'|'preparing'|'confirming'|'generating'|'storing'|'publishing'|'stored'|'uncertain-storage'|'complete'|'failed'),error:(string|null)}} CListDidRotationState Safe UI summary; no keys/plans. */
+/** @typedef {{storedValue:string,doc:(Object|null)}} CListDidRotationSnapshot Transient original ciphertext and parsed public DID, never plaintext keys. */
+/** @typedef {{storedValue:string,didKey:string,publicKeyJwk:JsonWebKey}} CListDidRotationPrepared Transient replacement ciphertext and public identity. */
+
+/** @typedef {{panelId:number,phase:('idle'|'preparing'|'confirming'|'removing-key'|'removing-document'|'partial'|'complete'|'failed'),error:(string|null)}} CListDidRemovalState Safe UI summary; no target material. */
+/** @typedef {{storedValue:(string|null),documentIdentity:(string|null),keyRemoved:boolean,documentRemoved:boolean}} CListDidRemovalPlan Transient ciphertext/public fingerprint plus accepted/absence receipts. */
+
+/** @typedef {{panelId:number,revision:number,selected:Object.<string,boolean>}} CListDidIdentitySelection Safe public checkbox state, no source records. */
+/** @typedef {{panelId:number,revision:number,items:Array<{key:string,public:boolean,sourceValue:string}>}} CListDidAccountSelectionSnapshot Transient source ciphertext binding, never persisted or placed in UI state. */
+/** @typedef {{panelId:number,phase:('saving'|'checking'|'publishing'|'partial'|'complete'|'failed'),error:(string|null)}} CListDidAccountUpdateState Safe operation summary. */
+
+/** @typedef {{url:string,username:string,password:string,register:boolean}} CListMigrationInput Transient captured form values; password cleared after preparation. */
+/** @typedef {{source:string,destination:string,username:string,local:boolean,accountCount:number,systemCount:number,hasDid:boolean,conflictCount:number,didConflict:boolean}} CListMigrationPreview Public labels/counts only. */
+/** @typedef {{panelId:number,phase:('idle'|'preparing'|'ready'|'checking'|'executing'|'failed'|'finished'),message:string,preview:(CListMigrationPreview|null),overwrite:boolean,registration:('created'|'uncertain'|'rejected'|null)}} CListMigrationPreparationState Safe UI projection, no secrets or record bodies. */
+/**
+ * Private prepared execution handoff. Never persist or place in UI state.
+ * Record values/fingerprints are encrypted; keys/tokens remain transient.
+ * @typedef {Object} CListMigrationPlan
+ * @property {string} oldUrl
+ * @property {string} oldUsername
+ * @property {string} oldToken
+ * @property {CryptoKey} oldEncKey
+ * @property {string} newUrl
+ * @property {string} newUsername
+ * @property {string} newToken
+ * @property {CryptoKey} newEncKey
+ * @property {CListEncryptedKVRecord[]} kvs
+ * @property {boolean} hasDid
+ * @property {number} accountCount Non-system record count, not a claim that each is a social account.
+ * @property {number} conflictCount
+ * @property {boolean} didConflict
+ * @property {string} sourceFingerprint Sorted key/ciphertext snapshot, not a cryptographic digest.
+ * @property {string} destinationFingerprint Sorted key/ciphertext snapshot.
+ */
+
+/** @typedef {{key:string,sourceValue:string,before:(string|null),value:(string|null),status:('ready'|'uncertain'|'accepted')}} CListMigrationCopyStep Private ciphertexts and copy receipt; no plaintext. */
+/** @typedef {{name:string,session:CListDidIdentitySession,before:string,payload:CListDidPublicationPayload,status:('ready'|'uncertain'|'accepted')}} CListMigrationIdentityStep Private captured target, public metadata fingerprint/payload and receipt. */
+/**
+ * Private tab/session-lifetime execution and recovery. Destination credentials/keys cleared on completion.
+ * @typedef {Object} CListMigrationExecutionPlan
+ * @property {CListMigrationPlan|null} plan
+ * @property {CListDidIdentitySession} session
+ * @property {CListMigrationCopyStep[]} rows
+ * @property {CListMigrationIdentityStep[]} identities
+ * @property {Map<string,string>} expected Expected destination ciphertexts after accepted copies.
+ * @property {boolean} prepared
+ * @property {boolean} pending
+ * @property {boolean} complete
+ * @property {boolean} checkRequired
+ * @property {number} total
+ * @property {string} destination
+ * @property {string|null} [error]
+ * @property {number} [copied] Final safe count after clearing private steps.
+ * @property {number} [identityCount]
+ * @property {number} [identityTotal]
+ */
+/** @typedef {{panelId:number,pending:boolean,complete:boolean,checkRequired:boolean,copied:number,total:number,identities:number,identityTotal:number,destination:string,error:(string|null)}} CListMigrationExecutionState Public progress only; never credentials, ciphertext or private plans. */
+
+/** @typedef {{generation:number,mode:('login'|'register'),panel:('closed'|'main'|'server'),busy:boolean,error:(string|null),registration:('created'|'uncertain'|'rejected'|null),serverUrl:string,draftServer:(string|null)}} CListAuthPanelState Public form/navigation state only; no passwords or session material. */
+/** @typedef {{mode:('login'|'register'),username:string,password:string}} CListAuthInput Private captured form submission; password cleared on settlement. */
+/** @typedef {{owner:number,generation:number,epoch:number,serverUrl:string,input:CListAuthInput,authenticated:boolean}} CListAuthAttempt Private dispatch capture, never persisted or placed in UI state. */
+
+/** @typedef {{serverUrl:string,local:boolean,epoch:number,keys:Object.<string,string>,sourceToken:(string|null),source:string,snapshot:function():string,adapter:(Object|undefined)}} CListAuthCredentialTarget Private captured transport/storage target and source-session version; never UI state. */
+/** @typedef {{username:string,authHash:string,encKey:(CryptoKey|null)}} CListPreparedAuthCredentials Transient derived values; never persisted together or rendered. */
+/** @typedef {{token:string,username:string,expires:string}} CListVerifiedAuthSession Private verified response with future ISO/parseable expiry; never UI state. */
+
+/** @typedef {{key:string,label:string,data:CListAccountData,registerUrl?:string}} CListPostLoginDescriptor Captured default account and optional service registration endpoint. */
+/** @typedef {CListPostLoginDescriptor & {registration:('ready'|'uncertain'|'accepted'),record:('ready'|'uncertain'|'accepted'|'existing'),ciphertext:(string|null),error:(string|null)}} CListPostLoginStep Private per-service registration and encrypted-account receipts. */
+/** @typedef {Omit<CListAccountSession,'encKey'> & {encKey:(CryptoKey|null)}} CListPostLoginSession Private session while its key is being loaded. */
+/** @typedef {{session:CListPostLoginSession,steps:CListPostLoginStep[],discover:boolean,discovered:boolean,discoveryError:(string|null)}} CListPostLoginPlan Private captured setup, never presentation state or persistent storage. */
+/** @typedef {{operationId:number,pending:boolean,done:number,total:number,errors:string[],uncertainServices:Array<{key:string,label:string}>}} CListPostLoginState Safe counts/feedback/action labels; no accounts, keys, tokens or ciphertext. */
+
+/** @typedef {{serverUrl:string,local:boolean,epoch:number,username:(string|null),token:(string|null),expires:(string|null),key:(string|null)}} CListSessionSnapshot Private cookie/tab-key capture; never presentation state. */
+/** @typedef {{generation:number,phase:('restoring'|'guest'|'ready'|'logging-out'|'logged-out'|'failed'),error:(string|null)}} CListSessionLifecycleState Safe lifetime/feedback only. */
+
+/** @typedef {{label:string,baseUrl:string,description?:string,requiresKvstoreUrlHeader?:boolean}} CListAdminApp Captured public metadata, never credentials. */
+/** @typedef {{key:string,label:string,type:string,sensitive:boolean,help:string}} CListAdminField Normalized schema field. */
+/** @typedef {{schema:CListAdminField[],values:Object.<string,string>}} CListAdminSettingsData Private normalized values, including sensitive/masked fields. */
+/** @typedef {{storeUrl:string,token:(string|null),username:(string|null),epoch:number,local:boolean}} CListAdminSession Private source-session capture. */
+/** @typedef {{owner:number,payload:Object.<string,string>,versions:Map<string,number>,schema:CListAdminField[],pending:boolean,accepted:boolean,reviewed:boolean,uncertain?:boolean,rejected?:boolean}} CListAdminWrite Private PUT and receipt; never UI state or persistent storage. */
+/** @typedef {{panelId:number,app:string,phase:('loading'|'failed'|'saving'|'check-required'|'ready'|'editing'),error:(string|null),dirtyCount:number,busy:boolean}} CListAdminSettingsState Safe progress/counts only; no field values, drafts or tokens. */
+
+/** @typedef {{leftOpen:boolean,rightOpen:boolean,readFlex:number,writeFlex:number,currentPane:('left-pane'|'right-pane'|'read-pane'|'write-pane'),surface:('read'|'write'),dragging:boolean}} CListPaneState Canonical presentation-only layout. */
+/** @typedef {{leftOpen:boolean,rightOpen:boolean,readFlex:string,writeFlex:string}} CListPanePreference Legacy storage shape; numeric strings remain compatible. */
+
+/** @typedef {{selectedIndex:number,entryCount:number,gesturePending:boolean,annotating:boolean}} CListNavigationState Public reader/pane navigation summary; no DOM nodes, references, selection text or credentials. */
+/** @typedef {{key:string,ctrl?:boolean,alt?:boolean,meta?:boolean,repeat?:boolean,composing?:boolean,defaultPrevented?:boolean,blocked?:boolean}} CListNavigationKeyFacts DOM-free shortcut input. */
+/** @typedef {{x:number,y:number,endX:number,endY:number,duration:number,mobile:boolean,feed:boolean,pane:string}} CListNavigationTouchFacts DOM-free single-touch classification input. */
+
+/** @typedef {{id:string,label:string,selected?:boolean,disabled?:boolean,run?:(function():*)}} CListActionDefinition Private captured command definition; literal display text, no HTML or credentials in presentation fields. */
+
+/** @typedef {{phase:('connecting'|'ready'|'closed'),connectionCount:number}} CListChatSessionState Safe lifecycle summary; no peer IDs, messages, account tokens or identity keys. */
+
+/** @typedef {{name:string,peerId:string}} CListDiscussionEntry Detached directory entry; labels and IDs are literal strings. */
+/** @typedef {{phase:('loading'|'ready'|'empty'|'login'|'error'),count:number,joiningCount:number}} CListDiscussionListState Safe counts/phase only; no directory rows, credentials or peer IDs. */
+
+/** @typedef {{phase:string,kind:('create'|'leave'|null),receipt:('accepted'|'rejected'|'uncertain'|null)}} CListDiscussionActionState Safe lifecycle/receipt only; captured discussion, session, channels and credentials remain private. */
+
+/** @typedef {{phase:('closed'|'opening'|'ready'),pending:number}} CListChatPopupState Safe main-window summary; no channel names, client/request IDs, windows or content. */
+
+/** @typedef {{count:number,busy:number}} CListChatCardsState Safe counts only; snapshots, callbacks, editor captures and peer data stay private. */
+
+/** @typedef {{phase:('idle'|'waiting-peer'|'creating'|'sending'|'complete'|'error'),busy:boolean}} CListChatShareState Safe outgoing progress only; source snapshots, sessions and packets remain private. */
+
+/** @typedef {{busy:number}} CListChatMessagesState Safe pending count only; packets, labels, signatures and resources remain private. */
+
+/** @typedef {{knownPeers:number,identities:number,following:number}} CListChatControlState Safe counts only; peer IDs, identity claims, tokens and key material remain private. */
+
+/** @typedef {{phase:('idle'|'loading'|'ready'|'absent'|'failed'),canSign:boolean,signing:number,verifying:number}} CListChatIdentityState Safe availability/counts only; keys, account targets and signatures stay private. */
+
+/** @typedef {{phase:('idle'|'waiting'|'sending'|'expired'),busy:boolean}} CListChatHeartbeatState Safe timer progress only; discussion, endpoint, token and peer stay private. */
+
+/** @typedef {{busy:boolean}} CListChatCollaborationState Safe dispatch progress only; transcript, discussion and callbacks remain private. */
+
+/** @typedef {{phase:('loading'|'ready'|'error'),busy:boolean}} CListSummaryState Safe progress only; source content, account credentials and result callbacks stay private. */
+
+/** @typedef {{enabled:boolean,pending:number}} CListTranslationState Safe preference/progress only; text, keys and request targets remain private. */
+
+/** @typedef {{pending:number}} CListTemplateRequestState Safe in-flight count only; generated content, prompts, account keys and sessions remain private. */
+
+/** @typedef {{phase:('editing'|'generating'|'error'|'complete'|'cancelled'),busy:boolean}} CListTemplateFormState Safe panel progress only; draft choices, generated content and callbacks stay private. */
+
+/** @typedef {{phase:('loading'|'ready'|'empty'|'error'),count:number,opening:boolean}} CListCollabDocumentsState Safe browser progress/count only; document rows, captured servers and credentials stay private. */
+
+/** @typedef {{phase:('preparing'|'ready'|'error'),pending:number}} CListCollabPreparationState Safe preparation summary only; credentials, module resources, DOM targets and document identities remain private. */
+
+/** @typedef {{phase:('connecting'|'connected'|'disconnected'|'closed'|'error')}} CListLatexResourceState Safe resource lifecycle summary; editor/provider/Yjs objects, credentials, references and callbacks remain private. */
+
+/** @typedef {{phase:('ready'|'compiling'),busy:boolean}} CListLatexControlsState Safe control summary; source bodies, PDF URLs, tokens, reference objects and callback ownership remain private. */
+
+/** @typedef {Object.<string, *> & {format:'clist-slide-layout-v1',id:string,label:string,update:string}} CListSlideLayout Existing native saved-layout representation with open-ended extensions. */
+/** @typedef {{kind:string,phase:string,busy:boolean,receipt:('none'|'accepted'|'uncertain')}} CListSlidesLayoutState Safe dialog summary only; layouts, records, storage/editor targets and callbacks stay private. */
+/** @typedef {{importing:boolean,exports:number}} CListSlidesIOState Safe import/export busy summary; files, editor/storage targets and callbacks remain private. */
+/** @typedef {{phase:('ready'|'authorizing'|'redirecting'|'failed'),busy:boolean}} CListDropboxSetupState Safe setup presentation; field values, sessions, PKCE and OAuth tokens remain private. */
+/** @typedef {CListDropboxSetupState} CListWordPressSetupState Form status only; site/session captures stay private. */
+/** @typedef {{phase:string,busy:boolean,receipt:('none'|'accepted'|'uncertain')}} CListMastodonSetupState Safe form status; drafts, credentials and recovery callbacks remain private. */
+/** @typedef {{phase:string,busy:boolean,receipt:('none'|'accepted'|'uncertain')}} CListServiceAccountSetupState Shared setup status; full inputs and save receipts remain private. */
+/** @typedef {{phase:string,busy:boolean,registration:('none'|'accepted'|'uncertain'),receipt:('none'|'accepted'|'uncertain')}} CListAccountRegistrationSetupState Safe registration/account-save summary only. */
+/** @typedef {CListAccountRegistrationSetupState} CListCollabSetupState */
+/** @typedef {CListAccountRegistrationSetupState} CListAnnotateSetupState */
+/** @typedef {{phase:string,busy:boolean,receipt:('none'|'accepted'|'uncertain')}} CListDiscordAccountSetupState Safe subscription/admin status; bot tokens, webhooks, session captures and commands remain private. */
+/** @typedef {{dark:boolean,web:boolean,busy:boolean,phase:string}} CListPersonalOptionsState Preference values/status only; transfer inputs and credentials remain private. */
+/** @typedef {Object.<string, *> & {clistLocalAccountExport:1,username:string,authHashDigest:string,exportedAt?:string,kv:Array<{key:string,value:string}>}} CListAccountExportPayload Native v1 ciphertext bundle; extensions remain opaque. */
+/** @typedef {{phase:string,busy:boolean,imported:number,skipped:number,remaining:number,uncertain:number}} CListAccountTransferState Safe transfer counts only; keys, ciphertext, passwords and CryptoKeys remain private. */
+/** @typedef {{isCurrent:function():boolean,feedback?:boolean}} CListAccountReauthorizationOptions Captured form guard and caller-owned feedback for service OAuth hooks. */
+/** @typedef {{phase:string,busy:boolean}} CListAccountReauthorizationState Status only; requests and credentials remain private. */
+/** @typedef {{phase:string,busy:boolean,receipt:('none'|'accepted'|'uncertain')}} CListOAuthAccountSaveState Safe callback-save presentation; service credentials, sessions, account keys and ciphertext remain private. */
+/** @typedef {{phase:'exchanged',issuer:string,providerType:string,createdAt:number,siteUrl?:string}} CListOAuthFlowReceipt Single-use sessionStorage receipt; issuer is a session fingerprint, never a raw credential. */
+
+/** @typedef {{phase:('local'|'connecting'|'connected'|'disconnected'|'closed'|'error'),remote:boolean}} CListCollabConnectionState Safe lifecycle summary only; resource handles, user identities, references and credentials remain private. */
+
+/** @typedef {{enabled:boolean,count:number}} CListCollabFormattingState Safe toolbar availability/count only; editor handles and command callbacks remain private. */
+
+/** @typedef {{phase:('idle'|'checking'|'current'|'available'|'exists'|'opening'|'error'),busy:boolean}} CListCollabTitleState Safe check/choice progress only; titles, document IDs, credentials and callbacks remain private. */
+
+/** @typedef {{phase:('loading'|'pending'|'ready'|'error'|'writing'|'uncertain'),busy:boolean,receipt:('none'|'pending'|'accepted'|'rejected'|'uncertain')}} CListCollabShareState Safe panel/update progress only; targets, credentials, links and settings remain private. */
+
+/** @typedef {{phase:('editing'|'mounting'|'posting'|'error'|'closed'),busy:boolean}} CListCollabComposerState Safe composer lifecycle only; draft content, editor handles and completion callbacks remain private. */
+
+/** @typedef {{phase:('opening'|'ready'|'cancelled'|'error'),busy:boolean}} CListCollabOpeningState Public link/invite lifecycle only; document targets, sessions and editor guards remain private. */
+
+/** @typedef {{phase:('opening'|'waiting'|'ready'|'skipped'|'cancelled'|'error'),busy:boolean}} CListCollabCreationState Safe creation progress only; seeds, sessions, resources and invite dispatch remain private. */
+
+/** @typedef {{busy:boolean,action:('share'|'annotate'|null)}} CListCollabHeaderState Safe action progress only; targets, references, sessions and input snapshots remain private. */
+
+/** @typedef {{phase:('inserting'|'syncing'|'ready'|'error'),busy:boolean}} CListCollabContentState Safe operation progress only; content, live references, editor handles and shared maps remain private. */
+
+/** @typedef {{phase:('mounting'|'loading'|'local'|'ready'|'cancelled'|'error'),busy:boolean}} CListCollabMountState Safe activation progress only; source sessions, DOM targets and resources remain private. */
+
+/** Captured editor-save input for native PageStore, separate from encrypted page:* metadata.
+ * @typedef {Object} CListNativePageSaveRequest
+ * @property {string} [id] Reused only for the captured local-page source.
+ * @property {number} [revision] Captured optimistic-concurrency revision.
+ * @property {string} title
+ * @property {string} [content] Supplied after the captured editor read settles.
+ * @property {string} contentType
+ * @property {string} editorType
+ * @property {CListReference[]} references Detached structural snapshot including extensions.
+ */
+/** Fields consumed from PageStore.save's full native record; not a new stored shape.
+ * @typedef {{id:string,title:string,revision:number}} CListNativePageSaveResult
+ */
+/** @typedef {{phase:('capturing'|'writing'|'reconciling'|'saved'|'metadata-failed'|'error'|'cancelled'),receipt:('none'|'accepted'),busy:boolean}} CListNativePageSaveState Presentation summary only; page content, owner/session, APIs and recovery receipts remain private. */
+
+/** Existing native PageStore record, including legacy/imported optional metadata.
+ * @typedef {Object.<string, *> & {id:string,content:string,contentType:string,editorType:string,
+ * title?:string,revision?:number,createdAt?:string,updatedAt?:string,sourceUri?:string|null,
+ * sourceId?:string|null,references?:CListReference[],publications?:CListNativePagePublication[]}} CListNativePageRecord
+ */
+/** @typedef {{service:string,accountId:string|null,url:string,publishedAt:string,revision:number}} CListNativePagePublication Existing native publication metadata, separate from encrypted page:* records. */
+/** @typedef {{phase:('loading'|'ready'|'empty'|'reading'|'opening'|'error'),count:number,opening:boolean}} CListNativePageBrowserState Safe presentation only; rows, source/record captures and handoff callbacks remain private. */
+
+/** Existing bundle wire shape; metadata fields may be absent on imported legacy input.
+ * @typedef {{manifest:{app?:string,kind:'pageStoreBundle',version:1,exportedAt?:string,count?:number},pages:CListNativePageRecord[]}} CListNativePageBundle
+ */
+/** @typedef {{imported:number,skipped:number,replaced:number,duplicated:number,danglingReferences:{pageId:string,member:string}[],errors:{id:string,message:string}[]}} CListNativePageImportResult Existing PageStore import outcome, including per-record failures and unresolved in-bundle references. */
+/** @typedef {{kind:('import'|'export'),phase:('exporting'|'reading'|'importing'|'handed-off'|'complete'|'uncertain'|'error'|'cancelled'),receipt:('none'|'accepted'|'uncertain'),busy:boolean}} CListNativePageBundleState Presentation summary only; files, policies, owner/session, bundles and detailed receipts remain private. */
+
+/** @typedef {{generation:number,busy:boolean,dirty:number}} CListAnnotationFieldsState Safe field-generation/pending-count summary only; live targets, pending values, source captures and conflicts remain private. */
+
+/** @typedef {{phase:('idle'|'initializing'|'ready'|'fallback'|'closed'),busy:boolean}} CListAnnotationBodyState Safe lifecycle progress only; body HTML, editor/element handles, source captures and pending instances remain private. */
+
+/** @typedef {{phase:('loading'|'login-required'|'empty'|'ready'|'capturing'|'sending'|'result'|'uncertain'|'error'|'cancelled'),busy:boolean,accountIndex:number,visibility:('public'|'private'),receipt:('none'|'accepted'|'rejected'|'uncertain')}} CListAnnotationSendState Presentation only; session/account/target/body captures and account-choice keys remain private. */
+
+/**
+ * Captured callback-account save options. Existing updates read/decrypt latest data;
+ * service merge hooks remain private and must preserve open-ended metadata.
+ * @typedef {Object} CListOAuthAccountSaveOptions
+ * @property {function():boolean} [isCurrent]
+ * @property {function():Promise<void>} [afterRefresh]
+ * @property {boolean} [updateExisting] Reject missing/replaced-type records; merge instead of creating.
+ * @property {function(CListAccountData,CListAccountData):CListAccountData} [mergeExisting]
  */

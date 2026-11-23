@@ -1,0 +1,38 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Blogger account setup</title>
+<link rel="stylesheet" href="../css/interface.css">
+<h1>Blogger account setup</h1>
+<p>Real Blogger setup view/controller/factory, shared form lifecycle/recovery, account-save workflow, validator and loader. Sessions, KV storage, encryption/keys, post options and panel navigation mocked; no external requests, authorization, redirects or real writes. Live Google/Blogger, real cryptography and full account-panel integration not exercised. Test 2026-11-23.8.</p>
+<pre id="result">Checking…</pre>
+<script>
+window.CList={state:{},config:{}};
+window.fetch=()=>Promise.reject(new Error('Unexpected external request'));
+const google={accounts:{oauth2:{initTokenClient(){throw new Error('Setup must not authorize');}}}};
+</script>
+<script src="../js/account-state.js?v=2026-11-23.4"></script>
+<script src="../js/ui.js?v=2026-11-23.1"></script>
+<script src="../js/oauth_account_workflow.js?v=2026-11-23.4"></script>
+<script src="../js/oauth_account.js?v=2026-11-23.17"></script>
+<script src="../js/oauth_account_view.js?v=2026-11-23.4"></script>
+<script src="../js/oauth-client.js?v=2026-11-23.5"></script>
+<script src="../js/account-setup.js?v=2026-11-23.8"></script>
+<script src="../js/account-setup-view.js?v=2026-11-23.8"></script>
+<script src="../js/blogger_setup.js?v=2026-11-23.8"></script>
+<script src="../js/blogger_setup_view.js?v=2026-11-23.8"></script>
+<script src="../js/blogger.js?v=2026-11-23.8"></script>
+<script src="helpers/oauth-account-fixture.js?v=2026-11-23.17"></script>
+<script src="helpers/blogger-setup-fixture.js?v=2026-11-23.8"></script>
+<script>
+(async () => {
+    const result = document.getElementById('result'); let count = 0;
+    try {
+        for (const [name, run] of bloggerSetupCases) {
+            result.textContent = 'Checking: ' + name; let timer;
+            try { await Promise.race([run((condition, message) => { if (!condition) throw new Error(message); count++; }), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Timed out: ' + name)), 5000); })]); }
+            finally { clearTimeout(timer); }
+        }
+        result.textContent = 'PASS: ' + count + ' checks. Real Blogger setup/controller/view/factory, shared lifecycle/feedback and account saving, exact configuration/title fallback, validation/help links, duplicate/remount locks, Back/input/session expiry, accepted/uncertain read-only recovery and explicit retry, newer-draft/reader protection and secret-free state. Session/KV/encryption/key/post-options/panel effects mocked; no external requests, authorization, redirects or real writes. Live Google/Blogger, real cryptography and full account-panel integration not exercised.';
+    } catch (error) { result.textContent = 'FAIL: ' + (error.stack || error); }
+})();
+</script>

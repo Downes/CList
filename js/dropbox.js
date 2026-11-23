@@ -22,27 +22,31 @@ window.CList.schemas['Dropbox'] = {
 
 // ── OAuth start ───────────────────────────────────────────────────────────────
 
-async function dropboxOAuthStart(appKey, title, permissions, folder) {
-    if (!appKey) { showErrorModal('Please enter your Dropbox App Key first.', { title: 'App Key required' }); return; }
+async function dropboxOAuthStart(appKey, title, permissions, folder, options = {}) {
     try {
+        if (!appKey) throw new Error('Please enter your Dropbox App Key first.');
         await OAuthClient.login(
             title || 'Dropbox',
             'Dropbox',
             'https://www.dropbox.com',
             {
                 clientId: appKey,
-                extra:    { appKey, title: title || 'Dropbox', permissions: permissions || 'b', folder: folder || '/CList' },
+                extra:    { appKey, title: title || 'Dropbox', permissions: permissions || 'b', folder: folder || '/CList',
+                    ...(options.reauthorization ? { reauthorization: true } : {}) },
+                isCurrent: options.isCurrent,
             }
         );
     } catch (e) {
-        showErrorModal('Could not start Dropbox authorization: ' + e.message, { title: 'Authorization failed' });
+        if (options.feedback === false) throw e;
+        console.error('Dropbox authorization could not start:', e);
+        if (!options.isCurrent || options.isCurrent()) showErrorModal('Could not start Dropbox authorization: ' + e.message, { title: 'Authorization failed' });
     }
 }
 
 // ── OAuth callback ────────────────────────────────────────────────────────────
 // callback.html stores the result in localStorage; OAuthClient.onCallback picks it up.
 
-OAuthClient.onCallback('Dropbox', async data => {
+OAuthClient.onCallback('Dropbox', async (data, context) => {
     const ex = data.extra || {};
     await _saveDropboxAccount(
         ex.title       || 'Dropbox',
@@ -50,15 +54,19 @@ OAuthClient.onCallback('Dropbox', async data => {
         ex.folder      || '/CList',
         ex.permissions || 'b',
         data.accessToken,
-        data.tokenData?.refresh_token || ''
+        data.tokenData?.refresh_token || '',
+        { ...context, updateExisting: !!ex.reauthorization }
     );
 });
 
 // Initial OAuth account creation. File-operation token refresh uses the captured
 // session in dropbox_session.js and the shared account persistence operation.
-async function _saveDropboxAccount(title, appKey, folder, permissions, accessToken, refreshToken) {
+async function _saveDropboxAccount(title, appKey, folder, permissions, accessToken, refreshToken, options = {}) {
     const accountData = { type: 'Dropbox', appKey, folder, permissions, id: accessToken, refresh: refreshToken };
-    await OAuthClient.saveAccount('Dropbox', title, accountData);
+    await OAuthClient.saveAccount('Dropbox', title, accountData, { ...options,
+        mergeExisting: (existing, incoming) => ({ ...existing, ...incoming,
+            refresh: incoming.refresh || (existing.appKey === incoming.appKey ? existing.refresh || '' : '') }),
+    });
 }
 
 // ── Token refresh ─────────────────────────────────────────────────────────────

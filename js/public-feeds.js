@@ -78,32 +78,29 @@ function publicChangelogCollectionItems(items) {
     });
 }
 
-// Called only after a successful new-user registration and login. These are
-// ordinary encrypted accounts, not defaults that get restored on later logins.
+// Shared captured descriptors/discovery for registration seeding and the compatibility helper.
+function publicFeedSetupAccount(base, slug, title) {
+    return {key:`public-feed:${base}:${slug}`,label:title,data:{type:'PublicFeed',title,permissions:'r',serviceUrl:base,collectionSlug:slug}};
+}
+async function discoverPublicFeedSetup(base, deps) {
+    deps.assertCurrent();const response=await deps.fetch(`${base}/api/collections`);deps.assertCurrent();
+    if(!response.ok)throw new Error(`Could not discover public collections (HTTP ${response.status})`);
+    const collections=await response.json();deps.assertCurrent();
+    if(!Array.isArray(collections))throw new Error('Unexpected public collections response');
+    return collections.filter(collection=>collection&&typeof collection.slug==='string'&&collection.slug).map(collection=>publicFeedSetupAccount(base,collection.slug,typeof collection.title==='string'&&collection.title?collection.title:collection.slug));
+}
+// Existing standalone callers retain their Promise contract. Post-login setup uses explicit deps.
 async function seedPublicFeedAccounts() {
-    const encKey = await getEncKey(window.CList.config.flaskSiteUrl);
-    if (!encKey) throw new Error('Encryption key not available');
-    const existing = new Set((await window.CList.storage.kv.list()).map(account => account.key));
-    async function addCollection(slug, title) {
-        const key = `public-feed:${PUBLIC_FEEDS_BASE_URL}:${slug}`;
-        if (existing.has(key)) return;
-        const account = {
-            type: 'PublicFeed', title, permissions: 'r',
-            serviceUrl: PUBLIC_FEEDS_BASE_URL, collectionSlug: slug,
-        };
-        const encrypted = await encryptWithKey(encKey, JSON.stringify(account));
-        await window.CList.storage.kv.add(key, encrypted);
-        existing.add(key);
-    }
-    await addCollection('clist-changelog', 'CList Changelog');
-    const response = await fetch(`${PUBLIC_FEEDS_BASE_URL}/api/collections`);
-    if (!response.ok) throw new Error(`Could not discover public collections (HTTP ${response.status})`);
-    const collections = await response.json();
-    if (!Array.isArray(collections)) throw new Error('Unexpected public collections response');
-    for (const collection of collections) {
-        if (!collection.slug) continue;
-        await addCollection(collection.slug, collection.title || collection.slug);
-    }
+    const encKey=await getEncKey(window.CList.config.flaskSiteUrl);
+    if(!encKey)throw new Error('Encryption key not available');
+    const existing=new Set((await window.CList.storage.kv.list()).map(account=>account.key));
+    const add=async descriptor=>{
+        if(existing.has(descriptor.key))return;
+        const encrypted=await encryptWithKey(encKey,JSON.stringify(descriptor.data));
+        await window.CList.storage.kv.add(descriptor.key,encrypted);existing.add(descriptor.key);
+    };
+    await add(publicFeedSetupAccount(PUBLIC_FEEDS_BASE_URL,'clist-changelog','CList Changelog'));
+    for(const descriptor of await discoverPublicFeedSetup(PUBLIC_FEEDS_BASE_URL,{assertCurrent(){},fetch}))await add(descriptor);
 }
 
 function _publicFeedPlainText(html) {

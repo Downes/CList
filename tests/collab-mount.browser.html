@@ -1,0 +1,10 @@
+<!doctype html><meta charset="utf-8"><title>CList Collab mounting check</title>
+<h1>Collab mounting and reactivation</h1>
+<p>Real mount controller/view and surface/drop binding. Library/local initialization, resource/session/selection, controls, pending-content loader and error modal mocked. No external requests or writes. Full editor switching, actual TipTap/Yjs/provider lifecycle and live collaboration not exercised. Test 2026-11-22.2.</p>
+<pre id="result">Checking...</pre>
+<script src="../js/collab_mount_view.js?v=2026-11-22.2"></script>
+<script src="../js/collab_mount.js?v=2026-11-22.2"></script>
+<script src="helpers/collab-mount-fixture.js?v=2026-11-22.2"></script>
+<script>
+(async()=>{let checks=0;for(const[name,run]of collabMountCases)await run((condition,message)=>{if(!condition)throw Error(name+': '+message);checks++;});document.getElementById('result').textContent='PASS: '+checks+' checks. Real Collab mounting controller/view, fresh/local/remote reactivation, preserved resources/DOM/title, duplicate locks, owned drop binding, stale source/surface/local/disposal guards, newer connection/title protection, visible failure/explicit retry and pending-content failure propagation. Library/local, resources/session/selection, controls, loader and modal effects mocked; no external requests or writes. Full editor switching, actual TipTap/Yjs/provider lifecycle and live collaboration not exercised.';})().catch(error=>{document.getElementById('result').textContent='FAIL: '+error.stack;console.error(error);});
+</script>

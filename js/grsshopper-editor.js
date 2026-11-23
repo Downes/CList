@@ -45,9 +45,8 @@ let _grsshopperReference = null;
 let _grsshopperPendingUpload = null;
 
 // gRSShopper write accounts and the live <select> picking among them, refreshed every time the
-// Edit pane renders — read by the Upload and Publish panes to resolve which account to use,
-// same "resolve from the picker, not findAccountByType" convention as annotate-editor.js's
-// _annotateSendState.
+// Edit pane renders — read by the Upload and Publish panes to resolve which account to use
+// (resolve from the picker, not findAccountByType).
 let _grsshopperEditState = { accounts: [], accountSelect: null };
 
 function _grsshopperSelectedAccount() {
@@ -260,9 +259,8 @@ async function _grsshopperRenderEditPane(container) {
 }
 
 // The entry's own images (from the quoted source's reference — see _grsshopperReference),
-// offered as one-click candidate thumbnails. Same shape-sniffing as annotate-editor.js's
-// _renderAnnotateUploadPane: a reader-populated reference may carry .images (plural) or a
-// single .image.
+// offered as one-click candidate thumbnails. A reader-populated reference may carry .images
+// (plural) or a single .image.
 function _grsshopperCandidateImages() {
     const ref = _grsshopperReference;
     if (!ref) return [];

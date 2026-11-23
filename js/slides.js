@@ -6,32 +6,33 @@
     let instance = null
     let mounting = null
     let recovery = null
-    let exportingPowerPoint = false
-    let importingPowerPoint = false
-
-    function importError(error) {
-        console.error('Slides PowerPoint import failed:', error)
-        showErrorModal('Could not import PowerPoint: ' + error.message + ' Your existing slides have been kept.', { title: 'PowerPoint import failed' })
+    let ioController = null
+    function captureIOSource() {
+        if (currentEditor !== 'slides' || !instance) throw new Error('Open Slides before importing or exporting.')
+        const state = window.CList.state, storeUrl = window.CList.config.flaskSiteUrl
+        return { editor: instance, document: instance.document, root: document.getElementById('slidesDiv'), store: window.CList.pageStore,
+            storeUrl, username: state.username, epoch: state.authEpoch, token: getSiteSpecificCookie(storeUrl, window.CList.keys.ACCESS_TOKEN),
+            loadId: state.editorLoading?.id, switchId: state.editorSwitching?.id, controlsId: state.editorControls?.id }
     }
-    async function importPowerPointContent(data, filename) {
-        if (importingPowerPoint) { showStatusMessage('A PowerPoint import is already running.'); return }
-        importingPowerPoint = true
-        try {
-            showStatusMessage('Reading PowerPoint presentation...')
-            const result = await instance.importPowerPoint(data, filename)
-            if (typeof closeLoadSurfaces === 'function') closeLoadSurfaces()
-            if (result.warnings.length) {
-                const body = document.createElement('div'), summary = document.createElement('p'), list = document.createElement('ul')
-                summary.textContent = result.count + ' slides added after your existing presentation. Use Undo to remove the import. The following content could not be reproduced exactly:'
-                for (const warning of result.warnings) {
-                    const item = document.createElement('li'); item.textContent = warning; list.append(item)
-                }
-                body.append(summary, list)
-                buildDialogModal('PowerPoint import report', body, [{ label: 'Close', onClick: close => close() }])
-            } else showStatusMessage(result.count + ' PowerPoint slides added. Use Undo to remove the import.')
-        } catch (error) { importError(error) }
-        finally { importingPowerPoint = false }
+    function currentIOSource(source) {
+        const state = window.CList.state
+        return currentEditor === 'slides' && source.editor === instance && source.document === instance.document
+            && source.root?.isConnected && source.root === document.getElementById('slidesDiv') && source.store === window.CList.pageStore
+            && source.storeUrl === window.CList.config.flaskSiteUrl && source.username === state.username && source.epoch === state.authEpoch
+            && source.token === getSiteSpecificCookie(source.storeUrl, window.CList.keys.ACCESS_TOKEN)
+            && source.loadId === state.editorLoading?.id && source.switchId === state.editorSwitching?.id && source.controlsId === state.editorControls?.id
     }
+    function slideIO() {
+        return ioController ||= createSlidesIOController({
+            capture: captureIOSource, current: currentIOSource,
+            state: value => { window.CList.state.slidesIO = value },
+            sync: (source, merge) => { if (merge) source.editor.addReferences(getReferences()); setReferences(source.editor.getReferences()) },
+            closeLoad: () => { if (typeof closeLoadSurfaces === 'function') closeLoadSurfaces() },
+            report: callback => setTimeout(callback, 0),
+            defer: callback => queueMicrotask(callback), log: error => console.error('[Slides IO]', error),
+        }, createSlidesIOView())
+    }
+    function importPowerPointContent(data, filename) { return slideIO().importBytes(data, filename) }
     window.CList.loaders = window.CList.loaders || []
     window.CList.loaders.push({
         label: 'Recover slides', icon: 'restore', requiresLogin: false, requiresAccount: false,
@@ -41,29 +42,7 @@
     window.CList.loaders.push({
         label: 'Import PowerPoint', icon: 'slideshow', requiresLogin: false, requiresAccount: false,
         visible: () => currentEditor === 'slides' && !!instance,
-        load: async () => {
-            try {
-                let file
-                if (window.showOpenFilePicker) {
-                    const [handle] = await window.showOpenFilePicker({ types: [{ description: 'PowerPoint presentation', accept: { [powerPointType]: ['.pptx'] } }], multiple: false })
-                    file = await handle.getFile()
-                } else {
-                    file = await new Promise(resolve => {
-                        const input = document.createElement('input')
-                        input.type = 'file'; input.accept = '.pptx'; input.hidden = true
-                        const finish = value => { input.remove(); resolve(value) }
-                        input.addEventListener('change', () => finish(input.files[0] || null), { once: true })
-                        input.addEventListener('cancel', () => finish(null), { once: true })
-                        document.body.append(input); input.click()
-                    })
-                }
-                if (!file) return null
-                if (!/\.pptx$/i.test(file.name)) throw new Error('Choose a .pptx file. Legacy .ppt files are not supported.')
-                if (file.size > 100 * 1024 * 1024) throw new Error('Choose a .pptx file smaller than 100 MB.')
-                await importPowerPointContent(await file.arrayBuffer(), file.name)
-            } catch (error) { if (error.name !== 'AbortError') importError(error) }
-            return null
-        },
+        load: async () => { await slideIO().pickImport(); return null },
     })
 
     function syncSlideReferences() {
@@ -75,187 +54,58 @@
         if (!source) return []
         return [source, ...source.querySelectorAll('[id]')].map(node => node.reference).filter(Boolean)
     }
-    function importReadContent(content, refs) {
-        if (!instance) throw new Error('Open Slides before importing content.')
-        const id = instance.importContent(content, refs)
-        syncSlideReferences()
-        return id
+    function importReadContent(content, refs) { return slideIO().content(content, refs) }
+    function refreshSavedLayouts() { return slideIO().refresh() }
+    let layoutController = null
+    function captureLayoutSource() {
+        if (currentEditor !== 'slides' || !instance || !window.CList.pageStore) throw new Error('Open Slides before managing saved layouts.')
+        const state = window.CList.state, storeUrl = window.CList.config.flaskSiteUrl
+        return { editor: instance, document: instance.document, store: window.CList.pageStore,
+            savePanelId: state.saving?.panelId, saveNode: document.getElementById('save-options'), saveChild: document.getElementById('save-options')?.firstElementChild,
+            storeUrl, username: state.username, epoch: state.authEpoch,
+            token: getSiteSpecificCookie(storeUrl, window.CList.keys.ACCESS_TOKEN),
+            loadId: state.editorLoading?.id, switchId: state.editorSwitching?.id }
     }
-    async function refreshSavedLayouts() {
-        if (!instance || !window.CList.pageStore) return
-        try {
-            const records = await window.CList.pageStore.list()
-            for (const record of records.filter(entry => entry.contentType === layoutType)) {
-                try {
-                    const saved = await window.CList.pageStore.get(record.id)
-                    if (saved) instance.registerSavedLayout(JSON.parse(saved.content))
-                } catch (error) {
-                    console.error('Saved slide layout could not load:', error)
-                    showStatusMessage('A saved slide layout could not load: ' + error.message)
-                }
-            }
-        } catch (error) {
-            console.error('Saved slide layouts are unavailable:', error)
-            showStatusMessage('Saved slide layouts are unavailable: ' + error.message)
-        }
+    function layoutSourceCurrent(source) {
+        const state = window.CList.state
+        return currentEditor === 'slides' && instance === source.editor && instance.document === source.document
+            && window.CList.pageStore === source.store && window.CList.config.flaskSiteUrl === source.storeUrl
+            && state.username === source.username && state.authEpoch === source.epoch
+            && getSiteSpecificCookie(source.storeUrl, window.CList.keys.ACCESS_TOKEN) === source.token
+            && state.editorLoading?.id === source.loadId && state.editorSwitching?.id === source.switchId
     }
-    function manageLayoutDialog(layout, remove) {
-        return new Promise(resolve => {
-            const body = document.createElement('div')
-            const name = document.createElement('input')
-            name.type = 'text'
-            name.maxLength = 120
-            name.value = layout.label
-            if (remove) {
-                const description = document.createElement('p')
-                description.textContent = 'Remove “' + layout.label + '” from your saved layouts?'
-                body.append(description)
-            } else {
-                const label = document.createElement('label')
-                label.textContent = 'Layout name'
-                label.append(name)
-                body.append(label)
-            }
-            const message = document.createElement('p')
-            message.className = 'error-message'
-            message.hidden = true
-            body.append(message)
-            const dialog = buildDialogModal(remove ? 'Delete saved layout' : 'Rename saved layout', body, [
-                { label: 'Cancel', secondary: true, onClick: close => { close(); resolve(null) } },
-                { label: remove ? 'Delete layout' : 'Rename layout', onClick: async close => {
-                    const title = name.value.trim()
-                    if (!remove && (!title || title.length > 120)) {
-                        message.textContent = 'Enter a layout name of 1–120 characters.'
-                        message.hidden = false
-                        return
-                    }
-                    dialog.buttons.forEach(button => { button.disabled = true })
-                    message.hidden = true
-                    try {
-                        const record = await window.CList.pageStore.get(layout.id)
-                        if (!record || record.contentType !== layoutType) throw new Error('This saved layout is no longer available.')
-                        let result = true
-                        if (remove) await window.CList.pageStore.remove(layout.id)
-                        else {
-                            const value = JSON.parse(record.content)
-                            if (value.format !== 'clist-slide-layout-v1' || value.id !== layout.id) throw new Error('This saved layout is invalid.')
-                            result = { ...value, label: title }
-                            await window.CList.pageStore.save({ ...record, title, content: JSON.stringify(result), revision: record.revision })
-                        }
-                        close()
-                        showStatusMessage(remove ? 'Saved layout deleted.' : 'Saved layout renamed.')
-                        resolve(result)
-                    } catch (error) {
-                        console.error('Saved layout could not ' + (remove ? 'delete' : 'rename') + ':', error)
-                        message.textContent = 'Could not ' + (remove ? 'delete' : 'rename') + ' layout: ' + error.message
-                        message.hidden = false
-                    } finally { dialog.buttons.forEach(button => { button.disabled = false }) }
-                } },
-            ])
-            if (!remove) { name.focus(); name.select() }
+    function slideLayouts() {
+        return layoutController ||= createSlidesLayoutController({
+            capture: captureLayoutSource, current: layoutSourceCurrent, view: createSlidesLayoutView,
+            state: value => { window.CList.state.slidesLayouts = value; if (value.phase === 'working' || value.receipt === 'accepted') ioController?.invalidateRefresh() },
+            register: (source, value) => source.editor.registerSavedLayout(value, { select: true }),
+            complete: source => {
+                const node = document.getElementById('save-options')
+                if (typeof closeRightPane === 'function' && node?.isConnected && node === source.saveNode
+                    && node.firstElementChild === source.saveChild && node.style.display !== 'none'
+                    && window.CList.state.saving?.panelId === source.savePanelId) closeRightPane()
+            },
+            status: showStatusMessage, log: error => console.error('[Slides layout]', error),
         })
     }
+    function manageLayoutDialog(layout, remove) { return slideLayouts().open(remove ? 'delete' : 'rename', layout) }
+    function saveLayoutDialog() {
+        try {
+            const source = captureLayoutSource()
+            const layout = source.editor.createSavedLayout('My slide layout')
+            slideLayouts().open('save', layout).catch(error => { console.error('[Slides layout]', error); showStatusMessage('Slide layout could not save: ' + error.message) })
+        } catch (error) { console.error('[Slides layout]', error); showStatusMessage('Slide layout could not save: ' + error.message) }
+        return { keepOpen: true }
+    }
     window.CList.savers = window.CList.savers || []
+    for (const [format, label, icon] of [['html', 'Export slides as HTML', 'html'], ['powerpoint', 'Export slides as PowerPoint', 'slideshow'], ['pdf', 'Export slides as PDF', 'picture_as_pdf']]) {
+        window.CList.savers.push({ label, icon, requiresLogin: false, requiresAccount: false,
+            visible: () => currentEditor === 'slides' && !!instance, save: () => slideIO().export(format) })
+    }
     window.CList.savers.push({
-        label: 'Export slides as HTML', icon: 'html', requiresLogin: false, requiresAccount: false,
-        visible: () => currentEditor === 'slides' && !!instance,
-        save: async () => {
-            try { await instance.exportHtml(); showStatusMessage('HTML presentation downloaded.') }
-            catch (error) {
-                console.error('Slides HTML export failed:',error)
-                showErrorModal('Could not export slides as HTML: '+error.message,{title:'HTML export failed'})
-            }
-        },
-    })
-    window.CList.savers.push({
-        label: 'Export slides as PowerPoint',
-        icon: 'slideshow',
-        requiresLogin: false,
-        requiresAccount: false,
-        visible: () => currentEditor === 'slides' && !!instance,
-        save: async () => {
-            if (exportingPowerPoint) { showStatusMessage('PowerPoint export is already running.'); return }
-            exportingPowerPoint = true
-            showStatusMessage('Preparing PowerPoint export...')
-            try {
-                const warnings = await instance.exportPowerPoint()
-                showStatusMessage('PowerPoint export downloaded.' + (warnings.length ? ' ' + warnings.join(' ') : ''))
-            } catch (error) {
-                console.error('Slides PowerPoint export failed:', error)
-                showStatusMessage('Slides could not export as PowerPoint: ' + error.message)
-            } finally { exportingPowerPoint = false }
-        },
-    })
-    window.CList.savers.push({
-        label: 'Export slides as PDF',
-        icon: 'picture_as_pdf',
-        requiresLogin: false,
-        requiresAccount: false,
-        visible: () => currentEditor === 'slides' && !!instance,
-        save: async () => {
-            try { await instance.exportPdf() }
-            catch (error) {
-                console.error('Slides PDF export failed:', error)
-                showStatusMessage('Slides could not export as PDF: ' + error.message)
-            }
-        },
-    })
-    window.CList.savers.push({
-        label: 'Save slide as layout',
-        icon: 'dashboard',
-        requiresLogin: false,
-        requiresAccount: false,
+        label: 'Save slide as layout', icon: 'dashboard', requiresLogin: false, requiresAccount: false,
         visible: () => currentEditor === 'slides' && !!instance && !!window.CList.pageStore,
-        save: () => {
-            try {
-                const layout = instance.createSavedLayout('My slide layout')
-                const body = document.createElement('div')
-                const label = document.createElement('label')
-                label.textContent = 'Layout name'
-                const name = document.createElement('input')
-                name.type = 'text'
-                name.maxLength = 120
-                name.value = layout.label
-                label.appendChild(name)
-                const description = document.createElement('p')
-                description.textContent = 'Preserves this slide’s objects, text, images, background, and notes.'
-                const message = document.createElement('p')
-                message.className = 'error-message'
-                message.hidden = true
-                body.append(label, description, message)
-                const dialog = buildDialogModal('Save slide as layout', body, [
-                    { label: 'Cancel', secondary: true, onClick: close => close() },
-                    { label: 'Save layout', onClick: async close => {
-                        const title = name.value.trim()
-                        if (!title || title.length > 120) {
-                            message.textContent = 'Enter a layout name of 1–120 characters.'
-                            message.hidden = false
-                            return
-                        }
-                        dialog.buttons.forEach(button => { button.disabled = true })
-                        message.hidden = true
-                        try {
-                            const value = { ...layout, label: title }
-                            await window.CList.pageStore.save({ id: value.id, title, content: JSON.stringify(value), contentType: layoutType, editorType: 'slides', references: [] })
-                            instance.registerSavedLayout(value, { select: true })
-                            close()
-                            if (typeof closeRightPane === 'function') closeRightPane()
-                            showStatusMessage('Slide layout saved. Choose it under New slide layout.')
-                        } catch (error) {
-                            console.error('Slide layout could not save:', error)
-                            message.textContent = 'Slide layout could not save: ' + error.message
-                            message.hidden = false
-                        } finally { dialog.buttons.forEach(button => { button.disabled = false }) }
-                    } },
-                ])
-                name.focus()
-                name.select()
-            } catch (error) {
-                console.error('Slide layout could not open for saving:', error)
-                showStatusMessage('Slide layout could not save: ' + error.message)
-            }
-            return { keepOpen: true }
-        },
+        save: saveLayoutDialog,
     })
 
     editorHandlers.slides = {
@@ -333,7 +183,7 @@
         },
         loadContent: ({ type, value }, itemId) => {
             if (!instance) return
-            if (type === powerPointType) { importPowerPointContent(value).catch(importError); return }
+            if (type === powerPointType) return importPowerPointContent(value)
             try {
                 if (type === layoutType) {
                     instance.registerSavedLayout(typeof value === 'string' ? JSON.parse(value) : value)
@@ -345,9 +195,7 @@
                     return
                 }
                 if (type !== snapshotType) throw new Error('Slides requires a CList slide snapshot or text content.')
-                instance.loadSnapshot(typeof value === 'string' ? JSON.parse(value) : value)
-                queueMicrotask(() => { if (currentEditor === 'slides') { instance.addReferences(getReferences()); syncSlideReferences() } })
-                showStatusMessage('Slide snapshot loaded.')
+                return slideIO().snapshot(value)
             } catch (error) {
                 console.error('Slide snapshot could not load:', error)
                 showStatusMessage('Slide snapshot could not load: ' + error.message)

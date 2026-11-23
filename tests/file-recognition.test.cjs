@@ -3,6 +3,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const { Element } = require('./helpers/account-fixture.cjs');
+const {NavigationElement}=require('./helpers/navigation-dom.cjs');
+const {createAnnotationTinyFake}=require('./helpers/annotation-tiny-fixture.js');
 const source = name => fs.readFileSync('js/' + name + '.js', 'utf8');
 const plain = value => JSON.parse(JSON.stringify(value));
 function recognitionFixture(extra = {}) {
@@ -217,15 +219,17 @@ test('both native and fallback pickers classify byte content without trusting fi
 
 test('actual annotation native-file API round-trips body, target and convergent references without publication calls',()=>{
     let body='<p>Original</p>',references=[{url:'https://first',title:'First',author_name:'Author'}, {url:'https://second',title:'Second'}];
-    const textarea={value:body};
+    const textarea=new NavigationElement('textarea');textarea.value=body;const bodyRoot=new NavigationElement('div');bodyRoot.id='annotateEditDiv';bodyRoot.appendChild(textarea);
     const handlers={};
     const ctx=vm.createContext({window:{CList:{state:{}},sanitizeHtml:html=>html},editorHandlers:handlers,structuredClone,
-        console:{error(){}},document:{getElementById:id=>id==='annotate-edit-body'?textarea:null},
+        console:{error(){}},document:{getElementById:id=>id===bodyRoot.id?bodyRoot:bodyRoot.querySelector('#'+id),createElement:tag=>new NavigationElement(tag)},
         tinymce:{get:()=>({getContent:()=>body,setContent:value=>{body=value;}})},
         getReferences:()=>references,setReferences:value=>{references=value;},
         escapeHtml:value=>String(value).replaceAll('<','&lt;'),cleanHTMLContent:value=>value,
     });
+    for(const name of ['annotate_draft_state', 'annotate_draft_view', 'annotate_draft', 'annotate_body_view', 'annotate_body', 'annotate_send_view', 'annotate_send'])vm.runInContext(source(name),ctx);
     vm.runInContext(source('annotate-editor'),ctx);
+    ctx.tinymce=createAnnotationTinyFake({read:()=>body,write:value=>{body=value;}});vm.runInContext('_initAnnotateTinyMCE()',ctx);
     const saved=handlers['annotate-edit'].getFileContent();
     assert.equal(saved.type,'application/vnd.clist.annotation+json');
     const snapshot=JSON.parse(saved.value);assert.equal(snapshot.body,'<p>Original</p>');

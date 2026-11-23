@@ -33,9 +33,8 @@ function switchEditorPane(editorType, paneId) {
 // window.CList.uploaders (grsshopper_publish.js), the same registry-dispatch shape editors
 // already use for window.CList.publishers. Calls onUploaded({url, fileId}) on success so
 // each caller decides what to do with the hosted URL (append an <img> to a body, fill a
-// cover-image field, …) — extracted out of annotate-editor.js's original
-// _renderAnnotateUploadPane so a second editor (grsshopper-editor.js) can use the same UI
-// without duplicating it, per the "functions an editor can just plug in" goal.
+// cover-image field, …) — used by grsshopper-editor.js's Upload pane, per the "functions
+// an editor can just plug in" goal.
 function renderUploadPane(pane, account, candidates, onUploaded) {
     const runUpload = async (sourceUrl) => {
         if (!sourceUrl) { showErrorModal('Enter or choose an image URL first.', { title: 'URL required' }); return; }

@@ -127,7 +127,7 @@ async function annotateReferenceRow(row) {
             || row.owner.username !== window.CList.state.username || row.owner.storeUrl !== window.CList.config?.flaskSiteUrl
             || row.owner.loadId !== window.CList.state.editorLoading?.id) return;
         pushReference(target);
-        _refreshAnnotateSendControls(); _refreshAnnotateRefFields();
+        await _refreshAnnotateSendControls(); _refreshAnnotateRefFields();
     } catch (error) {
         const sameSession = row.owner.username === window.CList.state.username && row.owner.storeUrl === window.CList.config?.flaskSiteUrl;
         const ownedTarget = typeof currentEditor !== 'undefined' && currentEditor === 'annotate-edit'

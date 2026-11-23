@@ -2,7 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const { Element } = require('./helpers/account-fixture.cjs');
+const { NavigationElement: Element } = require('./helpers/navigation-dom.cjs');
+const {createAnnotationTinyFake}=require('./helpers/annotation-tiny-fixture.js');
 const source = fs.readFileSync('js/annotate-editor.js', 'utf8');
 const nativeType = 'application/vnd.clist.annotation+json';
 const plain = value => JSON.parse(JSON.stringify(value));
@@ -11,26 +12,29 @@ const plain = value => JSON.parse(JSON.stringify(value));
 // This verifies capture/restoration decisions, not TinyMCE or browser rendering.
 function fixture({ liveEditor = true, sanitizer = true } = {}) {
     const root = new Element(), textarea = new Element('textarea'), fields = new Element();
-    textarea.id = 'annotate-edit-body'; fields.id = 'annotate-ref-fields'; root.append(textarea, fields);
+    root.id='annotateEditDiv';textarea.id = 'annotate-edit-body'; fields.id = 'annotate-ref-fields'; root.append(textarea, fields);
     let html = '', references = [];
     const sanitized = [];
     const editor = { getContent: () => html, setContent: value => { html = value; } };
     const ctx = vm.createContext({
-        editorHandlers: {}, structuredClone, console,
+        editorHandlers: {}, currentEditor:'annotate-edit', structuredClone, console,
         window: sanitizer ? { sanitizeHtml(value) { sanitized.push(value); return {toString: () => value.replace(/<script[\s\S]*?<\/script>/gi, '')}; } } : {},
-        document: { getElementById: id => root.querySelector('#' + id), createElement: tag => new Element(tag) },
+        document: { getElementById: id => id===root.id?root:root.querySelector('#' + id), createElement: tag => new Element(tag) },
         tinymce: { get: () => liveEditor ? editor : null },
         getReferences: () => references, setReferences: list => { references = list; },
         clearReferences: () => { references = []; }, hasValidSession: () => true,
         escapeHtml: value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;'),
         cleanHTMLContent: value => value.replace(/<[^>]+>/g, ''),
     });
+    ctx.window.CList={state:{},config:{}};
+    for(const name of ['annotate_draft_state', 'annotate_draft_view', 'annotate_draft', 'annotate_body_view', 'annotate_body', 'annotate_send_view', 'annotate_send'])vm.runInContext(fs.readFileSync('js/'+name+'.js','utf8'),ctx);
     vm.runInContext(source, ctx);
+    if(liveEditor){ctx.tinymce=createAnnotationTinyFake({read:()=>html,write:value=>{html=value;}});vm.runInContext('_initAnnotateTinyMCE()',ctx);}
     return { ctx, handler: ctx.editorHandlers['annotate-edit'], textarea, fields, sanitized,
         body: () => liveEditor ? html : textarea.value,
         refs: () => plain(references),
         target: () => plain(vm.runInContext('_annotateTarget()', ctx)),
-        seedTarget(target) { ctx.seedTarget = target; vm.runInContext('_annotateDraftRef = structuredClone(seedTarget)', ctx); },
+        seedTarget(target) { ctx.seedTarget = target; vm.runInContext('_annotationDraft.standalone = structuredClone(seedTarget)', ctx); },
         seedRefs(list) { references = list; },
     };
 }
@@ -121,21 +125,17 @@ test('malformed native annotations fail before changing existing body, target or
 
 function switchingFixture() {
     const f=fixture(), root=f.textarea.parentNode, errors=[], initializers=[];
-    root.innerHTML='';
-    let html='',ready=false;
-    const callbacks={};
-    const editor={getContent:()=>html,setContent:value=>{html=value;},
-        getContainer:()=>({classList:{add(){}}}),on:(name,callback)=>{callbacks[name]=callback;}};
+    root.innerHTML='';root.id='write-pane';
+    let html='';
     Object.assign(f.ctx,{
         currentEditor:'texteditor',currentEditorAccount:null,pendingContent:null,
-        captureAnnotationSession:()=>({token:null}),
+        captureAnnotationSession:()=>({token:null}),parseAccountValue:()=>null,ensureAccountsLoaded:async()=>[],
         _parkCurrentEditorState(){},_restoreEditorState(){},closeReferencesPanel(){},closeRightPane(){},
         updateEditorIndicator(){},populateEditorList:async()=>{},setupEditorButtons(){},registerEditorPanes(){},
         showErrorModal:message=>errors.push(message),console:{log(){},error(){}},
-        tinymce:{get:()=>ready?editor:null,init:config=>{
-            config.setup(editor);return new Promise((resolve,reject)=>initializers.push({
-                resolve:()=>{ready=true;callbacks.init?.();resolve([editor]);},reject}));
-        }},
+        tinymce:createAnnotationTinyFake({read:()=>html,write:value=>{html=value;},behavior:{init:(_config,editor)=>{
+            return new Promise((resolve,reject)=>initializers.push({resolve:()=>{editor.emit('init');resolve([editor]);},reject}));
+        }}}),
     });
     f.ctx.window.CList={ui:{view:{writePaneContent:root}}};
     f.ctx.document.documentElement={classList:{contains:()=>false}};
@@ -152,7 +152,7 @@ function switchingFixture() {
     f.ctx.populateEditorList = async () => {};
     f.ctx._parkCurrentEditorState = () => {};
     f.ctx._restoreEditorState = () => {};
-    return {...f,root,errors,initializers,html:()=>html,flush:()=>new Promise(resolve=>setImmediate(resolve))};
+    return {...f,root,errors,initializers,html:()=>f.ctx.editorHandlers['annotate-edit'].getContent(),flush:()=>new Promise(resolve=>setImmediate(resolve))};
 }
 
 test('real editor switch waits for annotation TinyMCE readiness and consumes carried HTML exactly once',async()=>{
@@ -167,12 +167,12 @@ test('real editor switch waits for annotation TinyMCE readiness and consumes car
     assert.deepEqual(f.errors,[]);
 });
 
-test('annotation initialization failure retains pending file and retries the existing panel without losing it',async()=>{
+test('annotation rich initialization failure delivers carried file to fallback and explicit retry preserves it',async()=>{
     const f=switchingFixture(),content={type:nativeType,value:annotation('<p>Retained file</p>',{url:'',title:'File title'})};
     const first=f.ctx.switchToEditor('annotate-edit',content);await f.flush();
     f.initializers[0].reject(Error('startup failed'));await first;
-    assert.deepEqual(plain(f.ctx.pendingContent),content);assert.equal(f.errors.length,1);
-    const retry=f.ctx.switchToEditor('annotate-edit');await f.flush();assert.equal(f.initializers.length,2);
+    assert.equal(f.ctx.pendingContent,null);assert.equal(f.html(),'<p>Retained file</p>');assert.ok(f.root.textContent.includes('Rich editor unavailable'));
+    const retry=f.ctx._initAnnotateTinyMCE();await f.flush();assert.equal(f.initializers.length,2);
     f.initializers[1].resolve();await retry;
     assert.equal(f.html(),'<p>Retained file</p>');assert.equal(f.ctx.pendingContent,null);
     assert.equal(f.target().title,'File title');

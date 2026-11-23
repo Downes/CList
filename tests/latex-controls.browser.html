@@ -1,0 +1,19 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>LaTeX controls and content</title>
+<link rel="stylesheet" href="../css/interface.css">
+<h1>LaTeX controls and content</h1>
+<p>Real compile transport, controls/controller/view and content/reference commands. HTTP, session/resource ownership, CodeMirror, shared maps, clipboard/modal helpers and PDF URLs mocked. No external requests, clipboard changes, downloads or writes. Full handler, actual CodeMirror/Yjs, live compilation and full switching not exercised. Test 2026-11-22.16.</p>
+<pre id="result">Checking…</pre>
+<script src="../js/latex_controls_workflow.js?v=2026-11-22.16"></script>
+<script src="../js/latex_content.js?v=2026-11-22.16"></script>
+<script src="../js/latex_controls.js?v=2026-11-22.16"></script>
+<script src="../js/latex_controls_view.js?v=2026-11-22.16"></script>
+<script src="helpers/latex-controls-fixture.js?v=2026-11-22.16"></script>
+<script>
+(async()=>{const result=document.getElementById('result');let count=0;
+try{for(const[name,run]of latexControlsCases){result.textContent='Checking: '+name;let timer;
+try{await Promise.race([run((condition,message)=>{if(!condition)throw new Error(message);count++;}),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Timed out: '+name)),5000);})]);}finally{clearTimeout(timer);}}
+result.textContent='PASS: '+count+' checks. Real LaTeX compile transport/controller/view and content commands, captured source/auth, duplicate/rebuilt locks, stale PDFs/errors, URL cleanup, safe Share/Copy, CodeMirror range accessors, exact references, read-only/reentrant guards, bibliography refresh and partial-failure feedback. HTTP/session/resource/CodeMirror/map/clipboard/modal/PDF URL APIs mocked; no external requests or writes. Full handler, real vendor behavior, live compilation and full switching not exercised.';
+}catch(error){result.textContent='FAIL: '+(error.stack||error);}})();
+</script>

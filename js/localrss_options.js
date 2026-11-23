@@ -9,8 +9,8 @@ function localrssOptionsOverlay(context = _readerContext) {
         root: null, closed: false, pending: false, statsId: 0,
     };
     target.current = () => _localrssOptionsTarget === target && !target.closed
-        && context.isAccountCurrent() && !!target.root?.parentNode;
-    target.close = () => { target.closed = true; };
+        && context.isAccountCurrent() && !!target.root?.isConnected;
+    target.close = () => { target.closed = true; target.disposePresentation?.(); };
     target.show = filter => {
         if (!target.current()) return;
         return localrssLoad(false, null, { filter, kind: 'items' }).catch(error => {

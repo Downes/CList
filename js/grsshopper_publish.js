@@ -69,9 +69,8 @@ window.grsshopperCreate = async function(account, payload) {
     });
 };
 
-// Hosts a remote URL (e.g. a feed item's image - see the Annotate editor's Upload pane,
-// annotate-editor.js's _renderAnnotateUploadPane) as a local file on this gRSShopper site,
-// without requiring an existing post to attach it to. Calls the token-authenticated
+// Hosts a remote URL (e.g. a feed item's image - see grsshopper-editor.js's Upload pane)
+// as a local file on this gRSShopper site, without requiring an existing post to attach it to. Calls the token-authenticated
 // cmd=clist_upload endpoint (api/clist.pl's api_clist_upload), which reuses gRSShopper's
 // own upload_url()/save_file() (dedup by source URL already built in - re-citing the same
 // feed image won't re-fetch or re-store it). Registered under window.CList.uploaders so any

@@ -227,3 +227,21 @@ test('browser provider selection uses the label span rather than Material Icon t
  const select=html.split('\n').find(line=>line.trim().startsWith('const select='));
  await vm.runInContext(select+"\nselect('OASIS OERs');",f.ctx);assert.equal(selected,'Captured query');
 });
+
+
+test('OpenAlex and Commons registry bindings keep captured row actions across pagination and reject replacement',async()=>{
+ for(const key of ['openalex','commons']){
+  const f=providerFixture(),calls=[],rows=[];let sequence=0;
+  f.ctx.openInBrowser=(url,id)=>calls.push({url,id});f.ctx.toggleEntryExpanded=id=>calls.push({id});
+  f.ctx.makeListing=(item,{rowContext})=>{const row=new Element();row.id='row-'+(++sequence);row.textContent=item.title;
+   const bar=new Element();bar.className='service-status-actions';row.appendChild(bar);f.CList.readers[key].bindRow({...item,_hasExpandableContent:true},row,rowContext);rows.push(row);return row;};
+  f.ctx[key==='openalex'?'normalizeOpenAlexWork':'normalizeCommonsPage']=async raw=>({title:raw.title,url:'https://captured.invalid'});
+  f.ctx.fetch=async()=>({ok:true,json:async()=>key==='openalex'?{results:[{title:'Result'}],meta:{count:75}}:{query:{pages:{1:{title:'Result',imageinfo:[{url:'https://image.invalid'}]}}},continue:{gsroffset:20}}});
+  f.ctx.playFind();f.type('Original');await f.button(key==='openalex'?'OpenAlex':'Wikimedia Commons').onclick();
+  assert.equal(f.CList.readers[key].statusActions(), '');const first=rows[0],buttons=first.querySelectorAll('button'),open=buttons.find(button=>button.title==='Open in browser');
+  assert.equal(typeof open.onclick,'function');await f.feed.querySelector('#'+key+'-load-more').onclick();await open.click();await buttons.find(button=>button.title==='Expand').click();
+  assert.deepEqual(calls,[{url:'https://captured.invalid',id:first.id},{id:first.id}]);
+  first.isConnected=false;await open.click();assert.equal(calls.length,2);first.isConnected=true;
+  f.type('Replacement');await f.button(key==='openalex'?'OpenAlex':'Wikimedia Commons').onclick();await open.click();assert.equal(calls.length,2);
+ }
+});

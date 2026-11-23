@@ -1,0 +1,14 @@
+<!doctype html><meta charset="utf-8"><title>CList native page bundle check</title>
+<h1>Local-page bundle import/export</h1>
+<p>Real controller/workflow/view, PageStore import/export validation/conflicts/remapping and shared owner helper. IndexedDB transactions, file reads, download handoff, editor/session and listing refresh mocked. No external requests, downloads or actual storage writes. Real file picker, browser download and IndexedDB durability not exercised. Test 2026-11-22.5.</p>
+<pre id="result">Checking...</pre>
+<script>window.CList={state:{},savers:[],loaders:[]};</script>
+<script src="../js/page-store.js?v=2026-11-22.5"></script>
+<script src="../js/save-panel.js?v=2026-11-22.5"></script>
+<script src="../js/page-store-bundle-workflow.js?v=2026-11-22.5"></script>
+<script src="../js/page-store-bundle-view.js?v=2026-11-22.5"></script>
+<script src="../js/page-store-bundle.js?v=2026-11-22.5"></script>
+<script src="helpers/page-store-bundle-fixture.js?v=2026-11-22.5"></script>
+<script>
+(async()=>{let checks=0;for(const[name,run]of pageBundleCases)await run((condition,message)=>{if(!condition)throw Error(name+': '+message);checks++;});document.getElementById('result').textContent='PASS: '+checks+' checks. Real native bundle controller/workflow/view and PageStore API, complete JSON export/handoff, captured file/policy, validation/conflict choices, duplicate reference remapping, partial/dangling results, accepted/uncertain receipts, explicit result review and stale source/panel guards. IndexedDB/file/download/editor/session/listing effects mocked; no external requests, downloads or actual storage writes. Real picker/download and IndexedDB durability not exercised.';})().catch(error=>{document.getElementById('result').textContent='FAIL: '+error.stack;console.error(error);});
+</script>
