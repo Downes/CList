@@ -1,0 +1,22 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>OAuth callback account saving</title>
+<link rel="stylesheet" href="../css/interface.css">
+<h1>OAuth callback account saving</h1>
+<p>Real callback-save controller/view/workflow, shared account validation/encryption dispatch/loader and OAuthClient.saveAccount bridge. KV storage, encryption/keys, cookies/session, navigation/provider UI hooks and modal container mocked. No external requests, account writes or real storage writes. Callback pickup/exchange, original-flow issuer binding, real cryptography and live OAuth not exercised. Test 2026-11-23.4.</p>
+<pre id="result">Checking…</pre>
+<script>window.CList={state:{},config:{}};</script>
+<script src="../js/account-state.js?v=2026-11-23.4"></script>
+<script src="../js/ui.js?v=2026-11-23.1"></script>
+<script src="../js/oauth_account_workflow.js?v=2026-11-23.4"></script>
+<script src="../js/oauth_account.js?v=2026-11-23.4"></script>
+<script src="../js/oauth_account_view.js?v=2026-11-23.4"></script>
+<script src="../js/oauth-client.js?v=2026-11-23.4"></script>
+<script src="helpers/oauth-account-fixture.js?v=2026-11-23.4"></script>
+<script>
+(async()=>{const result=document.getElementById('result');let count=0;
+try{for(const[name,run]of oauthAccountCases){result.textContent='Checking: '+name;let timer;
+try{await Promise.race([run((condition,message)=>{if(!condition)throw new Error(message);count++;}),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Timed out: '+name)),5000);})]);}finally{clearTimeout(timer);}}
+result.textContent='PASS: '+count+' checks. Real OAuth callback account-save/controller/view/workflow and shared account APIs, captured payload/session, duplicate/accepted receipts, pre-write expiry, accepted-vs-refresh failure, uncertain-write read-only checks, explicit retry, newer reader/modal protection and secret-free state. KV/crypto/session/navigation/provider/modal effects mocked; no external requests or real writes. Callback pickup/exchange, original-flow binding, actual cryptography and live OAuth not exercised.';
+}catch(error){result.textContent='FAIL: '+(error.stack||error);}})();
+</script>

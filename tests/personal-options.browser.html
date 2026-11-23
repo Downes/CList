@@ -1,0 +1,42 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Personal Options</title>
+<link rel="stylesheet" href="../css/interface.css">
+<h1>Personal Options</h1>
+<p>Real preference controller/workflow/view, WebMention preference helper, theme application, transfer handoff controller and file parser. Storage, TinyMCE documents, passwords, session, transfer APIs, account refresh, file picker and history mocked. No external requests, real storage/file writes, downloads or navigation. Actual TinyMCE, transfer encryption/storage/download internals and full application startup not exercised. Test 2026-11-23.14.</p>
+<pre id="result">Checking…</pre>
+<script>
+window.CList={state:{},config:{},keys:{WEBMENTION_ENABLED:'clist_webmention_enabled'}};
+Object.defineProperty(window,'localStorage',{configurable:true,value:{getItem(){return null;},setItem(){throw new Error('Unexpected storage write');}}});
+Object.defineProperty(window,'history',{configurable:true,value:{back(){throw new Error('Unexpected navigation');}}});
+window.fetch=()=>Promise.reject(new Error('Unexpected external request'));
+</script>
+<script src="../js/account-state.js?v=2026-11-23.4"></script>
+<script src="../js/ui.js?v=2026-11-23.1"></script>
+<script src="../js/oauth_account_workflow.js?v=2026-11-23.4"></script>
+<script src="../js/oauth_account.js?v=2026-11-23.7"></script>
+<script src="../js/oauth_account_view.js?v=2026-11-23.4"></script>
+<script src="../js/oauth-client.js?v=2026-11-23.5"></script>
+<script src="../js/account-transfer-workflow.js?v=2026-11-23.14"></script>
+<script src="../js/account-transfer-controller.js?v=2026-11-23.14"></script>
+<script src="../js/account-transfer.js?v=2026-11-23.14"></script>
+<script src="../js/personal-options-workflow.js?v=2026-11-23.13"></script>
+<script src="../js/personal-options.js?v=2026-11-23.13"></script>
+<script src="../js/personal-options-view.js?v=2026-11-23.13"></script>
+<script src="../js/personal-options-transfer.js?v=2026-11-23.14"></script>
+<script src="../js/webmention.js?v=2026-11-23.13"></script>
+<script src="helpers/oauth-account-fixture.js?v=2026-11-23.4"></script>
+<script src="helpers/personal-options-fixture.js?v=2026-11-23.13"></script>
+<script>
+(async () => {
+    const result = document.getElementById('result'); let count = 0;
+    try {
+        for (const [name, run] of personalOptionsCases) {
+            result.textContent = 'Checking: ' + name; let timer;
+            try { await Promise.race([run((condition, message) => { if (!condition) throw new Error(message); count++; }), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Timed out: ' + name)), 5000); })]); }
+            finally { clearTimeout(timer); }
+        }
+        result.textContent = 'PASS: ' + count + ' checks. Real Personal Options controller/workflow/view, dark/WebMention persistence and theme application, initial/read/write failures, display-only retry, duplicate/replaced/hidden guards, compatible export/import handoffs, captured password/file callbacks, real parser/escaped metadata, accepted import refresh-only retry and stale-source rejection. Storage/TinyMCE/session/password/transfer/refresh/picker/history effects mocked; no external requests, real writes, downloads or navigation. Transfer data internals, actual TinyMCE and full startup not exercised.';
+    } catch (error) { result.textContent = 'FAIL: ' + (error.stack || error); }
+})();
+</script>

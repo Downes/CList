@@ -1,0 +1,26 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Captured account transfer</title>
+<h1>Captured account transfer</h1>
+<p>Real export/import workflow, compatibility APIs, import receipt controller and Options recovery handoff. Storage, cookie/session/key versions, crypto, confirmation and download handoff mocked. No external requests, real writes or downloads. Real encryption, Local/hosted adapter durability and full Options/startup integration not exercised. Test 2026-11-23.14.</p>
+<pre id="result">Checking…</pre>
+<script>window.CList={state:{},config:{}};window.fetch=()=>Promise.reject(new Error('Unexpected external request'));</script>
+<script src="../js/oauth_account.js?v=2026-11-23.7"></script>
+<script src="../js/account-transfer-workflow.js?v=2026-11-23.14"></script>
+<script src="../js/account-transfer-controller.js?v=2026-11-23.14"></script>
+<script src="../js/account-transfer.js?v=2026-11-23.14"></script>
+<script src="../js/personal-options-transfer.js?v=2026-11-23.14"></script>
+<script src="helpers/account-transfer-fixture.js?v=2026-11-23.14"></script>
+<script>
+(async () => {
+    const result = document.getElementById('result'); let count = 0;
+    try {
+        for (const [name, run] of accountTransferCases) {
+            result.textContent = 'Checking: ' + name; let timer;
+            try { await Promise.race([run((condition, message) => { if (!condition) throw new Error(message); count++; }), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Timed out: ' + name)), 5000); })]); }
+            finally { clearTimeout(timer); }
+        }
+        result.textContent = 'PASS: ' + count + ' checks. Real captured export/import workflows, receipt controller and Options recovery, native v1/empty compatibility, detached ciphertext/source identity, password/duplicate validation, add-only conflict preservation, partial accepted receipts, read-only uncertain-write confirmation, explicit remaining retries, session/key/caller expiry and duplicate confirmation guards. Storage/session/key versions/crypto/confirmation/download effects mocked; no external requests, real writes or downloads. Real crypto, adapter durability and full application integration not exercised.';
+    } catch (error) { result.textContent = 'FAIL: ' + (error.stack || error); }
+})();
+</script>

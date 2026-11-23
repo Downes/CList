@@ -317,6 +317,7 @@ See `docs/adding-a-service.md` for the complete pattern.
 | `window.CList.keys.USERNAME` | `'username'` | logged-in username (site-specific cookie) |
 | `window.CList.keys.TOKEN_EXPIRES` | `'token_expires'` | token expiry timestamp (site-specific cookie) |
 | `window.CList.keys.OAUTH_CALLBACK_RESULT` | `'oauth_callback_result'` | OAuth popup result (localStorage) |
+| `window.CList.keys.OAUTH_STATE_PREFIX` | `'oauth_state_'` | Per-flow OAuth state prefix (sessionStorage; shared with callback page) |
 | `window.CList.keys.KVSTORE_URL` | `'clist_kvstore_url'` | selected kvstore server URL (localStorage) |
 | `window.CList.keys.TRANSLATION_ENABLED` | `'translationEnabled'` | translation preference (localStorage) |
 | `window.CList.keys.EDITOR_DRAFT_PREFIX` | `'clist_draft_'` | per-editor draft body and `_refs` sessionStorage keys |
@@ -370,6 +371,18 @@ by discarding its content. Full editor-switch internals and live sync need separ
 - TinyMCE is loaded from `https://www.downes.ca/assets/tinymce/tinymce.min.js`
 - Do **not** use `flask-cors` for kvstore — handle CORS entirely in Caddy (see README.md)
 
+## Etherpad editor
+
+Etherpad document operations use `etherpad_document_requests.js`,
+`etherpad_document_workflow.js`, `etherpad_document.js` and
+`etherpad_document_view.js`; the handler/legacy names remain in `etherpad.js`.
+Capture account/guest pad and headers before awaits, preserve partial Create
+receipts and never replay uncertain creation or welcome seeds. Only accepted
+appends add references, and stale completions cannot affect another pad. Keep
+errors propagating to shared loaders and feedback in the owned view. Read/merge/
+write still lacks remote concurrency control; do not claim iframe/live-service
+coverage from mocked fixtures.
+
 ## Desktop LocalRSS bundles
 
 The optional bundle scripts install `requirements-localrss.txt`, collect backend
@@ -382,6 +395,60 @@ are distinct from frozen builds, which must work without end-user pip installs.
 
 
 ## Local file saves and My Pages
+
+Annotation draft/target fields use `annotate_draft_state.js` (DOM-free target and
+field operations), `annotate_draft.js` (captured field/reference controller) and
+`annotate_draft_view.js` (form/feedback). Retain live reference identity, the
+standalone target until cited, shared URL registration/deduplication, structural
+metadata and service extensions. Keep unfinished values private and preserve
+them across same-target refreshes. A changed model field needs an explicit new
+input before an old pending value may overwrite it. Reject old target/form/
+editor/account/session/load callbacks; native annotation format/body stays in
+the existing handler.
+Annotation description resources use `annotate_body.js` and `annotate_body_view.js`.
+Use captured instances/unique textarea targets instead of global TinyMCE lookups;
+retain latest fallback/API edits while initializing and mirror input/change/undo/
+redo to the captured backing textarea. Preserve resources while hidden/reactivating
+within the same auth source. Replaced targets/auth sources expire callbacks and
+remove owned instances/listeners; continue cleanup after individual failures.
+Rich initialization failure leaves an editable textarea and explicit Retry, so
+queued native content can be delivered once to fallback. API read/write errors
+propagate to callers.
+Annotation Send uses `annotate_send.js` (captured controller/shared pending lock)
+and `annotate_send_view.js` (controls/results), reusing `captureAnnotationRequest`
+and `runAnnotationOperation`. Send keeps its existing primary-target contract;
+generic publication still handles convergent references separately. Capture the
+account/target/tags/visibility/session/return intent and body API before awaiting.
+Reject stale account registries, panels and pre-write draft changes. Return only
+for accepted, unchanged drafts; preserve newer body/metadata/tags/return intent.
+Keep credentials out of views/presentation state and preserve account/private
+visibility choices within the same auth session across rebuild/reactivation.
+Suppress old feedback and never automatically replay an uncertain write.
+
+Native local-page Save uses `page-store-save.js` (captured controller),
+`page-store-save-workflow.js` (explicit write through existing PageStore) and
+`page-store-save-view.js` (feedback). Capture editor/page/revision/title/references
+before awaiting content; cancel stale pre-write captures and never reconcile a
+completed write into another editor/session/document. Preserve newer visible
+title/references while attaching accepted identity/revision. UI reconciliation
+failure retains a private receipt for metadata-only retry, without another write.
+Keep native PageStore separate from remote My Pages and file exports.
+Local listing/opening now uses `page-store-browser.js`,
+`page-store-browser-workflow.js` and `page-store-browser-view.js`. Capture the
+PageStore API, panel/session/source/editor/live-document ownership before reads.
+Keep row/retry callbacks private and reject old generations; pass a session/
+controls guard into existing `loadSavedPage`, allowing its intended editor changes.
+Preserve native revision/references/latest publication metadata and existing
+editor-choice behavior.
+Bundle tools use `page-store-bundle.js` (captured controller/receipts),
+`page-store-bundle-workflow.js` (parse/summary) and `page-store-bundle-view.js`
+(picker/results/download feedback), through the unchanged PageStore data API.
+Capture file/policy/store/session/panel before reading; guard export download
+handoff and import dispatch. Keep partial counts/errors/dangling references visible.
+Accepted or uncertain attempts lock their captured file/policy; result review
+must not repeat writes. Rebuilt panels can explicitly inspect the private result.
+An import already dispatched may finish its original operations after navigation;
+never repaint/reload a replacement UI or claim those writes were cancelled.
 
 Local file saving uses `file-save.js` (captured controller),
 `file-save-workflow.js` (explicit export/write/index operations), and
@@ -433,7 +500,12 @@ additions use the analogous `collection-entry-*` modules. Keep original draft/pa
 account/session captures, shared content-first routing, explicit Open/Insert/Cancel,
 owned-page restrictions, anonymous local blobs and failed-mount rollback that does
 not overwrite a newer load. Nested file imports are add-only; conflicts are visible.
-The remaining editor row widgets and collection Save/publication paths stay separate.
+Draft row widgets now use `collection-draft-state.js`, `collection-draft.js` and
+`collection-draft-view.js`, with `collection-editor.js` retaining the editor bridge.
+Preserve `_draftItems` live-array compatibility and raw member extensions. Row
+generations and actual attachment reject retired controls. Metadata-only Save/
+publication identity updates must retain editing; explicit `_refreshIdDisplay`
+reconciliation adopts them. Collection Save/publication workflows stay separate.
 
 ## Migrated service readers and row bindings
 

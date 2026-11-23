@@ -31,6 +31,122 @@ conceptual collection model or introduce a storage migration. Native local page
 records remain separate from `CListPublishedPageRecord`, the subsequently added
 contract for published page metadata.
 
+Annotation target/field operations reuse `CListReference` live objects. Its `id`
+is nullable for the existing standalone draft; the native file format is unchanged.
+`annotate_draft_state.js` resolves the first document reference or the private
+standalone target. Incoming references fill a URL-less target using the existing
+truthy structural-field adoption and also preserve open-ended service extensions,
+including false-valued extension properties. Established targets remain primary;
+additional sources use the shared exact-URL reference helper.
+
+The fields controller keeps pending values/baselines/conflicts privately and
+preserves unfinished input through same-target refreshes. Committing after the
+underlying field changed requires an explicit new input; duplicate old change
+callbacks cannot overwrite accepted metadata. Source/session/account/editor/load
+captures and target/form generations reject obsolete edits. Manual URL entry
+registers the same target object rather than cloning it. Clear and native restore
+invalidate old forms and retain body/target/reference round-trip behavior.
+`CListAnnotationFieldsState` exposes generation/busy/dirty-count only. This slice
+does not migrate TinyMCE initialization or Send's publication lifecycle.
+
+Annotation body lifecycle now uses `annotate_body.js` / `annotate_body_view.js`.
+The private controller owns HTML, original textarea/root, auth source, pending
+initialization and editor/listener resources. Each initialization uses a unique
+target ID; callers use handler APIs rather than a fixed-ID/global TinyMCE lookup.
+Delayed ready callbacks seed the latest same-target content once. Input/change/
+undo/redo mirror into the captured fallback; ordinary hide/reactivation preserves
+the editor while root/auth expiry removes owned resources and rejects old callbacks.
+
+Rich initialization failure yields a usable textarea plus explicit Retry and is
+not an overall mount failure. Queued native/HTML content is delivered to fallback
+once and retained through later rich retry. Actual pending-content delivery errors
+retain their existing shared-loader behavior. Body read/write failures propagate,
+with fallback preserving the last mirrored or desired body; failed reads must not
+silently become publication content. `CListAnnotationBodyState` exposes phase/busy
+only. Send and full editor-switch internals remain separate; vendor rendering and
+resource removal are mocked in automated/browser fixtures.
+
+Annotation Send now uses `annotate_send.js` / `annotate_send_view.js`. The panel
+captures source editor/account/session/auth epoch, load/control generations and
+its actual controls; account loading failures are distinct from an empty writable
+account list. Raw accounts/credentials and registry fingerprints stay private;
+views receive label projections. Account index/visibility are controller-owned,
+with private record-key preferences retained within the same auth session so
+rebuild/reactivation does not reset a private selection to public.
+
+Before awaiting the body API, Send detaches the selected account, primary target,
+tags/visibility/session and return intent. It reuses existing annotation request/
+workflow/transport semantics, including only URL/title/author/feed metadata for
+the primary target. Generic Publish's convergent-target contract is unchanged.
+One shared pending editor-Send lock spans capturing, writes and rebuilt panels.
+Pre-write source/account/draft changes cancel. Started writes may finish for
+their captured target, with old UI/return effects suppressed after source changes.
+
+Results distinguish accepted/rejected/uncertain receipts; no automatic replay
+occurs. Explicit Send remains the retry action, with uncertain results instructing
+the user to check the server first. Returning to the prior editor additionally
+requires unchanged target/body/tags/handler/return intent. A post-write return
+check failure keeps the accepted result and draft rather than retrying publication.
+`CListAnnotationSendState` contains phase/busy/accountIndex/visibility/receipt only.
+The inline compatibility `_submitAnnotation` remains separate; this editor panel
+uses the data workflow directly so its own view can guard feedback.
+
+Native editor Save uses `CListNativePageSaveRequest`, a detached title/editor/MIME/
+reference snapshot with optional native ID/revision, and a subsequently supplied
+string body. Preserve reference/reply/extension fields. Only a captured
+`kind:'local-page'` source supplies the existing native ID/revision; other source
+kinds retain the existing new-native-copy behavior. The underlying PageStore
+transaction, stored record shape and omitted-revision behavior are unchanged.
+`CListNativePageSaveResult` documents only fields consumed from the full result.
+
+The controller privately retains source editor/handler/account, page pointer,
+live document ID, selection/load/blank generations, session/auth epoch and the
+captured PageStore API. Stale captures cancel before writing. Once dispatched,
+a write may finish for its original record; late completion cannot replace a
+new editor/page. Reconciliation preserves current visible title/references and
+attaches accepted native identity/revision. Accepted writes with failed editor
+reconciliation retain receipts for explicit metadata-only recovery. Public
+`CListNativePageSaveState` contains phase/busy/receipt only, without content or
+credentials. This is separate from browser file downloads and remote publication.
+
+Local-page browsing uses the existing `PageStore.list/get` API. Private captures
+hold original store functions, panel, editor/handler/account/page/live-document
+identity, selection/load/control generations and session/auth epoch. Public
+`CListNativePageBrowserState` contains phase/count/opening only. Row identifiers
+and retry callbacks belong to the current list generation; late reads cannot
+paint a newer panel or open a different document. Labels render literally.
+
+`CListNativePageRecord` documents existing native records with legacy/imported
+optional metadata, without changing persistence. Opening validates the returned
+ID and string body, detaches references/reply/extension fields and restores native
+revision plus latest publication service/account/URL. It delegates content-first
+recognition, editor choices, overwrite/insert and reference restoration to
+`loadSavedPage`. The handoff guard permits that loader's own editor/UI changes
+while rejecting a new source/blank-control generation, session or local list.
+Import/export now delegates to the captured bundle-tool controller below.
+
+`CListNativePageBundle` / `CListNativePageImportResult` document the existing
+bundle and result formats, without storage migrations. PageStore still performs
+whole-bundle validation before writes, original skip/replace/duplicate conflict
+semantics and two-pass member-reference remapping. Export JSON preserves complete
+records; browser handoff does not confirm a file was saved to disk.
+
+Bundle tools capture file object, conflict policy, store methods, source/editor/
+page/document, session/auth and panel/control ownership before asynchronous work.
+Changes during file reading cancel before dispatch. Once import is dispatched,
+its original PageStore operations can finish after navigation; late completion
+does not repaint or reload another panel. Returned partial results retain all
+counts, per-record errors and dangling references. A thrown post-dispatch error
+other than pre-write `InvalidData` is uncertain, since some writes may have landed.
+
+Private receipts lock the captured File object/policy within the same store/auth
+session after an accepted or uncertain attempt, and survive panel rebuilding for
+explicit read-only result review. This is not content-hash deduplication or durable
+recovery across reloads; explicitly selecting another file/policy starts a new
+attempt. `CListNativePageBundleState` contains kind/phase/receipt/busy only, not
+bundle contents, filenames, record identifiers or credentials. Back refreshes the
+local listing explicitly; completed results are not immediately discarded.
+
 
 Account setup also uses `CListAccountFlowContext` and `CListAccountFlow`.
 These describe panel-scoped UI callbacks and factory results, rather than
@@ -993,3 +1109,613 @@ Failures propagate `false` to editor mounting, with owned visible feedback.
 Shared pending-content loading retains its own contract: guarding dispatch does
 not abort a loader already started. Full editor switching, vendor resource behavior
 and live WebSockets remain outside the isolated mounting fixture.
+
+
+Collection draft editing uses `collection-draft-state.js` (DOM-free transitions),
+`collection-draft.js` (private row/action controller) and `collection-draft-view.js`
+(DOM and feedback), wired by `collection-editor.js`. Initial members are shallow
+copies preserving open-ended extensions; `_draftItems` remains the same live array
+used by Save/import/local-entry publication. Storage/member schemas are unchanged.
+Reorder/remove rebuild row generations; expansion remains private and follows the
+member object. Field baselines reject callbacks that would overwrite a newer
+external field value. Source/session, actual row attachment and disposal reject
+obsolete controls. `CListCollectionDraftState` exposes generation/count/row-busy
+only; member data, ownership targets and credentials stay outside public UI state.
+Save/publication's explicit identity-display reconciliation adopts metadata-only
+source replacements without invalidating current fields. Existing opening/import/
+publication APIs retain ownership of their internal effects after dispatch.
+
+
+Etherpad connection discovery uses an explicit captured read target (API instance,
+key, proxy and auth headers). `readEtherpadPads` returns a string list or throws,
+without UI or global account reads. `etherpad_connection.js` retains these values
+privately; `CListEtherpadConnectionState` contains phase/mode/count only. The view
+owns actual root/iframe attachment, list controls and errors. Guest addresses use
+HTTP(S) origins without userinfo and encoded pad names; guest mode invalidates
+account-list continuations. Hidden resources survive editor switches within the
+same auth source; account/auth replacement disposes the owned iframe. Document Create/author/content/Share paths use the separate document boundary
+described below. Connection-panel checks alone do not cancel their effects.
+
+
+Etherpad document operations now use `etherpad_document_requests.js` (explicit API
+and relay transport), `etherpad_document_workflow.js` (Create/seed/read/append),
+`etherpad_document.js` (captured operations and transient receipts) and
+`etherpad_document_view.js` (feedback, captured optional inputs and literal Share).
+`etherpad.js` retains handler/compatibility entry points. `CListEtherpadDocumentState`
+contains phase/busy/receipt only; full request bodies, targets/keys/headers, pending
+callbacks and creation records remain private to the original connection.
+
+Selection reads an existing pad rather than creating it. Create captures its
+name/username before the first await, coalesces duplicates and records acceptance
+before later preparation. Only a newly confirmed, observed-empty pad receives
+welcome text. Accepted partial initialization reopens without another Create or
+seed; uncertain Create blocks replay and directs the user to refresh/select the
+pad. These are transient, connection-scoped records, not reload durability or
+server idempotency. The observed-empty check is not a remote compare-and-swap.
+
+Append preserves read/merge/write semantics, escaping plaintext and preserving
+HTML input. It captures one account/guest pad and headers for the entire sequence,
+checks ownership before writing and only adds references after accepted writes.
+Started writes can finish after navigation, without adding references to another
+pad. Reference failure retains accepted content and does not request reinsertion.
+Rejected/uncertain writes propagate to shared loaders with visible owned feedback;
+none is automatically retried. Guest import requires an explicit successful result.
+Exports accept empty strings and propagate invalid content/errors. Remote edits
+between read and write can still conflict; the refactor does not provide server
+concurrency control or cancel already-dispatched operations.
+
+Share builds literal DOM with validated HTTP(S) links and captures discussion and
+recipient channel identities before dispatch through the existing chat API. Pending
+duplicates share one operation; a new Share after settlement is an explicit action.
+Local chat dispatch is not proof of remote delivery. Shared-link opening validates
+and decodes its pad, guards session/superseded completion, and retains the existing
+editor switch API; these checks do not cancel that API's internal mounting.
+
+
+LaTeX connection preparation uses `latex_connection_preparation.js` with the existing
+`createCollabConnectionPreparation` factory. Its private snapshot holds original
+server/token/username/auth source, account, root/editor/status/title/input nodes and
+load/switch generations. Namespace expansion has its own captured intent; an expired
+expansion cannot supersede a newer prepared connection. Lookup/library errors
+propagate rather than silently choosing another server; expired failures are
+classified separately for owned feedback. Before replacing resources, `latex.js`
+asserts the prepared guard and uses captured modules, provider token/kvstore URL and
+editor parent. `latexConnection` reuses the safe `CListCollabPreparationState` shape
+(phase/pending only). This boundary does not own provider callbacks, observers,
+resource teardown, compilation or Share, and does not cancel dispatched work.
+
+
+LaTeX editor/provider/Y.Doc ownership now uses `latex_resource.js` and
+`latex_resource_view.js`. Each resource set privately retains its prepared target,
+map observer, awareness listener, delayed presence callback and captured vendor
+objects. `_cmView` is not introduced: the existing `cmView`/provider/map/document
+aliases in `latex.js` are installed/cleared together for compatibility.
+`CListLatexResourceState` contains phase only. No vendor objects, references, tokens
+or callback closures enter presentation state.
+
+Background resources remain alive across editor selection and toolbar rebuilding.
+Only visible LaTeX merges reference callbacks into the shared list; callbacks read
+their captured map, and corrupt entries are retained with owned visible feedback.
+Reactivation rebinds current status/presence nodes. Source/root/editor expiry is
+checked on resource activity and activation, not by a continuous monitor.
+Replacement invalidates callbacks before cleanup, detaches observers/listeners,
+clears the owned timer and attempts editor/provider/Y.Doc destruction even after
+one cleanup fails. Cleanup errors are reported, not proof of actual socket closure.
+Constructors that fail internally before returning an object remain vendor-owned;
+partial resources returned to the controller are cleaned. Compilation, Share,
+content insertion and full vendor synchronization remain separate concerns.
+
+
+LaTeX toolbar actions now use `latex_controls_workflow.js` (explicit compile
+transport and source serializers), `latex_controls.js` (private compilation/PDF
+ownership and Share captures), `latex_controls_view.js` (toolbar/modal/feedback)
+and `latex_content.js` (captured synchronous editor/reference commands).
+`CListLatexControlsState` contains phase/busy only. Source bodies, tokens, resource
+identities, PDF URLs, reference objects and callbacks remain private.
+
+Compile captures the original source/token/fetch before requests. Duplicate calls
+share a pending promise across rebuilt panels; stale source/session/panel results
+cannot install a PDF or display late errors. Owned URLs are revoked on replacement
+or resource invalidation. Returning to an unchanged source can rebind the last PDF;
+a downloaded result is a source snapshot, not an automatically updated document.
+Compile progress has its own status node so provider status does not overwrite it.
+Share captures document/server/title and binds Copy to its exact live modal/source,
+using the existing guarded clipboard helper without inline JavaScript.
+
+Content commands capture the actual editor/map/read-only mode, use CodeMirror
+selection accessors explicitly and guard reentrant calls. HTML-to-text conversion,
+LaTeX citation escaping and single-block bibliography refresh preserve prior
+formats. Live reference identity/unknown extensions and exact URLs are retained;
+map/reference failures after successful insertion show partial failure without
+throwing a request to insert the body again. Resync snapshots the map before
+replacing local references, retains corrupt records and preserves the current
+reference list when map iteration fails. Full CodeMirror/Yjs execution and live
+compilation remain outside mocked fixtures.
+
+
+Slides saved-layout management uses `slides_layout_workflow.js` (explicit native
+record reads/writes), `slides_layout.js` (captured dialog/controller/receipts) and
+`slides_layout_view.js` (shared dialog shell and owned feedback). `slides.js`
+retains the embedded callbacks and Save registry bridge. Existing
+`CListSlideLayout` format/id/label/update and extension properties are unchanged;
+no embedded source or Yjs format change is introduced. `CListSlidesLayoutState`
+contains kind/phase/busy/receipt only. PageStore/editor/document/session targets,
+layout updates and full receipts remain private.
+
+Save captures one layout snapshot before opening the form. It checks for an
+existing ID and supplies revision zero to native Save so an intervening ordinary
+native record cannot be force-overwritten. Rename reads the latest payload,
+retains extension/record/reference/publication fields and supplies its revision.
+Delete preserves the existing ID-based PageStore API, including deleting a
+matching layout record whose JSON has become corrupt; that API does not provide
+a revision compare-and-swap between read and delete.
+
+Source/session/document/load/switch checks expire callbacks before writes; already
+started writes can finish for their captured record without updating a different
+editor. Save registration uses the captured embedded instance. Accepted storage
+and a failed editor update are separate, permitting editor-only retry without
+another write. Unknown storage failure requires read-only confirmation inside the
+live dialog before a further explicit attempt. No writes retry automatically.
+Receipts are transient and not durable across dialog closure/reload. Newer typed
+names survive an accepted captured-title write. Cancel before dispatch has no
+reads/writes; closing after acceptance does not undo the stored record. Replaced
+or externally removed modal surfaces settle their original callbacks, and old
+controls cannot close a newer modal. These guards do not establish real embedded
+rendering, native durability or cross-tab delete concurrency control.
+
+
+Slides application import/export orchestration now uses `slides_io_workflow.js`
+(explicit file/layout reads), `slides_io.js` (captured dispatch/lifetime) and
+`slides_io_view.js` (file acquisition, progress/errors and reports). `slides.js`
+retains the registries and embedded-editor bridge. `CListSlidesIOState` contains
+importing/exports busy counts only; files, bytes, editor/document/store/session
+captures and callbacks are transient and private.
+
+The import lock begins before opening the picker. Source expiry before or during
+file reading prevents embedded dispatch. Duplicate requests for the same bytes or
+picker share an operation; a different in-flight import is rejected rather than
+silently receiving another request's result. Filename/100 MB picker validation and
+native/fallback acquisition remain compatible. The content-first byte route does
+not require a filename. The handler now returns its import promise to shared
+loaders. Once the embedded import resolves, reference/report failures are reported
+separately and do not request reinsertion of accepted slides.
+
+Exports use bound methods on the captured embedded instance, retain per-format
+pending locks and suppress late UI for replaced sources. PDF completion describes
+opening a print view rather than a durable download. These application guards do
+not abort started embedded conversion, prevent its internal downloads, or provide
+same-document concurrency control inside the unchanged embedded API.
+
+Saved-layout refresh captures list/get functions, validates current record type
+and native layout identity, preserves other valid entries after per-record failure,
+and reuses embedded validation/registration. New refreshes and layout mutations
+expire older registry updates. Refresh remains add/update-only and does not claim
+cross-tab deletion synchronization. It performs no storage writes. Snapshot's
+queued reference merge captures the original post-load document and checks source
+ownership before updating references; direct content imports likewise use their
+original editor. No embedded source/schema or persistence format changed.
+
+
+PowerPoint completion reports are deferred to the next task so a shared Load caller
+can finish its modal cleanup first. Reports recheck source ownership; an existing
+newer modal is retained and receives no replacement, with warnings shown through
+the status helper instead. This scheduling does not delay or replay the embedded
+import, and does not establish actual native-picker or converter behavior.
+
+
+Dropbox initial setup uses `dropbox_setup.js` (private captured form controller),
+`dropbox_setup_view.js` (scoped controls/feedback), the existing registry factory
+in `dropbox_account.js` and `dropboxOAuthStart`. Guarded callers request propagated
+errors; unguarded reauthorization keeps the compatibility helper feedback contract.
+`CListDropboxSetupState` contains phase/busy only. App-key/title/folder drafts,
+session captures, PKCE values and OAuth state payloads remain private.
+
+OAuthClient.login now delegates preparation to `oauth_start_workflow.js`, keeping
+existing strategies, dynamic registration/cache, PKCE generation, endpoint/scope/
+force-login/offline parameters and state record shape. Optional `isCurrent` is
+checked before work, after registration/PKCE, and before navigation; changed raw
+field values and detached/hidden/rebuilt setup roots expire the caller. Inputs
+are detached before awaits. A failed final guard/navigation removes only its own
+new state key. Started dynamic app registration may still complete/cache; this
+boundary does not undo it or cancel provider work after navigation.
+
+`CList.keys.OAUTH_STATE_PREFIX` retains the existing `oauth_state_` value. It is
+available in the main page and bootstrapped by OAuth config for the standalone
+callback page; both producer and callback reader use the same prefix. The callback
+page loads the shared preparation dependency. Token exchange, callback ownership,
+account writes and post-authorization refresh behavior remain unchanged and are
+not newly validated by the setup fixture. No account/storage format changed.
+
+
+OAuth callback account saving now delegates through `oauth_account_workflow.js`,
+`oauth_account.js` and `oauth_account_view.js`. `OAuthClient.saveAccount` keeps its
+compatibility arguments and returns a safe status/refreshed result. The controller
+detaches account values, supplies a title fallback for the shared account validator,
+and preserves service extension fields. `CListAccountSession.put` is an optional
+captured persistence dependency; ordinary callers retain the existing KV facade.
+Hook validation, encryption and session assertions stay in shared `saveAccount`.
+
+Save-time ownership captures cookie username/token, server, normalized auth epoch,
+Local mode and KV facade before awaits. UI username restoration alone does not
+expire an otherwise identical cookie session. Reader/editor/modal captures guard
+optional provider refresh/navigation dispatch; once dispatched those legacy hooks
+retain their own internal ownership semantics. A later source/session change can
+allow an already-started original write to finish, without installing accounts or
+navigating the new session. Account reads reuse `loadAccountRecords` with a fresh
+key under the captured session. `CListOAuthAccountSaveState` holds phase/busy/receipt
+only; full account values, keys, ciphertext, operation callbacks and sessions stay
+private. Success/refresh failures are distinct.
+
+Pending identical saves coalesce; accepted transient receipts avoid repeated writes.
+Receipt reuse requires the original storage/session context to remain current.
+Unknown dispatched-write failures retain the exact attempted ciphertext and require
+read-only KV confirmation before a further explicit retry. A matching stored value
+permits account refresh without another write; unconfirmed state requires review
+and an explicit retry. Failed refresh retries only reads/UI work. There are no
+automatic account writes or token exchanges in recovery. Receipts are not durable
+across reloads. A newer modal is preserved rather than replaced by delayed recovery;
+status feedback is used when the original surface has changed.
+
+The save-only fixture above establishes save-time capture. Standard OAuth start,
+exchange and pickup now additionally use the binding protocol described below.
+Live service authorization, real encryption and full startup/navigation integration
+remain outside the mocked evidence.
+
+
+## Standard OAuth callback binding
+
+`OAuthClient.login` captures cookie username/token, selected store URL and Local
+mode before any await. SHA-256 of those values becomes the private flow `issuer`
+fingerprint; raw CList credentials are not added to flow/result storage. In-page
+guards also compare auth epoch; the epoch is deliberately absent from the digest
+so a normal page reload can complete its original redirect. This is client-side
+session ownership, not an OAuth/OIDC provider issuer claim or an XSS defense.
+
+The existing per-state sessionStorage record gains `issuer` and `createdAt`.
+`oauth_callback_workflow.js` consumes it before one token exchange. Denial, expired
+(30 minutes), old unbound state, malformed response and network failure require a
+new authorization; exchange is never automatically retried. On acceptance the same
+key holds `CListOAuthFlowReceipt` (`phase: exchanged`, fingerprint, provider and
+original timestamp), without verifier/client secret. The callback result adds
+`flowState`/`issuer`; token and service extension fields retain their existing shape.
+
+`oauth_callback.js` owns shared pickup and registration, waiting until all deferred
+providers register. It checks the tab's exchanged receipt, age and current-session
+fingerprint before consuming result/receipt and dispatching one detached payload.
+It compares the result again after hashing to preserve a newer callback. Failure
+feedback is view-owned; invalid results are retained so another tab's valid result
+is not erased. Restarting authorization replaces the shared result slot. There is
+no automatic handler/exchange replay. Storage errors fail visibly. The receipt is
+tab-scoped; another tab cannot claim it simply by reading the shared localStorage
+result. The single result slot still does not queue simultaneous completed flows.
+
+Mastodon/Dropbox callback handlers receive `{isCurrent}` and forward it to account
+saving, which checks both its save-time source and original callback source before
+encryption/persistence/recovery effects. Already dispatched HTTP or writes are not
+cancelled. `oauth_callback_view.js` renders restart feedback without tokens. WordPress
+now uses the same original-session guard and shared pickup, with its separate
+application-password transport described below. No account record format changed.
+
+
+## WordPress application-password binding
+
+`wordpress_auth*` splits explicit redirect/return preparation from captured start
+control and error presentation. The existing form forwards a guard for its root,
+generation and raw site input. Start captures the original cookie session and
+configuration before hashing; pending starts coalesce and stale form/session work
+cannot persist or navigate. Failures are visible and permit an explicit retry.
+
+The success and reject URLs carry random `wp_state`; reject also carries
+`wp_denied=1`. The per-state sessionStorage record uses the existing prefix and
+stores pending provider/site, fingerprint and timestamp, without CList credentials.
+The app UUID derives from the existing cryptographically random flow identifier.
+Site normalization accepts HTTP(S), removes trailing slashes and rejects embedded
+credentials/query/fragment. Returned `site_url` must exactly match the requested
+canonical origin/path; deployments redirecting to another canonical address must
+restart with that address. Account keys and stored account fields are unchanged.
+
+The callback workflow consumes a pending record once, checks denial/30-minute age,
+site and complete credentials, then replaces it with `CListOAuthFlowReceipt` plus
+optional `siteUrl`. The result retains `siteUrl`, `userLogin`, `password` and adds
+`flowState`/`issuer`. Accepted receipt storage contains no application password.
+A replay cannot erase an accepted receipt awaiting pickup. Shared pickup now
+requires binding for WordPress too and compares the result site with the receipt.
+The handler carries the original-session guard through account encryption/write.
+Old unbound WordPress returns fail closed and require a new authorization.
+
+The existing hosted-HTTPS-to-local-HTTP relay is preserved, forwarding the flow
+identifier and returned fields; ports must be in range. The hosted intermediary
+does not read a local tab's receipt. The callback shell handles storage/validation
+failures visibly and scrubs callback parameters on failure as well as success.
+This preserves the existing relay transport, not a verification of its deployment,
+live WordPress behavior or full application startup. No automatic credential-save
+or authorization replay is added.
+
+
+## Mastodon account setup boundary
+
+`mastodon_setup.js` supplies service-specific validation and OAuth delegation to
+`account-setup.js`, which owns private form captures, mutually exclusive OAuth/manual
+operations, session lifetime and guarded completion. `mastodon_setup_view.js` owns
+literal DOM fields and busy controls, reusing `account-setup-view.js` feedback/recovery. The factory in
+`mastodon_account.js` retains one controller across form remounts. Public
+`CList.state.mastodonSetup` contains phase/busy/receipt only; tokens, drafts, source
+captures, save jobs and callbacks remain private. Account formats are unchanged.
+
+Manual saving reuses `createOAuthAccountSaveController`, `persistOAuthCallbackAccount`,
+`saveAccount`, and the owning panel's account reload. The shared controller supplies
+its captured source as an optional third save-dependency argument and second
+install-dependency argument; existing adapters ignore them. Mastodon's adapter
+combines shared session ownership with the original mounted/raw draft before
+encryption and dispatch. Session-owned accepted writes can finish after the form
+changes, without closing the new form or repopulating a newer reader. Normal
+completion retains panel finish/list refresh. Post-write refresh errors retain
+accepted receipts and retry only reads; uncertain writes require a read-only check
+before explicit original-request retry. A remount retains pending/uncertain locks
+and check/refresh recovery; pre-write retries still require the original unchanged
+draft. These guards do not cancel already dispatched storage operations.
+
+The OAuth helper accepts optional `{isCurrent, feedback:false}` for form-owned
+failure reporting. Legacy reauthorization calls retain their existing feedback.
+The form captures raw values before asynchronous work and passes its guard to the
+existing bound OAuth start. Read/write scope and force-login behavior are retained.
+
+
+## Blogger account setup boundary
+
+`blogger_setup.js` validates and normalizes the Blog ID, Client ID and title into
+the unchanged `CListAccountSaveRequest`: key is Blog ID; account data retains
+`type: Blogger`, Client ID in `id`, title defaulting to Blog ID and `permissions: w`.
+`blogger_setup_view.js` renders literal controls/help and captures raw field values.
+`blogger.js` keeps its existing factory and unchanged publication/token functions.
+No Google token is requested during setup; publication-time authorization remains
+on the existing path and no Google access token is stored by setup.
+
+`account-setup.js` extracts the already-tested Mastodon form controller and shared
+save adapter for both services. It retains pending/recovery locks across remounts,
+pre-write draft/session guards, captured account targets, accepted/uncertain
+receipts and original-form-only pre-write retries. `account-setup-view.js` shares
+inline failure/check/retry presentation; service views still own their fields.
+`CListServiceAccountSetupState` describes phase/busy/receipt under `bloggerSetup`
+and `mastodonSetup`; full fields, ciphertext and recovery closures stay private.
+Shared save/loader APIs own persistence, and normal finish/list refresh remains
+panel-scoped. Blogger refresh updates post choices, preserving newer readers and
+drafts. An already dispatched write may complete after form/session expiry; no
+client guard cancels it. There are no account-record format changes.
+
+
+## WordPress setup form boundary
+
+`wordpress_setup.js` owns captured raw site input, form/source lifetime, pending
+and redirect locks. `wordpress_setup_view.js` renders literal fields/help, standard
+buttons and inline feedback; `wordpress.js` retains the factory bridge. One
+controller survives remounts and rejects detached/replaced controls while keeping
+the pending start locked. `CList.state.wordPressSetup` contains phase/busy only
+(`CListWordPressSetupState`), never the URL, fingerprint or session.
+
+Validation uses the existing `normalizeWordPressAuthSite`; form-owned guards pass
+through `wpAuthStart` into `wordpress_auth*`. The auth controller accepts optional
+`onError` to route current form failures inline; callers without it keep their
+existing feedback. Back, raw input edits, hidden/remounted roots or changed cookie
+sessions expire pending work before persistence/navigation. Redirect and callback
+receipt formats, site/session binding and account writes remain unchanged.
+
+
+## Collab account setup boundary
+
+`collab_setup_workflow.js` validates explicit ws/wss server input and returns the
+unchanged account request (WebSocket URL key/instance, `type: Collab`, server title,
+`permissions: e`). Registration still uses HTTPS `/api/register` for both ws/wss,
+Bearer authentication and `{did}` JSON. The DID is captured from the cookie-owned
+username and KV server before awaits; transient UI username restoration cannot
+change its identity. Credentials/query/fragment URLs fail before registration.
+
+`collab_setup.js` supplies protocol details to `account-registration-setup.js`,
+which keeps source/form captures and registration receipts private,
+with `CListCollabSetupState` phase/busy/registration/account receipt only. A 2xx
+records acceptance before parsing JSON; a malformed accepted response can continue
+account saving explicitly without another registration. Network/5xx/408/429
+outcomes remain uncertain and never auto-replay. A definite remaining 4xx permits
+explicit registration retry. There is no assumed registration-status endpoint:
+the uncertainty action asks the user to check the service before explicitly retrying.
+
+The controller reuses shared account setup dependencies, save/encryption/loader
+and account-write receipts. Account-save or refresh recovery never repeats accepted
+registration; uncertain account writes use the shared read-only check. Root/input/
+session guards run before service dispatch and account persistence; a started HTTP
+request or KV write may finish after expiry. Remount retains locks/receipts while
+newer forms/readers are preserved. Success uses guarded panel finish/list refresh
+instead of the old unguarded 1200ms delayed close. `collab_setup_view.js` owns literal
+controls/feedback and reuses shared inline account recovery.
+
+`registerCollabAccount` remains a compatibility data API, now taking the captured
+`CListAccountSession`, using the extracted transport and shared `saveAccount`.
+It does not retain the setup controller's registration receipts. Default post-login
+`collabSetupAccount` descriptors and their separate add-only workflow are unchanged.
+
+
+## Annotate account setup boundary
+
+`annotate_setup_workflow.js` validates explicit HTTP(S) server/title/permissions,
+performs credential-free `/health` reads, and POSTs `/api/register` using the original
+Bearer/Content-Type headers without a body. A successful registration needs no JSON
+body (including 204). HTTP acceptance is retained before post-await ownership checks.
+Account key/instance stays the server URL with a trailing slash removed; title is
+required, permissions default to rw, and `type: Annotate` is unchanged.
+
+`annotate_setup.js` and `annotate_setup_view.js` own default/custom choices, literal
+fields and guarded startup health feedback. Checks capture source, raw draft, root
+and generation; changed choices, Back, connect, rebuilt/hidden panels and newer
+validation/registration/recovery feedback invalidate late probes. Failed health
+checks are read-only and may be explicitly retried. An accepted registration is
+not repeated when account encryption/save/list refresh needs recovery.
+
+Collab and Annotate now use `account-registration-setup.js` for pending/remount
+locks, source/draft guards and private per-server registration receipts. Their
+transports remain service-specific. Uncertain registration needs explicit retry
+after external review; uncertain account writes reuse read-only shared checks.
+`CListAccountRegistrationSetupState` describes phase/busy/registration/receipt under
+`collabSetup` and `annotateSetup`, with no fields, credentials or callbacks in state.
+As with Collab, success uses guarded finish/list refresh instead of an unguarded
+delayed close. Dispatched work is not cancelled by these ownership checks.
+
+`registerAnnotateAccount` remains a data-only compatibility helper using the
+extracted health/registration transport and shared `saveAccount` with captured
+`CListAccountSession`. Its progress callback remains supported; controller receipts
+are not retained by the helper. Default post-login annotation descriptors and their
+separate add-only setup workflow are unchanged.
+
+
+## Discord account setup and admin channels
+
+`discord_account.js` retains the registry and edit-form hook. Subscription logic
+uses `discord_setup.js`, presentation/decorator uses `discord_setup_view.js`, and
+service requests live in `discord_setup_requests.js`. `discord_admin.js` and
+`discord_admin_view.js` own separate bot-token scopes and captured channel commands.
+`CListDiscordAccountSetupState` describes phase/busy/receipt only under
+`discordAccountSetup` / `discordAdminSetup`; account values, bot tokens, webhooks,
+headers and pending commands stay private. Returned list rows retain literal
+name/ID only, stripping other service response fields from presentation data.
+
+The existing relay URLs and payloads remain: `/channels` uses captured KV headers;
+admin list/guild reads use captured bot-token query parameters, while Create/Add/
+Delete use captured JSON bodies. Path IDs are encoded. A partial guild read failure
+keeps available channel rows and explicit feedback. A 2xx command is accepted
+without requiring JSON. Definite 4xx failures (except 408/429), uncertain transport
+outcomes and later list refresh failures remain distinct.
+
+Subscription selection comes from captured account records, never DOM classes.
+Adding reuses shared `saveAccount` with captured KV `add`, preserving the existing
+Discord data shape (`channel`, empty `bot_token`, rw permissions). Removing uses
+the original stored key and rechecks current context and decrypted stored metadata
+before dispatch. There is no server compare-and-swap; another client can still
+race the final removal. Unknown adds compare exact attempted ciphertext on read;
+unknown removals confirm absence. Unconfirmed state requires explicit original
+retry; refresh after accepted writes never repeats them.
+
+Admin actions capture bot token, selected IDs and command fields before awaits,
+expire replaced rows/tokens/sessions/hidden surfaces, and serialize pending writes.
+Unknown outcomes require a successful read-only list review, followed by explicit
+Keep listed result or Retry original change; no automatic remote command retry is
+introduced. Manual review is not a guarantee of server-side exactly-once execution.
+Accepted writes retain read-only refresh recovery. Newer admin input is preserved
+rather than rebuilt by a late completion. Already dispatched requests cannot be
+cancelled by these guards. Reusing a panel retains its original input/controller
+ownership; new edit input nodes receive their own captured admin controller.
+
+
+Discord admin write receipts and pending promises are also retained in a private
+account-panel coordinator keyed by captured session and bot-token scope. Rebuilding
+the add-account DOM cannot bypass an existing pending/uncertain/accepted receipt.
+The new view can review or refresh the original outcome; it cannot silently start
+another command. These captures remain transient and are not reload-durable.
+
+
+## Personal Options
+
+`personal-options.js` owns preference values and panel lifetime; explicit persistence
+is in `personal-options-workflow.js`, DOM/theme/TinyMCE work in
+`personal-options-view.js`. `kvstoreOptionsPanel()` remains a compatibility bridge.
+`CListPersonalOptionsState` holds dark/web booleans, busy and phase only. Reads do
+not write defaults. An active-panel generation rejects old connected or hidden
+controls. Pending toggles coalesce; storage errors keep runtime/visible preferences
+unchanged. Accepted preference writes and display failures are distinct, with a
+captured display-only retry that never rewrites storage.
+
+`CList.keys.DARK_MODE` retains `clist-dark-mode` and its 1/0 values;
+`CList.keys.WEBMENTION_ENABLED` retains `clist_webmention_enabled` and true/false
+strings. Keys are bootstrapped before early theme restoration and retained by the
+main namespace. Storage-denied theme restoration no longer throws out of its script.
+WebMention's existing setter persists before changing its runtime flag; a failed
+write cannot silently enable it for publication. Actual WebMention sending is
+unchanged. Theme application retains `clist-dm` content styles and reports editor
+failures rather than swallowing them.
+
+`personal-options-transfer.js` owns panel/file/password handoffs into existing
+account-transfer APIs. It captures the source session and rejects replaced/stale
+callbacks before dispatch and visible completion; confirmation inputs and payloads
+stay private. `parseLocalAccountExportFile(file, {feedback:false})` optionally throws
+data errors so the panel owns feedback; default callers retain their existing
+modal/null contract. Null JSON is rejected safely. Confirmed import completion is
+separate from account refresh, which can retry without importing again. Host,
+skipped keys and feedback use literal DOM text; source usernames are escaped before
+the existing trusted-HTML confirmation helper.
+
+The original Options-only fixture above establishes handoff behavior. Account
+transfer data operations now additionally capture source/destination and receipts,
+as described below. Dispatched writes/downloads still cannot be cancelled. No
+account-export format or stored record shape changed.
+
+
+## Captured account transfer data operations
+
+`account-transfer-workflow.js` owns validation, explicit cryptographic preparation,
+add-only import and read-only reconciliation. `account-transfer-controller.js`
+captures cookie identity/server/token/auth epoch/Local mode/KV facade and binds
+list/get/add before awaits; production also captures the existing password
+confirmation key-version snapshot. Optional caller ownership is checked at each
+asynchronous boundary. Facade calls are guarded immediately before dispatch; the
+existing Local/remote adapters then retain their own per-call contexts. Source or
+destination changes cannot redirect later rows to a newer account. An in-flight
+original write can finish, but its acceptance is recorded before checking expiry.
+
+`CListAccountExportPayload` retains the v1 wire format, opaque ciphertext rows,
+original username/digest/timestamp and input extensions. Missing/null legacy kv
+means an empty bundle. Invalid rows, duplicate keys or ambiguous storage reads fail
+closed. Export detaches listed ciphertext before crypto awaits and captures the
+download function/filename; it still relies on the existing verified password
+confirmation. Download handoff is not proof of a durable saved file. Imports
+independently verify the source password digest and derive both keys before writes.
+Payloads and passwords are never interpreted as instructions or rendered as markup.
+
+Private import plans retain captured ciphertext, derived CryptoKeys and per-row
+ready/accepted/existing/uncertain status, never passwords or decrypted records.
+Existing destination keys are preserved; each remaining row is rechecked and uses
+KV add, not put. AlreadyExists preserves concurrent data under the facade's
+add-only contract; backend durability/concurrency is not established by mocks.
+Accepted/existing receipts are not replayed, even if a record is later deleted.
+Partial errors stop the run and retain completed receipts. Uncertain writes require
+a read-only list check: exact attempted ciphertext confirms acceptance, differing
+data is preserved as existing, and absence enables a further explicit retry.
+Checking never resumes writes by itself.
+
+`createAccountImportOperation` coalesces pending run/check calls and exposes safe
+result/current/run/check methods; plans stay in closures. Compatibility import
+returns imported/skipped plus complete/remaining/uncertain/error fields. Incomplete
+imports throw AccountImportIncomplete with a transient operation handle for UI
+recovery. `personal-options-transfer.js` passes its source guard through the data
+APIs, accepts single-use password callbacks and renders Check import status or
+Retry remaining imports. Complete imports reuse refresh-only recovery. Passwords
+are not needed again for that original operation; a changed key/session expires it.
+`CListAccountTransferState` exposes only phase/busy and count summaries. Receipts
+are transient, not durable across reloads. No automatic import/overwrite retry or
+new user-account creation is introduced.
+
+
+## Existing-account OAuth reauthorization
+
+`account-reauthorization.js` owns one pending authorization per reusable schema
+form, captured requests, redirect lock and status. `account-form.js` keeps controls
+and inline literal feedback. A form build captures its cookie/session/server/Local
+mode/auth epoch through the existing OAuth issuer helpers. Rebuilding invalidates
+old controls while preserving the pending lock until the original attempt settles.
+Source/visibility, form generation, base metadata identity, raw field values/types/
+checkbox state, input node identity and edit revision are revalidated at async
+boundaries. Manual token mode also expires an in-flight authorization. A normal
+account-list refresh that retains the same form/fields does not itself invalidate it.
+
+`CListAccountHooks.reauthorize` accepts optional `CListAccountReauthorizationOptions`
+as a second argument. Mastodon and Dropbox forward `isCurrent` and caller-owned
+`feedback:false` into their existing guarded helpers; direct callers omitting the
+options retain legacy helper feedback. The generic controller captures the hook
+and detached `CListAccountSaveRequest` before awaits, coalesces duplicates, rejects
+repeat dispatch after an accepted redirect and displays owned preparation errors
+inline without replacing newer UI. `CListAccountReauthorizationState` contains
+phase/busy only, never credentials or account request data.
+
+These are preparation/redirect lifetime guards. Started client registration work
+is not cancelled or undone. A late invalidation after OAuth state persistence is
+handled by the existing start workflow's removal of only that flow's state. Shared
+callback session binding and token-save behavior are unchanged, and are outside
+the new fixture's round-trip evidence. Custom hooks that ignore the supplied
+guard do not acquire stale-response protection merely by using the controller.

@@ -102,16 +102,21 @@
     // --- Account config: resolve WebSocket URL from kvstore (reuses the 'Collab' schema) ---
 
     async function getCollabWsUrl() {
-        try {
-            const accts = (Array.isArray(window.CList.accounts) && window.CList.accounts.length)
-                ? window.CList.accounts
-                : await getAccounts(window.CList.config.flaskSiteUrl)
-            const found = findAccountByType('Collab', { accounts: accts })
-            if (found && found.parsedValue.instance) return found.parsedValue.instance
-        } catch (e) {
-            console.warn('Could not look up Collab account, using default server:', e)
-        }
-        return COLLAB_WS_URL
+        const accounts = (Array.isArray(window.CList.accounts) && window.CList.accounts.length)
+            ? structuredClone(window.CList.accounts)
+            : structuredClone(await getAccounts(window.CList.config.flaskSiteUrl))
+        const found = findAccountByType('Collab', { accounts })
+        return found?.parsedValue?.instance || COLLAB_WS_URL
+    }
+
+    let connectionPreparation = null
+    function latexPreparation() {
+        return connectionPreparation ||= createLatexConnectionPreparation({
+            capture: captureLatexConnectionTarget, current: currentLatexConnectionTarget,
+            server: getCollabWsUrl, load: loadDeps,
+            expand: name => expandDocId(name, { namespace: 'latex' }),
+            state: value => { window.CList.state.latexConnection = value },
+        })
     }
 
     // Set the document title in both the doc-id input and the CList write-title field.
@@ -132,273 +137,88 @@
 
     // --- Connect to a collaborative document ---
 
-    async function connectToDoc(docId, mode = 'edit', overrideWsUrl = null) {
-        const wsUrl = overrideWsUrl || await getCollabWsUrl()
-        currentWsUrl = wsUrl
-
-        await loadDeps()
-        const {
-            EditorState, EditorView, keymap, lineNumbers, highlightActiveLine,
-            defaultKeymap, StreamLanguage, syntaxHighlighting, defaultHighlightStyle,
-            stex, yCollab, yUndoManagerKeymap, HocuspocusProvider, Y,
-        } = deps
-
-        const statusEl = document.getElementById('latex-status')
-        if (statusEl) statusEl.textContent = 'connecting…'
-
-        // Tear down any previous session
-        if (hocuspocusProvider) { hocuspocusProvider.destroy(); hocuspocusProvider = null }
-        if (cmView)             { cmView.destroy();             cmView = null }
-
-        const rawToken = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN)
-        const token    = (mode === 'read' && !rawToken) ? 'anonymous' : (rawToken || 'anonymous')
-        const userName = (window.CList.state.username && window.CList.state.username !== 'none' && window.CList.state.username !== '')
-            ? window.CList.state.username
-            : 'Anonymous'
-        const userColor = '#' + Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, '0')
-
-        // Different document than whatever was previously merged in (if any) — start the
-        // locally-displayed reference list clean rather than carrying over the old doc's
-        // entries; the sync below repopulates it from this doc's own clist_refs Map.
-        setReferences([])
-
-        const ydoc  = new Y.Doc()
-        const ytext = ydoc.getText('latex-source')
-        sharedRefs  = ydoc.getMap('clist_refs')
-        sharedRefs.observe((event) => {
-            // Only merge into the shared global reference list while the LaTeX editor is
-            // actually on screen — the Hocuspocus connection itself stays alive in the
-            // background after switching away (so returning to it is instant), but without
-            // this guard its observer would keep overwriting the global list with this
-            // document's entries even while a different, currently-visible editor (e.g. a
-            // second LaTeX/Collab doc) owns that list.
-            if (currentEditor !== 'latex') return
-            event.keysChanged.forEach(url => {
-                const jsonStr = sharedRefs.get(url)
-                if (!jsonStr) return
-                try {
-                    if (typeof pushReference === 'function') pushReference(JSON.parse(jsonStr))
-                } catch { /* skip corrupt entries */ }
-            })
-        })
-
-        hocuspocusProvider = new HocuspocusProvider({
-            url:        wsUrl,
-            name:       docId,
-            document:   ydoc,
-            token,
-            parameters: { kvstoreUrl: window.CList.config.flaskSiteUrl, ...(mode === 'read' ? { mode: 'read' } : {}) },
-            onStatus: ({ status }) => {
-                if (statusEl) statusEl.textContent = status
-            },
-            onAuthenticationFailed: () => {
-                showErrorModal('LaTeX editor: authentication failed — make sure you are logged in.', { title: 'Collab authentication failed' })
+    let resourceLifecycle = null
+    function latexResources() {
+        return resourceLifecycle ||= createLatexResourceLifecycle({
+            current: currentLatexResourceTarget, visible: () => currentEditor === 'latex',
+            view: createLatexResourceView, state: value => { window.CList.state.latexResource = value },
+            clearReferences: () => setReferences([]), pushReference: reference => pushReference(reference),
+            schedule: (callback, delay) => setTimeout(callback, delay), clear: timer => clearTimeout(timer),
+            log: error => console.error('[LaTeX cleanup]', error),
+            install: resource => {
+                controlsController?.invalidate()
+                cmView = resource?.editor || null
+                hocuspocusProvider = resource?.provider || null
+                sharedRefs = resource?.map || null
+                currentDocId = resource?.target.docId || null
+                if (resource) currentWsUrl = resource.target.wsUrl
             },
         })
-
-        hocuspocusProvider.awareness.setLocalStateField('user', { name: userName, color: userColor })
-        hocuspocusProvider.awareness.on('update', updateWhoList)
-
-        // yUndoManagerKeymap replaces @codemirror/commands' history()/historyKeymap —
-        // yCollab installs its own Yjs-aware undo manager; running both would double up.
-        cmView = new EditorView({
-            parent: document.getElementById('cm-editor'),
-            state: EditorState.create({
-                doc: ytext.toString(),
-                extensions: [
-                    lineNumbers(),
-                    highlightActiveLine(),
-                    syntaxHighlighting(defaultHighlightStyle),
-                    StreamLanguage.define(stex),
-                    keymap.of([...yUndoManagerKeymap, ...defaultKeymap]),
-                    yCollab(ytext, hocuspocusProvider.awareness),
-                    EditorView.editable.of(mode !== 'read'),
-                    EditorView.lineWrapping,
-                ],
-            }),
-        })
-
-        currentDocId = docId
-        setTimeout(updateWhoList, 200)  // show self after awareness propagates
+    }
+    async function connectToDoc(docId, mode = 'edit', overrideWsUrl = null, current = null) {
+        const prepared = await latexPreparation().prepare({ docId, mode, wsUrl: overrideWsUrl, current })
+        prepared.color = '#' + Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, '0')
+        return latexResources().start(prepared)
     }
 
     async function connectFromInput() {
         const input = document.getElementById('latex-doc-id')
         const localName = input ? input.value.trim() : ''
-        if (!localName) return
-        const docId = await expandDocId(localName, { namespace: 'latex' })
-        currentDocTitle = ''
+        if (!localName) return false
         try {
-            await connectToDoc(docId)
-            setDocTitle(localPartOf(docId))
-        } catch (e) {
-            console.error('LaTeX connect error:', e)
-            showErrorModal('Connection failed: ' + e.message, { title: 'Collab connection failed' })
+            const target = await latexPreparation().resolve(localName)
+            await connectToDoc(target.docId, 'edit', null, target.current)
+            if (!target.current()) return false
+            currentDocTitle = ''
+            setDocTitle(localPartOf(target.docId))
+            return true
+        } catch (error) {
+            console.error('LaTeX connect error:', error)
+            if (error.code !== 'ExpiredCollabPreparation') showErrorModal('Connection failed: ' + error.message, { title: 'Collab connection failed' })
+            return false
         }
     }
 
     // --- Social: "who's here" awareness list ---
 
-    function updateWhoList() {
-        const whoEl = document.getElementById('latex-who')
-        if (!whoEl || !hocuspocusProvider) return
-        whoEl.textContent = ''
-        ;[...hocuspocusProvider.awareness.getStates().values()]
-            .filter(s => s.user)
-            .forEach((s, i) => {
-                if (i > 0) whoEl.appendChild(document.createTextNode(' '))
-                const span = document.createElement('span')
-                span.className = 'latex-user'
-                const safeColor = /^#[0-9a-f]{3,6}$/i.test(s.user.color || '') ? s.user.color : '#888'
-                span.style.color = safeColor
-                span.textContent = '● ' + (s.user.name || 'Anonymous')
-                whoEl.appendChild(span)
-            })
+    function updateWhoList() { resourceLifecycle?.refresh() }
+
+    // Captured toolbar and content adapters. Vendor resources stay lifecycle-owned.
+    let controlsController = null, controlsView = null, contentController = null
+    function captureControlSource() {
+        if (!resourceLifecycle?.owned() || !cmView) throw new Error('Join a LaTeX document first.')
+        const storeUrl = window.CList.config.flaskSiteUrl
+        return { editor: cmView, map: sharedRefs, docId: currentDocId, wsUrl: currentWsUrl,
+            title: currentDocTitle || localPartOf(currentDocId), text: cmView.state.doc.toString(),
+            mode: resourceLifecycle.snapshot()?.target.mode || 'edit', fetch,
+            storeUrl, token: getSiteSpecificCookie(storeUrl, window.CList.keys.ACCESS_TOKEN), epoch: window.CList.state.authEpoch }
     }
-
-    // --- Sharing ---
-
-    function getLatexShareLink(mode) {
-        return getRealtimeDocShareLink(currentWsUrl, currentDocId, mode)
+    function controlSourceCurrent(source, text = false, visible = true) {
+        return (!visible || currentEditor === 'latex') && resourceLifecycle?.owned() && source.editor === cmView
+            && source.docId === currentDocId && source.storeUrl === window.CList.config.flaskSiteUrl
+            && source.epoch === window.CList.state.authEpoch && source.token === getSiteSpecificCookie(source.storeUrl, window.CList.keys.ACCESS_TOKEN)
+            && (!text || source.text === source.editor.state.doc.toString())
     }
-
-    function shareLatexDoc() {
-        if (!currentDocId) { showErrorModal('Join a document first before sharing.', { title: 'No document to share' }); return }
-        const editLink = getLatexShareLink('edit')
-        const readLink = getLatexShareLink('read')
-        const docTitle = currentDocTitle || localPartOf(currentDocId)
-
-        function linkRow(link, label) {
-            return `
-                <div style="margin-bottom:14px">
-                    <div style="font-weight:600;font-size:0.85em;margin-bottom:4px">${label}</div>
-                    <div style="display:flex;gap:5px;align-items:center">
-                        <code class="share-link-code">${escapeHtml(link)}</code>
-                        <button class="btn-small" onclick="window.copyLatexLink('${link}')">Copy</button>
-                    </div>
-                </div>`
-        }
-
-        showModal(`
-            <div style="width:min(560px,88vw)">
-                <h3 style="margin:0 0 14px">Share &ldquo;${escapeHtml(docTitle)}&rdquo;</h3>
-                ${linkRow(editLink, 'Co-edit link')}
-                ${linkRow(readLink, 'Read-only link')}
-            </div>
-        `)
+    function latexControls() {
+        return controlsController ||= createLatexControlsController({
+            capture: captureControlSource, current: controlSourceCurrent,
+            state: value => { window.CList.state.latexControls = value },
+            compile: source => compileLatexSource({ url: COMPILE_URL, token: source.token, source: source.text }, { fetch: source.fetch }),
+            url: blob => URL.createObjectURL(blob), revoke: url => URL.revokeObjectURL(url),
+            link: (source, mode) => getRealtimeDocShareLink(source.wsUrl, source.docId, mode),
+            copy: (link, isCurrent) => copyToClipboard(link, { successMsg: 'Link copied.', failMsg: 'Could not copy link — select it and copy manually.', isCurrent }),
+            log: error => console.error('[LaTeX controls]', error),
+        })
     }
-
-    window.copyLatexLink = function(link) {
-        copyToClipboard(link, { successMsg: 'Link copied.', failMsg: 'Could not copy link — select the link and copy manually.' })
-    }
-
-    // --- Bibliography serializer (references.js's Reference[] → \thebibliography) ---
-
-    const LATEX_ESCAPES = {
-        '\\': '\\textbackslash{}', '{': '\\{', '}': '\\}', '$': '\\$', '&': '\\&',
-        '%': '\\%', '#': '\\#', '_': '\\_', '^': '\\textasciicircum{}', '~': '\\textasciitilde{}',
-    }
-
-    function escapeLatex(str) {
-        return String(str ?? '').replace(/[\\{}$&%#_^~]/g, c => LATEX_ESCAPES[c])
-    }
-
-    function referencesToLatexBibliography(refs) {
-        if (!refs || !refs.length) return ''
-        const items = refs.map((ref, i) => {
-            const author = escapeLatex(ref.author_name || '')
-            const title  = escapeLatex(ref.title || '')
-            const feed   = escapeLatex(ref.feed || '')
-            const date   = ref.created_at ? ref.created_at.slice(0, 10) : ''
-            const url    = escapeLatex(ref.url || '')
-            return `\\bibitem{ref${i + 1}} ${author}. ${title}. \\textit{${feed}}. ${date}. ${url}`
-        }).join('\n')
-        return `\\begin{thebibliography}{99}\n${items}\n\\end{thebibliography}`
-    }
-
-    // --- Inline citation text for insertLink/insertLinkVia (plain "(Author, Year)",
-    // not a \cite{} macro — there's no stable citation key until a bibliography has
-    // actually been generated; see referencesToLatexBibliography/BIBLIOGRAPHY_RE below) ---
-
-    function _citationText(reference) {
-        if (!reference) return ''
-        const author = escapeLatex(referenceDisplayName(reference))
-        const year   = reference.created_at ? reference.created_at.slice(0, 4) : 'n.d.'
-        return `(${author}, ${year})`
-    }
-
-    // --- Insert text at the CodeMirror cursor ---
-
-    function insertAtCursor(text) {
-        if (!cmView) return
-        const { from, to } = cmView.state.selection.main
-        cmView.dispatch({ changes: { from, to, insert: text }, selection: { anchor: from + text.length } })
-        cmView.focus()
-    }
-
-    // --- Insert a bibliography block, refreshing an existing one in place rather than duplicating it ---
-
-    const BIBLIOGRAPHY_RE = /\\begin\{thebibliography\}\{[^}]*\}[\s\S]*?\\end\{thebibliography\}/
-
-    function insertOrRefreshBibliography(block) {
-        if (!cmView) return
-        const docText = cmView.state.doc.toString()
-        const match   = docText.match(BIBLIOGRAPHY_RE)
-        if (match) {
-            const from = match.index
-            const to   = from + match[0].length
-            cmView.dispatch({ changes: { from, to, insert: block }, selection: { anchor: from + block.length } })
-            cmView.focus()
-        } else {
-            insertAtCursor('\n' + block + '\n')
-        }
-    }
-
-    // --- Compile ---
-
-    async function compileCurrentDoc() {
-        if (!cmView) return
-        const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN)
-        if (!token) {
-            showErrorModal('Log in to compile a LaTeX document.', { title: 'Login required' })
-            return
-        }
-        const statusEl = document.getElementById('latex-status')
-        const dlLink   = document.getElementById('latex-download-link')
-        if (dlLink) dlLink.style.display = 'none'
-        if (statusEl) statusEl.textContent = 'compiling…'
-        try {
-            const resp = await fetch(COMPILE_URL, {
-                method:  'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                body:    JSON.stringify({ source: cmView.state.doc.toString() }),
-            })
-            if (resp.ok) {
-                const blob = await resp.blob()
-                const url  = URL.createObjectURL(blob)
-                if (dlLink) {
-                    dlLink.href = url
-                    dlLink.style.display = ''
-                }
-                if (statusEl) statusEl.textContent = 'compiled'
-                return
-            }
-            if (resp.status === 422) {
-                const body = await resp.json().catch(() => ({}))
-                showErrorModal(body.log || body.error || 'LaTeX compile failed.', { title: 'Compile failed' })
-            } else if (resp.status === 413) {
-                showErrorModal('Document is too large to compile.', { title: 'Compile failed' })
-            } else if (resp.status === 504) {
-                showErrorModal('Compile timed out.', { title: 'Compile failed' })
-            } else {
-                showErrorModal(`Compile service returned an unexpected error (${resp.status}).`, { title: 'Compile failed' })
-            }
-            if (statusEl) statusEl.textContent = 'compile error'
-        } catch (e) {
-            console.error('Compile request failed:', e)
-            showErrorModal('Compile request failed: ' + e.message, { title: 'Compile failed' })
-            if (statusEl) statusEl.textContent = 'compile error'
-        }
+    function latexContent() {
+        return contentController ||= createLatexContentController({
+            capture: captureControlSource, current: source => controlSourceCurrent(source),
+            resolve: id => document.getElementById(id)?.reference,
+            plaintext: cleanHTMLContent, displayName: referenceDisplayName,
+            references: getReferences, replace: setReferences, push: pushReference,
+            display: () => displayReferences(document.getElementById('latexDiv')),
+            error: error => controlsView?.error(error), log: error => console.error('[LaTeX content]', error),
+        })
     }
 
     // --- editorHandlers entry ---
@@ -434,42 +254,17 @@
             // wiring) each time this editor is activated.
             const editorMenu = document.getElementById('editor-menu')
             if (editorMenu) {
-                editorMenu.innerHTML = `
-                    <div id="latex-doc-picker">
-                        <input id="latex-doc-id" type="hidden">
-                        <button id="latex-invite-btn" class="btn btn-small" title="Share this document">Share</button>
-                        <button id="latex-insert-bib-btn" class="btn btn-small" title="Insert bibliography from references">Insert bibliography</button>
-                        <button id="latex-compile-btn" class="btn btn-small" title="Compile to PDF">Compile</button>
-                        <a id="latex-download-link" href="#" target="_blank" class="btn btn-small" style="display:none" title="Download compiled PDF">Download PDF</a>
-                    </div>
-                    <div id="latex-who"></div>
-                    <div id="latex-status"></div>`
-                editorMenu.style.display = ''
-
-                const input = document.getElementById('latex-doc-id')
-
-                input.addEventListener('keydown', async (e) => {
-                    if (e.key !== 'Enter') return
-                    e.preventDefault()
-                    await connectFromInput()
+                const view = controlsView = createLatexControlsView(editorMenu)
+                latexControls().bind(view)
+                view.bind({
+                    compile: () => latexControls().compile(), bibliography: () => latexContent().bibliography(),
+                    connect: connectFromInput,
+                    share: async () => {
+                        if (!currentDocId && !await connectFromInput()) return false
+                        if (!view.current() || view !== controlsView) return false
+                        return latexControls().share()
+                    },
                 })
-
-                document.getElementById('latex-invite-btn').addEventListener('click', async () => {
-                    if (!currentDocId) await connectFromInput()
-                    if (currentDocId) shareLatexDoc()
-                })
-
-                document.getElementById('latex-insert-bib-btn').addEventListener('click', () => {
-                    const refs  = typeof getReferences === 'function' ? getReferences() : []
-                    const block = referencesToLatexBibliography(refs)
-                    if (!block) {
-                        showErrorModal('No references to insert yet.', { title: 'No references' })
-                        return
-                    }
-                    insertOrRefreshBibliography(block)
-                })
-
-                document.getElementById('latex-compile-btn').addEventListener('click', compileCurrentDoc)
             }
 
             // Keep write-title in sync with the doc-id input — wired once ever on the
@@ -487,20 +282,24 @@
             // Wire the drop zone once — #latex-editor-container persists across activations
             if (!latexDiv.dataset.wired) {
                 document.getElementById('latex-editor-container').addEventListener('drop', function(e) {
-                    window._attributeDroppedContent(e)
+                    if (currentEditor === 'latex' && resourceLifecycle?.owned() && document.getElementById('latexDiv') === latexDiv) window._attributeDroppedContent(e)
                 }, true)
 
                 latexDiv.dataset.wired = '1'
             }
 
+            const activationCurrent = latexPreparation().intent()
             try {
                 await loadDeps()
             } catch (e) {
                 console.error('Failed to load LaTeX editor dependencies:', e)
-                showErrorModal('Could not load LaTeX editor library — check your network connection.', { title: 'LaTeX library failed to load' })
-                return
+                if (activationCurrent()) showErrorModal('Could not load LaTeX editor library — check your network connection.', { title: 'LaTeX library failed to load' })
+                return false
             }
 
+            if (!activationCurrent()) return false
+            resourceLifecycle?.owned()
+            resourceLifecycle?.rebind()
             if (currentDocId) {
                 // Re-activating after switching away — restore display title
                 setDocTitle(localPartOf(currentDocId))
@@ -509,93 +308,35 @@
                 const slug = generateDocSlug()
                 setDocTitle(slug)
                 try {
-                    const docId = await expandDocId(slug, { namespace: 'latex' })
-                    await connectToDoc(docId)
+                    const target = await latexPreparation().resolve(slug)
+                    await connectToDoc(target.docId, 'edit', null, target.current)
                 } catch (e) {
                     console.error('Failed to start LaTeX document:', e)
-                    showErrorModal('Could not start editor — check your network connection.', { title: 'Editor failed to start' })
+                    if (e.code !== 'ExpiredCollabPreparation') showErrorModal('Could not start editor — check your network connection.', { title: 'Editor failed to start' })
+                    return false
                 }
             }
 
             loadPredefinedContent('latex')
         },
 
-        getContent: () => cmView ? cmView.state.doc.toString() : '',
+        getContent: () => { const source = captureControlSource(); return controlSourceCurrent(source, false, false) ? source.text : '' },
 
         // Which document (if any) this handler is currently connected to — used by
         // editors.js's editor-switch state park/restore to recognize "still the same
         // live document" and resync references from the Y.Map instead of restoring a
         // stale local snapshot. null when not connected (e.g. local-only, pre-title).
-        getDocId: () => currentDocId,
+        getDocId: () => resourceLifecycle?.owned() ? currentDocId : null,
 
         // Rebuild the shared global reference list from this document's own clist_refs
         // Map's current, authoritative state — used on reactivation (switching back to
         // LaTeX) instead of trusting whatever was parked, since the Map keeps syncing
         // in the background (observe() above is gated to skip the global list) while
         // this editor isn't the one on screen.
-        resyncReferences: () => {
-            setReferences([])
-            if (!sharedRefs) return
-            sharedRefs.forEach((jsonStr) => {
-                try {
-                    if (typeof pushReference === 'function') pushReference(JSON.parse(jsonStr))
-                } catch { /* skip corrupt entries */ }
-            })
-        },
-
-        loadContent: ({ type, value }, itemId) => {
-            if (!cmView) {
-                showErrorModal('Join a document first, then load content into it.', { title: 'No document loaded' })
-                return
-            }
-            const text = (type === 'text/html') ? cleanHTMLContent(value) : value
-            insertAtCursor(text)
-
-            if (itemId) {
-                const editorDiv = document.getElementById('latexDiv')
-                const reference = createReference(itemId, editorDiv)
-                displayReferences(editorDiv)
-                _pushLatexReference(reference)
-            }
-        },
-        // no setContent — collaborative editor, same reasoning as collab/etherpad/collection
-
-        // insertLink/insertLinkVia bodies are intentionally identical — LaTeX bibliography
-        // text is generated separately on demand (Insert bibliography button). Each insert
-        // also drops a literal "(Author, Year)" text citation right after the inserted text —
-        // not a \cite{} macro, since there's no stable \bibitem key until a bibliography has
-        // actually been generated.
-        insertLink: ({ content, reference }) => {
-            if (!cmView) {
-                showErrorModal('Join a document first, then load content into it.', { title: 'No document loaded' })
-                return
-            }
-            const text = (content.type === 'text/html') ? cleanHTMLContent(content.value) : content.value
-            const citation = _citationText(reference)
-            if (text) insertAtCursor(citation ? `${text} ${citation}` : text)
-            _pushLatexReference(reference)
-        },
-        insertLinkVia: ({ content, reference }) => {
-            if (!cmView) {
-                showErrorModal('Join a document first, then load content into it.', { title: 'No document loaded' })
-                return
-            }
-            const text = (content.type === 'text/html') ? cleanHTMLContent(content.value) : content.value
-            const citation = _citationText(reference)
-            if (text) insertAtCursor(citation ? `${text} ${citation}` : text)
-            _pushLatexReference(reference)
-        },
-    }
-
-    // Pushes/displays a reference and mirrors it into the shared clist_refs Y.Map (same
-    // sequence loadContent's itemId branch already does) — for insertLink/insertLinkVia,
-    // where the reference may come from a dragged-from window rather than a live DOM element.
-    function _pushLatexReference(reference) {
-        if (!reference) return
-        const editorDiv = document.getElementById('latexDiv')
-        pushReference(reference)
-        displayReferences(editorDiv)
-        if (sharedRefs && reference.url) sharedRefs.set(reference.url, JSON.stringify(reference))
+        resyncReferences: () => latexContent().resync(),
+        loadContent: (content, itemId) => latexContent().insert(content, null, itemId),
+        insertLink: ({ content, reference }) => latexContent().insert(content, reference, null, true),
+        insertLinkVia: ({ content, reference }) => latexContent().insert(content, reference, null, true),
     }
 
     if (typeof editorHandlers !== 'undefined') {

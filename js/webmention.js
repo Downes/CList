@@ -12,11 +12,14 @@
 //
 
 // Whether WebMentions are enabled. Persisted in localStorage.
-let webmentionEnabled = localStorage.getItem('clist_webmention_enabled') === 'true';
+let webmentionEnabled = false;
+try { webmentionEnabled = localStorage.getItem(window.CList.keys.WEBMENTION_ENABLED) === 'true'; }
+catch (error) { console.error('Could not read WebMention preference.', error); if (typeof showStatusMessage === 'function') showStatusMessage('Could not read WebMention preference. Check Options to retry.'); }
 
 function setWebmentionEnabled(val) {
-    webmentionEnabled = !!val;
-    localStorage.setItem('clist_webmention_enabled', webmentionEnabled ? 'true' : 'false');
+    const next = !!val;
+    localStorage.setItem(window.CList.keys.WEBMENTION_ENABLED, next ? 'true' : 'false');
+    webmentionEnabled = next;
 }
 
 function isWebmentionEnabled() {

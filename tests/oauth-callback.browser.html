@@ -1,0 +1,32 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>OAuth callback pickup and session binding</title>
+<link rel="stylesheet" href="../css/interface.css">
+<h1>OAuth callback pickup and session binding</h1>
+<p>Real callback pickup controller/view, exchange workflow, original-session guard and shared account save. Storage, session fingerprint, token transport, account encryption and UI effects mocked. No external requests or real writes. WordPress binding, live OAuth, real cryptography and full startup/navigation not exercised. Test 2026-11-23.5.</p>
+<pre id="result">Checking…</pre>
+<script>window.CList={state:{},config:{}};</script>
+<script src="../js/account-state.js?v=2026-11-23.4"></script>
+<script src="../js/ui.js?v=2026-11-23.1"></script>
+<script src="../js/oauth_account_workflow.js?v=2026-11-23.4"></script>
+<script src="../js/oauth_account.js?v=2026-11-23.5"></script>
+<script src="../js/oauth_account_view.js?v=2026-11-23.4"></script>
+<script src="../js/oauth_callback_workflow.js?v=2026-11-23.5"></script>
+<script src="../js/oauth_callback.js?v=2026-11-23.5"></script>
+<script src="../js/oauth_callback_view.js?v=2026-11-23.5"></script>
+<script src="../js/oauth-client.js?v=2026-11-23.5"></script>
+<script src="helpers/oauth-account-fixture.js?v=2026-11-23.4"></script>
+<script src="helpers/oauth-callback-fixture.js?v=2026-11-23.5"></script>
+<script>
+(async () => {
+    const result = document.getElementById('result'); let count = 0;
+    try {
+        for (const [name, run] of oauthCallbackCases) {
+            result.textContent = 'Checking: ' + name; let timer;
+            try { await Promise.race([run((condition, message) => { if (!condition) throw new Error(message); count++; }), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Timed out: ' + name)), 5000); })]); }
+            finally { clearTimeout(timer); }
+        }
+        result.textContent = 'PASS: ' + count + ' checks. Real callback pickup/controller/view, exchange workflow and shared account saving, single-use binding receipts, duplicate locks, malformed/expired/wrong-session rejection, newer-result protection, captured token transport and no automatic exchange retries, original-session save guard and visible failures. Storage/session fingerprint/token transport/encryption/UI mocked; no external requests or real writes. WordPress binding, live OAuth, real cryptography and full startup/navigation not exercised.';
+    } catch (error) { result.textContent = 'FAIL: ' + (error.stack || error); }
+})();
+</script>

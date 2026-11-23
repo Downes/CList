@@ -1,0 +1,21 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Slides saved-layout dialogs</title>
+<link rel="stylesheet" href="../css/interface.css">
+<h1>Slides saved-layout dialogs</h1>
+<p>Real layout workflow/controller/view, shared dialog builder and PageStore API. IndexedDB, editor/session, modal container and mutation notifications mocked. No external requests or actual storage writes. Embedded layout rendering, real IndexedDB durability, full Save panel and Slides mounting not exercised. Test 2026-11-23.1.</p>
+<pre id="result">Checking…</pre>
+<script>window.CList={state:{},config:{}};</script>
+<script src="../js/page-store.js?v=2026-11-22.1"></script>
+<script src="../js/ui.js?v=2026-11-23.1"></script>
+<script src="../js/slides_layout_workflow.js?v=2026-11-23.1"></script>
+<script src="../js/slides_layout.js?v=2026-11-23.1"></script>
+<script src="../js/slides_layout_view.js?v=2026-11-23.1"></script>
+<script src="helpers/slides-layout-fixture.js?v=2026-11-23.1"></script>
+<script>
+(async()=>{const result=document.getElementById('result');let count=0;
+try{for(const[name,run]of slidesLayoutCases){result.textContent='Checking: '+name;let timer;
+try{await Promise.race([run((condition,message)=>{if(!condition)throw new Error(message);count++;}),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Timed out: '+name)),5000);})]);}finally{clearTimeout(timer);}}
+result.textContent='PASS: '+count+' checks. Real Slides layout workflow/controller/view, shared dialog builder and PageStore, captured Save/Rename/Delete, revisions/extensions/metadata, Cancel, duplicate locks, accepted/uncertain receipts, read-only review, editor-only retry, stale/modal guards and newer-name preservation. IndexedDB/editor/session/modal/mutation APIs mocked; no external requests or actual storage writes. Embedded editor, real IndexedDB durability and full Slides/Save integration not exercised.';
+}catch(error){result.textContent='FAIL: '+(error.stack||error);}})();
+</script>

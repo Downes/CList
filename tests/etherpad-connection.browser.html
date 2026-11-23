@@ -1,0 +1,29 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Etherpad connection panel</title>
+<link rel="stylesheet" href="../css/interface.css">
+<h1>Etherpad connection panel</h1>
+<p>Real connection request/controller/view and editor bridge. HTTP, accounts/session, iframe navigation and legacy document/share commands mocked. No external requests or writes. Create/content/Share internals and live Etherpad not exercised. Test 2026-11-22.12.</p>
+<pre id="result">Checking…</pre>
+<script>
+window.CList={state:{},config:{},ui:{}};var editorHandlers={};
+// Record iframe URLs without navigating to any test server.
+const originalEtherpadCreate=document.createElement.bind(document);
+document.createElement=function(tag,...args){const node=originalEtherpadCreate(tag,...args);if(tag.toLowerCase()==='iframe'){let url='';Object.defineProperty(node,'src',{get:()=>url,set:value=>{url=value;}});}return node;};
+</script>
+<script src="../js/etherpad_requests.js?v=2026-11-22.11"></script>
+<script src="../js/etherpad_document_requests.js?v=2026-11-22.12"></script>
+<script src="../js/etherpad_document_workflow.js?v=2026-11-22.12"></script>
+<script src="../js/etherpad_document.js?v=2026-11-22.12"></script>
+<script src="../js/etherpad_document_view.js?v=2026-11-22.12"></script>
+<script src="../js/etherpad_connection.js?v=2026-11-22.12"></script>
+<script src="../js/etherpad_connection_view.js?v=2026-11-22.12"></script>
+<script src="../js/etherpad.js?v=2026-11-22.12"></script>
+<script src="helpers/etherpad-connection-fixture.js?v=2026-11-22.12"></script>
+<script>
+(async()=>{const result=document.getElementById('result');let count=0;
+try{for(const[name,run]of etherpadConnectionCases){result.textContent='Checking: '+name;let timer;
+try{await Promise.race([run((condition,message)=>{if(!condition)throw new Error(message);count++;}),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Timed out: '+name)),5000);})]);}finally{clearTimeout(timer);}}
+result.textContent='PASS: '+count+' checks. Real Etherpad connection request/controller/view and editor bridge, selected-account capture, literal lists, errors/retry, stale reads/controls, guest validation, same-iframe resume, account/session isolation and owned teardown. HTTP/accounts/session/iframe navigation and legacy document/share commands mocked; no external requests or writes. Create/content/Share internals and live Etherpad not exercised.';
+}catch(error){result.textContent='FAIL: '+(error.stack||error);}})();
+</script>

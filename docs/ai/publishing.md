@@ -1,5 +1,10 @@
 # Publishing instructions for AI coding tools
 
+Current user-directed testing cadence (2026-11-23): run only the immediately
+relevant Node checks for each small refactor, and defer the full sweep until later.
+This overrides the per-stage full-suite directions below. Report the exact tested
+scope; do not describe focused checks as full validation.
+
 Read this document before writing or changing code that supports or affects
 publishing: service adapters, editor exports, account/session handling, workflow
 state, publication tracking, or result/progress UI. Read the affected implementation
@@ -35,6 +40,7 @@ web-page workflow. Preserve the reviewed behaviour of each publishing path.
 | Service API operations | Service files, including `mastodon_publish.js`, `bluesky_publish.js`, `wordpress.js`, `blogger.js` | Use explicit account/session values. Return data or reject; never display publication feedback. |
 | Annotation publishing | `annotation-workflow.js`, `annotation-publishing.js`, `annotation-view.js`, `annotate_publish.js`, `hypothesis_publish.js` | Explicit captured targets/session; per-target receipts; transport has no feedback. |
 | Collection browse/import/member operations | `collection-session.js`, `collection-workflow.js`, `collection-browser*`, `collection-import*`, `collection-members*`, `collection-opening*`, `collection-entry-*` | Preserve latest record extensions/publications, explicit conflicts, independent duplicate memberships and captured original drafts. Views own choices/feedback; accepted writes reconcile only current owners. Collection Save/publication remains separate. |
+| Collection draft rows | `collection-draft-state.js`, `collection-draft.js`, `collection-draft-view.js`, `collection-editor.js` | Preserve the shared live member array and extensions. Expire retired row/source callbacks; metadata-only identity reconciliation must keep current editing usable. Existing opening/import/publication APIs own effects after dispatch. |
 | Collection Post / To Web Page / Republish | `collection-publishing.js`, `collection-publishing-workflow.js`, `collection-publishing-view.js`, [collection-publishing.md](../collection-publishing.md) | Capture collection/account/session before awaits; state owns selection/busy; workflow emits data; view owns choices/results. |
 | Local-entry Publish | `collection-entry-publishing.js`, `web-page-workflow.js`, `web-page-records.js` | Capture member/session/account/authorship, retain receipts, and reconcile only the unchanged original member; feedback remains in the collection view. |
 
@@ -170,11 +176,49 @@ status. Keep busy/result state in `CList.state.publishing` and
 Preserve cleanup after failure/cancellation and the guards that prevent ordinary
 posting from erasing an outstanding web-page version choice.
 
+Annotation draft fields use `annotate_draft_state.js`, `annotate_draft.js` and
+`annotate_draft_view.js`. Preserve live target/reference identity, source metadata,
+extensions and manual-URL registration for generic publication. Pending field
+edits are private and conflict-checked; expired form/editor/session callbacks
+must not change a new target. Native annotation file behavior and body publication
+remain distinct.
+`annotate_body.js` / `annotate_body_view.js` now own the description instance,
+unique target, delayed setup, textarea fallback and cleanup. Read/write APIs use
+the captured instance, propagate failures and retain fallback data; never export
+from a different global TinyMCE instance. Initialization failure can still mount
+a usable annotation textarea and consume queued content exactly once. Explicit
+rich retry seeds the latest retained content.
+Send controls use `annotate_send.js` and `annotate_send_view.js`, directly reusing
+`captureAnnotationRequest` / `runAnnotationOperation` rather than the inline
+compatibility wrapper's UI effects. Preserve primary-target selectors and
+captured account/tags/privacy/session before async body reads. Keep cross-panel
+pending locks and private account/privacy preferences, validate the live account
+registry before dispatch and suppress stale results/return callbacks. Accepted
+writes are distinct from failed draft-return checks; never repeat publication to
+recover UI. Uncertain results advise server review before an explicit retry.
+
 Native PageStore documents and encrypted `page:*` publication metadata are
 different records. Preserve local document identity, HTML identity embedding,
 plain-text contents, My Pages indexing, and verified DID alias/derived-copy
 behaviour. Overwrite requires a captured matching service/account/resource.
 Reconcile the loaded-page pointer only if the original editor/page is still active.
+Native local-page Save now uses `page-store-save*` with captured source metadata
+before the editor read, existing PageStore revision handling and owner-safe
+completion. Keep newer title/reference edits while attaching native identity.
+If editor metadata fails after an accepted write, retry that reconciliation
+without another write. Never route this operation through remote page indexing.
+Native local-page listing/opening uses `page-store-browser*`. Preserve native
+identity/revision, structural references and latest publication metadata in the
+shared saved-content handoff. Keep pre-read editor/page/session guards distinct
+from the session/control guard used during intended editor selection/mounting.
+Do not treat the listing controller as proof of full editor integration.
+Bundle import/export uses `page-store-bundle*` with captured methods/file/policy,
+guarded pre-write dispatch, private accepted/uncertain receipts and visible partial
+results. Never repeat the entire import automatically after partial failure or
+uncertainty. Result review performs no writes; already dispatched PageStore work
+may finish after navigation and must not refresh a replacement UI. Browser export
+reports a handoff, without claiming disk persistence. Native storage conflict and
+reference-remapping semantics remain in the existing data API.
 Keep `_saveWebPageRecord` / `_touchOrForkWebPageRecord` compatibility for file saving
 and the existing `showRepublishStatus` UI for collection republishing. The old
 `_findAccountForPage` compatibility controller has been removed after migration.
@@ -715,3 +759,19 @@ and lifecycle, passing the activation guard into local initialization. Return
 handle it. Do not overwrite newer title input or start a local editor over a newer
 connection intent. This boundary does not generically cancel already dispatched
 loaders or prove live provider synchronization.
+
+
+Standard OAuth callbacks now forward an original-session `isCurrent` guard into
+account saving. Preserve it across encryption, persistence and recovery; a fresh
+save-time capture alone must not authorize credentials from an earlier session.
+Exchange is one-shot; never retry an uncertain token exchange automatically.
+WordPress's separate application-password callback now uses the same shared
+binding receipt and must forward the original-session guard into account saving.
+
+
+Personal Options' WebMention setter now persists before updating its runtime flag.
+Keep a denied preference write from enabling publication-side WebMentions. Options
+transfer controls and data operations now carry captured source/destination guards.
+Retain accepted import receipts and add-only conflict preservation; never repeat an
+uncertain write before a read-only check. Dispatched original writes/downloads are
+not cancelled by ownership checks.

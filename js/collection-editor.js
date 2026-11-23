@@ -36,17 +36,27 @@ function readActiveCollectionDraft() {
 function _refreshIdDisplay() {
     if (!_idDisplayEl) return;
     const id = _activeCollection?.col?.id;
+    // Save/publication replace metadata objects without replacing this live draft.
+    const binding = _collectionDraftBinding;
+    if (binding && binding.items === _draftItems && binding.source()
+        && (!binding.active?.col?.id || binding.active.col.id === id)) binding.active = _activeCollection;
     _idDisplayEl.textContent = id ? `ID: ${id}` : 'Not yet saved — an ID will be assigned on first save.';
 }
 
 // ── Collection editor panel (rendered into the write-pane) ──
 
+let _collectionDraftMount = 0;
 window.showCollectionEditorPanel = async function showCollectionEditorPanel(container) {
+    _collectionDraftController?.dispose();
+    const mount = ++_collectionDraftMount, active = _activeCollection, source = captureCollectionDraftSource();
+    const current = () => mount === _collectionDraftMount && active === _activeCollection && source() && container.isConnected;
     const titleEl = document.getElementById('write-title');
     if (_activeCollection) {
         const { col, token, encKey } = _activeCollection;
         if (titleEl) titleEl.textContent = col.name || '';
-        _renderCollectionEditor(container, col, token, encKey, await _collectionEditTargets(token, encKey));
+        const targets = await _collectionEditTargets(token, encKey, current);
+        if (!current()) return false;
+        _renderCollectionEditor(container, col, token, encKey, targets);
     } else {
         if (titleEl) titleEl.textContent = '';
         // A brand-new, never-loaded collection still needs the real session
@@ -54,13 +64,20 @@ window.showCollectionEditorPanel = async function showCollectionEditorPanel(cont
         // (add-from-file, add-from-existing-picker, etc.) wrongly reports
         // "please log in" for a user who is in fact logged in.
         const token  = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
-        const encKey = token ? await getEncKey(window.CList.config.flaskSiteUrl).catch(() => null) : null;
-        _renderCollectionEditor(container, { name: '', items: [] }, token, encKey, await _collectionEditTargets(token, encKey));
+        let encKey = null;
+        try { if (token) encKey = await getEncKey(window.CList.config.flaskSiteUrl); }
+        catch (error) {
+            console.error('[collection draft] credentials unavailable', error);
+            if (current()) showStatusMessage('Could not read collection credentials. Local editing is available; reopen to retry.');
+        }
+        const targets = await _collectionEditTargets(token, encKey, current);
+        if (!current()) return false;
+        _renderCollectionEditor(container, { name: '', items: [] }, token, encKey, targets);
     }
 };
 
 // Ownership comes from this user's saved records, never from a resource's URL.
-async function _collectionEditTargets(token, encKey) {
+async function _collectionEditTargets(token, encKey, isCurrent = () => true) {
     const targets = { pages: new Map(), collections: new Set() };
     if (!token || !encKey) return targets;
     try {
@@ -71,7 +88,7 @@ async function _collectionEditTargets(token, encKey) {
         collections.forEach(collection => { if (collection.id) targets.collections.add(collection.id); });
     } catch (error) {
         console.error('Could not identify editable collection resources:', error);
-        showStatusMessage('Could not identify editable resources. Reopen the collection to retry.');
+        if (isCurrent()) showStatusMessage('Could not identify editable resources. Reopen the collection to retry.');
     }
     return targets;
 }
@@ -81,266 +98,44 @@ function _collectionResourceHasEditor(mimeType) {
         && (handler.contentTypes || []).includes(mimeType));
 }
 
-// Render the main collection editor into container.
+// Bind existing Save/import/publication APIs to one captured draft controller.
+let _collectionDraftController = null;
+let _collectionDraftBinding = null;
 function _renderCollectionEditor(container, col, token, encKey, editTargets = { pages: new Map(), collections: new Set() }) {
-    container.innerHTML = '';
-    if (col.feedAccount) {
-        const note = document.createElement('p');
-        note.className = 'feed-status-message';
-        note.textContent = 'Editing your subscribed feeds. Use Save → Save to CList to apply changes to your collection.';
-        container.appendChild(note);
-    }
-    const draftItems = col.items.map(i => ({ ...i }));
-    _draftItems    = draftItems;
-    _refreshEditor = null; // will be set after renderEntries is defined
-
-    // ── UUID identity display ── so it's always visible which kvstore record
-    // Save/Republish/Publish will update, regardless of the current title text.
-    const idRow = document.createElement('div');
-    idRow.className = 'list-tip';
-    idRow.textContent = col.id ? `ID: ${col.id}` : 'Not yet saved — an ID will be assigned on first save.';
-    container.appendChild(idRow);
-    _idDisplayEl = idRow;
-
-    // ── Entry list ──
-    const list = document.createElement('div');
-    list.className = 'collection-editor-list';
-    container.appendChild(list);
-
-    function renderEntries(expandedIndex = -1) {
-        list.innerHTML = '';
-        draftItems.forEach((item, idx) =>
-            list.appendChild(_renderEntryRow(item, idx, draftItems, renderEntries, token, encKey, !!col.feedAccount, editTargets, idx === expandedIndex))
-        );
-
-        // "Add entry" row — styled like a normal entry's bar (small icon
-        // buttons) rather than full-size text buttons, so it reads as part
-        // of the list instead of a separate action area.
-        const addRow = document.createElement('div');
-        addRow.className = 'collection-editor-entry collection-editor-add-row';
-
-        const addBar = document.createElement('div');
-        addBar.className = 'collection-editor-entry-bar';
-        addRow.appendChild(addBar);
-
-        const addBtn = document.createElement('button');
-        addBtn.className = 'clist-action-btn';
-        addBtn.title     = 'Add a blank entry';
-        addBtn.innerHTML = '<span class="material-icons md-18 md-light">add</span>';
-        addBtn.onclick   = () => { draftItems.push({ title: '', url: '' }); renderEntries(draftItems.length - 1); };
-        addBar.appendChild(addBtn);
-
-        // Hidden file input behind the "from file" button — a recognized
-        // collection export (rss/opml/json/html) becomes a nested collection,
-        // same parsers used by the "Import collection" flow; anything else
-        // becomes a local-only leaf entry via a blob: URL (see _addEntryFromFile).
-        const fileInput = document.createElement('input');
-        fileInput.type = 'file';
-        fileInput.style.display = 'none';
-        fileInput.onchange = async () => {
-            const file = fileInput.files[0];
-            fileInput.value = '';
-            if (!file) return;
-            await _addEntryFromFile(file, draftItems, col, token, encKey, renderEntries, editTargets);
-        };
-        addBar.appendChild(fileInput);
-
-        const fromFileBtn = document.createElement('button');
-        fromFileBtn.className = 'clist-action-btn';
-        fromFileBtn.title     = 'Add entry from a file';
-        fromFileBtn.innerHTML = '<span class="material-icons md-18 md-light">upload_file</span>';
-        fromFileBtn.onclick   = () => fileInput.click();
-        addBar.appendChild(fromFileBtn);
-
-        const fromExistingBtn = document.createElement('button');
-        fromExistingBtn.className = 'clist-action-btn';
-        fromExistingBtn.title     = 'Add entry from a saved page or collection';
-        fromExistingBtn.innerHTML = '<span class="material-icons md-18 md-light">library_add</span>';
-        fromExistingBtn.onclick   = () => _showAddEntryFromExistingPicker(draftItems, col, token, encKey, renderEntries, fromExistingBtn, editTargets);
-        addBar.appendChild(fromExistingBtn);
-
-        list.appendChild(addRow);
-    }
-    _refreshEditor = renderEntries;
-    renderEntries();
+    _collectionDraftController?.dispose();
+    const source = captureCollectionDraftSource();
+    const binding = { active: _activeCollection, source, items: null };
+    const view = createCollectionDraftView(container, col);
+    let controller;
+    controller = createCollectionDraftController(col, {
+        isCurrent: () => _collectionDraftController === controller && _draftItems === controller.items
+            && _activeCollection === binding.active && source(),
+        targets: editTargets, hasEditor: _collectionResourceHasEditor,
+        present: state => { window.CList.state.collectionDraft = state; },
+        open: (item, page) => _openEntryForEdit(item, token, encKey, page),
+        publish: (item, refresh) => _publishLocalEntry(item, refresh),
+        browse: url => openInBrowser(url),
+        file: (file, items, refresh) => _addEntryFromFile(file, items, col, token, encKey, refresh, editTargets),
+        existing: (items, refresh, anchor) => _showAddEntryFromExistingPicker(items, col, token, encKey, refresh, anchor, editTargets),
+        log: error => console.error('[collection draft]', error),
+    }, view);
+    _collectionDraftController = controller; _draftItems = controller.items;
+    binding.items = controller.items; _collectionDraftBinding = binding;
+    _refreshEditor = controller.refresh; _idDisplayEl = view.identity;
+    _refreshIdDisplay(); controller.refresh();
+    return controller;
 }
-
-// Render a single collapsible entry row.
-function _renderEntryRow(item, idx, draftItems, refresh, token, encKey, isFeedCollection = false, editTargets = { pages: new Map(), collections: new Set() }, expanded = false) {
-    const row      = document.createElement('div');
-    row.className  = 'collection-editor-entry';
-
-    const bar      = document.createElement('div');
-    bar.className  = 'collection-editor-entry-bar';
-
-    const upBtn    = document.createElement('button');
-    upBtn.className = 'clist-action-btn';
-    upBtn.title     = 'Move up';
-    upBtn.innerHTML = '<span class="material-icons md-18 md-light">arrow_upward</span>';
-    upBtn.onclick   = (e) => { e.stopPropagation(); if (idx > 0) { [draftItems[idx-1], draftItems[idx]] = [draftItems[idx], draftItems[idx-1]]; refresh(); } };
-
-    const downBtn   = document.createElement('button');
-    downBtn.className = 'clist-action-btn';
-    downBtn.title     = 'Move down';
-    downBtn.innerHTML = '<span class="material-icons md-18 md-light">arrow_downward</span>';
-    downBtn.onclick   = (e) => { e.stopPropagation(); if (idx < draftItems.length-1) { [draftItems[idx], draftItems[idx+1]] = [draftItems[idx+1], draftItems[idx]]; refresh(); } };
-
-    const delBtn    = document.createElement('button');
-    delBtn.className = 'clist-action-btn';
-    delBtn.title     = 'Remove entry';
-    delBtn.innerHTML = '<span class="material-icons md-18 md-light">delete_outline</span>';
-    delBtn.onclick   = (e) => { e.stopPropagation(); draftItems.splice(idx, 1); refresh(); };
-
-    const chevron   = document.createElement('span');
-    chevron.className   = 'material-icons collection-editor-chevron';
-    chevron.textContent = expanded ? 'expand_less' : 'expand_more';
-
-    const labelEl   = document.createElement('span');
-    labelEl.className   = 'collection-editor-entry-label';
-    const isNested    = item.role === 'contains' && item.collectionId;
-    const isLocalLeaf  = !!item.localOnly && !!item.url && item.url.startsWith('blob:');
-    const entryLabel   = () => (_collectionItemDisplayTitle(item) || '(untitled)')
-        + (isNested ? ' (nested collection)' : '')
-        + (isLocalLeaf ? ' (local only)' : '');
-    labelEl.textContent = entryLabel();
-
-    let browserBtn = null;
-    if (isFeedCollection && !isNested) {
-        browserBtn = document.createElement('button');
-        browserBtn.type = 'button';
-        browserBtn.className = 'clist-action-btn';
-        browserBtn.title = 'Open website in browser';
-        browserBtn.innerHTML = '<span class="material-icons md-18 md-light">launch</span>';
-        browserBtn.disabled = !/^https?:\/\//i.test(item.url || '');
-        browserBtn.onclick = event => {
-            event.stopPropagation();
-            if (/^https?:\/\//i.test(item.url || '')) openInBrowser(item.url);
-        };
-    }
-
-    // Member fields are edited by expanding the row. The Edit action opens
-    // only an owned resource with a registered content editor.
-    let editBtn = null;
-    const editTarget = () => {
-        const page = editTargets.pages.get(item.url);
-        if (isNested && editTargets.collections.has(item.collectionId)) return { page: null };
-        if (page && _collectionResourceHasEditor(page.mimeType)) return { page };
-        if (item.localOnly && item.url?.startsWith('blob:') && _collectionResourceHasEditor(item.mimeType)) return { page: null };
-        return null;
+function captureCollectionDraftSource() {
+    const state = window.CList.state, store = window.CList.config.flaskSiteUrl;
+    const source = [currentEditor, typeof currentEditorAccount === 'undefined' ? null : currentEditorAccount,
+        state.username, state.authEpoch, store, getSiteSpecificCookie(store, window.CList.keys.ACCESS_TOKEN)];
+    return () => {
+        const now = window.CList.state;
+        return source.every((value, index) => value === [currentEditor,
+            typeof currentEditorAccount === 'undefined' ? null : currentEditorAccount,
+            now.username, now.authEpoch, window.CList.config.flaskSiteUrl,
+            getSiteSpecificCookie(store, window.CList.keys.ACCESS_TOKEN)][index]);
     };
-    function updateEditAction() {
-        if (!editTarget()) {
-            editBtn?.remove();
-            editBtn = null;
-            return;
-        }
-        if (editBtn) return;
-        editBtn = document.createElement('button');
-        editBtn.className = 'clist-action-btn';
-        editBtn.title = isNested ? 'Edit nested collection' : 'Edit this page';
-        editBtn.innerHTML = '<span class="material-icons md-18 md-light">edit</span>';
-        editBtn.onclick = event => {
-            event.stopPropagation();
-            const target = editTarget();
-            if (target) return _openEntryForEdit(item, token, encKey, target.page);
-        };
-        bar.insertBefore(editBtn, delBtn);
-    }
-
-    // "Publish" — only for a local-only (blob:) entry added via "+ From file".
-    let publishBtn = null;
-    if (isLocalLeaf) {
-        publishBtn = document.createElement('button');
-        publishBtn.className = 'clist-action-btn';
-        publishBtn.title     = 'Publish this local page';
-        publishBtn.innerHTML = '<span class="material-icons md-18 md-light">publish</span>';
-        publishBtn.onclick   = (e) => { e.stopPropagation(); _publishLocalEntry(item, refresh); };
-    }
-
-    bar.appendChild(upBtn);
-    bar.appendChild(downBtn);
-    bar.appendChild(chevron);
-    bar.appendChild(labelEl);
-    if (browserBtn) bar.appendChild(browserBtn);
-    if (publishBtn) bar.appendChild(publishBtn);
-    bar.appendChild(delBtn);
-    updateEditAction();
-
-    const fields    = document.createElement('div');
-    fields.className = 'collection-editor-entry-fields';
-    fields.style.display = expanded ? 'block' : 'none';
-
-    bar.addEventListener('click', (e) => {
-        if (e.target.closest('button')) return;
-        const open = fields.style.display !== 'none';
-        fields.style.display    = open ? 'none' : 'block';
-        chevron.textContent     = open ? 'expand_more' : 'expand_less';
-    });
-
-    _renderEntryFields(item, fields, () => {
-        labelEl.textContent = entryLabel();
-        updateEditAction();
-        if (browserBtn) browserBtn.disabled = !/^https?:\/\//i.test(item.url || '');
-    }, isFeedCollection);
-
-    row.appendChild(bar);
-    row.appendChild(fields);
-    return row;
-}
-
-// Render editable fields for a single entry. A role:'contains' item is a
-// nested-collection reference, not a feed item — it has no url/author/feed/
-// summary, so it only gets a Title field (plus a note identifying it).
-function _renderEntryFields(item, container, onTitleChange, isFeedCollection = false) {
-    if (item.role === 'contains' && item.collectionId) {
-        const note = document.createElement('p');
-        note.className   = 'feed-status-message';
-        note.textContent = 'Nested collection — its items are included when this collection is exported or published.';
-        container.appendChild(note);
-
-        const wrapper = document.createElement('div');
-        wrapper.className = 'collection-editor-field';
-        const labelEl  = document.createElement('label');
-        labelEl.textContent = 'Title';
-        wrapper.appendChild(labelEl);
-        const input = document.createElement('input');
-        input.type      = 'text';
-        input.value     = item.title || '';
-        input.className = 'collection-editor-input';
-        input.addEventListener('input', () => {
-            item.title = input.value;
-            if (onTitleChange) onTitleChange();
-        });
-        wrapper.appendChild(input);
-        container.appendChild(wrapper);
-        return;
-    }
-
-    [
-        { key: 'title',       label: 'Title',       tag: 'input',    type: 'text' },
-        { key: 'url',         label: isFeedCollection ? 'Website URL' : 'URL', tag: 'input', type: 'url' },
-        { key: 'author_name', label: 'Author',      tag: 'input',    type: 'text' },
-        { key: 'feed',        label: isFeedCollection ? 'Feed URL' : 'Feed', tag: 'input', type: 'url' },
-        { key: 'summary',     label: 'Description', tag: 'textarea', type: null   },
-    ].forEach(({ key, label, tag, type }) => {
-        const wrapper   = document.createElement('div');
-        wrapper.className = 'collection-editor-field';
-
-        const labelEl   = document.createElement('label');
-        labelEl.textContent = label;
-        wrapper.appendChild(labelEl);
-
-        const input     = document.createElement(tag);
-        if (type) input.type = type;
-        input.value     = item[key] || '';
-        input.className = 'collection-editor-input';
-        input.addEventListener('input', () => {
-            item[key] = input.value;
-            if (onTitleChange) onTitleChange();
-        });
-        wrapper.appendChild(input);
-        container.appendChild(wrapper);
-    });
 }
 
 // "+ From file" handler. A recognized collection export (rss/opml/json/html)

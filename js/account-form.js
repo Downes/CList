@@ -11,8 +11,13 @@ function createAccountForm(root, callbacks) {
     let schema = null;
     let baseData = {};
     let dirty = false;
+    let generation = 0, revision = 0, buildSource = null;
     const fields = root.querySelector('#form-fields');
     const control = key => root.querySelector('#' + key + 'Input');
+    const authorization = createAccountReauthorizationController({
+        capture: () => captureOAuthIssuerSource(), current: source => currentOAuthIssuerSource(source),
+        state: value => { window.CList.state.accountReauthorization = value; }, log: error => console.error('[Account reauthorization]', error),
+    });
 
     function read(validate = true) {
         if (!schema) throw new Error('No account type selected.');
@@ -51,11 +56,31 @@ function createAccountForm(root, callbacks) {
                     const button = document.createElement('button');
                     button.type = 'button'; button.className = 'btn btn-small';
                     button.textContent = 'Re-authorize';
-                    button.onclick = async () => {
-                        try { await reauthorize(read(false)); }
-                        catch (error) { showErrorModal(error.message, { title: 'Account authorization failed' }); }
+                    const mounted = generation, feedback = document.createElement('p'); feedback.setAttribute('role', 'status');
+                    const current = () => {
+                        if (generation !== mounted || root.isConnected === false || !currentOAuthIssuerSource(buildSource)) return false;
+                        for (let node = button; node; node = node.parentNode) {
+                            if (node.style?.display === 'none' || node.hidden) return false;
+                            if (node === root) return true;
+                        }
+                        return false;
                     };
-                    row.appendChild(button);
+                    const view = { current, invoke: reauthorize,
+                        busy: value => { button.disabled = value; },
+                        error: error => { if (current()) { feedback.className = 'error-message'; feedback.textContent = error.message; } },
+                        capture() {
+                            feedback.textContent = '';
+                            const base = baseData, capturedRevision = revision;
+                            const nodes = Array.from(fields.querySelectorAll('input,select,textarea')).map(node => [node, node.value, node.checked, node.type]);
+                            return { request: read(false), current() {
+                                if (!current() || baseData !== base || revision !== capturedRevision) return false;
+                                const live = Array.from(fields.querySelectorAll('input,select,textarea'));
+                                return live.length === nodes.length && nodes.every(([node, value, checked, type], index) => live[index] === node && node.value === value && node.checked === checked && node.type === type);
+                            } };
+                        },
+                    };
+                    button.onclick = () => current() && authorization.start(view);
+                    authorization.bind(view); row.append(button, feedback);
                 }
                 const manual = document.createElement('button');
                 manual.type = 'button'; manual.className = 'btn btn-small';
@@ -63,6 +88,7 @@ function createAccountForm(root, callbacks) {
                 manual.onclick = () => {
                     display.style.display = 'none'; manual.style.display = 'none';
                     input.type = 'password'; input.placeholder = 'Paste access token';
+                    revision++; authorization.changed();
                     input.focus();
                 };
                 row.appendChild(manual);
@@ -76,6 +102,8 @@ function createAccountForm(root, callbacks) {
     }
 
     function build(nextSchema, mode, data) {
+        generation++; revision++;
+        buildSource = captureOAuthIssuerSource();
         schema = nextSchema;
         baseData = structuredClone(data);
         delete baseData._key;
@@ -105,7 +133,7 @@ function createAccountForm(root, callbacks) {
         dirty = false;
     }
 
-    const markDirty = () => { dirty = true; };
+    const markDirty = () => { dirty = true; revision++; authorization.changed(); };
     root.querySelector('#addKvForm').addEventListener('input', markDirty);
     root.querySelector('#addKvForm').addEventListener('change', markDirty);
     return { build, read, isDirty: () => dirty, setDirty: value => { dirty = value; } };

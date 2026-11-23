@@ -1,6 +1,183 @@
 # Separating CList application logic and UI
 
-## Current checkpoint — 2026-11-20
+## Remaining work — 2026-11-23
+
+The user approved this order after the read-only audit. Keep stages small and
+reuse the existing data APIs; the earlier checkpoint below records completed work.
+The user now requests immediately relevant tests per stage, with a full sweep later.
+
+1. Local saved pages: Save now uses `page-store-save.js`,
+   `page-store-save-workflow.js` and `page-store-save-view.js` for captured input,
+   revision-preserving writes and safe reconciliation/recovery (23 focused and
+   1023/1023 full Node pass; user-reported browser PASS, 29 checks). Real PageStore API with mocked
+   IndexedDB/editor/session/feedback effects. Listing/opening now uses
+   `page-store-browser*`, with captured list/row reads, literal labels, native
+   publication/reference metadata and guarded shared-loader handoff (23 focused
+   and 1033/1033 full Node pass; user-reported browser PASS, 34 checks). Real PageStore APIs with mocked
+   IndexedDB/shared-loader/editor/session/tool effects. Bundle import/export now
+   uses `page-store-bundle*`, capturing file/policy/source, guarding download/import
+   dispatch, retaining partial/uncertain results and preventing automatic replay
+   (32 focused and 1045/1045 full Node pass; user-reported browser PASS, 31 checks). Real PageStore
+   validation/conflicts/remapping with mocked IDB/file/download/editor/session
+   effects. Item 1 is complete within the mocked scope; item 2
+   (annotation editor) follows. Storage/revision semantics remain unchanged.
+2. Annotation editor: draft fields now use `annotate_draft_state.js`,
+   `annotate_draft.js` and `annotate_draft_view.js`, retaining live target identity,
+   structural metadata/extensions, manual URL registration, pending input and
+   guarded commits (81 focused and 1055/1055 full Node pass; user-reported browser
+   PASS, 28 checks, plus saved-file recognition regression PASS).
+   Real editor/native-file bridges and reference dedup with mocked body/TinyMCE/
+   sanitizer/session/reference-panel effects. Description lifecycle now uses
+   `annotate_body.js` and `annotate_body_view.js`, with captured unique targets,
+   latest pending content, fallback/retry, background preservation and cleanup
+   (91 focused and 1065/1065 full Node pass; user-reported browser PASS: 24 body
+   checks, 28 field checks and saved-file recognition). TinyMCE/editor/
+   session/body-API dependencies mocked, including real queued-content switching
+   with delayed/rejected fake startup. Send now uses `annotate_send.js` and
+   `annotate_send_view.js`, preserving captured primary-target/account/privacy,
+   shared pending locks, session-owned choices and safe accepted-result return
+   (76 focused and 1077/1077 full Node pass; saved-file regression PASS,
+   user-reported Send browser PASS, 33 checks, fixture `2026-11-22.9`). A browser-event fixture hang
+   was reproduced/fixed without application changes; 12 Send Node cases now
+   pass through native-style dispatch. Real annotation
+   request/workflow/transport with mocked HTTP/accounts/session/body/pickers/
+   switching effects. Item 2 is complete within the stated mocked scope. Item 3 (collection draft editor) follows.
+3. Collection editor: draft editing, reordering and row callbacks now use
+   `collection-draft-state.js`, `collection-draft.js` and `collection-draft-view.js`,
+   with the existing editor bridge/live array retained for Save/import/publication.
+   Row generations, captured source/session and actual row ownership reject stale
+   controls; metadata-only Save/publication updates retain current editing.
+   79/79 targeted and 1088/1088 full Node pass; user-reported draft browser PASS,
+   34 checks (`2026-11-22.10`). Opening/publishing/import/session dependencies
+   are mocked in that fixture. Existing browsing, membership, Save and publishing
+   workflows remain separate; dispatch guards do not cancel their internals.
+4. Etherpad, then LaTeX: Etherpad connection/list/guest/iframe ownership now uses
+   `etherpad_requests.js`, `etherpad_connection.js` and `etherpad_connection_view.js`,
+   keeping selected account/auth private, preserving hidden guest resources and
+   rejecting superseded reads/controls. 16/16 targeted and 1098/1098 full Node pass;
+   user-reported browser PASS, 27 checks (`2026-11-22.11`). Document transport,
+   workflow/controller/view now use `etherpad_document*` for captured Create/author,
+   account/guest content/export, partial/uncertain creation, accepted-only references
+   and literal Share/captured chat handoff. 28/28 targeted and 1110/1110 full Node
+   pass. User-reported document PASS (32 checks) and updated connection PASS
+   (27 checks), `2026-11-22.12`. HTTP/session/iframe/reference/queued-content/chat/modal/
+   text helpers mocked; live Etherpad, remote concurrency and full switching remain
+   unverified. LaTeX connection preparation now reuses the shared Collab factory
+   through `latex_connection_preparation.js`, capturing session/configuration/editor
+   targets before server/module/namespace awaits. 23/23 focused and 1119/1119 full
+   Node pass; user-reported preparation browser PASS, 20 checks (`2026-11-22.13`). Server/library/
+   namespace/commit effects are mocked; the browser does not exercise the full
+   handler/provider. Resource ownership now uses `latex_resource.js` and
+   `latex_resource_view.js` for captured constructors/callbacks, parked documents,
+   reference/presence isolation, chrome rebinding and full best-effort teardown.
+   24/24 focused and 1128/1128 full Node pass; user-reported resource browser PASS, 19 checks
+   (`2026-11-22.15`), with vendor/timer/session/reference APIs mocked. The first
+   resource browser run failed a fixture-only CSS hex/rgb comparison, reproduced
+   and corrected with 9/9 resource Node cases; application code was unchanged by that fixture fix.
+   LaTeX compilation/Share/content controls now use `latex_controls_workflow.js`,
+   `latex_controls.js`, `latex_controls_view.js` and `latex_content.js`, retaining
+   the handler/mount bridge. Captured compile requests, PDF URL ownership, bound
+   Share/Copy, owned synchronous content/reference commands and bibliography refresh
+   pass 34/34 focused and 1138/1138 full Node checks. User-reported controls browser PASS,
+   28 checks (`2026-11-22.16`), with HTTP/resource/vendor/clipboard/PDF effects mocked.
+   After browser validation, item 5 (Slides application integration) follows.
+5. Slides application integration: saved-layout Save/Rename/Delete now use
+   `slides_layout_workflow.js`, `slides_layout.js` and `slides_layout_view.js`,
+   reusing PageStore and the shared dialog builder. 21/21 focused and 1147/1147 full
+   Node pass; user-reported layout browser PASS, 23 checks (`2026-11-23.1`). IndexedDB/editor/
+   session/modal effects are mocked, without embedded source or bundle changes.
+   Import/export and initial layout refresh now use `slides_io_workflow.js`,
+   `slides_io.js` and `slides_io_view.js`, with captured source/dispatch locks,
+   partial refresh, warning presentation and snapshot reference guards. 23/23
+   focused and 1159/1159 full Node pass; user-reported IO browser PASS, 26 checks (`2026-11-23.2`).
+   Picker/editor/source/storage/deferred/modal effects mocked; embedded converter,
+   native picker/download and full mounting integration are not exercised. Existing
+   embedded APIs remain unchanged. After browser validation, item 6 follows.
+6. Initial OAuth/service account setup: Dropbox's initial form now uses
+   `dropbox_setup.js` / `dropbox_setup_view.js`, retaining its registry factory and
+   existing start helper. Shared authorization preparation delegates through
+   `oauth_start_workflow.js`, preserving runtime/PKCE/state behavior while accepting
+   an optional owner guard before persistence/navigation. 30/30 focused and
+   1168/1168 full Node pass; user-reported browser PASS, 19 checks (`2026-11-23.3`), with PKCE,
+   registration/storage/navigation/session effects mocked. Callback account saving
+   now uses `oauth_account_workflow.js`, `oauth_account.js`, `oauth_account_view.js`
+   and the existing account validator/encryption helper, with captured sessions,
+   write/refresh separation, private receipts and read-only uncertain-write review.
+   29/29 focused and 1177/1177 full Node pass; user-reported browser PASS,
+   21 checks (`2026-11-23.4`), with KV/crypto/session/provider/navigation/modal effects mocked.
+   Standard Mastodon/Dropbox callback exchange/pickup now uses `oauth_callback*`,
+   with original cookie-session fingerprints, single-use 30-minute receipts,
+   duplicate locks, newer-result preservation and guards through account saving.
+   28/28 focused and 1187/1187 full Node pass; user-reported browser PASS,
+   39 checks (`2026-11-23.5`).
+   Storage/hash/session/exchange/encryption/UI effects mocked; live OAuth and full
+   startup/navigation not exercised. WordPress application-password binding now uses
+   `wordpress_auth_workflow.js`, `wordpress_auth.js` and `wordpress_auth_view.js`,
+   with the existing form/handler, shared receipts/pickup and account saving. Bound
+   success/denial URLs, exact canonical site checks, original-session guards,
+   duplicate/form expiry, local relay and scoped recovery pass 36/36 focused and
+   1196/1196 full Node checks; user-reported browser PASS (`2026-11-23.6`, 34 checks). Session,
+   crypto, storage/navigation/UI effects mocked; live services and full startup
+   unverified. Next: remaining service setup panels; the WordPress form's full view
+   extraction remains separate from this authorization boundary. Mastodon setup now
+   uses `mastodon_setup.js` / `mastodon_setup_view.js` through its existing factory,
+   reusing shared account-save receipts, persistence and recovery. OAuth/manual
+   captures, form/session expiry, rebuild locks and newer-draft protection pass
+   47/47 relevant Node tests; user-reported browser PASS (`2026-11-23.7`, 28 checks). OAuth
+   login/KV/crypto/session/panel/reader effects mocked; no current full sweep or live
+   service validation. Blogger setup now uses `blogger_setup.js` / `blogger_setup_view.js`,
+   sharing lifecycle and feedback with Mastodon via `account-setup.js` and
+   `account-setup-view.js`. Blogger configuration storage remains separate from
+   publication-time Google authorization. 44/44 relevant Node tests pass, including
+   Mastodon setup and Blogger publishing; Blogger browser validated (`2026-11-23.8`,
+   25 checks), with storage/crypto/session/panel effects mocked. User-reported Blogger
+   browser PASS: 25 checks (`2026-11-23.8`). Full sweep deferred. WordPress's remaining
+   form now uses `wordpress_setup.js` / `wordpress_setup_view.js`, retaining the
+   existing bound auth workflow and adding form-owned errors and pending controls.
+   21/21 relevant Node tests pass; user-reported browser PASS (`2026-11-23.9`, 17 checks), with
+   sessions/crypto/storage/navigation mocked. Collab setup now uses `collab_setup*`
+   for captured registration transport, retained service receipts and shared account
+   persistence/recovery. 34/34 relevant Node tests pass; user-reported browser PASS
+   (`2026-11-23.10`, 26 checks), with HTTP/session/crypto/storage/panel effects mocked.
+   Live registration, WebSockets and full panel integration unverified; full sweep
+   deferred. Annotate setup now uses `annotate_setup*`, sharing the registration
+   lifecycle/receipts with Collab through `account-registration-setup.js`. Startup
+   health probes own their source/draft/generation and cannot overwrite new
+   connection/error feedback. 42/42 relevant Node tests pass; user-reported browser PASS
+   (`2026-11-23.11`, 29 checks). HTTP/session/crypto/KV/panel effects mocked; live
+   services/full integration unverified. Discord subscriptions and admin channels now
+   use `discord_setup*` / `discord_admin*`, retaining registry and edit-form bridges,
+   captured credentials/commands, add-only writes/exact removal and separate receipt
+   recovery. 27/27 relevant Node tests pass; user-reported browser PASS (`2026-11-23.12`,
+   35 checks), with HTTP/session/KV/crypto/panel/reader effects mocked. Full sweep
+   deferred. The seven custom add-account factories now delegate to separated setup
+   modules. Brief follow-up review identified existing-account Re-authorize hooks
+   (`account-form.js`) as a separate remaining source/form-guard boundary; they are
+   not covered by the completed add-account fixtures.
+7. Personal Options now uses `personal-options.js`, `personal-options-workflow.js`
+   and `personal-options-view.js` for state-owned toggles, preference persistence,
+   theme/TinyMCE display and panel construction. Transfer controls delegate through
+   `personal-options-transfer.js`, preserving existing data APIs while guarding
+   panel/file/password handoffs and separating import success from refresh failure.
+   18/18 relevant Node tests pass; user-reported browser PASS (`2026-11-23.13`, 26 checks).
+   Storage/TinyMCE/session/transfer/picker/history effects mocked; full sweep deferred.
+   Account export/import now uses `account-transfer-workflow.js` and
+   `account-transfer-controller.js`, with captured source/destination methods and
+   key-version/caller guards. Native format remains v1; imports are add-only and
+   retain accepted/uncertain receipts for read-only review and explicit remaining
+   retries through Options. 29/29 relevant Node tests pass; user-reported browser PASS
+   (`2026-11-23.14`, 30 checks), with storage/session/crypto/download effects mocked.
+   Existing-account Re-authorize now delegates to `account-reauthorization.js` with
+   captured build session, form generation, raw field/node/revision guards and
+   pending/redirect locks. Mastodon/Dropbox hooks forward the options to existing
+   OAuth preparation. 40/40 relevant Node tests pass; user-reported browser PASS
+   (`2026-11-23.15`, 23 checks), with sessions/crypto/registration/storage/navigation
+   mocked. The listed targeted boundaries have implementations, but live/full
+   integration and the deferred full test sweep remain outstanding. After browser
+   validation, review the combined changes and round-trip integration gaps before
+   deciding the final validation/commit sequence.
+
+## Earlier checkpoint — 2026-11-20
 
 This checkpoint supersedes the historical implementation notes below. Shared
 account management, publishing workflows (including collection publication),

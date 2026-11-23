@@ -1389,3 +1389,6 @@ textarea.collection-editor-input { min-height: 60px; resize: vertical; }
 #latex-editor-container .cm-activeLineGutter { background: var(--bg-hover); }
 #latex-editor-container .cm-selectionBackground { background: var(--bg-active) !important; }
 #latex-editor-container .cm-cursor { border-left-color: var(--text-main); }
+
+.annotation-send-controls { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.annotation-send-controls select { font-size:0.85rem; padding:2px 4px; }

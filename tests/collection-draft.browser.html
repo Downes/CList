@@ -1,0 +1,26 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Collection draft editor</title>
+<link rel="stylesheet" href="../css/interface.css">
+<h1>Collection draft editor</h1>
+<p>Real draft state/controller/view and editor bridge. Opening, publishing, imports, accounts/session and feedback mocked. No external requests or writes. Full editor switching, file parsing and live publishing not exercised. Test 2026-11-22.10.</p>
+<pre id="result">Checking…</pre>
+<script>window.CList={state:{},config:{},ui:{}};var editorHandlers={},collectionFormats={},_activeCollection=null;</script>
+<script src="../js/collection-draft-state.js?v=2026-11-22.10"></script>
+<script src="../js/collection-draft.js?v=2026-11-22.10"></script>
+<script src="../js/collection-draft-view.js?v=2026-11-22.10"></script>
+<script src="../js/collection-editor.js?v=2026-11-22.10"></script>
+<script src="helpers/collection-draft-fixture.js?v=2026-11-22.10"></script>
+<script>
+(async () => {
+    const result=document.getElementById('result');let count=0;
+    try {
+        for(const [name,run] of collectionDraftCases) {
+            result.textContent='Checking: '+name;let timer;
+            try { await Promise.race([run((condition,message)=>{if(!condition)throw new Error(message);count++;}),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Timed out: '+name)),5000);})]); }
+            finally {clearTimeout(timer);}
+        }
+        result.textContent='PASS: '+count+' checks. Real collection draft state/controller/view and editor bridge, raw extensions/live draft, literal fields, reordering/expansion, stale/detached controls, newer metadata, duplicate/rebuilt actions, safe state, existing API handoffs and superseded mounting. Opening/publishing/import/session APIs mocked; no external requests or writes. Full editor switching, file parsing and live publishing not exercised.';
+    } catch(error) {result.textContent='FAIL: '+(error.stack||error);}
+})();
+</script>

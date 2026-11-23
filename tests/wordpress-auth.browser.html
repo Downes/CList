@@ -1,0 +1,43 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>WordPress authorization binding</title>
+<link rel="stylesheet" href="../css/interface.css">
+<h1>WordPress authorization binding</h1>
+<p>Real WordPress start/controller/view, callback/relay workflow, account form and callback handler, shared pickup and account saving. Sessions, fingerprint, random generation, navigation, storage, encryption and post-options effects mocked; no external requests, redirects or real writes. Live WordPress, real cryptography, deployed relay and full startup/navigation not exercised. Test 2026-11-23.9.</p>
+<pre id="result">Checking…</pre>
+<script>window.CList={state:{},config:{}};</script>
+<script src="../js/account-state.js?v=2026-11-23.4"></script>
+<script src="../js/ui.js?v=2026-11-23.1"></script>
+<script src="../js/oauth_account_workflow.js?v=2026-11-23.4"></script>
+<script src="../js/oauth_account.js?v=2026-11-23.5"></script>
+<script src="../js/oauth_account_view.js?v=2026-11-23.4"></script>
+<script src="../js/oauth_callback.js?v=2026-11-23.9"></script>
+<script src="../js/oauth_callback_view.js?v=2026-11-23.5"></script>
+<script src="../js/oauth-client.js?v=2026-11-23.5"></script>
+<script src="../js/wordpress_auth_workflow.js?v=2026-11-23.9"></script>
+<script src="../js/wordpress_auth.js?v=2026-11-23.9"></script>
+<script src="../js/wordpress_auth_view.js?v=2026-11-23.9"></script>
+<script>
+let wordPressAuthHandler;
+const savedOAuthCallbackRegistration = OAuthClient.onCallback;
+OAuthClient.onCallback = (type, handler) => { wordPressAuthHandler = handler; };
+</script>
+<script src="../js/wordpress_setup.js?v=2026-11-23.9"></script>
+<script src="../js/wordpress_setup_view.js?v=2026-11-23.9"></script>
+<script src="../js/wordpress.js?v=2026-11-23.9"></script>
+<script>OAuthClient.onCallback = savedOAuthCallbackRegistration;</script>
+<script src="helpers/oauth-account-fixture.js?v=2026-11-23.4"></script>
+<script src="helpers/wordpress-auth-fixture.js?v=2026-11-23.9"></script>
+<script>
+(async () => {
+    const result = document.getElementById('result'); let count = 0;
+    try {
+        for (const [name, run] of wordPressAuthCases) {
+            result.textContent = 'Checking: ' + name; let timer;
+            try { await Promise.race([run((condition, message) => { if (!condition) throw new Error(message); count++; }), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Timed out: ' + name)), 5000); })]); }
+            finally { clearTimeout(timer); }
+        }
+        result.textContent = 'PASS: ' + count + ' checks. Real WordPress authorization/controller/view, callback/relay workflow, form and account-save handler, bound success/denial URLs, exact site/session checks, duplicate/replay guards, Back/input expiry, original-session encryption guard, scoped failure/retry and shared receipt pickup. Storage/sessions/fingerprint/random/navigation/encryption/UI effects mocked; no external requests, redirects or real writes. Live WordPress, real cryptography, deployed relay and full startup/navigation not exercised.';
+    } catch (error) { result.textContent = 'FAIL: ' + (error.stack || error); }
+})();
+</script>

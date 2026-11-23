@@ -634,3 +634,73 @@ The context checks request/session/provider/reader/feed-target ownership and the
 shared renderer checks between asynchronous normalization steps. It does not
 cancel arbitrary direct DOM writes. Keep credentials out of `CList.state.find`.
 This search capability is separate from account readers' `supportsRequestContext`.
+
+
+Dropbox's initial form is split into `dropbox_setup.js` and
+`dropbox_setup_view.js`; its `accountFlows.Dropbox` factory retains the existing
+context contract. Its guarded helper passes optional `isCurrent` into the shared
+OAuth start workflow, which must reject expired work before state/navigation.
+Do not put credentials or PKCE/state payloads in presentation state. Callback
+persistence remains a separate boundary; guarded start does not establish callback
+session isolation or cancel already-started provider authorization.
+
+
+### Standard OAuth return handlers
+
+`OAuthClient.onCallback(type, async (data, context) => { ... })` registers with shared
+pickup. For providers started by `OAuthClient.login`, preserve `context.isCurrent`
+through every asynchronous preparation and pass it into
+`OAuthClient.saveAccount(label, key, accountData, { isCurrent: context.isCurrent })`.
+The shared pickup checks the starting cookie session and a single-use tab receipt.
+Do not bypass it by reading the callback-result storage directly. Failed/uncertain
+token exchange requires a new authorization. WordPress uses `wordpress_auth*` for
+its separate application-password transport, with the same bound receipt/pickup
+and original-session save guard; all callbacks now require original-flow binding.
+
+
+Mastodon setup uses `mastodon_setup.js` / `mastodon_setup_view.js` from its registry
+factory. It reuses the shared account-save controller for manual tokens and the
+bound OAuth helper for redirects. Retain one controller across remounts to preserve
+pending/uncertain locks; keep tokens and draft snapshots out of presentation state.
+
+
+Manual service setup can reuse `account-setup.js` for captured form lifetime and
+the existing shared account-save controller, plus `account-setup-view.js` for inline
+feedback/recovery. Mastodon and Blogger supply their own request validation and
+field views. Blogger setup saves configuration only; keep Google authorization in
+the publication path. Do not put field values or credentials in setup state.
+
+
+WordPress's registry factory now mounts `wordpress_setup.js` /
+`wordpress_setup_view.js`. Its form guard and optional owned `onError` callback go
+through the existing authorization controller; do not duplicate redirect/session
+binding logic or reintroduce markup into the factory.
+
+
+Collab setup delegates to `collab_setup_workflow.js`, `collab_setup.js` and
+`collab_setup_view.js`. Registration and account persistence are separate phases;
+retain accepted service receipts when storage or refresh fails. Reuse shared
+account setup/save recovery, and never automatically repeat an uncertain service
+registration. The legacy data API does not itself retain controller receipts.
+
+
+Collab and Annotate now share `account-registration-setup.js` for captured
+registration/account-save lifecycle and receipts. Keep health/protocol/payload
+details in each service's `*_setup_workflow.js`; Annotate's startup probe must not
+overwrite newer form errors or registration/recovery UI. Compatibility registration
+helpers remain data-only and do not own durable/controller receipt recovery.
+
+
+Discord's registry keeps its `manageChannels(controls)` compatibility entry point
+for account setup and edit decoration. Requests, subscription controller/view and
+admin controller/view are now separate `discord_setup*` / `discord_admin*` modules.
+Keep captured bot/session contexts private and preserve pending/uncertain receipts;
+do not use button attributes or selected classes as subscription/action state.
+
+
+Existing-account `reauthorize(request, options)` hooks must forward the optional
+`options.isCurrent` and caller-owned feedback mode to guarded authorization helpers.
+The schema form/controller now captures the original session and raw draft lifetime.
+Preserve the pending lock across form rebuilds; do not recapture values after awaits
+or display a stale helper failure over a newer form. Mastodon/Dropbox implement
+this contract; hooks ignoring the guard retain responsibility for their own effects.

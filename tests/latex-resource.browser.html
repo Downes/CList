@@ -1,0 +1,16 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>LaTeX resource lifecycle</title>
+<h1>LaTeX resource lifecycle</h1>
+<p>Real lifecycle/view and source ownership. CodeMirror/Yjs/provider constructors, timers, session and reference effects mocked. No external requests or writes. Full handler, actual editor/vendor behavior and live collaboration not exercised. Test 2026-11-22.15.</p>
+<pre id="result">Checking…</pre>
+<script>window.CList={state:{},config:{},ui:{}};</script>
+<script src="../js/latex_resource.js?v=2026-11-22.14"></script>
+<script src="../js/latex_resource_view.js?v=2026-11-22.14"></script>
+<script src="helpers/latex-resource-fixture.js?v=2026-11-22.15"></script>
+<script>
+(async()=>{const result=document.getElementById('result');let count=0;
+try{for(const[name,run]of latexResourceCases){result.textContent='Checking: '+name;await run((condition,message)=>{if(!condition)throw new Error(message);count++;});}
+result.textContent='PASS: '+count+' checks. Real LaTeX resource lifecycle/view, captured constructors, read-only mode, old callback/timer rejection, background preservation, literal presence/chrome rebinding, visible errors, partial-construction cleanup, idempotent teardown and session/DOM expiry. CodeMirror/Yjs/provider/timer/session/reference APIs mocked; no external requests or writes. Full handler, real vendor behavior and live collaboration not exercised.';
+}catch(error){result.textContent='FAIL: '+(error.stack||error);}})();
+</script>

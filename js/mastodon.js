@@ -111,9 +111,10 @@ function getMastodonImageAttachments(status) {
 
 // -----------------------------------------------------
 
-async function mastodonOAuthStart(title, username, permissions) {
+async function mastodonOAuthStart(title, username, permissions, options = {}) {
     const parts = username.split('@').filter(Boolean);
     if (parts.length < 2) {
+        if (options.feedback === false) throw new Error('Please enter your Mastodon username as user@instance.social');
         showErrorModal('Please enter your Mastodon username as user@instance.social', { title: 'Invalid username' });
         return;
     }
@@ -121,10 +122,12 @@ async function mastodonOAuthStart(title, username, permissions) {
 
     try {
         await OAuthClient.login(username, 'Mastodon', instanceUrl, {
-            forceLogin: true,
+            forceLogin: true, isCurrent: options.isCurrent,
             extra: { title: title || username, permissions: permissions || 'rw' },
         });
     } catch (e) {
+        if (options.feedback === false) throw e;
+        console.error('[Mastodon authorization]', e);
         showErrorModal('Could not start Mastodon authorization: ' + e.message, { title: 'Authorization failed' });
     }
 }
@@ -132,9 +135,10 @@ async function mastodonOAuthStart(title, username, permissions) {
 // On page load, check whether we're returning from a Mastodon OAuth callback.
 // callback.html stores the result in localStorage; OAuthClient.onCallback picks it up and
 // saves to kvstore via OAuthClient.saveAccount.
-OAuthClient.onCallback('Mastodon', async data => {
+OAuthClient.onCallback('Mastodon', async (data, context) => {
     const instanceData = { type: 'Mastodon', id: data.accessToken, title: data.extra.title || data.accountKey, permissions: data.extra.permissions || 'rw' };
     await OAuthClient.saveAccount('Mastodon', data.accountKey, instanceData, {
+        isCurrent: context.isCurrent,
         afterRefresh: async () => {
             await playRead();
             populateReadAccountList(window.CList.accounts);

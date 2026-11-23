@@ -4,9 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Authorizing...</title>
-    <script src="js/oauth-config.js"></script>
+    <script src="js/oauth-config.js?v=2026-11-23.5"></script>
     <script src="js/oauth-strategies.js"></script>
-    <script src="js/oauth-client.js"></script>
+    <script src="js/oauth_start_workflow.js?v=2026-11-23.5"></script>
+    <script src="js/oauth_callback_workflow.js?v=2026-11-23.5"></script>
+    <script src="js/wordpress_auth_workflow.js?v=2026-11-23.6"></script>
+    <script src="js/oauth-client.js?v=2026-11-23.5"></script>
     <script>
         window.addEventListener('DOMContentLoaded', async () => {
             const msg = document.getElementById('msg');
@@ -18,40 +21,31 @@
             // We receive the credentials here and immediately redirect them to the local
             // launcher, which serves the real callback.html that processes them.
             // See the comment in js/wordpress.js for context on why this exists.
-            const localPort = params.get('local_port');
-            if (localPort && /^\d+$/.test(localPort)) {
-                const forwarded = new URLSearchParams(params);
-                forwarded.delete('local_port');
-                window.location.replace('http://localhost:' + localPort + '/callback.html?' + forwarded);
-                return;
-            }
-
-            // WordPress Application Passwords callback
-            // WordPress redirects here with site_url, user_login, and password as GET params.
-            if (params.has('site_url') && params.has('user_login') && params.has('password')) {
-                const result = {
-                    providerType: 'WordPress',
-                    siteUrl:   params.get('site_url'),
-                    userLogin: params.get('user_login'),
-                    password:  params.get('password'),
-                };
-                localStorage.setItem('oauth_callback_result', JSON.stringify(result));
-                history.replaceState({}, document.title, window.location.pathname);
-                window.location.href = '/';
-                return;
-            }
-
-            // Standard OAuth callback (Mastodon etc.)
             try {
+                const relay = wordPressCallbackRelay(window.location.search);
+                if (relay) { window.location.replace(relay); return; }
+                if (params.has('wp_state') || params.has('site_url') || params.has('password')) {
+                    const result = completeWordPressAuthorization(window.location.search, {
+                        prefix: window.CList.keys.OAUTH_STATE_PREFIX, now: Date.now,
+                        read: key => sessionStorage.getItem(key), remove: key => sessionStorage.removeItem(key),
+                        write: (key, value) => sessionStorage.setItem(key, value),
+                    });
+                    localStorage.setItem(window.CList.keys.OAUTH_CALLBACK_RESULT, JSON.stringify(result));
+                    history.replaceState({}, document.title, window.location.pathname);
+                    window.location.href = '/';
+                    return;
+                }
+                // Standard OAuth callback (Mastodon etc.)
                 const result = await OAuthClient.handleCallback();
                 if (!result) {
                     msg.textContent = 'No authorization data found in URL.';
                     return;
                 }
-                localStorage.setItem('oauth_callback_result', JSON.stringify(result));
+                localStorage.setItem(window.CList.keys.OAUTH_CALLBACK_RESULT, JSON.stringify(result));
                 history.replaceState({}, document.title, window.location.pathname);
                 window.location.href = '/';
             } catch (err) {
+                history.replaceState({}, document.title, window.location.pathname);
                 console.error('OAuth callback error:', err);
                 msg.textContent = 'Authorization failed: ' + err.message;
             }

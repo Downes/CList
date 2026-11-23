@@ -36,3 +36,8 @@ window.OAuthProviders['Mastodon'] = {
     scopes:               'read write',
     requiresInstanceUrl:  true,
 };
+// Shared with the standalone callback page, which does not load index.html's keys.
+window.CList = window.CList || {};
+window.CList.keys = window.CList.keys || {};
+window.CList.keys.OAUTH_STATE_PREFIX = 'oauth_state_';
+window.CList.keys.OAUTH_CALLBACK_RESULT = 'oauth_callback_result';

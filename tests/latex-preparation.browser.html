@@ -1,0 +1,17 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>LaTeX connection preparation</title>
+<h1>LaTeX connection preparation</h1>
+<p>Real LaTeX preparation wrapper, shared Collab preparation and source/DOM capture. Server/library/namespace/session and commit effects mocked. No external requests or writes. Full LaTeX handler, CodeMirror/Yjs/provider construction, callbacks, teardown and live collaboration not exercised. Test 2026-11-22.13.</p>
+<pre id="result">Checking…</pre>
+<script>window.CList={state:{},config:{},ui:{}};</script>
+<script src="../js/collab_connection_preparation.js?v=2026-11-21.23"></script>
+<script src="../js/latex_connection_preparation.js?v=2026-11-22.13"></script>
+<script src="helpers/latex-preparation-fixture.js?v=2026-11-22.13"></script>
+<script>
+(async()=>{const result=document.getElementById('result');let count=0;
+try{for(const[name,run]of latexPreparationCases){result.textContent='Checking: '+name;let timer;
+try{await Promise.race([run((condition,message)=>{if(!condition)throw new Error(message);count++;}),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Timed out: '+name)),5000);})]);}finally{clearTimeout(timer);}}
+result.textContent='PASS: '+count+' checks. Real LaTeX preparation/shared Collab workflow and DOM/source capture, selected configuration, anonymous/read-only contracts, namespace supersession, session/account/input/editor/load/switch guards, failure propagation and secret-free state. Server/library/namespace/session/commit effects mocked; no external requests or writes. Full LaTeX handler, CodeMirror/Yjs/provider lifecycle and live collaboration not exercised.';
+}catch(error){result.textContent='FAIL: '+(error.stack||error);}})();
+</script>

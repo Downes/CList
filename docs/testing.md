@@ -310,11 +310,12 @@ read as data; the body uses the shared sanitizer. Generic old `post-title` and
 recovers the saved title and body without guessing target fields from arbitrary links.
 
 Annotation initialization now awaits TinyMCE readiness and consumes queued file
-content through `loadPredefinedContent`. Initialization failures retain that queue
-for retry. Node annotation tests exercise the real switch and initialize functions
+content through `loadPredefinedContent`. Rich initialization failure now leaves
+a usable textarea, which consumes the queued content once; explicit rich retry
+retains that fallback body. Node tests exercise the real switch and initialize functions
 with delayed/rejected TinyMCE startup. The browser fixture also exercises the real
 queued-content switch (editor widgets remain mocked) and explicit HTML fields.
-Rerun the fixture for this revision; previous PASS results predate the startup fix.
+See the latest annotation description lifecycle section for current results and browser regressions.
 
 Legacy CList HTML quote recovery recognizes the exact quoted-citation form
 `Author wrote: "quote" [linked citation]` within a post paragraph. It restores
@@ -1994,3 +1995,603 @@ Node passed 1013/1013, zero failures/skips. User reported browser PASS: 28 check
 with the mocks and limitations above.
 The controller guards dispatch/completion, not internals of an already-started
 shared content loader. Audit remaining UI/state boundaries after browser testing.
+
+
+### Native local-page Save
+
+Open `https://localhost:51888/tests/page-store-save.browser.html` (marker
+`2026-11-22.3`) and report PASS/FAIL. Real controller/workflow/view, saver registry,
+shared Save owner helper and PageStore API exercise captured editor/title/identity/
+references, duplicate and stale source/page/session/document guards, accepted-write
+isolation, native revision conflicts/metadata retention, newer draft preservation
+and metadata-only recovery. IndexedDB transactions, editor/session APIs,
+loaded-page setter and feedback helpers are mocked; no external requests or actual
+storage writes. Real IndexedDB durability, full Save panel and editor mounting
+are not exercised. Native listing/opening and bundle import/export remain separate.
+
+`node --test tests/page-store-save.test.cjs tests/save-panel.test.cjs` passed
+23/23 (10 native save and 13 shared Save panel). Full Node passed 1023/1023,
+zero failures/skips. User reported browser PASS: 29 checks, with the mocks and
+limitations above.
+
+
+### Native local-page listing/opening
+
+Open `https://localhost:51888/tests/page-store-browser.browser.html` (marker
+`2026-11-22.4`) and report PASS/FAIL. Real controller/workflow/view, loader registry,
+shared Save owner helper and PageStore list/get APIs exercise literal titles/empty
+states, captured reads/native revision/references/latest publication, duplicate/
+stale row/source/session/panel/document guards, shared-loader handoff, Cancel,
+explicit retry and preserved tool dispatch. IndexedDB reads, editor/session,
+shared saved-content loader and import/export effects are mocked; no external
+requests or actual storage writes. Real IndexedDB, full editor choice/mounting
+and import/export internals are not exercised by this fixture.
+
+`node --test tests/page-store-browser.test.cjs tests/page-store-save.test.cjs tests/editor-load-state.test.cjs`
+passed 23/23 (10 native browsing, 10 native Save, 3 shared loader state). Full
+Node passed 1033/1033, zero failures/skips. User reported browser PASS: 34 checks,
+with the mocks and limitations above.
+Bundle import/export internals are the next separate local-page slice.
+
+
+### Native local-page bundle import/export
+
+Open `https://localhost:51888/tests/page-store-bundle.browser.html` (marker
+`2026-11-22.5`) and report PASS/FAIL. Real controller/workflow/view, shared owner
+helper and PageStore export/import API exercise full JSON export/handoff,
+captured file/policy, whole-bundle validation, skip/replace/duplicate conflicts,
+two-pass member-reference remapping, partial/dangling results, accepted/uncertain
+receipts, explicit read-only result review and stale source/panel guards.
+IndexedDB transactions, file reads, download handoff, editor/session and listing
+refresh are mocked. No external requests, downloads or actual storage writes.
+Real system file picker, browser download and IndexedDB durability are not tested.
+Started imports can finish their original operations after navigation; the guards
+prevent stale UI updates, not rollback. Receipts are transient and per File object/
+policy/auth session, not durable or content-hash deduplication.
+
+`node --test tests/page-store-bundle.test.cjs tests/page-store-browser.test.cjs tests/page-store-save.test.cjs`
+passed 32/32 (12 bundle, 10 browsing, 10 native Save). Full Node passed 1045/1045,
+zero failures/skips. User reported browser PASS: 31 checks, with the mocks and
+limitations above. This is the final
+local-saved-pages slice before item 2, the annotation editor.
+
+
+### Annotation draft/reference fields
+
+Open `https://localhost:51888/tests/annotation-draft.browser.html` (marker
+`2026-11-22.6`) and report PASS/FAIL. Real state/controller/view, editor/native-file
+bridges and shared reference deduplication exercise standalone/live target identity,
+structural fields/extensions, manual URL registration, convergent references,
+unfinished input/conflict protection, stale target/editor/account/session/load
+guards, Clear/native round-trip and visible failure/explicit retry. Editor/session/
+reference-panel, TinyMCE/body, sanitizer and feedback APIs are mocked. Fields use
+browser DOM; no external requests or writes. Actual TinyMCE lifecycle, Send/
+publishing and sanitizer behavior are not exercised by this fixture.
+
+Also rerun `https://localhost:51888/tests/file-recognition.browser.html` because
+the annotation handler now loads the extracted draft modules. This is a separate
+saved-file recognition regression, not live TinyMCE/publication validation.
+
+`node --test tests/annotation-draft.test.cjs tests/annotation-file.test.cjs tests/annotation-publishing.test.cjs tests/file-recognition.test.cjs tests/editor-references.test.cjs`
+passed 81/81, including 10 new field/controller cases and the existing native file,
+publishing, content recognition and editor/reference regressions. Full Node passed
+1055/1055, zero failures/skips. User reported annotation fields browser PASS:
+28 checks, plus saved-file recognition PASS with the scope above. TinyMCE
+lifecycle and Send controls remain separate slices.
+
+
+### Annotation description lifecycle
+
+Open `https://localhost:51888/tests/annotation-body.browser.html` (marker
+`2026-11-22.7`) and report PASS/FAIL. Real body controller/view and annotation
+handler exercise captured unique TinyMCE targets, pending/fallback/native edits,
+input/change/undo/redo mirrors, duplicate/stale/session/replacement guards,
+fallback/explicit retry, hidden/reactivated resource retention, append rules,
+API error propagation and idempotent/best-effort cleanup. TinyMCE/session/editor/
+pending-content/reference/feedback APIs are mocked; target/fallback/retry DOM is
+real. No external requests or writes. Actual TinyMCE rendering, Send/publication
+and full editor switching are not verified by this isolated fixture.
+
+Also rerun `https://localhost:51888/tests/annotation-draft.browser.html` and
+`https://localhost:51888/tests/file-recognition.browser.html`: their annotation
+body mocks now initialize through the real captured lifecycle. Body/fields fixture
+scripts use `2026-11-22.7`; saved-file recognition loads the same body dependencies.
+
+`node --test tests/annotation-body.test.cjs tests/annotation-draft.test.cjs tests/annotation-file.test.cjs tests/annotation-publishing.test.cjs tests/file-recognition.test.cjs tests/editor-references.test.cjs`
+passed 91/91, including 10 new lifecycle cases. Existing real editor-switch checks
+cover delayed rich startup and native-file delivery to fallback after failed
+startup, followed by explicit rich retry without repeated file insertion. Full
+Node passed 1065/1065, zero failures/skips. User reported browser PASS:
+24 description lifecycle checks, 28 annotation field checks, and saved-file
+recognition with the scope above. Send controls were left for the following slice below.
+
+
+### Annotation Send controls — user-reported browser PASS
+
+Open `https://localhost:51888/tests/annotation-send.browser.html` (marker
+`2026-11-22.9`) and report PASS/FAIL. Real Send controller/view, annotation editor
+bridge, request/workflow and annotation-server transport exercise private captured
+account/target/tags/body/session, state-owned account/privacy choices, retained
+private visibility across rebuild/reactivation, duplicate/rebuilt pending locks,
+stale account/source/panel guards, visible account-load/retry, accepted/rejected/
+uncertain results and newer-draft/safe-return protection. HTTP, accounts/session,
+body API, shared picker/feedback helpers and editor switching are mocked; controls
+use browser DOM. No external requests or writes. Actual services, TinyMCE and full
+editor switching are not exercised. No uncertain write is automatically retried.
+
+Also rerun `https://localhost:51888/tests/file-recognition.browser.html`, which
+loads the new Send dependencies with the annotation handler. Body/field fixture
+imports and both References fixture script versions are also updated; their
+relevant controller/state regressions are included in the Node suite.
+
+`node --test tests/annotation-send.test.cjs tests/annotation-publishing.test.cjs tests/annotation-file.test.cjs tests/annotation-body.test.cjs tests/annotation-draft.test.cjs tests/references-panel.test.cjs`
+passed 76/76, including 12 new Send cases. Full Node passed 1077/1077, zero
+failures/skips. User reported saved-file recognition PASS. Send initially stalled
+because the fixture's browser-event helper awaited the older pending request for
+a blocked rebuilt-panel click. This was reproduced with native-style dispatch,
+then fixed in the fixture only; 12/12 Send Node cases pass through that dispatch
+path. Per-case progress/timeouts now expose hangs. Application code is unchanged;
+User reported Send browser PASS, 33 checks, for fixture `2026-11-22.9`.
+This completes item 2 within the stated mocked scope.
+
+
+### Collection draft editor — user-reported browser PASS
+
+Open `https://localhost:51888/tests/collection-draft.browser.html` (marker
+`2026-11-22.10`) and report PASS/FAIL. Real `collection-draft-state.js`,
+`collection-draft.js`, `collection-draft-view.js` and the collection editor bridge
+exercise literal fields/labels, raw member extensions, live draft Save/export API,
+reorder/remove/expansion, blank/nested entries, owned-resource/website actions,
+retired/detached controls, newer metadata, pending/rebuilt action locks, failures
+and explicit retry, session/source/disposal rejection, metadata-only Save identity
+reconciliation and superseded mounting. Opening, publishing, file/existing imports,
+accounts/session and feedback helpers are mocked; browser controls use real DOM.
+No external requests or writes. Full editor switching, file parsing, native storage
+and live publishing are not exercised by this fixture.
+
+`node --test tests/collection-draft.test.cjs tests/public-feed-editor.test.cjs tests/collection-entry.test.cjs tests/collection-entry-publishing.test.cjs tests/collection-publishing.test.cjs`
+passed 79/79; full Node passed 1088/1088, zero failures/skips. The existing
+public-feed editor fixture still exercises actual feed editing, Save/reopen,
+ownership routing and captured publication compatibility with transport/storage
+mocked. User reported the new browser fixture PASS, 34 checks. Node DOM simulations
+remain separate from browser evidence. A normal-app local edit/reorder/return check is also
+separate from this fixture, and live saves are not implied by these results.
+
+
+### Etherpad connection panel — user-reported browser PASS
+
+Open `https://localhost:51888/tests/etherpad-connection.browser.html` (marker
+`2026-11-22.11`) and report PASS/FAIL. Real `etherpad_requests.js`,
+`etherpad_connection.js`, `etherpad_connection_view.js` and the handler bridge
+exercise selected-account URL/key/auth capture, literal names, empty/HTTP/proxy/API/
+malformed results, explicit retry and retired callbacks, superseded reads, validated
+guest navigation, guest/account precedence, same-iframe hidden/resume, account
+replacement, owned teardown and session/detached control rejection. Public state
+contains only phase/mode/count. The fixture intercepts iframe `src` assignments;
+it does not navigate to test servers. HTTP, accounts/session and legacy Create/
+select/Share command internals are mocked. No external requests or writes.
+
+`node --test tests/etherpad-connection.test.cjs tests/editor-references.test.cjs`
+passed 16/16; full Node passed 1098/1098, zero failures/skips. User reported browser PASS, 27 checks, at `2026-11-22.11`. The updated dependency
+fixture at `2026-11-22.12` is pending a regression rerun. The six existing Node references cases retain guest/API content-reference
+checks; they do not establish live Etherpad behavior. Create/author/content-sync/export/Share coverage is in the separate document
+fixture below. The connection fixture mocks those commands; its PASS does not
+establish their internal behavior. Real iframe loading/editing and full app switching are not exercised.
+
+
+### Etherpad document operations — user-reported browser PASS
+
+Open `https://localhost:51888/tests/etherpad-document.browser.html` (marker
+`2026-11-22.12`) and report PASS/FAIL. Real document transport/workflows/controller/
+view, connection modules and editor bridge exercise captured account/key/auth/pad/
+author/body, DOM Create/Share controls, duplicate pending locks, exact queued-content
+handoff, newer name-input preservation, existing/nonempty-pad welcome-seed exclusion,
+partial/uncertain Create recovery, guarded read-then-write append, guest relay bytes,
+accepted-only references, visible failures, empty exports and literal Share cards.
+HTTP, session, iframe navigation, reference/queued-content/chat/modal effects and
+text conversion helpers are mocked. Iframe URLs are recorded without navigating;
+no external requests or writes occur. Live Etherpad/proxy behavior, actual iframe
+editing, full editor switching, remote concurrency and durable recovery are not
+exercised. Plaintext insertion is escaped before HTML append.
+
+Also rerun `https://localhost:51888/tests/etherpad-connection.browser.html`, updated
+to marker `2026-11-22.12`. This still mocks document commands and checks connection
+behavior; it is distinct from the new document fixture. The earlier `2026-11-22.11`
+connection PASS remains recorded (27 checks).
+
+`node --test tests/etherpad-document.test.cjs tests/etherpad-connection.test.cjs tests/editor-references.test.cjs`
+passed 28/28. Full Node passed 1110/1110 with zero failures/skips. The real References
+Node case now uses the extracted document controller/workflow and actual reference
+module with transport/view fakes, retaining guest/account exact-reference coverage.
+User reported document browser PASS, 32 checks, and updated connection browser
+PASS, 27 checks, at `2026-11-22.12`. No live service test is implied.
+
+
+### LaTeX connection preparation — user-reported browser PASS
+
+Open `https://localhost:51888/tests/latex-preparation.browser.html` (marker
+`2026-11-22.13`) and report PASS/FAIL. Real LaTeX preparation wrapper, shared Collab
+preparation and DOM/source capture exercise selected configuration, anonymous/read
+contracts, namespace supersession, session/account/title/input/editor/load/switch
+expiry, failure propagation and secret-free phase/pending state. Server/library/
+namespace/session/commit effects are mocked; no external requests or writes. The
+browser fixture does not load the full LaTeX handler or construct CodeMirror/Yjs/
+provider resources, exercise callbacks/teardown or verify live collaboration.
+
+`node --test tests/latex-preparation.test.cjs tests/collab-preparation.test.cjs tests/editor-references.test.cjs`
+passed 23/23; full Node passed 1119/1119 with zero failures/skips. One additional
+Node integration case runs the real `latex.js` connection function with vendor
+import/constructors and account/session/DOM APIs mocked, checking expiry before
+replacement and captured provider credentials/editor parent. Existing References
+checks retain real LaTeX reference routing with injected editor/map APIs. Neither
+scope establishes real CodeMirror rendering, live sockets or full editor switching.
+
+
+### LaTeX resource lifecycle — user-reported browser PASS
+
+The user reported the preparation browser fixture PASS, 20 checks, at
+`2026-11-22.13`, with its stated mocked scope.
+
+Open `https://localhost:51888/tests/latex-resource.browser.html` (marker
+`2026-11-22.15`) and report PASS/FAIL. Real lifecycle/view and resource-target
+ownership exercise captured provider/editor configuration, read-only settings,
+retired status/auth/reference/awareness/timer callbacks, hidden document isolation,
+literal presence and rebuilt chrome, visible corrupt-reference/auth errors,
+partial construction, source expiry during construction, full best-effort cleanup,
+idempotent disposal and session/DOM expiry. CodeMirror/Yjs/provider constructors,
+timers/session/reference effects are mocked; controls/presentation use browser DOM.
+No external requests or writes. The full handler, actual CodeMirror/vendor cleanup,
+real sockets and live collaboration are not exercised by this browser fixture.
+
+`node --test tests/latex-resource.test.cjs tests/latex-preparation.test.cjs tests/editor-references.test.cjs`
+passed 24/24. Full Node passed 1128/1128 with zero failures/skips. Preparation's
+Node integration case now runs the real LaTeX connection function through the new
+resource lifecycle, with mocked vendor constructors and dependencies. This does
+not establish full application integration or actual provider behavior. Browser
+results for the resource fixture remain pending. Compilation/Share/content controls
+remain on their existing paths for the following slice.
+
+
+The user reported the original resource browser fixture failing its presence-color
+assertion. The browser serializes `#888` as `rgb(136, 136, 136)`; the Node DOM
+originally preserved the raw hex string. Reproduced the failure with CSS color
+normalization in the Node fixture, then changed the shared assertion to compare
+normalized declarations. No application code changed. Resource Node cases pass
+9/9 with normalization; the earlier full Node result above remains the baseline.
+User reported updated browser fixture `2026-11-22.15` PASS, 19 checks.
+
+
+### LaTeX compilation, Share and content controls — user-reported browser PASS
+
+Open `https://localhost:51888/tests/latex-controls.browser.html` (marker
+`2026-11-22.16`) and report PASS/FAIL. Real compile transport, controls/controller/
+view, source serializers and content/reference commands exercise captured source/
+auth, duplicate and rebuilt pending locks, stale results/errors, PDF URL cleanup,
+login/service errors and explicit retry, literal Share metadata and guarded Copy,
+CodeMirror selection getters, exact live references/extensions, read-only/reentrant
+commands, bibliography refresh, partial-failure feedback and reference-map reads.
+HTTP, session/resource ownership, CodeMirror, shared maps, clipboard/modal helpers,
+text conversion and PDF URLs are mocked. The DOM controls are real in the browser;
+no external requests, clipboard changes, downloads or writes occur. Full handler,
+actual CodeMirror/Yjs behavior, live compilation and full switching are not tested.
+
+`node --test tests/latex-controls.test.cjs tests/latex-resource.test.cjs tests/latex-preparation.test.cjs tests/editor-references.test.cjs`
+passed 34/34. Full Node passed 1138/1138 with zero failures/skips. The existing
+References Node case runs the real LaTeX handler/content adapter with editor/map/
+session fakes and actual reference collection code. The preparation integration
+case retains real connection/resource code with vendor constructors mocked. These
+are distinct from a complete app or live-service check. The user reported the controls browser fixture PASS, 28 checks,
+at `2026-11-22.16`, with the stated mocked scope.
+
+
+### Slides saved-layout dialogs — user-reported browser PASS
+
+Open `https://localhost:51888/tests/slides-layout.browser.html` (marker
+`2026-11-23.1`) and report PASS/FAIL. Real layout workflow/controller/view, shared
+`buildDialogModal` and PageStore APIs exercise captured Save/Rename/Delete,
+conditional revisions, layout/record extensions and publication/reference metadata,
+Cancel, duplicate locks, accepted/uncertain receipts, read-only review, editor-only
+retry, source/modal expiry and newer name preservation. IndexedDB, embedded editor/
+session, modal container and mutation delivery are mocked; controls use browser
+DOM. No external requests or actual storage writes. The embedded layout decoder/
+rendering, real IndexedDB durability and full Slides/Save integration are not tested.
+
+`node --test tests/slides-layout.test.cjs tests/slides-recovery-startup.test.cjs tests/page-store-save.test.cjs`
+passed 21/21. Full Node passed 1147/1147 with zero failures/skips. Existing recovery
+startup ordering and native Save checks remain separate from the new layout fixture.
+No embedded source changed, so no bundle rebuild was needed. Saved-layout initial
+refresh and slide import/export orchestration remain on their current paths for
+the next stage. User reported layout browser PASS, 23 checks, at `2026-11-23.1`.
+
+
+### Slides import/export orchestration — user-reported browser PASS
+
+Open `https://localhost:51888/tests/slides-io.browser.html` (marker `2026-11-23.2`)
+and report PASS/FAIL. Real IO workflow/controller/view, PageStore and shared dialog
+builder exercise captured picker/file bytes/editor dispatch, validation/Cancel,
+duplicate/incompatible import locks, HTML/PowerPoint/PDF method binding, stale
+completion/error suppression, accepted-import/local-feedback separation, literal
+warning reports, partial read-only layout refresh, refresh invalidation and guarded
+snapshot-reference callbacks. Picker/file/editor/source/session, IndexedDB, deferred
+callbacks and modal container are mocked. No external requests, native pickers,
+clipboard changes, downloads or actual storage writes occur. Embedded conversion/
+rendering, real filesystem/IndexedDB durability and full mounting/Save/Load are not
+exercised. User reported browser PASS, 26 checks, at `2026-11-23.2`; the native fallback
+file-input path is not exercised by this fixture.
+
+`node --test tests/slides-io.test.cjs tests/slides-layout.test.cjs tests/slides-recovery-startup.test.cjs`
+passed 23/23. Full Node passed 1159/1159 with zero failures/skips. An additional IO
+Node case runs the real Slides registry/handler with an injected embedded editor,
+checking saver binding, returned PowerPoint completion and old-load UI isolation.
+It does not mount the real editor. No embedded source changed or bundle rebuild
+was needed. Existing embedded conversion/worker tests remain distinct from these
+application-boundary mocks.
+
+
+### Dropbox initial authorization form — user-reported browser PASS
+
+Open `https://localhost:51888/tests/dropbox-setup.browser.html` (marker
+`2026-11-23.3`) and report PASS/FAIL. Real setup factory/controller/view, existing
+Dropbox start helper and extracted shared OAuth start workflow exercise captured
+fields/private flow data, PKCE wire parameters/offline scopes, duplicate pending
+locks, validation/explicit retry, Back/input/session/panel expiry, own-state cleanup,
+dynamic-registration/force-login compatibility and secret-free presentation state.
+PKCE/registration/storage/navigation/session are mocked. Callback handlers are
+explicitly disabled in the fixture. No external requests, redirects, account writes
+or real browser-storage writes occur. The fixture does not verify real cryptography,
+provider authorization, callback token exchange/persistence or full Accounts panel.
+
+`node --test tests/dropbox-setup.test.cjs tests/account-flows.test.cjs tests/account-panel.test.cjs`
+passed 30/30. Full Node passed 1168/1168 with zero failures/skips. One new Node case
+runs the real OAuthClient.login bridge with mocked PKCE/session storage/window
+navigation and the real runtime strategy selector. The older seven-flow fixture
+mocks Dropbox's new view while retaining scoped controller/helper delegation; the
+new browser fixture uses its real view and DOM. User reported browser PASS, 19 checks, at `2026-11-23.3`. Callback persistence
+and the other initial service setup flows remain separate slices.
+
+
+### OAuth callback account saving — user-reported browser PASS
+
+Open `https://localhost:51888/tests/oauth-account.browser.html` (marker
+`2026-11-23.4`) and report PASS/FAIL. Real callback-save controller/view/workflow,
+shared account validator/encryption dispatch/loader, OAuthClient.saveAccount bridge
+and shared dialog builder exercise detached payloads, cookie-session capture,
+duplicate/accepted receipts, pre-write expiry, accepted-vs-refresh failure,
+uncertain-write read-only confirmation, explicit account-only retry, replaced
+storage contexts, newer reader/modal protection and secret-free state. Encryption/
+keys, KV storage, cookies/session, provider/navigation hooks and modal container are
+mocked. No external requests, account writes or actual storage writes occur.
+
+`node --test tests/oauth-account.test.cjs tests/account-state.test.cjs tests/account-panel.test.cjs`
+passed 29/29. Full Node passed 1177/1177 with zero failures/skips. The user reported
+browser PASS: 21 checks, fixture `2026-11-23.4`. The fixture does not run callback pickup or token exchange, bind a return
+to its original authorization issuer, verify real cryptography or exercise live
+OAuth/KV services. It captures the session at save invocation. Shared callback
+pickup and original-flow issuer binding have their own fixtures below; do not treat
+this save-boundary check as coverage for them.
+
+
+### OAuth callback pickup and original-session binding — user-reported browser PASS
+
+Open [OAuth callback checks](https://localhost:51888/tests/oauth-callback.browser.html)
+(marker `2026-11-23.5`) and report final PASS/FAIL. User-reported PASS: 39 checks.
+The real pickup controller/view, exchange workflow and original-session save guard
+cover single-use receipts, duplicate pickup, malformed/unbound/expired/wrong-session
+results, newer-result preservation, captured transport and no automatic exchange
+retry, encryption-time expiry and visible handler failures. Storage, fingerprint,
+session, exchange HTTP, account encryption and UI effects are mocked. No external
+requests or real storage writes. WordPress binding, real cryptography, live OAuth
+and full startup/navigation are not exercised by this browser fixture.
+
+`node --test tests/oauth-callback.test.cjs tests/dropbox-setup.test.cjs tests/oauth-account.test.cjs`
+passed 28/28; includes real client registration/exchange bridges and cookie capture
+with a mocked digest. Full `node --test tests/*.test.cjs` passed 1187/1187, zero
+failures/skips. User-reported browser PASS: 39 checks (`2026-11-23.5`). Existing authorizations started
+before this change must be restarted: standard callbacks without a binding fail closed.
+
+
+### WordPress authorization binding — user-reported browser PASS
+
+Open [WordPress authorization binding](https://localhost:51888/tests/wordpress-auth.browser.html)
+(marker `2026-11-23.6`) and report final PASS/FAIL. Expected: PASS, 34 checks.
+Real authorization controller/view/workflow, existing WordPress form/handler,
+callback/relay helpers, shared pickup and account saving are exercised. Tests cover
+bound success/denial URLs, subsite matching, single-use receipts, wrong/expired
+sessions, duplicate starts, Back/changed input, encryption-time expiry, replay and
+substituted result sites, local HTTP relay bytes and scoped failure/explicit retry.
+Storage, sessions/fingerprint/random generation, encryption, redirects and UI
+effects are mocked. No external requests, redirects or real writes. Live WordPress,
+actual cryptography, deployed relay and full startup/navigation are not exercised.
+Old in-progress WordPress authorizations without `wp_state` must be restarted.
+
+`node --test tests/wordpress-auth.test.cjs tests/oauth-callback.test.cjs tests/account-flows.test.cjs tests/oauth-account.test.cjs`
+passed 36/36. Node additionally executes the actual callback-page shell with mocked
+success/denial/legacy/relay effects. Full `node --test tests/*.test.cjs` passed
+1196/1196, zero failures/skips. User-reported browser PASS: 34 checks (`2026-11-23.6`).
+
+
+### Mastodon account setup — user-reported browser PASS
+
+Open [Mastodon account setup](https://localhost:51888/tests/mastodon-setup.browser.html)
+(marker `2026-11-23.7`) and report final PASS/FAIL. Expected: PASS, 28 checks.
+Real setup controller/view/factory and OAuth helper, shared account-save controller,
+workflow, validator and loader. Covers literal titles/exact manual account fields,
+validation, guarded OAuth, mutual duplicate locks, Back/input/session expiry,
+rebuilt forms and recovery locks, accepted-write refresh-only recovery, uncertain
+write checks/explicit retry, newer drafts/readers, detached controls and safe state.
+OAuth login, key/encryption/session/KV, reader/post-options and panel navigation are
+mocked; no external requests, redirects or real writes. Live Mastodon, actual crypto,
+OAuth transport and full account-panel integration are not exercised.
+
+`node --test tests/mastodon-setup.test.cjs tests/account-flows.test.cjs tests/oauth-account.test.cjs tests/account-state.test.cjs tests/account-panel.test.cjs`
+passed 47/47 with zero failures/skips. User-reported browser PASS: 28 checks
+(`2026-11-23.7`). Per the user's
+2026-11-23 direction, only immediately relevant Node tests were run; the full sweep
+is deferred and no current full-suite pass is claimed.
+
+
+### Blogger account setup — user-reported browser PASS
+
+Open [Blogger setup](https://localhost:51888/tests/blogger-setup.browser.html)
+(marker `2026-11-23.8`) and report final PASS/FAIL. Expected: PASS, 25 checks.
+Real Blogger setup controller/view/factory, shared form lifetime and recovery,
+account-save workflow/validator/loader. Covers exact configuration/title fallback,
+validation, safe help links/current origin, duplicate/remount locks, Back/session/
+input expiry, accepted-write refresh-only recovery, uncertain-write checking and
+explicit retry, detached controls and newer draft/reader protection. Session,
+key/encryption/KV, post options and panel navigation are mocked; no external
+requests, authorization, redirects or real writes. Google authorization still
+happens only when publishing. Live services, real cryptography and full account-panel
+integration are not exercised.
+
+`node --test tests/blogger-setup.test.cjs tests/mastodon-setup.test.cjs tests/account-flows.test.cjs tests/blogger-publishing.test.cjs tests/oauth-account.test.cjs`
+passed 44/44 with zero failures/skips. This includes Mastodon's 28 assertions after
+extracting the common lifecycle/feedback into `account-setup.js` and
+`account-setup-view.js`; its current fixture now carries marker `2026-11-23.8`.
+The earlier Mastodon browser PASS above was on `.7`; the shared extraction has Node
+regression coverage; the shared lifecycle is now also covered by the user-reported
+Blogger browser PASS: 25 checks (`2026-11-23.8`). The full sweep remains deferred.
+
+
+### WordPress setup form — user-reported browser PASS
+
+Open [WordPress setup form](https://localhost:51888/tests/wordpress-setup.browser.html)
+(marker `2026-11-23.9`) and report final PASS/FAIL. Expected: PASS, 17 checks.
+Real setup controller/view/factory and existing bound authorization workflow cover
+blank/unsafe site validation and normalization, duplicate/remount pending locks,
+detached controls, Back/raw-input/hidden/session expiry, inline owned errors,
+explicit retry, redirect controls and secret-free presentation state. Cookie
+sessions, fingerprint/random generation, redirects and storage are mocked; no
+external requests, redirects or real writes. Live WordPress, actual cryptography,
+deployed relay and full account-panel integration are not exercised.
+
+`node --test tests/wordpress-setup.test.cjs tests/wordpress-auth.test.cjs tests/account-flows.test.cjs`
+passed 21/21 with zero failures/skips. Existing bound authorization fixture's 34
+assertions still pass in Node; its current browser marker is also `.9`, with the
+historical user PASS on `.6` recorded above. User-reported setup browser PASS:
+17 checks (`2026-11-23.9`). The full sweep is deferred.
+
+
+### Collab account setup — user-reported browser PASS
+
+Open [Collab setup](https://localhost:51888/tests/collab-setup.browser.html)
+(marker `2026-11-23.10`) and report final PASS/FAIL. Expected: PASS, 26 checks.
+Real workflow/controller/view/factory and registration transport with shared account
+save/loader/recovery. Covers captured registration endpoint/auth/DID, unchanged
+Collab account fields, URL validation, preflight expiry, duplicate/remount locks,
+accepted/uncertain registration receipts, explicit service retry, malformed accepted
+response continuation, account-only retry, read-only account checks/refresh and
+newer draft/reader/detached-control guards. HTTP, cookie sessions, key/encryption/KV
+and panel effects mocked; no external requests or real writes. Live registration,
+actual crypto, WebSocket/editor connection and full account-panel integration are
+not exercised. An uncertain registration requires checking the server externally
+before the explicit retry; no registration-status read API is assumed.
+
+`node --test tests/collab-setup.test.cjs tests/account-flows.test.cjs tests/oauth-account.test.cjs tests/post-login.test.cjs`
+passed 34/34 with zero failures/skips. User-reported browser PASS: 26 checks
+(`2026-11-23.10`). Full sweep deferred.
+
+
+### Annotate account setup — user-reported browser PASS
+
+Open [Annotate setup](https://localhost:51888/tests/annotate-setup.browser.html)
+(marker `2026-11-23.11`) and report final PASS/FAIL. Expected: PASS, 29 checks.
+Real workflow/controller/view/factory, shared registration lifecycle and account
+save/loader/recovery. Covers credential-free health reads, captured registration
+auth without a request body, 204 success, exact fields/default permissions, literal
+default labels and custom selection, stale startup-probe rejection, validation,
+health retry, duplicate/remount locks, source/input/Back expiry, retained accepted
+registration, explicit uncertain-service retry and read-only account confirmation.
+HTTP, sessions, key/encryption/KV and panel effects are mocked; no external requests
+or real writes. Live registration, real crypto, annotation editor and full account
+panel integration are not exercised. Uncertain service retry requires external
+review; no registration-status read endpoint is assumed.
+
+`node --test tests/annotate-setup.test.cjs tests/collab-setup.test.cjs tests/account-flows.test.cjs tests/oauth-account.test.cjs tests/post-login.test.cjs`
+passed 42/42 with zero failures/skips. Collab's 26 fixture assertions pass after
+extracting shared ownership/receipts into `account-registration-setup.js`. Its
+current browser marker is `.11`; the user-reported Collab browser PASS above was
+on `.10`. User-reported Annotate browser PASS: 29 checks (`2026-11-23.11`).
+The full sweep is deferred.
+
+
+### Discord account setup and channel management — user-reported browser PASS
+
+Open [Discord setup/channels](https://localhost:51888/tests/discord-setup.browser.html)
+(marker `2026-11-23.12`) and report final PASS/FAIL. Expected: PASS, 35 checks.
+Real subscription/admin controllers, requests, views, factory/edit decorator and
+shared account save/loader APIs. Covers captured directory auth, literal names,
+add-only subscriptions, exact captured removal keys, pre-delete metadata checks,
+duplicate/stale row/session/token/surface rejection, accepted-write refresh-only
+recovery, uncertain subscription confirmation, admin payload/encoded targets,
+partial guild-list failure, read-only review/explicit decisions and newer admin
+draft preservation. Relay HTTP, cookies/session, KV/encryption and account/reader
+effects mocked; no external requests or real writes. Live Discord/relay, actual
+encryption and full account-form/reader integration are not exercised.
+
+`node --test tests/discord-setup.test.cjs tests/account-flows.test.cjs tests/discord-publishing.test.cjs`
+passed 27/27 with zero failures/skips. User-reported browser PASS: 35 checks
+(`2026-11-23.12`). Full sweep deferred. Uncertain admin commands require a successful read-only review before
+an explicit keep/retry decision; review does not prove backend exactly-once behavior.
+
+
+### Personal Options — user-reported browser PASS
+
+Open [Personal Options](https://localhost:51888/tests/personal-options.browser.html)
+(marker `2026-11-23.13`) and report final PASS/FAIL. Expected: PASS, 26 checks.
+Real preferences/controller/workflow/view, WebMention preference helper, theme
+application, account transfer handoff and file parser. Covers no-write initialization,
+literal host, persisted preference formats, TinyMCE content style add/remove,
+storage/display failures, display-only retry, duplicate/replaced/hidden controls,
+export/import confirmation and picker contracts, escaped source metadata, stale
+file/password callbacks and accepted-import refresh-only retry. Storage, TinyMCE
+documents, sessions/passwords, transfer APIs, account refresh, picker and history
+mocked; no external requests, real writes, downloads or navigation. Actual TinyMCE,
+transfer data encryption/storage/download internals and full app startup are not
+exercised.
+
+`node --test tests/personal-options.test.cjs tests/password-confirmation.test.cjs`
+passed 18/18 with zero failures/skips. Node additionally executes the real early
+theme bootstrap with mocked storage, including read denial. User-reported browser
+PASS: 26 checks (`2026-11-23.13`). Full sweep deferred.
+
+
+### Captured account export/import — user-reported browser PASS
+
+Open [Account transfer](https://localhost:51888/tests/account-transfer.browser.html)
+(marker `2026-11-23.14`) and report final PASS/FAIL. Expected: PASS, 30 checks.
+Real export/import workflows, compatibility APIs, private import receipt controller
+and Options recovery. Covers native v1/empty legacy input, detached ciphertext and
+cookie identity, source expiry before download, destination/password/duplicate-key
+validation, preserved existing/concurrent keys under add-only storage, partial
+accepted receipts, read-only uncertain-write checks, explicit remaining-step retries,
+session/key-version/caller expiry, no retargeting after an accepted in-flight write,
+duplicate confirmation rejection and fail-closed storage reads. Storage, cookie
+sessions/key versions, crypto, confirmation and download handoff are mocked; no
+external requests, real writes or downloads. Actual crypto, Local/hosted adapter
+durability and full Options/application integration are not exercised.
+
+`node --test tests/account-transfer.test.cjs tests/personal-options.test.cjs tests/password-confirmation.test.cjs`
+passed 29/29 with zero failures/skips. Personal Options' 26 mocked assertions still
+pass; its current browser marker is `.14`, while the prior reported PASS was `.13`.
+User-reported account-transfer browser PASS: 30 checks (`2026-11-23.14`).
+The full sweep remains deferred.
+
+
+### Existing-account reauthorization — user browser PASS
+
+Open [Existing-account reauthorization](https://localhost:51888/tests/account-reauthorization.browser.html)
+(marker `2026-11-23.15`) and report final PASS/FAIL. Expected: PASS, 23 checks.
+Real schema form, reauthorization controller, Mastodon/Dropbox hooks and helpers,
+OAuth client/start bridge. Covers full detached request metadata, hook parameter
+compatibility, duplicate/rebuilt locks, session/hidden/closed/raw-input/manual-token/
+public-checkbox guards, edit-and-revert and replacement-node expiry, inline errors,
+explicit retry and owned OAuth state cleanup before an expired redirect. Cookie
+session, fingerprint, registration, PKCE, session state and navigation are mocked;
+no external requests, real writes or redirects. Callback exchange/account saving,
+actual cryptography, live OAuth and full panel integration are not exercised.
+
+`node --test tests/account-reauthorization.test.cjs tests/account-panel.test.cjs tests/dropbox-setup.test.cjs tests/mastodon-setup.test.cjs`
+passed 40/40 with zero failures/skips. The existing Discord account-panel test now
+loads its extracted decorator view dependency and keeps its original assertions.
+User-reported browser PASS: 23 checks. The full sweep remains deferred.
