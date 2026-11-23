@@ -5,6 +5,11 @@ relevant Node checks for each small refactor, and defer the full sweep until lat
 This overrides the per-stage full-suite directions below. Report the exact tested
 scope; do not describe focused checks as full validation.
 
+Closing validation update (2026-11-23): the user subsequently authorized the deferred
+full sweep. `node --test tests/*.test.cjs` passed 1288/1288, zero failures/skips.
+Small-stage targeted testing remains the default; do not repeat an unchanged full
+suite. Final normal-application checks are user-pending in docs/testing.md.
+
 Read this before planning validation, adding/changing tests, or reporting that a
 CList change works. Also read the affected implementation, the repository's
 [AGENTS.md](../../AGENTS.md), the [human testing guide](../testing.md), and the
@@ -317,3 +322,20 @@ write can occur. Cover raw edits with/without events, edit-and-revert, replaced
 nodes, manual-token mode, checkbox state, closed/hidden/rebuilt forms and session
 expiry, plus pending/redirect locks and owned post-persist cleanup. Keep callback
 exchange/save and live round-trip behavior separate from this preparation evidence.
+
+
+Existing-account round-trip changes: use `tests/oauth-reauthorization.test.cjs`
+and the `oauth-reauthorization.browser.html` fixture alongside immediately affected
+callback/save/start/setup regressions. The fixture joins real modules but mocks
+all external effects; it is not callback.html/startup, live OAuth or cryptographic
+evidence. Ask the user to run the browser fixture and retain separate pending/PASS
+status. Include removed accounts, extension preservation, refresh-token ownership,
+pre-dispatch metadata changes, original-session expiry and uncertain-write checks.
+
+
+Shared callback-save refresh changes: `tests/oauth-account.test.cjs` and
+`tests/oauth-account.browser.html` cover overlapping list snapshots, superseded
+failures, late provider-hook completion and accepted-receipt refresh-only retry.
+Use immediately affected setup/reauthorization/callback regressions, with no live
+storage or authorization. Browser fixture `.17` is pending until the user's report.
+Do not claim this saver-local sequence is app-wide refresh coordination.

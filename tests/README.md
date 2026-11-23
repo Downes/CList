@@ -2915,3 +2915,101 @@ actual cryptography, live OAuth and full panel integration are not exercised.
 passed 40/40 with zero failures/skips. The existing Discord account-panel test now
 loads its extracted decorator view dependency and keeps its original assertions.
 User-reported browser PASS: 23 checks. The full sweep remains deferred.
+
+
+### OAuth reauthorization round trip — user-reported browser PASS
+
+Open [OAuth reauthorization round trip](https://localhost:51888/tests/oauth-reauthorization.browser.html)
+(marker `2026-11-23.16`). Expected: PASS, 28 checks.
+Real schema form, authorization start, callback exchange/pickup, Mastodon/Dropbox
+handlers, account-save workflow/controller/view and account validator/writer.
+Covers initial creation versus existing updates, latest extension preservation,
+captured form choices, rotated/omitted Dropbox refresh tokens and app-key ownership,
+removed/corrupt/replaced-type accounts, read failures/explicit retry, metadata
+changes during encryption, original-session expiry and uncertain-write read-only
+confirmation. The fixture calls the real exchange workflow with a mocked transport;
+it does not navigate through callback.html or execute startup/popup routing.
+Session, fingerprint, registration, PKCE, HTTP/token transport, KV, encryption,
+navigation and reader effects are mocked. No external requests, redirects or real
+storage/account writes. Real crypto, live OAuth and full account-panel integration
+remain unverified. A pre-write comparison is not atomic cross-client concurrency control.
+
+`node --test tests/oauth-reauthorization.test.cjs tests/oauth-account.test.cjs tests/oauth-callback.test.cjs tests/account-reauthorization.test.cjs tests/dropbox-setup.test.cjs tests/mastodon-setup.test.cjs`
+passed 55/55, zero failures/skips. The new fixture has 28 assertions across nine
+Node cases; user-reported browser PASS: 28 checks at `.16`. Full sweep remains deferred.
+
+
+### Overlapping account-save refreshes — user-reported browser PASS
+
+Open [OAuth callback account saving](https://localhost:51888/tests/oauth-account.browser.html)
+(marker `2026-11-23.17`). Expected: PASS, 28 checks. The earlier `.4` result was
+21 checks; the extended fixture adds overlapping refresh success/failure and
+provider-hook completion cases. Real shared saver/controller/view, account
+writer/loader and OAuthClient save bridge; KV, crypto, session, navigation,
+provider effects and modal container mocked. No external requests or real writes.
+Callback pickup/exchange, original-flow binding, actual crypto, live OAuth and
+full application integration are not exercised by this save-only fixture.
+
+Older list responses and failures must not replace newer lists, status, dialogs
+or navigation. Accepted older writes remain accepted and support explicit
+refresh-only recovery. Started provider hooks cannot be cancelled by these guards.
+The refresh sequence belongs to one shared saver instance; it does not coordinate
+all application callers that independently install account lists.
+
+`node --test tests/oauth-account.test.cjs tests/oauth-reauthorization.test.cjs tests/oauth-callback.test.cjs tests/account-reauthorization.test.cjs tests/mastodon-setup.test.cjs tests/dropbox-setup.test.cjs tests/blogger-setup.test.cjs tests/collab-setup.test.cjs tests/annotate-setup.test.cjs`
+passed 82/82, zero failures/skips. User-reported browser PASS: 28 checks at `.17`. The later full-sweep result is recorded below.
+
+
+## Refactor closing validation — 2026-11-23
+
+The user reported PASS for both integration follow-ups: OAuth reauthorization
+round trip (`.16`, 28 checks) and overlapping callback account-save refreshes
+(`.17`, 28 checks). Their external effects are mocked; these are not live OAuth,
+real cryptography or complete startup/application evidence.
+
+The subsequently authorized full command `node --test tests/*.test.cjs` passed
+**1288 tests**, with **0 failures, 0 skips and 0 cancellations**. This runs the
+top-level Node suite; it does not run browser fixtures, Python backend tests or
+external services. No Python/backend/bundle changes were made in this follow-up.
+Do not rerun this unchanged passing suite without a new reason.
+
+A static inventory of index.html, callback.html and 107 browser fixtures found
+1149 local script references, no missing targets and no duplicate script paths
+within a page. Selected dependency groups are ordered correctly. interface.js
+remains the final external script tag; its existing non-deferred startup behavior
+was preserved. This inventory is not execution of the pages or every load-order
+permutation. Read-only localhost HTTPS checks returned 200, correct HTML/JavaScript
+content types and exact current disk bytes for the main page, oauth_account.js
+and both integration fixtures. No browser was operated by the agent.
+
+Focused review covered the native page Save/open handoff, collection live-draft
+bridge, annotation body/Send integration, Etherpad/LaTeX editor bridges, Slides IO,
+account callback/save recovery and Options transfer. No additional blocker was
+identified within those reviewed handoffs. The saver-local refresh ordering does
+not coordinate every independent account-list caller; provider hooks already
+started cannot be cancelled. This is not a claim that all application integration
+or live services are verified.
+
+### Final normal-application checks — user pending
+
+Use [the normal CList application](https://localhost:51888/) with editor marker
+`2026-11-23.17`. These checks are distinct from the mocked fixtures:
+
+1. Load saved annotation/collection files, including misleading extensions. Check
+   editor choices, citation fields and Cancel/overwrite behavior with an existing draft.
+2. With disposable local content, Save to My Pages and reopen it. Check title/body/
+   references and revision behavior; confirm import/export Cancel preserves the draft.
+3. Switch among the editors you normally use, retaining drafts and references.
+   In annotation/collection editors, edit fields, reorder items and open the Send/
+   publishing choices without submitting. Check Slides IO and layouts if used.
+4. Navigate Accounts and Options: open existing/add-account forms, edit and cancel,
+   close/reopen controls and check visible validation. Do not treat this as a real
+   OAuth test; authorization/token exchange and live writes remain separate checks.
+5. Exercise pane resizing/mobile layout, keyboard navigation, menus and Back/Close.
+   Report any console error with the triggering steps, and distinguish skipped
+   editor/service checks from those actually completed.
+
+Real IndexedDB durability, vendor editor behavior, native file pickers/downloads,
+live OAuth/crypto and provider synchronization remain outside the automated mocks.
+Do not authorize real publication or destructive service actions as part of this
+smoke check. Commit/push still require the user's instruction.

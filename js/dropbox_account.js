@@ -4,7 +4,7 @@
 window.CList.accountFlows = window.CList.accountFlows || {};
 window.CList.accountHooks = window.CList.accountHooks || {};
 window.CList.accountHooks.Dropbox = {
-    reauthorize: ({ key, data }, options = {}) => dropboxOAuthStart(data.appKey || '', key, data.permissions || 'b', data.folder || '/CList', options),
+    reauthorize: ({ key, data }, options = {}) => dropboxOAuthStart(data.appKey || '', key, data.permissions || 'b', data.folder || '/CList', { ...options, reauthorization: true }),
 };
 
 /**

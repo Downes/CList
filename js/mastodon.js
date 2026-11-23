@@ -123,7 +123,8 @@ async function mastodonOAuthStart(title, username, permissions, options = {}) {
     try {
         await OAuthClient.login(username, 'Mastodon', instanceUrl, {
             forceLogin: true, isCurrent: options.isCurrent,
-            extra: { title: title || username, permissions: permissions || 'rw' },
+            extra: { title: title || username, permissions: permissions || 'rw',
+                ...(options.reauthorization ? { reauthorization: options.reauthorization } : {}) },
         });
     } catch (e) {
         if (options.feedback === false) throw e;
@@ -137,8 +138,13 @@ async function mastodonOAuthStart(title, username, permissions, options = {}) {
 // saves to kvstore via OAuthClient.saveAccount.
 OAuthClient.onCallback('Mastodon', async (data, context) => {
     const instanceData = { type: 'Mastodon', id: data.accessToken, title: data.extra.title || data.accountKey, permissions: data.extra.permissions || 'rw' };
+    if (data.extra.reauthorization) {
+        for (const field of ['maxlength', 'public']) {
+            if (Object.hasOwn(data.extra.reauthorization, field)) instanceData[field] = data.extra.reauthorization[field];
+        }
+    }
     await OAuthClient.saveAccount('Mastodon', data.accountKey, instanceData, {
-        isCurrent: context.isCurrent,
+        updateExisting: !!data.extra.reauthorization, isCurrent: context.isCurrent,
         afterRefresh: async () => {
             await playRead();
             populateReadAccountList(window.CList.accounts);

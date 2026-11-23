@@ -938,3 +938,13 @@
 /** @typedef {{phase:('idle'|'initializing'|'ready'|'fallback'|'closed'),busy:boolean}} CListAnnotationBodyState Safe lifecycle progress only; body HTML, editor/element handles, source captures and pending instances remain private. */
 
 /** @typedef {{phase:('loading'|'login-required'|'empty'|'ready'|'capturing'|'sending'|'result'|'uncertain'|'error'|'cancelled'),busy:boolean,accountIndex:number,visibility:('public'|'private'),receipt:('none'|'accepted'|'rejected'|'uncertain')}} CListAnnotationSendState Presentation only; session/account/target/body captures and account-choice keys remain private. */
+
+/**
+ * Captured callback-account save options. Existing updates read/decrypt latest data;
+ * service merge hooks remain private and must preserve open-ended metadata.
+ * @typedef {Object} CListOAuthAccountSaveOptions
+ * @property {function():boolean} [isCurrent]
+ * @property {function():Promise<void>} [afterRefresh]
+ * @property {boolean} [updateExisting] Reject missing/replaced-type records; merge instead of creating.
+ * @property {function(CListAccountData,CListAccountData):CListAccountData} [mergeExisting]
+ */

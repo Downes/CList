@@ -4,7 +4,7 @@
 window.CList.accountFlows = window.CList.accountFlows || {};
 window.CList.accountHooks = window.CList.accountHooks || {};
 window.CList.accountHooks.Mastodon = {
-    reauthorize: ({ key, data }, options = {}) => mastodonOAuthStart(data.title || key, key, data.permissions || 'rw', options),
+    reauthorize: ({ key, data }, options = {}) => mastodonOAuthStart(data.title || key, key, data.permissions || 'rw', { ...options, reauthorization: { maxlength: data.maxlength, public: data.public } }),
 };
 
 /**

@@ -1719,3 +1719,42 @@ handled by the existing start workflow's removal of only that flow's state. Shar
 callback session binding and token-save behavior are unchanged, and are outside
 the new fixture's round-trip evidence. Custom hooks that ignore the supplied
 guard do not acquire stale-response protection merely by using the controller.
+
+
+## Existing-account OAuth callback metadata
+
+Existing Mastodon/Dropbox hooks mark their authorization `extra` as
+`reauthorization`. Mastodon includes only the form's public/maxlength choices
+in that marker; existing tokens, refresh tokens and open-ended record extensions
+are not copied into OAuth state. Existing helper arguments still capture the
+service's known title/permissions/app-key/folder choices. Initial authorization
+has no marker and retains its account-creation behavior.
+
+`CListOAuthAccountSaveOptions.updateExisting` requests a read/decrypt/merge through
+`persistOAuthCallbackAccount`. Use the captured KV get/put and encryption key,
+assert ownership after every await, reject missing/unreadable/replaced-type records,
+and overlay incoming credential/form fields on the latest stored object. Untouched
+extensions remain open-ended. Captured form fields win over corresponding stored
+values; this is not field-by-field conflict resolution across the whole OAuth trip.
+The optional service `mergeExisting` callback handles provider credential rules:
+Dropbox retains an omitted refresh token only for an unchanged app key.
+
+Compare the encrypted record again immediately before dispatch; a mismatch fails
+with RevisionConflict without writing. This read/check/put sequence cannot ensure
+atomic compare-and-swap against other clients. It also cannot recognize a removed
+and recreated same-key/same-type record before the first callback read. Do not
+claim server-side concurrency control. The merged payload and encrypted receipts
+stay private, existing accepted/uncertain recovery remains account-only, and
+read-only confirmation never repeats the OAuth exchange.
+
+
+## Shared callback-save refresh ordering
+
+`createOAuthAccountSaveController` numbers account-list refreshes within its own
+instance. Only the newest refresh can install its list, navigate, report success
+or expose a late failure. Ownership is checked again after asynchronous provider
+hooks and navigation. Suppressed refreshes return saved/refreshed:false and retain
+the accepted write receipt; explicit refresh repeats reads/effects, not the write.
+Failures remain logged. The counter is private, contains no credentials and does
+not change account data shapes. This does not coordinate other controllers that
+independently install account lists or cancel already-started provider hooks.

@@ -31,7 +31,8 @@ async function dropboxOAuthStart(appKey, title, permissions, folder, options = {
             'https://www.dropbox.com',
             {
                 clientId: appKey,
-                extra:    { appKey, title: title || 'Dropbox', permissions: permissions || 'b', folder: folder || '/CList' },
+                extra:    { appKey, title: title || 'Dropbox', permissions: permissions || 'b', folder: folder || '/CList',
+                    ...(options.reauthorization ? { reauthorization: true } : {}) },
                 isCurrent: options.isCurrent,
             }
         );
@@ -54,7 +55,7 @@ OAuthClient.onCallback('Dropbox', async (data, context) => {
         ex.permissions || 'b',
         data.accessToken,
         data.tokenData?.refresh_token || '',
-        context
+        { ...context, updateExisting: !!ex.reauthorization }
     );
 });
 
@@ -62,7 +63,10 @@ OAuthClient.onCallback('Dropbox', async (data, context) => {
 // session in dropbox_session.js and the shared account persistence operation.
 async function _saveDropboxAccount(title, appKey, folder, permissions, accessToken, refreshToken, options = {}) {
     const accountData = { type: 'Dropbox', appKey, folder, permissions, id: accessToken, refresh: refreshToken };
-    await OAuthClient.saveAccount('Dropbox', title, accountData, options);
+    await OAuthClient.saveAccount('Dropbox', title, accountData, { ...options,
+        mergeExisting: (existing, incoming) => ({ ...existing, ...incoming,
+            refresh: incoming.refresh || (existing.appKey === incoming.appKey ? existing.refresh || '' : '') }),
+    });
 }
 
 // ── Token refresh ─────────────────────────────────────────────────────────────

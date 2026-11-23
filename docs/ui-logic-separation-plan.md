@@ -1,6 +1,6 @@
 # Separating CList application logic and UI
 
-## Remaining work — 2026-11-23
+## Implementation and validation checkpoint — 2026-11-23
 
 The user approved this order after the read-only audit. Keep stages small and
 reuse the existing data APIs; the earlier checkpoint below records completed work.
@@ -176,6 +176,55 @@ The user now requests immediately relevant tests per stage, with a full sweep la
    integration and the deferred full test sweep remain outstanding. After browser
    validation, review the combined changes and round-trip integration gaps before
    deciding the final validation/commit sequence.
+
+### Closing integration review
+
+Checkpoint committed as `1f8ae18` (no push). User reported Re-authorize browser
+PASS: 23 checks at `.15`. The first combined-path review found minimal OAuth
+callback records replacing existing metadata. Existing-account callbacks now
+read/decrypt/merge the captured destination's latest account, preserve extensions,
+retain captured known form choices, reject missing/replaced-type records and
+compare encrypted metadata before dispatch. Dropbox omitted refresh tokens remain
+scoped to the same app key. Initial account creation is unchanged.
+
+55/55 relevant Node tests pass; new form/start/exchange/pickup/provider/save
+integration fixture has 28 assertions. User-reported browser PASS at
+`tests/oauth-reauthorization.browser.html`, marker `2026-11-23.16`.
+All HTTP, crypto, storage, session and navigation effects are mocked. No atomic
+cross-client concurrency, live OAuth, real crypto or startup/popup routing claim.
+Next: continue reviewing combined integration paths;
+full sweep is still deferred. This follow-up is not part of the checkpoint commit.
+
+The next combined-path check reproduced out-of-order account-save list refreshes:
+older successful lists discarded newer accounts and older failures replaced newer
+success feedback. The shared saver now sequences refreshes, rejects superseded
+installation/navigation/status/failure effects and retains accepted receipts for
+explicit refresh-only recovery. Three regression cases add seven assertions to
+`oauth-account.browser.html` (28 total), marker `2026-11-23.17`; user-reported browser PASS.
+82/82 immediately relevant Node tests pass, zero failures/skips.
+The sequence is local to one saver, not an application-wide account-list store.
+Provider hooks already dispatched are not cancelled. No full-sweep claim.
+
+### Closing review and full Node sweep — completed within stated scope
+
+User reported PASS: 28 checks for both round-trip `.16` and account-save `.17`.
+The user then authorized finishing the review and running the deferred full sweep.
+`node --test tests/*.test.cjs`: 1288 passed, zero failures/skips/cancellations.
+The main/callback entry points and 107 browser fixtures have 1149 local script
+references, no missing targets or duplicate paths. Selected dependency ordering
+is correct; interface.js remains the final external tag with its existing eager
+startup retained. Localhost serves the current main page/saver/two fixture files
+with status 200 and the expected content types. Static/HTTP checks are not browser
+execution. No further blocker surfaced in the focused handoff review.
+
+All seven planned extraction areas have implementations and their recorded
+mocked-scope results. No new extraction stage is proposed at this checkpoint.
+Remaining: the user's final normal-application checks in docs/testing.md,
+fix any observed regressions, then review/commit when requested. Live service,
+real storage durability, vendor editor and cryptographic behavior are not inferred
+from the mocks. The two integration fixes and documentation remain uncommitted;
+nothing pushed. Earlier per-stage notes below retain historical test counts and
+pending scopes and do not supersede this latest full-sweep result.
 
 ## Earlier checkpoint — 2026-11-20
 

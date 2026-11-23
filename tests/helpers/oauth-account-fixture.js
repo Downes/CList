@@ -27,6 +27,38 @@ function oauthAccountFixture() {
     };
 }
 const oauthAccountCases = [
+    ['superseded provider refresh hooks cannot navigate or report over newer completion', async check => {
+        const f = oauthAccountFixture(), provider = oauthAccountGate();
+        const first = f.save({ afterRefresh: () => provider.promise }); await oauthAccountFlush();
+        await OAuthClient.saveAccount('Dropbox', 'Newer', { ...f.data, title: 'Newer' });
+        const effects = [...f.effects], messages = [...f.messages]; provider.resolve(); const result = await first;
+        check(!result.refreshed && JSON.stringify(f.effects) === JSON.stringify(effects), 'superseded provider hook has no later navigation');
+        check(JSON.stringify(f.messages) === JSON.stringify(messages) && window.CList.state.oauthAccountSave.phase === 'complete', 'newer success/state retained'); f.dispose();
+    }],
+    ['older account-list refreshes cannot replace a newer accepted save', async check => {
+        const f = oauthAccountFixture(), firstList = oauthAccountGate(); let listings = 0;
+        window.CList.storage.kv.list = async () => {
+            const snapshot = [...f.records].map(([key, value]) => ({ key, value }));
+            return ++listings === 1 ? firstList.promise : snapshot;
+        };
+        const first = f.save(); await oauthAccountFlush();
+        const oldSnapshot = [...f.records].map(([key, value]) => ({ key, value }));
+        await OAuthClient.saveAccount('Dropbox', 'Newer', { ...f.data, title: 'Newer' });
+        const before = [...f.effects]; firstList.resolve(oldSnapshot); const result = await first;
+        check(window.CList.accounts.length === 2 && window.CList.accounts.some(account => account.key === 'Newer'), 'older list cannot discard the newer account');
+        check(!result.refreshed && JSON.stringify(f.effects) === JSON.stringify(before), 'superseded refresh has no navigation/visibility effects');
+        await f.save();
+        check(f.writes.length === 2 && window.CList.accounts.length === 2, 'explicit refresh of accepted receipt never repeats a write'); f.dispose();
+    }],
+    ['superseded refresh failures cannot replace newer success feedback', async check => {
+        const f = oauthAccountFixture(), firstList = oauthAccountGate(); let listings = 0;
+        window.CList.storage.kv.list = async () => ++listings === 1 ? firstList.promise : [...f.records].map(([key, value]) => ({ key, value }));
+        const first = f.save(); await oauthAccountFlush();
+        await OAuthClient.saveAccount('Dropbox', 'Newer', { ...f.data, title: 'Newer' });
+        const messages = [...f.messages]; firstList.reject(new Error('Older list unavailable')); await first;
+        check(!document.getElementById('generic-modal') && JSON.stringify(f.messages) === JSON.stringify(messages), 'older failure cannot replace newer success');
+        check(window.CList.state.oauthAccountSave.phase === 'complete' && f.writes.length === 2, 'newer operation state and writes retained'); f.dispose();
+    }],
     ['real shared account writer captures callback data/session and normalizes title without losing extensions', async check => {
         const f = oauthAccountFixture(), gate = oauthAccountGate(); f.behavior.key = () => gate.promise; const pending = f.save(); f.data.id = 'newer-token'; await oauthAccountFlush();
         window.CList.state.username = 'User'; gate.resolve('captured-key'); const result = await pending, data = JSON.parse(f.records.get('Files').slice(10));

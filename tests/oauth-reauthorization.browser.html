@@ -1,0 +1,46 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>OAuth reauthorization round trip</title>
+<link rel="stylesheet" href="../css/interface.css">
+<h1>OAuth reauthorization round trip</h1>
+<p>Real account form/start workflow, callback exchange/pickup, Mastodon/Dropbox handlers and account-save workflow/controller/view. Session, fingerprint, registration, PKCE, exchange transport, KV, crypto, navigation and feedback effects mocked. No external requests, real writes or redirects. Real cryptography, live OAuth, popup/startup routing and full account-panel integration not exercised. Test 2026-11-23.16.</p>
+<pre id="result">Checking…</pre>
+<script>
+window.CList={state:{},config:{}};
+Object.defineProperty(window,'sessionStorage',{configurable:true,value:{getItem(){return null;},setItem(){throw new Error('Unexpected storage write');},removeItem(){throw new Error('Unexpected storage mutation');}}});
+window.fetch=()=>Promise.reject(new Error('Unexpected external request'));
+</script>
+<script src="../js/account-state.js?v=2026-11-23.4"></script>
+<script src="../js/ui.js?v=2026-11-23.1"></script>
+<script src="../js/oauth-config.js?v=2026-11-23.5"></script>
+<script src="../js/oauth-strategies.js"></script>
+<script src="../js/oauth_start_workflow.js?v=2026-11-23.5"></script>
+<script src="../js/oauth_callback.js?v=2026-11-23.6"></script>
+<script src="../js/oauth_callback_workflow.js?v=2026-11-23.16"></script>
+<script src="../js/oauth_account_workflow.js?v=2026-11-23.16"></script>
+<script src="../js/oauth_account_view.js?v=2026-11-23.16"></script>
+<script src="../js/oauth_account.js?v=2026-11-23.17"></script>
+<script src="../js/oauth-client.js?v=2026-11-23.5"></script>
+<script src="../js/account-reauthorization.js?v=2026-11-23.16"></script>
+<script src="../js/account-form.js?v=2026-11-23.16"></script>
+<script>const oauthReauthorizationHandlers = {}; OAuthClient.onCallback = (type, handler) => { oauthReauthorizationHandlers[type] = handler; }; const buildDialogModal = window.CList.ui.buildDialogModal;</script>
+<script src="../js/mastodon.js?v=2026-11-23.16"></script>
+<script src="../js/mastodon_account.js?v=2026-11-23.16"></script>
+<script src="../js/dropbox.js?v=2026-11-23.16"></script>
+<script src="../js/dropbox_account.js?v=2026-11-23.16"></script>
+<script src="helpers/oauth-account-fixture.js?v=2026-11-23.17"></script>
+<script src="helpers/account-reauthorization-fixture.js?v=2026-11-23.16"></script>
+<script src="helpers/oauth-reauthorization-fixture.js?v=2026-11-23.16"></script>
+<script>
+(async () => {
+    const result = document.getElementById('result'); let count = 0;
+    try {
+        for (const [name, run] of oauthReauthorizationCases) {
+            result.textContent = 'Checking: ' + name; let timer;
+            try { await Promise.race([run((condition, message) => { if (!condition) throw new Error(message); count++; }), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Timed out: ' + name)), 5000); })]); }
+            finally { clearTimeout(timer); }
+        }
+        result.textContent = 'PASS: ' + count + ' checks. Real account form/start, exchange/pickup, provider handlers and shared saving; preserved metadata/form choices, refresh-token ownership, initial creation, removed/corrupt/replaced accounts, read errors/retry, encryption conflicts, original-session expiry and uncertain-write read-only recovery. Transport/session/storage/crypto/navigation mocked; no external requests, real writes or redirects. Live OAuth, real crypto, startup/popup routing and full panel integration not exercised.';
+    } catch (error) { result.textContent = 'FAIL: ' + (error.stack || error); }
+})();
+</script>

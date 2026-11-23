@@ -5,6 +5,11 @@ relevant Node checks for each small refactor, and defer the full sweep until lat
 This overrides the per-stage full-suite directions below. Report the exact tested
 scope; do not describe focused checks as full validation.
 
+Closing validation update (2026-11-23): the user subsequently authorized the deferred
+full sweep. `node --test tests/*.test.cjs` passed 1288/1288, zero failures/skips.
+Small-stage targeted testing remains the default; do not repeat an unchanged full
+suite. Final normal-application checks are user-pending in docs/testing.md.
+
 Read this document before writing or changing code that supports or affects
 publishing: service adapters, editor exports, account/session handling, workflow
 state, publication tracking, or result/progress UI. Read the affected implementation

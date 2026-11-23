@@ -1,21 +1,27 @@
 // Private callback save receipts. Exchange/pickup and original-flow binding are separate.
 function createOAuthAccountSaveController(deps, view) {
     const jobs = new Map();
+    let refreshSequence = 0;
+    const latestRefresh = job => job.refreshSequence === undefined || job.refreshSequence === refreshSequence;
     function owned(job) { return deps.current(job.source) && (!job.isCurrent || job.isCurrent()); }
     function state(job, phase, busy) {
-        if (!owned(job)) return;
+        if (!owned(job) || !latestRefresh(job)) return;
         /** @type {CListOAuthAccountSaveState} */
         const value = { phase, busy, receipt: job.receipt }; deps.state(value);
     }
     const assert = job => { if (!owned(job)) throw Object.assign(new Error('The callback account-save session expired.'), { code: 'ExpiredOAuthAccountSave' }); };
     const actions = job => ({ current: () => owned(job), refresh: () => refresh(job), check: () => check(job), retry: () => write(job) });
     async function refreshEffects(job) {
+        job.refreshSequence = ++refreshSequence;
         assert(job); state(job, 'refreshing', true);
         const accounts = await deps.accounts(job.source); assert(job);
+        if (!latestRefresh(job)) return { status: 'saved', refreshed: false };
         deps.install(accounts, job.source); deps.visibility();
         if (deps.surfaceCurrent(job.source) && job.afterRefresh) { await job.afterRefresh(); assert(job); }
+        if (!latestRefresh(job)) return { status: 'saved', refreshed: false };
         if (deps.surfaceCurrent(job.source)) await deps.navigate();
         assert(job);
+        if (!latestRefresh(job)) return { status: 'saved', refreshed: false };
         job.refreshed = true; state(job, 'complete', false); view.success(job.label); return { status: 'saved', refreshed: true };
     }
     function run(job, operation) {
@@ -23,7 +29,7 @@ function createOAuthAccountSaveController(deps, view) {
         job.pending = Promise.resolve().then(operation).catch(error => {
             deps.log(error);
             if (job.dispatched && job.receipt !== 'accepted' && !['NotAuthenticated', 'NotAuthorized', 'InvalidData', 'RevisionConflict', 'ExpiredOAuthAccountSave'].includes(error.code)) job.receipt = 'uncertain';
-            if (owned(job)) { state(job, 'failed', false); view.failure(job.label, error, job.receipt, actions(job), job.source); }
+            if (owned(job) && latestRefresh(job)) { state(job, 'failed', false); view.failure(job.label, error, job.receipt, actions(job), job.source); }
             return { status: job.receipt === 'accepted' ? 'saved' : job.receipt === 'uncertain' ? 'uncertain' : 'failed', refreshed: false };
         }).finally(() => { job.pending = null; });
         return job.pending;
@@ -37,6 +43,7 @@ function createOAuthAccountSaveController(deps, view) {
                 assert: () => assert(job), current: () => owned(job), session: { storeUrl: job.source.storeUrl, token: job.source.token },
                 key: () => deps.key(job.source), save: (request, session) => deps.save(request, session, job.source), put: job.source.put,
                 dispatch: encrypted => { job.dispatched = true; job.encrypted = encrypted; },
+                updateExisting: job.updateExisting, mergeExisting: job.mergeExisting, get: job.source.get, decrypt: deps.decrypt,
             });
             job.receipt = 'accepted'; if (!owned(job)) return { status: 'saved', refreshed: false };
             return refreshEffects(job);
@@ -52,17 +59,18 @@ function createOAuthAccountSaveController(deps, view) {
         });
     }
     return {
+        /** @param {CListOAuthAccountSaveOptions} [options] */
         save(label, key, data, options = {}) {
             const source = deps.capture();
             const request = { key, data: structuredClone({ ...data, title: data.title || key || label }) };
-            const id = JSON.stringify([source.storeUrl, source.token, source.username, source.epoch, key, request.data]);
+            const id = JSON.stringify([source.storeUrl, source.token, source.username, source.epoch, key, !!options.updateExisting, request.data]);
             const previous = jobs.get(id);
             if (previous && owned(previous)) {
                 if (previous.pending) return previous.pending;
                 if (previous.receipt === 'accepted') return previous.refreshed ? Promise.resolve({ status: 'saved', refreshed: true }) : refresh(previous);
                 if (previous.receipt === 'uncertain') { if (owned(previous)) view.failure(label, new Error('The earlier account write could not be confirmed.'), 'uncertain', actions(previous), previous.source); return Promise.resolve({ status: 'uncertain', refreshed: false }); }
             }
-            const job = { label, request, source, afterRefresh: options.afterRefresh, isCurrent: options.isCurrent, receipt: 'none' }; jobs.set(id, job); return write(job);
+            const job = { label, request, source, updateExisting: !!options.updateExisting, mergeExisting: options.mergeExisting, afterRefresh: options.afterRefresh, isCurrent: options.isCurrent, receipt: 'none' }; jobs.set(id, job); return write(job);
         },
     };
 }
@@ -85,11 +93,12 @@ function oauthAccountSaveSurfaceCurrent(source) {
     return currentOAuthAccountSaveSource(source) && source.reader === window.CList.state.reader?.requestId
         && source.editor === (typeof currentEditor === 'undefined' ? null : currentEditor) && source.modal === document.getElementById('generic-modal');
 }
+/** @param {CListOAuthAccountSaveOptions} [options] */
 function saveOAuthCallbackAccount(label, key, data, options) {
     _oauthAccountSaver ||= createOAuthAccountSaveController({
         capture: captureOAuthAccountSaveSource, current: currentOAuthAccountSaveSource, surfaceCurrent: oauthAccountSaveSurfaceCurrent,
         state: value => { window.CList.state.oauthAccountSave = value; },
-        key: source => getEncKey(source.storeUrl), save: saveAccount,
+        key: source => getEncKey(source.storeUrl), save: saveAccount, decrypt: decryptWithKey,
         accounts: async source => loadAccountRecords({ storeUrl: source.storeUrl, token: source.token, encKey: await getEncKey(source.storeUrl), isCurrent: () => currentOAuthAccountSaveSource(source) }),
         install: accounts => { window.CList.accounts = accounts; }, visibility: () => updateUIVisibility(),
         navigate: () => { if (typeof playAccounts === 'function') return playAccounts(); }, log: error => console.error('[OAuth account save]', error),
