@@ -30,7 +30,7 @@
 
             for (const option of options) {
                 const button = document.createElement('button');
-                button.className = 'account-button';
+                button.className = 'btn-small account-button';
                 button.onclick = option.select;
                 const icon = document.createElement('span');
                 if (option.logoSrc) {

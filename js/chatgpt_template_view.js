@@ -13,8 +13,8 @@ function createTemplateFormView(doc = document, ui = window.CList.ui.view) {
     label('Or enter your own template type:', 'customTemplateType');
     const custom = doc.createElement('input'); custom.id = 'customTemplateType'; custom.type = 'text'; custom.placeholder = 'e.g., marketing proposal'; root.appendChild(custom); root.appendChild(doc.createElement('br'));
     label('Choose output format:', 'outputFormat'); const format = select('outputFormat', [['text','Text'],['html','HTML']]);
-    const generate = doc.createElement('button'); generate.id = 'generateTemplateButton'; generate.className = 'btn final-save-button'; generate.textContent = 'Generate Template';
-    const back = doc.createElement('button'); back.id = 'generateTemplateBackBtn'; back.className = 'btn btn-secondary final-save-button'; back.textContent = 'Back';
+    const generate = doc.createElement('button'); generate.id = 'generateTemplateButton'; generate.className = 'btn-small btn final-save-button'; generate.textContent = 'Generate Template';
+    const back = doc.createElement('button'); back.id = 'generateTemplateBackBtn'; back.className = 'btn-small btn btn-secondary final-save-button'; back.textContent = 'Back';
     const status = doc.createElement('p'); status.className = 'feed-status-message'; root.append(generate, back, status);
     const read = () => ({ type: type.value, custom: custom.value || '', format: format.value });
     const alive = () => !!root.isConnected && root.parentNode === container && ui.loadOptions === container;

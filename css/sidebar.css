@@ -29,9 +29,9 @@
     background: none;
     border: none;
     color: var(--highlight-color);
-    font-size: 0.82rem;
+
     cursor: pointer;
-    padding: 0.5rem 0 0.2rem;
+
     display: block;
 }
 
@@ -48,8 +48,8 @@
 
 .nav-btn {
     display: inline-block;
-    padding: 0.2rem 0.7rem;
-    font-size: 0.82rem;
+
+
     background: var(--highlight-color);
     color: var(--highlight-text-color);
     border: none;
@@ -102,8 +102,8 @@
     border: 1px solid var(--border-main);
     border-radius: 3px;
     color: var(--text-light);
-    font-size: 0.8rem;
-    padding: 2px 8px;
+
+
     cursor: pointer;
     flex-shrink: 0;
 }

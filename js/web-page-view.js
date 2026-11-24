@@ -26,7 +26,7 @@ window.CList.ui.webPagePublishing = {
             const buttons = [];
             for (const [label, mode] of [['Overwrite', 'overwrite'], ['Save as new version', 'new'], ['Cancel', 'cancel']]) {
                 const button = document.createElement('button');
-                button.className = 'btn' + (mode === 'cancel' ? ' btn-secondary' : ''); button.textContent = label;
+                button.className = 'btn-small' + (mode === 'cancel' ? ' btn-secondary' : ''); button.textContent = label;
                 button.disabled = mode === 'overwrite' && !canOverwrite;
                 button.onclick = () => { buttons.forEach(control => { control.disabled = true; }); container.innerHTML = ''; resolve(mode); };
                 buttons.push(button); row.appendChild(button);

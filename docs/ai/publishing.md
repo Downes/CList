@@ -6,7 +6,9 @@ This overrides the per-stage full-suite directions below. Report the exact teste
 scope; do not describe focused checks as full validation.
 
 Closing validation update (2026-11-23): the user subsequently authorized the deferred
-full sweep. `node --test tests/*.test.cjs` passed 1288/1288, zero failures/skips.
+full sweep. The pre-merge run passed 1288/1288. After pulling upstream commit
+`d7e165d`, `node --test tests/*.test.cjs` passed 1396/1396, zero failures/skips
+(2026-11-23). Browser and live-service checks were not run in that sweep.
 Small-stage targeted testing remains the default; do not repeat an unchanged full
 suite. Final normal-application checks are user-pending in docs/testing.md.
 
@@ -780,3 +782,17 @@ transfer controls and data operations now carry captured source/destination guar
 Retain accepted import receipts and add-only conflict preservation; never repeat an
 uncertain write before a read-only check. Dispatched original writes/downloads are
 not cancelled by ownership checks.
+
+
+Calendar writes: `saveCalendarEvent` must reassert the collection storage session
+after encryption and before dispatch. `publishOwnCalendar` uses captured session
+server/token/username, with guards after event reads and before HTTP. Do not read
+the current server again after an await to construct a credentialed destination.
+Use `tests/calendar-session.test.cjs` for these boundaries; mock all external effects.
+
+
+gRSShopper editor completion: preserve the shared in-flight lock across Publish
+pane rebuilds. Revalidate captured draft/account/session/editor/view and contents
+before adopting a returned ID or starting a queued upload. Retain accepted receipts
+privately when the originating draft expires; never automatically republish to
+recover an ID. `tests/grsshopper-editor.test.cjs` mocks publication and uploads.

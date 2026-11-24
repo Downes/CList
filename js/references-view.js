@@ -65,7 +65,7 @@ window.CList.ui.references = {
         panel.innerHTML = ''; _referenceViewActions = [];
         const headerRow = document.createElement('div'); headerRow.className = 'modal-header-row';
         const header = document.createElement('h2'); header.textContent = 'References';
-        const close = document.createElement('button'); close.className = 'btn btn-secondary';
+        const close = document.createElement('button'); close.className = 'btn-small btn-secondary';
         close.textContent = 'X'; close.title = 'Close';
         close.onclick = () => {
             try { options.close(); } catch (error) { this.error(error); }
@@ -92,7 +92,7 @@ window.CList.ui.references = {
             container.appendChild(annotate); container.appendChild(remove); panel.appendChild(container);
             _referenceViewActions.push(annotate);
         }
-        const save = document.createElement('button'); save.className = 'btn';
+        const save = document.createElement('button'); save.className = 'btn-small';
         save.textContent = 'Save as collection';
         save.onclick = async () => {
             try { await options.save(save); } catch (error) { this.error(error); }

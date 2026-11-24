@@ -50,6 +50,7 @@ function fixture() {
         },
         window: {
             CList: {
+                config: { flaskSiteUrl: 'https://store.invalid' }, state: { username: 'Alice' }, keys: { ACCESS_TOKEN: 'token', USERNAME: 'user' },
                 ui: { view: { writePaneContent } },
                 uploaders: { gRSShopper: { uploadForPost: async () => { throw new Error('uploadForPost not mocked'); } } },
             },
@@ -61,12 +62,14 @@ function fixture() {
         cleanHTMLContent: value => String(value).replace(/<[^>]+>/g, ''),
         showErrorModal: (message) => errors.push(message),
         showStatusMessage: () => {},
+        getSiteSpecificCookie: (url, key) => key === 'user' ? 'Alice' : 'token',
         isRegistered: () => true,
         findAccountByType: () => ({ type: 'gRSShopper' }),
         ensureAccountsLoaded: async () => accounts,
         parseAccountValue: record => JSON.parse(record.value),
         buildAccountSelect: () => { const el = new Element('select'); el.value = '0'; return el; },
     });
+    vm.runInContext(fs.readFileSync('js/oauth_callback.js', 'utf8'), ctx);
     vm.runInContext(_paneSwitcherSource(), ctx);
     vm.runInContext(grsshopperSource, ctx);
 
@@ -407,4 +410,50 @@ test('A failed upload surfaces the error via showErrorModal and leaves a failure
     assert.equal(f.errors.length, 1);
     assert.match(f.errors[0], /gRSShopper upload failed/);
     assert.match(f.uploadStatus(), /Upload failed/);
+});
+
+
+for (const change of ['clear', 'body', 'description', 'title', 'account', 'session', 'editor', 'rebuild']) {
+    test('late publication preserves newer ' + change + ' and retains an accepted receipt', async () => {
+        const f = fixture(); await f.handler.initialize(); await f.flush();
+        f.handler.editorFunctions.Write(); await f.flush();
+        let resolve; const pending = new Promise(done => { resolve = done; }); let saves = 0, uploads = 0;
+        f.ctx.window.grsshopperSavePost = async () => { saves++; return pending; };
+        f.ctx.window.CList.uploaders.gRSShopper.uploadForPost = async () => { uploads++; return {}; };
+        for (const input of f.root.querySelectorAll('input')) { input.value = input.value || 'x'; input.dispatch('change'); }
+        f.ctx.tinymce.get('grsshopper-post-description').setContent('description');
+        f.handler.editorFunctions.Publish(); await f.flush();
+        const button = f.root.querySelector('#grsshopper-publish-pane').querySelector('button'); button.dispatch('click');
+        if (change === 'clear') f.handler.editorFunctions.Clear();
+        if (change === 'body') f.handler.setContent('newer body');
+        if (change === 'description') f.ctx.tinymce.get('grsshopper-post-description').setContent('newer description');
+        if (change === 'title') vm.runInContext('_grsshopperPost.title = "Newer title"', f.ctx);
+        if (change === 'account') vm.runInContext('_grsshopperEditState.accounts[0] = {type:"gRSShopper",instance:"https://other.invalid"}', f.ctx);
+        if (change === 'session') f.ctx.window.CList.state.authEpoch = 1;
+        if (change === 'editor') f.ctx.currentEditor = 'texteditor';
+        if (change === 'rebuild') { f.handler.editorFunctions.Publish(); f.handler.editorFunctions.Publish(); await f.flush(); f.root.querySelector('#grsshopper-publish-pane').querySelector('button').dispatch('click'); }
+        resolve({ id: 'accepted-old', url: 'https://ghub.test/accepted-old' }); await f.flush();
+        assert.equal(vm.runInContext('_grsshopperPost.id', f.ctx), null);
+        assert.equal(vm.runInContext('_grsshopperPublicationReceipt.result.id', f.ctx), 'accepted-old');
+        assert.equal(saves, 1); assert.equal(uploads, 0);
+    });
+}
+
+
+for (const change of ['newer-selection','clear','account','session']) test('upload completion preserves ' + change, async () => {
+    const f = fixture(); await f.handler.initialize(); await f.flush();
+    let resolve, calls = 0; const gate = new Promise(done => { resolve = done; });
+    f.ctx.window.CList.uploaders.gRSShopper.uploadForPost = async () => { calls++; return gate; };
+    vm.runInContext('_grsshopperPost.id="42";_grsshopperPendingUpload={sourceUrl:"old"}',f.ctx);
+    const first = vm.runInContext('_grsshopperSendPendingUpload()',f.ctx);
+    await vm.runInContext('_grsshopperSendPendingUpload()',f.ctx);
+    if (change === 'clear') f.handler.editorFunctions.Clear();
+    else {
+        if (change === 'newer-selection') vm.runInContext('_grsshopperPendingUpload={sourceUrl:"newer"}',f.ctx);
+        if (change === 'account') vm.runInContext('_grsshopperEditState.accounts[0]={type:"gRSShopper",instance:"https://other.invalid"}',f.ctx);
+        if (change === 'session') f.ctx.window.CList.state.authEpoch = 1;
+    }
+    resolve({url:'https://uploaded.invalid'}); await first;
+    assert.equal(calls,1);
+    assert.equal(vm.runInContext('_grsshopperPendingUpload?.sourceUrl || null',f.ctx),change === 'clear' ? null : change === 'newer-selection' ? 'newer' : 'old');
 });

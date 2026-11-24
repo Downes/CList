@@ -3,7 +3,7 @@ function mountPublicFeedList(container) {
     const root = document.createElement('div'); root.id = 'public-feeds-list'; container.replaceChildren(root); return root;
 }
 function appendPublicFeedChoice(root, title, select) {
-    const button = document.createElement('button'); button.className = 'account-button';
+    const button = document.createElement('button'); button.className = 'btn-small account-button';
     const icon = document.createElement('span'); icon.className = 'material-icons'; icon.textContent = 'public';
     const label = document.createElement('span'); label.textContent = title;
     button.append(icon,label); button.onclick = select; root.appendChild(button);

@@ -16,7 +16,7 @@ test('web-page choice is a view-only promise, blocks invalid overwrite, and uses
     const view = context.window.CList.ui.webPagePublishing;
     assert.equal(view.readTitle(), 'Title');
     const pending = view.chooseVersion(false), controls = result.querySelectorAll('button');
-    assert.equal(controls[0].disabled, true); assert.equal(controls[1].className, 'btn');
+    assert.equal(controls[0].disabled, true); assert.equal(controls[1].className, 'btn-small');
     await controls[1].click(); assert.equal(await pending, 'new'); assert.ok(controls.every(control => control.disabled));
     view.setBusy(true); assert.equal(button.disabled, true); view.setBusy(false); assert.equal(button.disabled, false);
     view.published({ status: 'published', url: 'https://bin.test/page', metadataError: 'offline' }, false);

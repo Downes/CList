@@ -48,7 +48,7 @@ export function replaceSlideText(matches, replacement) {
 export function mountFindReplace({ root, Y, getDocument, getEntries, jump, transact, canEdit, selectedText, report, onError }) {
   const inspector = root.querySelector('.inspector'), toolbar = root.querySelector('.tools')
   const button = document.createElement('button')
-  button.className = 'clist-action-btn'; button.type = 'button'
+  button.className = 'clist-action-btn btn-small'; button.type = 'button'
   button.dataset.control = 'open-find'
   button.title = 'Find and replace across slides (Ctrl/Cmd+F)'
   button.setAttribute('aria-label',button.title)

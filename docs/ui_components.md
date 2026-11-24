@@ -378,3 +378,12 @@ Several UI elements are hidden or shown depending on the user's registration and
    ```
 2. Populate `#my-list-options` with `makeEditorButton(...)` calls (or an equivalent helper).
 3. Open it with `openRightInterface('my-list')`.
+
+
+Compact action sizing is centralized in css/interface.css: `.btn-small` shares
+`.btn` display, colors, padding, radius, margins and states, with 0.8rem text.
+It works without also adding `.btn`. Use `.btn-small btn-secondary` for compact
+secondary actions. Transfer-confirmation rows and slide controls use this variant.
+Do not shrink action buttons with container selectors or inline font/padding rules.
+Container styles may arrange controls; icon artwork and interactive thumbnail
+frames retain their own geometry. Third-party editor widgets are not restyled.

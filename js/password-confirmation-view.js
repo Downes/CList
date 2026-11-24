@@ -6,7 +6,7 @@ window.CList.ui.passwordConfirmation={
         const input=document.createElement('input');input.id='confirm-pw-input';input.type='password';input.placeholder='Password';input.autocomplete='current-password';
         const error=document.createElement('p');error.id='confirm-pw-error';error.className='error-message';
         const buttons=document.createElement('div');buttons.className='kv-action-buttons';
-        const ok=document.createElement('button');ok.id='confirm-pw-ok';ok.className='btn btn-small '+(options.confirmClass||'kv-delete-btn');ok.textContent=options.confirmLabel||'Confirm';ok.onclick=confirm;
+        const ok=document.createElement('button');ok.id='confirm-pw-ok';ok.className='btn btn-small'+(options.confirmClass||'kv-delete-btn');ok.textContent=options.confirmLabel||'Confirm';ok.onclick=confirm;
         const abort=document.createElement('button');abort.id='confirm-pw-cancel';abort.className='btn btn-small btn-secondary';abort.textContent='Cancel';abort.onclick=cancel;
         input.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();return confirm();}});
         buttons.append(ok,abort);root.append(heading,description,input,error,buttons);showModal(root,{hideDefaultClose:true});input.focus();

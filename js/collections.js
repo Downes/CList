@@ -421,7 +421,7 @@ window.playCollectionSave = async function playCollectionSave() {
 
     // ── Save to file ──
     const fileBtn = document.createElement('button');
-    fileBtn.className = 'account-button';
+    fileBtn.className = 'btn-small account-button';
     fileBtn.innerHTML = '<span class="material-icons">download</span><span>Save to file</span>';
     fileBtn.addEventListener('click', async () => {
         const fmt = collectionFormats[formatId];
@@ -437,7 +437,7 @@ window.playCollectionSave = async function playCollectionSave() {
     // stubs are only expanded at export/publish time, not in the stored record)
     if (token) {
         const kvBtn = document.createElement('button');
-        kvBtn.className = 'account-button';
+        kvBtn.className = 'btn-small account-button';
         kvBtn.innerHTML = '<span class="material-icons">storage</span><span>Save to CList</span>';
 
         kvBtn.addEventListener('click', async () => {
@@ -463,7 +463,7 @@ window.playCollectionSave = async function playCollectionSave() {
     const dropboxAccount = token ? findAccountByType('Dropbox', { permission: 'b' })?.account : null;
     if (dropboxAccount) {
         const dbxBtn = document.createElement('button');
-        dbxBtn.className = 'account-button';
+        dbxBtn.className = 'btn-small account-button';
         dbxBtn.innerHTML = '<span class="service-icon-img" style="-webkit-mask:url(\'assets/icons/dropbox.svg\') no-repeat center / contain;mask:url(\'assets/icons/dropbox.svg\') no-repeat center / contain"></span><span>Save to Dropbox</span>';
 
         dbxBtn.addEventListener('click', async () => {

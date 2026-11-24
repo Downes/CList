@@ -23,7 +23,7 @@ window.CList.ui.dropboxPicker = {
         view.body.appendChild(tip);
         const list = document.createElement('div'); list.className = 'account-list';
         for (const file of files) {
-            const button = document.createElement('button'); button.className = 'account-button'; button.disabled = busy;
+            const button = document.createElement('button'); button.className = 'btn-small account-button'; button.disabled = busy;
             const icon = document.createElement('span'); icon.className = 'material-icons';
             const format = _detectFormat('', file.name);
             icon.textContent = busy && selected === file ? 'hourglass_top'

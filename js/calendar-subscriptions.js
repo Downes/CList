@@ -9,8 +9,9 @@
 
 // Module-scope, no TTL -- persists for the page session until a manual
 // Refresh (force: true) or a page reload. Toggling a source off/on reuses
-// whatever's cached rather than refetching.
-const _icsSubscriptionCache = {};
+// whatever's cached for the same issuer session, account, URL and proxy.
+// Clearing an entry also expires its pending reads.
+const _icsSubscriptionCache = new Map();
 
 /**
  * @param {string} accountKey Raw account record key (cache/id namespace).
@@ -20,16 +21,28 @@ const _icsSubscriptionCache = {};
  *   tagged { sourceType: 'subscription', sourceKey: accountKey, readOnly: true }.
  */
 async function fetchSubscriptionEvents(accountKey, accountData, { force = false } = {}) {
-    if (!force && _icsSubscriptionCache[accountKey]) return _icsSubscriptionCache[accountKey].events;
+    const source = captureOAuthIssuerSource(), url = accountData.url, proxy = window.CList.defaults.PROXYP;
+    const key = JSON.stringify([source, accountKey, url, proxy]);
+    const cached = _icsSubscriptionCache.get(key);
+    if (!force && cached?.events) return cached.events;
+    const ticket = { accountKey };
+    _icsSubscriptionCache.set(key, ticket);
+    const assertCurrent = () => {
+        if (!currentOAuthIssuerSource(source) || accountData.url !== url || window.CList.defaults.PROXYP !== proxy
+            || _icsSubscriptionCache.get(key) !== ticket) throw new Error('This calendar subscription request expired. Refresh its source.');
+    };
 
     // Same proxyp call shape as collections.js's "Load from URL" -- the
     // target feed's CORS policy blocks a raw cross-origin fetch from the
     // browser (see /srv/apps/proxyp/CLAUDE.md).
     const headers = { ...kvstoreAuthHeader(), ...(await proxypAccessKeyHeader()) };
-    const resp = await fetch(`${window.CList.defaults.PROXYP}?${new URLSearchParams({ url: accountData.url })}`, { headers });
+    assertCurrent();
+    const resp = await fetch(`${proxy}?${new URLSearchParams({ url })}`, { headers });
+    assertCurrent();
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const contentType = resp.headers.get('Content-Type') || '';
     const text = await resp.text();
+    assertCurrent();
 
     // Proxyp's convention: a reachable-but-failed upstream request still
     // returns HTTP 200, with a JSON {"error": "..."} body instead of the
@@ -50,12 +63,13 @@ async function fetchSubscriptionEvents(accountKey, accountData, { force = false 
         sourceKey: accountKey,
         readOnly: true,
     }));
-    _icsSubscriptionCache[accountKey] = { events, fetchedAt: Date.now() };
+    assertCurrent();
+    ticket.events = events; ticket.fetchedAt = Date.now();
     return events;
 }
 
 // Drops one source's cache entry, or every entry when called with no key.
 function clearSubscriptionCache(accountKey) {
-    if (accountKey) { delete _icsSubscriptionCache[accountKey]; return; }
-    for (const key of Object.keys(_icsSubscriptionCache)) delete _icsSubscriptionCache[key];
+    if (accountKey === undefined) { _icsSubscriptionCache.clear(); return; }
+    for (const [key, entry] of _icsSubscriptionCache) if (entry.accountKey === accountKey) _icsSubscriptionCache.delete(key);
 }

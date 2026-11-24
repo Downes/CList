@@ -40,7 +40,7 @@ window.CList.ui.editorSwitch = {
             ["Don't transfer", actions.none, true], ['Cancel', actions.cancel, true],
         ]) {
             if (!action) continue;
-            const button = document.createElement('button'); button.className = secondary ? 'btn btn-secondary' : 'btn';
+            const button = document.createElement('button'); button.className = secondary ? 'btn-small btn-secondary' : 'btn-small';
             button.textContent = label; button.onclick = action; row.appendChild(button);
         }
         root.appendChild(row);

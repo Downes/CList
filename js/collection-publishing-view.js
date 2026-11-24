@@ -14,19 +14,19 @@ function _promptCollectionOverwriteChoice(postResultDiv, accountData) {
         row.className = 'published-page-confirm';
 
         const overwriteBtn = document.createElement('button');
-        overwriteBtn.className = 'btn';
+        overwriteBtn.className = 'btn-small';
         overwriteBtn.textContent = 'Overwrite';
         overwriteBtn.onclick = () => { postResultDiv.innerHTML = ''; resolve('overwrite'); };
         row.appendChild(overwriteBtn);
 
         const newVersionBtn = document.createElement('button');
-        newVersionBtn.className = 'btn';
+        newVersionBtn.className = 'btn-small';
         newVersionBtn.textContent = 'Save as new version';
         newVersionBtn.onclick = () => { postResultDiv.innerHTML = ''; resolve('new'); };
         row.appendChild(newVersionBtn);
 
         const cancelBtn = document.createElement('button');
-        cancelBtn.className = 'btn btn-secondary';
+        cancelBtn.className = 'btn-small btn-secondary';
         cancelBtn.textContent = 'Cancel';
         cancelBtn.onclick = () => { postResultDiv.innerHTML = ''; resolve(null); };
         row.appendChild(cancelBtn);
@@ -52,7 +52,7 @@ window.CList.ui.collectionPublishing = {
             });
         options.appendChild(list);
         this.button = document.createElement('button');
-        this.button.textContent = 'Publish'; this.button.id = 'final-post-button'; this.button.className = 'final-save-button';
+        this.button.textContent = 'Publish'; this.button.id = 'final-post-button'; this.button.className = 'btn-small final-save-button';
         this.button.addEventListener('click', publish); options.appendChild(this.button);
         options.appendChild(makeCollectionWebPageOption());
         if (typeof openRightInterface === 'function') openRightInterface('post-instructions');
@@ -122,7 +122,7 @@ function makeCollectionWebPageOption() {
     list.appendChild(tip);
 
     const btn = document.createElement('button');
-    btn.className = 'account-button';
+    btn.className = 'btn-small account-button';
 
     const iconEl = document.createElement('span');
     iconEl.className = 'material-icons';

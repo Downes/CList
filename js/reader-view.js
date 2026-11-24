@@ -52,7 +52,7 @@ window.CList.ui.reader = {
             [collections, 'Collections', 'collections_bookmark', onCollections],
             [calendar, 'Calendar', 'calendar_month', onCalendar]]) {
             if (!visible) continue;
-            const button = document.createElement('button'); button.className = 'account-button'; button.onclick = action;
+            const button = document.createElement('button'); button.className = 'btn-small account-button'; button.onclick = action;
             const symbol = document.createElement('span'); symbol.className = 'material-icons'; symbol.textContent = icon;
             const text = document.createElement('span'); text.textContent = label; button.append(symbol, text); list.appendChild(button);
         }

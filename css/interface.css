@@ -156,7 +156,7 @@ button {
   padding: 0;
 }
 
-.btn {
+.btn, .btn-small {
   display: inline-block;
   background-color: var(--highlight-color);
   color: var(--highlight-text-color);
@@ -165,14 +165,14 @@ button {
   margin: 4px 3px 4px 0;
 }
 
-.btn:hover { background-color: var(--highlight-hover); }
-.btn:disabled { opacity: 0.6; cursor: default; }
-.btn.is-active { background-color: var(--highlight-hover); font-weight: 600; }
+.btn:hover, .btn-small:hover { background-color: var(--highlight-hover); }
+.btn:disabled, .btn-small:disabled { opacity: 0.6; cursor: default; }
+.btn.is-active, .btn-small.is-active { background-color: var(--highlight-hover); font-weight: 600; }
 
+/* Same appearance/spacing as .btn inside .published-page-confirm. */
 .btn-small {
-  padding: 3px 8px;
-  font-size: 0.82rem;
-  margin: 0;
+  line-height: 1.5;
+  font-size: 0.8rem;
 }
 
 .btn-secondary { background: var(--text-light); }
@@ -711,9 +711,9 @@ body a:hover, html a:hover { text-decoration: underline; }
 
 .save-button {
   width: 60%;
-  padding: 10px;
+
   margin: 0 auto;
-  font-size: 0.875rem;
+
   box-sizing: border-box;
   background: var(--bg-command);
   color: var(--text-muted);
@@ -797,16 +797,17 @@ body a:hover, html a:hover { text-decoration: underline; }
 #republish-status[data-state="success"] { color: var(--color-success); }
 
 .account-button {
+  color: inherit;
   display: flex;
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: var(--pad-v) var(--pad-h);
+
   background: none;
   border: none;
   border-bottom: 1px solid var(--border-light);
   text-align: left;
-  font-size: 0.875rem;
+
   color: var(--text-main);
   cursor: pointer;
 }
@@ -868,9 +869,9 @@ body a:hover, html a:hover { text-decoration: underline; }
 
 .final-save-button {
   width: 80%;
-  padding: 10px;
+
   margin: 0 auto;
-  font-size: 0.75rem;
+
   box-sizing: border-box;
 }
 
@@ -1104,7 +1105,7 @@ body.chat-active .chat-only-btn { display: inline-flex; }
 .chat-share-card .chat-share-items a { color: var(--text-main); font-size: 0.75rem; }
 .chat-share-card details summary { cursor: pointer; }
 .chat-share-card .chat-share-actions { margin-top: 6px; }
-.chat-share-card .chat-share-actions button { padding: 3px 10px; cursor: pointer; font-size: 0.75rem; }
+.chat-share-card .chat-share-actions button {  cursor: pointer;  }
 
 .collection-publish-items { list-style: none; padding: 0; margin: 0 0 12px; }
 .collection-publish-item  { display: flex; align-items: center; gap: 6px; padding: 3px 0; border-bottom: 1px solid var(--border-light); }
@@ -1122,7 +1123,7 @@ body.chat-active .chat-only-btn { display: inline-flex; }
 .published-page-badge.badge-service { background: var(--bg-info); color: var(--color-info); border-color: var(--border-info); }
 .published-page-date { font-size: 0.75rem; color: var(--text-light); white-space: nowrap; }
 .published-page-actions { display: flex; gap: 2px; }
-.published-page-confirm { font-size: 0.8rem; color: var(--color-error); display: flex; align-items: center; gap: 4px; width: 100%; padding: 2px 0; }
+.published-page-confirm { color: var(--color-error); display: flex; align-items: center; gap: 4px; width: 100%; padding: 2px 0; }
 
 .modal-header-row {
   display: flex;
@@ -1135,12 +1136,7 @@ body.chat-active .chat-only-btn { display: inline-flex; }
   font-size: 1.5em;
   color: var(--text-main);
 }
-.modal-header-row button {
-  font-size: 0.875rem;
-  margin: 0;
-  padding: 4px 8px;
-  cursor: pointer;
-}
+
 
 .published-pages-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
 .published-pages-table th, .published-pages-table td { padding: 6px 8px; border-bottom: 1px solid var(--border-light); color: var(--text-main); text-align: left; vertical-align: middle; }
@@ -1182,8 +1178,8 @@ body.chat-active .chat-only-btn { display: inline-flex; }
 .collection-picker-list { list-style: none; margin: 0; padding: 0; }
 .collection-picker-list li { border-bottom: 1px solid var(--border-light); }
 .collection-pick-btn {
-  display: block; width: 100%; text-align: left; padding: var(--pad-v) var(--pad-h);
-  background: none; border: none; cursor: pointer; font-size: 0.875rem; color: inherit;
+  display: block; width: 100%; text-align: left;
+  background: none; border: none; cursor: pointer;  color: inherit;
 }
 html.dark-mode #divider { background-color: #3a3a3a; }
 html.dark-mode .find-input {
@@ -1245,7 +1241,7 @@ html.dark-mode #modal-content, html.dark-mode #modal-content-stacked {
 .collection-delete-confirm { display: none; align-items: center; gap: 6px; font-size: 0.875rem; flex-basis: 100%; padding: 4px 0 6px; }
 .collection-items-expanded { padding: 0 0 8px; }
 .collection-items-expanded .btn { margin: 8px 12px 4px; }
-.collection-confirm-btn   { padding: 3px 10px; font-size: 0.8rem; margin: 0; }
+.collection-confirm-btn   {   margin: 0; }
 
 #write-tags-bar {
   display: flex; align-items: center; gap: 8px;

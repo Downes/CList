@@ -44,6 +44,7 @@ async function saveCalendarEvent(event, session) {
     const now = Date.now();
     const saved = { ...event, id: event.id || crypto.randomUUID(), created: event.created || now, updated: now };
     const encrypted = await encryptWithKey(session.encKey, JSON.stringify(saved));
+    assertCollectionSession(session);
     try {
         await window.CList.storage.kv.put(_CALENDAR_KEY_PREFIX + saved.id, encrypted);
     } catch (err) {

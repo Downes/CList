@@ -2,7 +2,7 @@
 function createP2pCardsView(doc = document) {
     const root = doc.getElementById('chat-messages'), controls = new WeakMap();
     const element = (tag, text, className) => { const node = doc.createElement(tag); if (text !== undefined) node.textContent = text; if (className) node.className = className; return node; };
-    const button = (label, callback) => { const node = element('button', label, 'btn'); node.type = 'button'; node.onclick = () => callback(node); return node; };
+    const button = (label, callback) => { const node = element('button', label, 'btn-small'); node.type = 'button'; node.onclick = () => callback(node); return node; };
     const link = (text, url, callback) => { const node = element('a', text); node.href = url; node.target = '_blank'; node.rel = 'noopener noreferrer'; node.onclick = event => { event?.preventDefault(); return callback(); }; return node; };
     const shell = own => {
         const wrapper = element('div'); wrapper.style.textAlign = own ? 'right' : 'left';

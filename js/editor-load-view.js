@@ -8,14 +8,14 @@ window.CList.ui.editorLoad = {
         tip.textContent = 'More than one editor can open this content — choose one:'; root.appendChild(tip);
         const list = document.createElement('div'); list.className = 'account-list';
         for (const option of options) {
-            const button = document.createElement('button'); button.className = 'account-button';
+            const button = document.createElement('button'); button.className = 'btn-small account-button';
             const icon = document.createElement('span'); icon.className = 'material-icons'; icon.textContent = option.icon || 'edit';
             const name = document.createElement('span'); name.textContent = option.label || option.key;
             button.appendChild(icon); button.appendChild(name);
             button.onclick = () => select(option.key); list.appendChild(button);
         }
         root.appendChild(list);
-        const button = document.createElement('button'); button.className = 'btn btn-secondary';
+        const button = document.createElement('button'); button.className = 'btn-small btn-secondary';
         button.textContent = 'Cancel'; button.onclick = cancel; root.appendChild(button);
     },
     chooseCollection(parsed, format, target, select, native, cancel) {
@@ -31,7 +31,7 @@ window.CList.ui.editorLoad = {
         message.textContent = 'This editor already has content.'; root.appendChild(message);
         const row = document.createElement('div'); row.className = 'published-page-confirm';
         const button = (label, action, secondary = false) => {
-            const element = document.createElement('button'); element.className = secondary ? 'btn btn-secondary' : 'btn';
+            const element = document.createElement('button'); element.className = secondary ? 'btn-small btn-secondary' : 'btn-small';
             element.textContent = label; element.onclick = action; row.appendChild(element);
         };
         if (canReplace) { button('New (insert into blank editor)', actions.new); button('Replace', actions.replace); }

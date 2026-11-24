@@ -14,7 +14,7 @@ window.CList.ui.publishing = {
             key => this.selection(panel, onToggle(key))));
         this.selection(panel, selectedKeys);
         const button = document.createElement('button');
-        button.textContent = 'Publish'; button.id = 'final-post-button'; button.className = 'final-save-button btn';
+        button.textContent = 'Publish'; button.id = 'final-post-button'; button.className = 'btn-small final-save-button btn';
         button.onclick = onPublish; panel.appendChild(button);
         this.setBusy(busy);
         panel.appendChild(makeWebPageOption(onWebPage));
@@ -82,7 +82,7 @@ function makeWebPageOption(publish = postToWebPage) {
     list.appendChild(tip);
 
     const btn = document.createElement('button');
-    btn.className = 'account-button';
+    btn.className = 'btn-small account-button';
 
     const iconEl = document.createElement('span');
     iconEl.className = 'material-icons';

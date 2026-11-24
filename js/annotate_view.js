@@ -45,7 +45,7 @@ window.CList.ui.annotationReading = {
         const actions = source.parentElement?.querySelector(':scope > .status-actions'); if (!actions) return;
         let button = actions.querySelector('.anno-read-btn');
         if (!button && count) {
-            button = document.createElement('button'); button.className = 'clist-action-btn anno-read-btn'; button.title = 'Read annotations'; actions.appendChild(button);
+            button = document.createElement('button'); button.className = 'btn-small clist-action-btn anno-read-btn'; button.title = 'Read annotations'; actions.appendChild(button);
         }
         if (button) { button.innerHTML = `<span class="material-icons md-18 md-light">comment</span> (${count})`; button.onclick = open; }
     },

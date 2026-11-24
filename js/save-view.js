@@ -14,7 +14,7 @@ window.CList.ui.saving = {
         const tip = document.createElement('div'); tip.className = 'list-tip';
         tip.textContent = 'Select a destination to save to'; list.appendChild(tip);
         for (const option of options) {
-            const button = document.createElement('button'); button.className = 'account-button';
+            const button = document.createElement('button'); button.className = 'btn-small account-button';
             const icon = document.createElement('span');
             if (option.logoSrc) {
                 icon.className = 'service-icon-img';

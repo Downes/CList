@@ -1,0 +1,133 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Slide editor views</title>
+<link rel="stylesheet" href="../css/interface.css?v=2026-11-23.34">
+<link rel="stylesheet" href="../slides/clist-slides-poc/dist-embed/editor.css?v=2026-11-23.34">
+<h1>Slide editor views</h1>
+<p>Test 2026-11-23.34. Real embedded editor, local Yjs deck and DOM, with a fixture modal shell using shared wide-modal CSS. No collaboration connection, external service requests or storage writes. Editor/vendor assets are served locally.</p>
+<pre id="result" role="status">Checking…</pre><div id="host" style="width:100%;height:800px"></div>
+<script>
+(async()=>{
+let count=0
+const check=(value,message)=>{if(!value)throw Error(message);count++}
+try {
+ const [dependencies,{createSlideEditor}]=await Promise.all([import('../js/vendor/collab-editor-bundle.js'),import('../slides/clist-slides-poc/dist-embed/editor.js?v=2026-11-23.34')])
+ const openInsertModal=body=>{
+  document.getElementById('generic-modal')?.remove()
+  const modal=document.createElement('div'),content=document.createElement('div');modal.id='generic-modal';content.id='modal-content';content.className='modal-content--wide'
+  content.append(body);modal.append(content);document.body.append(modal)
+  const current=()=>modal.isConnected&&modal.contains(body)&&document.getElementById('generic-modal')===modal
+  return {current,close:()=>{if(current())modal.remove()}}
+ }
+ const editor=createSlideEditor(document.getElementById('host'),{dependencies,seed:false,openInsertModal})
+ const {Y}=dependencies,doc=editor.document
+ doc.transact(()=>{
+  doc.getMap('slide-pages').set('first',0);doc.getMap('slide-pages').set('second',1)
+  doc.getMap('slide-objects').set('outline-text',new Y.Map(Object.entries({kind:'text',slide:'first',x:10,y:10,width:500,height:100,layer:0})))
+  const paragraph=new Y.XmlElement('paragraph'),text=new Y.XmlText();text.insert(0,'Literal <title>');paragraph.insert(0,[text]);doc.getXmlFragment('slide-text-outline-text').insert(0,[paragraph])
+  doc.getMap('slide-notes').set('first','Keep these notes')
+ })
+ const root=document.querySelector('.clist-slides'),picker=root.querySelector('[data-control="slide-view"]'),notes=root.querySelector('.speaker-notes'),list=root.querySelector('[data-control="slide-list"]')
+ const choose=value=>{picker.value=value;picker.dispatchEvent(new Event('change',{bubbles:true}))}
+ const bars=root.querySelectorAll('.slide-menu-bar'),newSlide=root.querySelector('[data-menu="new"]'),newGroup=root.querySelector('[data-menu-group="new"]')
+ check([...root.querySelectorAll('.canvas-zoom button')].every(button=>Math.abs(button.getBoundingClientRect().top-root.querySelector('.canvas-zoom button').getBoundingClientRect().top)<1),'zoom controls stay on one line')
+ check(['bold','italic','present','undo','redo'].every(name=>bars[0].contains(root.querySelector('[data-control="'+name+'"]'))),'existing icon controls remain visible in upper bar')
+ check(bars.length===2 && bars[0].className===bars[1].className,'matching menu bars')
+ check(bars[1].getBoundingClientRect().top >= bars[0].getBoundingClientRect().bottom,'lower menu is below upper menu')
+ check(bars[0].firstElementChild.classList.contains('slide-view-picker') && bars[0].firstElementChild.nextElementSibling===newSlide,'View at far left then New Slide')
+ check(root.dataset.slideMenu==='new' && !newGroup.hidden && [...newGroup.children].filter(node=>node.tagName==='BUTTON').length===3,'default lower menu has Add Slide, Duplicate and Template')
+ root.querySelector('[data-control="choose-template"]').click()
+ const layout=root.querySelector('[data-control="slide-layout"]'),add=root.querySelector('[data-control="add-slide"]')
+ check(!layout.hidden,'Template reveals existing layout chooser')
+ check(Math.abs(layout.getBoundingClientRect().height-add.getBoundingClientRect().height)<1,'select and button heights align')
+ root.querySelector('[data-object-id="outline-text"]').click()
+ check(root.dataset.slideMenu==='new' && root.querySelectorAll('[data-menu]').length===2,'only requested New Slide and Insert menu categories')
+ newSlide.click();check(root.dataset.slideMenu==='new','New Slide retains its requested options')
+ const number=root.querySelector('.slide-number')
+ check(getComputedStyle(number).color!=='rgb(255, 255, 255)','slide numbers use visible foreground')
+
+ check(!root.querySelector('.canvas-space .canvas-top') && !root.querySelector('.canvas-space .canvas-bottom'),'canvas has no informational chrome')
+ check(root.querySelector('.slide-editor-info [data-control="slide-label"]') && !root.querySelector('.canvas-bottom'),'slide label retained; canvas-bottom removed')
+ const textButtons=[...root.querySelectorAll('button')].filter(button=>{
+  const copy=button.cloneNode(true);copy.querySelectorAll('svg,.material-icons').forEach(icon=>icon.remove());return copy.textContent.trim()
+ })
+ const oversized=textButtons.filter(button=>!button.classList.contains('btn-small') && !button.classList.contains('btn'))
+ check(!oversized.length,'text buttons use standard classes: '+oversized.map(button=>button.title||button.textContent.trim()).join(', '))
+ check(!root.querySelector('.rail-title'),'rail heading removed')
+ check(getComputedStyle(root.querySelector('.slide-editor-info')).display==='none','footer information hidden')
+ check(root.querySelector('[data-control="add-slide"]').className==='btn-small' && root.querySelector('[data-control="duplicate-slide"]').className==='btn-small' && root.querySelector('[data-control="delete-slide"]').className==='btn-small btn-secondary','rail uses requested button classes')
+ check(picker.options.length===4,'four labeled choices')
+ check(editor.viewMode==='slide','default slide only')
+ choose('slide');check(getComputedStyle(notes).display==='none','slide only hides notes')
+ choose('notes');check(getComputedStyle(notes).display!=='none','notes view restores notes')
+ check(root.querySelector('[data-control="speaker-notes"]').value==='Keep these notes','notes preserved')
+ choose('outline');check(getComputedStyle(root.querySelector('.slide-outline')).display!=='none','outline displayed')
+ check(root.querySelector('.slide-outline-text').textContent.includes('Literal <title>'),'structural text stays literal')
+ check(root.querySelector('.slide-outline').querySelectorAll('button').length===2,'both slides listed')
+ doc.getXmlFragment('slide-text-outline-text').get(0).get(0).insert(0,'Updated ')
+ check(root.querySelector('.slide-outline-text').textContent.includes('Updated '),'outline follows text updates')
+ choose('sorter');check(getComputedStyle(list).display==='grid','sorter uses thumbnail grid')
+ check(getComputedStyle(root.querySelector('.canvas-space')).display==='none','sorter hides editing canvas')
+ list.querySelector('[data-slide-id="second"]').click()
+ check(list.querySelector('[aria-current="true"]').dataset.slideId==='second','sorter uses existing selection')
+ list.querySelector('[data-slide-id="second"]').dispatchEvent(new MouseEvent('dblclick',{bubbles:true}))
+ check(editor.viewMode==='slide','double click opens selected slide')
+ choose('notes');check(doc.getMap('slide-notes').get('first')==='Keep these notes','view changes preserve stored notes')
+ // Switching views alone must leave the deck untouched.
+ const before=JSON.stringify(editor.snapshot());for(const mode of ['slide','notes','outline','sorter','notes'])choose(mode)
+ check(JSON.stringify(editor.snapshot())===before,'views do not mutate deck snapshots')
+ check(picker.options[0].textContent==='View slide only' && !root.querySelector('.slide-view-picker').textContent.startsWith('View View'),'view wording has no extra label')
+ check([...root.querySelectorAll('select')].filter(node=>!node.hidden).every(node=>getComputedStyle(node).borderTopWidth==='1px'),'shared thin borders on dropdowns')
+ const insertMenu=root.querySelector('[data-menu="insert"]')
+ check(newSlide.nextElementSibling===insertMenu,'Insert immediately follows New Slide')
+ insertMenu.click();const insertGroup=root.querySelector('[data-menu-group="insert"]')
+ check(!insertGroup.hidden && [...insertGroup.children].filter(node=>node.tagName==='BUTTON').map(node=>node.textContent).join(',')==='Shape,Image,Text','Insert lower row has Shape, Image, Text')
+ root.querySelector('[data-control="choose-shape"]').click()
+ check(document.querySelector('#modal-content.modal-content--wide .slide-shape-grid'),'Shape opens wide line-art picker')
+ check([...document.querySelectorAll('.slide-shape-grid button')].every(button=>button.querySelector('svg') && !button.textContent.trim() && button.getAttribute('aria-label')),'shape previews themselves are accessible choices without name buttons')
+ const shapesBefore=doc.getMap('slide-objects').size
+ document.querySelector('.slide-shape-grid button').click()
+ check(doc.getMap('slide-objects').size===shapesBefore+1 && !document.getElementById('generic-modal'),'shape choice inserts once and closes')
+ const objectCount=doc.getMap('slide-objects').size;root.querySelector('[data-control="add-text"]').click()
+ check(doc.getMap('slide-objects').size===objectCount+1,'Text inserts through existing action')
+ root.querySelector('[data-control="add-image"]').click()
+ let modal=document.getElementById('generic-modal')
+ check(modal?.querySelector('.modal-content--wide') && modal.querySelector('[data-control="picker-file"]'),'Image opens wide modal with file selection')
+ check([...modal.querySelectorAll('button')].find(button=>button.textContent==='Image libraries').disabled,'future image libraries are explicitly unavailable')
+ const canvas=document.createElement('canvas');canvas.width=32;canvas.height=16;canvas.getContext('2d').fillRect(0,0,32,16)
+ const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png')),transfer=new DataTransfer();transfer.items.add(new File([blob],'local-test.png',{type:'image/png'}))
+ const file=modal.querySelector('[data-control="picker-file"]');file.files=transfer.files;file.dispatchEvent(new Event('change',{bubbles:true}))
+ const insertImage=modal.querySelector('[data-control="picker-insert"]'),until=Date.now()+5000
+ while(!modal.querySelector('[data-control="crop-rectangle"]')&&Date.now()<until)await new Promise(resolve=>setTimeout(resolve,20))
+ check(!!modal.querySelector('[data-control="crop-rectangle"]') && insertImage.disabled,'image shows a crop rectangle before insertion')
+ const cropRect=modal.querySelector('[data-control="crop-rectangle"]')
+ const key=(target,name,shift=false,times=1)=>{for(let i=0;i<times;i++)target.dispatchEvent(new KeyboardEvent('keydown',{key:name,shiftKey:shift,bubbles:true,cancelable:true}))}
+ key(cropRect,'ArrowLeft',true,50);key(cropRect,'ArrowRight',false,25)
+ modal.querySelector('[data-control="crop-done"]').click()
+ check(!insertImage.disabled && modal.querySelector('.slide-cropped-preview'),'Done previews only the selected rectangle')
+ const beforeImages=new Set(doc.getMap('slide-objects').keys());insertImage.click()
+ const imageId=[...doc.getMap('slide-objects').keys()].find(id=>!beforeImages.has(id)),imageBox=doc.getMap('slide-objects').get(imageId)
+ check(imageBox?.get('imageFit')==='cover' && Math.abs(imageBox.get('cropX')-50)<.01 && imageBox.get('imageRatio')===2,'image inserts with crop and original ratio')
+ check(root.querySelector('[data-control="image-fit"]').value==='cover' && !root.querySelector('[data-control="crop-image"]').disabled,'crop can be adjusted directly on the slide')
+ const beforeDirect=JSON.stringify(imageBox.toJSON());root.querySelector('[data-control="crop-image"]').click()
+ check(root.querySelector('.slide-direct-crop [data-control="crop-rectangle"]'),'Crop image opens the rectangle directly on the slide')
+ key(root.querySelector('.slide-direct-crop [data-control="crop-rectangle"]'),'ArrowUp',true,20)
+ check(JSON.stringify(imageBox.toJSON())===beforeDirect && root.querySelector('[data-control="crop-cancel"]'),'crop key resizing is staged without moving the image or closing controls')
+ root.querySelector('[data-control="crop-cancel"]').click()
+ check(JSON.stringify(imageBox.toJSON())===beforeDirect && !root.querySelector('.slide-direct-crop'),'Cancel crop leaves the image unchanged')
+ const oldHeight=imageBox.get('height'),originalSource=imageBox.get('source');root.querySelector('[data-control="crop-image"]').click()
+ key(root.querySelector('.slide-direct-crop [data-control="crop-rectangle"]'),'ArrowUp',true,20)
+ root.querySelector('[data-control="crop-done"]').click()
+ check(imageBox.get('height')<oldHeight && imageBox.get('source')===originalSource,'Done applies the crop without replacing the source image')
+ const beforeCancel=JSON.stringify(editor.snapshot());root.querySelector('[data-control="add-image"]').click();modal=document.getElementById('generic-modal');[...modal.querySelectorAll('button')].find(button=>button.textContent==='Cancel').click()
+ check(!document.getElementById('generic-modal') && JSON.stringify(editor.snapshot())===beforeCancel,'Cancel does not insert or alter the deck')
+ const previousIds=new Set(doc.getMap('slide-pages').keys())
+ newSlide.click();if(layout.hidden)root.querySelector('[data-control="choose-template"]').click()
+ layout.value='blank';layout.dispatchEvent(new Event('change',{bubbles:true}))
+ const inserted=[...doc.getMap('slide-pages').keys()].filter(id=>!previousIds.has(id))
+ check(inserted.length===1,'choosing a template inserts one new slide')
+ check(![...doc.getMap('slide-objects').values()].some(box=>box.get('slide')===inserted[0]),'blank template produces a blank slide')
+ document.getElementById('result').textContent='PASS: '+count+' checks. Real local embedded slide views, notes, outline updates, sorter selection, double-click return, wide shape/image pickers, rectangle preview/crop, direct-slide Done/Cancel and document preservation. No collaboration or storage writes. Use View above to inspect layout and drag slides manually.'
+}catch(error){document.getElementById('result').textContent='FAIL: '+error.message+'\n'+(error.stack||'')}
+})();
+</script>

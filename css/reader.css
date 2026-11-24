@@ -76,7 +76,7 @@
 
 .status-actions button {
     margin-bottom: 5px;
-    padding: 5px 10px;
+
     border: none;
     background-color: rgb(249, 249, 249);
     color: rgb(32, 104, 186);
@@ -98,7 +98,7 @@
 
 .clist-actions button {
     margin-bottom: 5px;
-    padding: 5px 10px;
+
     border: none;
     background-color: rgb(249, 249, 249);
     color: rgb(32, 104, 186);
@@ -306,13 +306,13 @@ audio {
     background: none;
     color: #e67300;
     border: none;
-    padding: 2px 4px;
+
     cursor: pointer;
     white-space: nowrap;
     display: inline-flex;
     align-items: center;
     gap: 1px;
-    font-size: 0.75rem;
+
     font-weight: 400;
     border-radius: 3px;
 }

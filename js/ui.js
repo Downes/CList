@@ -284,7 +284,7 @@ window.CList.ui.accountList = function(tip, accounts, filterFn, onClickFn) {
         if (!parsedValue || !filterFn(parsedValue)) return;
 
         const btn = document.createElement('button');
-        btn.className = 'account-button';
+        btn.className = 'btn-small account-button';
         btn.setAttribute('data-key', account.key);
         btn.dataset.accountType = parsedValue.type || '';
         btn.onclick = () => onClickFn(account.key, parsedValue, btn);
@@ -306,7 +306,7 @@ window.makeAccountList = window.CList.ui.accountList;
 
 window.CList.ui.editorButton = function(label, icon, onClick) {
     const btn = document.createElement('button');
-    btn.className = 'account-button';
+    btn.className = 'btn-small account-button';
     const iconEl = document.createElement('span');
     iconEl.className = 'material-icons';
     iconEl.textContent = icon || 'edit';

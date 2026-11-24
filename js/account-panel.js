@@ -15,13 +15,13 @@ function kvstoreAccountsPanel() {
             <form id="addKvForm">
                 <div id="form-fields"></div>
                 <div class="kv-action-buttons">
-                    <button type="button" id="submitBtn" class="kv-action-btn kv-save-btn">Save</button>
-                    <button type="button" id="deleteBtn" class="kv-action-btn kv-delete-btn" style="display:none">Delete</button>
-                    <button type="button" id="cancelBtn" class="kv-action-btn kv-cancel-btn">Cancel</button>
+                    <button type="button" id="submitBtn" class="btn-small kv-action-btn kv-save-btn">Save</button>
+                    <button type="button" id="deleteBtn" class="btn-small kv-action-btn kv-delete-btn" style="display:none">Delete</button>
+                    <button type="button" id="cancelBtn" class="btn-small kv-action-btn kv-cancel-btn">Cancel</button>
                 </div>
             </form>
         </div>
-        <div id="add-account-header"><button id="add-account-btn">+ Add New Account</button></div>`;
+        <div id="add-account-header"><button class="btn-small" id="add-account-btn">+ Add New Account</button></div>`;
     const storeUrl = window.CList.config.flaskSiteUrl;
     const token = getSiteSpecificCookie(storeUrl, window.CList.keys.ACCESS_TOKEN);
     let accounts = [];
@@ -75,7 +75,7 @@ function kvstoreAccountsPanel() {
             const item = document.createElement('div'); item.className = 'account-list-item';
             item.dataset.accountKey = account.key;
             const button = document.createElement('button');
-            button.className = 'account-button' + (unreadable ? ' account-button--unreadable' : '');
+            button.className = 'btn-small account-button' + (unreadable ? ' account-button--unreadable' : '');
             button.appendChild(accountIcon(unreadable ? '' : data.type, unreadable ? null : data));
             const name = document.createElement('span'); name.textContent = unreadable ? account.key : (data.title || account.key);
             button.appendChild(name); button.onclick = () => openEdit(account.key, item);
@@ -242,14 +242,14 @@ function kvstoreAccountsPanel() {
         const local = window.CList.isLocalMode?.();
         const types = ['Mastodon', 'Bluesky', 'WordPress', 'Blogger', 'Etherpad', 'Collab', 'AI', 'Proxyp', 'Annotate', 'Hypothesis', 'gRSShopper', 'JSONBin', 'Gist', '0x0', 'CListBin', 'Dropbox', 'Discord', 'LOCALRSS', 'Calendar'];
         for (const type of types.filter(type => !local || (type !== 'Collab' && type !== 'Annotate'))) {
-            const button = document.createElement('button'); button.className = 'account-button';
+            const button = document.createElement('button'); button.className = 'btn-small account-button';
             button.onclick = () => selectAccountType(type); button.appendChild(typePickerIcon(type));
             const label = document.createElement('span'); label.textContent = type;
             button.appendChild(label); list.appendChild(button);
         }
         flow.appendChild(list);
         const actions = document.createElement('div'); actions.className = 'kv-action-buttons';
-        const cancel = document.createElement('button'); cancel.className = 'kv-action-btn kv-cancel-btn';
+        const cancel = document.createElement('button'); cancel.className = 'btn-small kv-action-btn kv-cancel-btn';
         cancel.textContent = 'Cancel'; cancel.onclick = cancelAdd; actions.appendChild(cancel); flow.appendChild(actions);
         flow.style.display = 'block';
     }

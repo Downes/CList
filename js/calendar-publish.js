@@ -14,13 +14,16 @@ function ownCalendarUrl() {
     return `${window.CList.config.flaskSiteUrl}/users/${window.CList.state.username}/calendar.ics`;
 }
 
-// Builds ICS from the caller's own stored events and PUTs it to kvstore.
+// Builds ICS from the caller's own stored events and PUTs it to the captured kvstore.
+/** @param {CListCollectionSession} session */
 async function publishOwnCalendar(session) {
-    const token = getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.ACCESS_TOKEN);
-    if (!token) throw new Error('Not logged in');
+    assertCollectionSession(session);
+    const { storeUrl, token, username } = session;
     const events = await listCalendarEvents({ session });
-    const ics = buildIcsCalendar(events, { calName: `${window.CList.state.username}'s Calendar` });
-    const res = await fetch(`${window.CList.config.flaskSiteUrl}/auth/calendar`, {
+    assertCollectionSession(session);
+    const ics = buildIcsCalendar(events, { calName: `${username}'s Calendar` });
+    assertCollectionSession(session);
+    const res = await fetch(`${storeUrl}/auth/calendar`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
         body: JSON.stringify({ ics }),

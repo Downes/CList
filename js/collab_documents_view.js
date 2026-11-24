@@ -11,7 +11,7 @@ function createCollabDocumentsView(doc = document, ui = window.CList.ui.view) {
             message(documents.length ? 'Select a document to open' : 'No documents yet — enter a document ID in the Collab editor to create one.');
             const list = doc.createElement('div'); list.className = 'account-list'; root.appendChild(list);
             documents.forEach(record => {
-                const button = doc.createElement('button'); button.className = 'account-button';
+                const button = doc.createElement('button'); button.className = 'btn-small account-button';
                 const icon = doc.createElement('span'); icon.className = 'material-icons'; icon.textContent = 'article';
                 const name = doc.createElement('span'); name.textContent = record.title || title(record.id); button.append(icon, name);
                 const current = () => alive() && button.isConnected && button.parentNode === list && list.parentNode === root;

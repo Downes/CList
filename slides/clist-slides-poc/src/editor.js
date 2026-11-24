@@ -1,4 +1,8 @@
 import template from './template.js'
+import { mountCropRectangle, cropProperties, currentImageCrop } from './crop-rectangle.js'
+import { mountInsertPickers } from './insert-picker.js'
+import { mountSlideMenu } from './slide-menu.js'
+import { mountSlideViews, slideDropBeforeIndex } from './slide-views.js'
 import { importedHtml, normalizedReference } from './import-content.js'
 import { mountTextOverflow } from './overflow.js'
 import { mountMarquee } from './marquee.js'
@@ -29,7 +33,6 @@ root.innerHTML = template
 container.append(root)
 const SW = 1280, SH = 720
 const $ = id => root.querySelector(`[data-control="${id}"]`)
-const slideOrderActions = $('slide-order-actions')
 for (const button of root.querySelectorAll('.tools button')) setToolbarIcon(button)
 for (const definition of shapeCatalog.values()) {
   const button = document.createElement('button')
@@ -61,6 +64,7 @@ let backgrounds = doc.getMap('slide-backgrounds')
 let notes = doc.getMap('slide-notes')
 let references = doc.getMap('clist_refs')
 let design = doc.getMap('slide-design')
+let slideViews = null, slideMenu = null, insertPickers = null, inPlaceCrop = null
 let activeSlide = 'first'
 let selectedSlides = new Set(['first']), slideSelectionActive = 'first', slideAnchor = 'first'
 const views = new Map()
@@ -133,7 +137,7 @@ function seedIfEmpty() {
 }
 function createView(id, box) {
   const node = document.createElement('div')
-  node.className = box.get('kind') === 'shape' ? 'slide-object shape-object' : 'slide-object'
+  node.className = box.get('kind') === 'shape' ? 'slide-object shape-object' : box.get('kind') === 'image' ? 'slide-object image-object' : 'slide-object'
   node.dataset.id = id
   node.tabIndex = 0
   node.setAttribute('aria-label', box.get('kind') === 'shape' ? 'Shape object. Arrow keys move; Delete removes.' : box.get('kind') === 'image' ? 'Image object. Arrow keys move; Delete removes.' : 'Text object. Arrow keys move; Enter edits.')
@@ -186,6 +190,7 @@ function createView(id, box) {
     if (e.target !== resize && e.target !== grip) select(id, false, false, true)
     if (!editor) node.focus({ preventScroll: true })
   })
+  node.addEventListener('dblclick', event => { if (box.get('kind') === 'image') { event.preventDefault(); event.stopPropagation(); select(id); startImageCrop() } })
   node.addEventListener('focus', () => select(id, false, selectedIds.has(id)))
   grip.addEventListener('pointerdown', e => beginDrag(e, id, 'move'))
   resize.addEventListener('pointerdown', e => beginDrag(e, id, 'resize'))
@@ -456,7 +461,7 @@ function setSlideSelection(ids, active = ids[0], anchor = active) {
   selectedSlides = new Set(ids); activeSlide = active; slideSelectionActive = active; slideAnchor = anchor
   selected = null; selectedIds.clear()
 }
-function focusActiveSlide() { $('slide-list').querySelector(`[data-slide-id="${activeSlide}"]`)?.focus({preventScroll:true}) }
+function focusActiveSlide() { if (slideViews?.mode === 'outline') { slideViews.focus(activeSlide); return }; $('slide-list').querySelector(`[data-slide-id="${activeSlide}"]`)?.focus({preventScroll:true}) }
 function selectSlide(id, event = {}) {
   const ids = slideIds()
   if (presenting || !ids.includes(id)) return
@@ -536,7 +541,7 @@ slideRail.addEventListener('dragover', event => {
   event.dataTransfer.dropEffect = 'move'
   clearSlideDrop()
   const buttons = [...$('slide-list').querySelectorAll(':scope > [data-slide-id]')]
-  const before = buttons.find(button => { const rect = button.getBoundingClientRect(); return event.clientY < rect.top + rect.height / 2 })
+  const before = buttons[slideDropBeforeIndex(buttons.map(button => button.getBoundingClientRect()), event.clientX, event.clientY, slideViews?.mode === 'sorter')]
   slideDropBefore = before?.dataset.slideId || null
   const marker = before || buttons.at(-1)
   marker?.classList.add(before ? 'slide-drop-before' : 'slide-drop-after')
@@ -598,9 +603,9 @@ function renderThumbnails() {
     let view = thumbnailViews.get(id)
     if (!view) {
       const button = document.createElement('button'), thumb = document.createElement('div'), preview = document.createElement('div'), label = document.createElement('span')
-      button.className = 'clist-action-btn'; button.dataset.slideId = id
+      button.className = 'clist-action-btn btn-small'; button.dataset.slideId = id
       preview.className = 'mini-slide'
-      thumb.append(preview,label); button.append(thumb)
+      label.className = 'slide-number'; thumb.append(label,preview); button.append(thumb)
       button.addEventListener('click',event=>selectSlide(id,event))
       view = {button,thumb,preview,label}; thumbnailViews.set(id,view); dirtyThumbnails.add(id)
     }
@@ -651,27 +656,21 @@ function renderThumbnails() {
       })
     }
     if (label.textContent !== String(index+1)) label.textContent = String(index+1)
-    if (cursor === slideOrderActions) cursor = cursor.nextElementSibling
     if (cursor === button) cursor = cursor.nextElementSibling
     else list.insertBefore(button,cursor)
   })
-  const activeButton = thumbnailViews.get(activeSlide)?.button
-  if (activeButton && activeButton.nextElementSibling !== slideOrderActions) list.insertBefore(slideOrderActions,activeButton.nextElementSibling)
   dirtyThumbnails.clear(); allThumbnailsDirty = false
   const index = ids.indexOf(activeSlide)
   const count = selectedSlides.size
   $('slide-label').textContent = 'Slide ' + (index + 1) + ' of ' + ids.length + (count > 1 ? ' · ' + count + ' selected' : '')
-  $('slide-up').disabled = presenting || moveSelectedSlides(ids,selectedSlides,-1).every((id,i)=>id===ids[i])
-  $('slide-down').disabled = presenting || moveSelectedSlides(ids,selectedSlides,1).every((id,i)=>id===ids[i])
   $('duplicate-slide').disabled = presenting
   $('duplicate-slide').title = count > 1 ? 'Duplicate ' + count + ' selected slides' : 'Duplicate the selected slide'
-  $('slide-up').title = $('slide-up').ariaLabel = 'Move selected slides earlier'
-  $('slide-down').title = $('slide-down').ariaLabel = 'Move selected slides later'
   $('delete-slide').disabled = presenting || count >= ids.length
   $('delete-slide').title = count >= ids.length ? 'At least one slide must remain' : count > 1 ? 'Delete ' + count + ' selected slides' : 'Delete selected slide'
   $('presentation-position').textContent = (index + 1) + ' / ' + ids.length
   $('previous-slide').disabled = index <= 0
   $('next-slide').disabled = index >= ids.length - 1
+  slideViews?.refresh()
 }
 function render() {
   renderTheme()
@@ -692,10 +691,6 @@ function render() {
     if (!views.has(id)) createView(id, box)
     else { views.get(id).box = box; applyGeometry(id) }
   })
-  const images = [...views.values()].filter(view => view.box.get('kind') === 'image').length
-  const shapes = [...views.values()].filter(view => view.box.get('kind') === 'shape').length
-  const textBoxes = views.size - images - shapes
-  $('count').textContent = `${textBoxes} text box${textBoxes === 1 ? '' : 'es'}, ${images} image${images === 1 ? '' : 's'}, ${shapes} shape${shapes === 1 ? '' : 's'}`
   select(selected, false, true)
   renderThumbnails()
 }
@@ -754,6 +749,7 @@ function select(id, additive = false, keepGroup = false, reveal = false) {
   if (keepGroup) for (const key of [...selectedIds]) for (const member of groupMembers(key)) selectedIds.add(member)
   selected = selectedIds.has(id) ? id : [...selectedIds].at(-1) || null
   for (const [other, view] of views) view.node.classList.toggle('selected', selectedIds.has(other))
+  if (inPlaceCrop && !inPlaceCrop.current()) inPlaceCrop.destroy()
   const multiple = selectedIds.size > 1
   const hasLocked = selectionLocked()
   root.classList.toggle('multi-selection', multiple)
@@ -782,11 +778,9 @@ function select(id, additive = false, keepGroup = false, reveal = false) {
   const imageDescription = !multiple && box?.get('kind') === 'image' && typeof box.get('alt') === 'string' ? box.get('alt') : ''
   if ($('image-description').value !== imageDescription) $('image-description').value = imageDescription
   $('replace-image').disabled = cropDisabled
+  $('crop-image').disabled = cropDisabled
   $('image-fit').disabled = cropDisabled
   $('image-fit').value = crop.fit
-  $('crop-x').disabled = $('crop-y').disabled = cropDisabled || crop.fit !== 'cover'
-  $('crop-x').value = String(crop.x)
-  $('crop-y').value = String(crop.y)
   $('object-rotation').disabled = hasLocked || !box || multiple
   $('object-rotation').value = box ? String(Number(box.get('rotation')) || 0) : ''
   $('cut-objects').disabled = !selectedIds.size || hasLocked
@@ -1140,8 +1134,6 @@ function moveSlide(offset) {
   history?.stopCapturing()
   focusActiveSlide()
 }
-$('slide-up').addEventListener('click', () => moveSlide(-1))
-$('slide-down').addEventListener('click', () => moveSlide(1))
 $('delete-slide').addEventListener('click', () => {
   const targets = selectedSlideIds(), ids = slideIds()
   if (targets.length >= ids.length || presenting) return
@@ -1160,7 +1152,7 @@ $('delete-slide').addEventListener('click', () => {
     dialog.append(body)
     for (const [label,secondary,action] of [['Cancel',true,()=>{}],['Delete slides',false,remove]]) {
       const button = document.createElement('button')
-      button.className = secondary ? 'btn btn-secondary' : 'btn'; button.textContent = label
+      button.className = secondary ? 'btn-small btn-secondary' : 'btn-small'; button.textContent = label
       button.addEventListener('click', () => { dialog.close(); dialog.remove(); action() })
       dialog.append(button)
     }
@@ -1251,7 +1243,7 @@ $('replace-image-file').addEventListener('change', async event => {
     status('Could not replace image: ' + error.message, 'error')
   } finally { event.target.value = '' }
 })
-$('add-image').addEventListener('click', () => $('image-file').click())
+$('add-image').addEventListener('click', () => { try { insertPickers.image() } catch (error) { status('Could not open image picker: '+error.message, 'error') } })
 $('image-file').addEventListener('change', async event => {
   const file = event.target.files[0]
   if (!file) return
@@ -1603,12 +1595,31 @@ function setImageCrop(key, value) {
 $('image-fit').addEventListener('change', event => {
   if (['contain', 'cover'].includes(event.target.value)) setImageCrop('imageFit', event.target.value)
 })
-for (const [control, key] of [['crop-x', 'cropX'], ['crop-y', 'cropY']]) {
-  $(control).addEventListener('input', event => {
-    const value = Number(event.target.value)
-    if (Number.isFinite(value) && value >= 0 && value <= 100) setImageCrop(key, value)
-  })
+function startImageCrop() {
+  const id=selected,box=objects.get(id),view=views.get(id)
+  if(presenting||selectedIds.size!==1||box?.get('kind')!=='image'||box.get('locked')||!view)return
+  inPlaceCrop?.destroy();stopDrag()
+  const source=safeImageSource(box.get('source'));if(!source)return
+  const targetDoc=doc,targetSlide=activeSlide,session=options.captureSession?.(),baseline=JSON.stringify(box.toJSON())
+  const ratio=Number(box.get('imageRatio'))||box.get('width')/box.get('height'),initial=currentImageCrop(box,ratio)
+  const baseWidth=Math.min(SW,SH*ratio,box.get('width')/initial.width),baseHeight=baseWidth/ratio
+  const left=Math.max(0,Math.min(SW-baseWidth,box.get('x')-baseWidth*initial.x)),top=Math.max(0,Math.min(SH-baseHeight,box.get('y')-baseHeight*initial.y))
+  const overlay=document.createElement('div');overlay.className='slide-direct-crop';overlay.style.left=100*left/SW+'%';overlay.style.top=100*top/SH+'%';overlay.style.width=100*baseWidth/SW+'%'
+  overlay.addEventListener('pointerdown',event=>event.stopPropagation());slide.append(overlay);view.content.style.visibility='hidden';root.classList.add('cropping-image')
+  const current=()=>root.isConnected&&!presenting&&doc===targetDoc&&activeSlide===targetSlide&&selected===id&&selectedIds.size===1&&objects.get(id)===box&&JSON.stringify(box.toJSON())===baseline&&(!options.sessionCurrent||options.sessionCurrent(session))
+  let crop=null,closed=false
+  const close=()=>{if(closed)return;closed=true;crop?.destroy();overlay.remove();view.content.style.visibility='';root.classList.remove('cropping-image');inPlaceCrop=null}
+  inPlaceCrop={current,destroy:close}
+  crop=mountCropRectangle({container:overlay,actionsContainer:root.querySelectorAll('.slide-menu-bar')[1],source,ratio,initial,current,onCancel:close,onDone:rect=>{
+    if(!current()){close();return}
+    const unchanged=['x','y','width','height'].every(key=>Math.abs(rect[key]-initial[key])<1e-8)
+    close();if(unchanged)return
+    const properties=cropProperties(rect,baseWidth,baseHeight);history?.stopCapturing()
+    doc.transact(()=>{for(const [key,value] of Object.entries(properties))box.set(key,value);box.set('x',left+baseWidth*rect.x);box.set('y',top+baseHeight*rect.y)})
+    history?.stopCapturing();select(id);status('Image cropped.')
+  }})
 }
+$('crop-image').addEventListener('click',startImageCrop)
 function imageAspectRatio(box) {
   const ratio = Number(box.get('aspectRatio'))
   return Number.isFinite(ratio) && ratio > 0 ? ratio : Number(box.get('width')) / Number(box.get('height')) || 1
@@ -2196,6 +2207,7 @@ function onObjectKey(event) {
   }, 'geometry')
 }
 function onHistoryKey(event) {
+  if (event.target.closest?.('.slide-crop-stage')) return
   onObjectKey(event)
   if (presenting || !(event.ctrlKey || event.metaKey) || event.altKey || !root.contains(event.target)) return
   const key = event.key.toLowerCase()
@@ -2222,7 +2234,7 @@ function presenterSlide(id, targetDocument) {
   preview.setAttribute('aria-label', 'Slide preview')
   for (const key of orderedObjectIds(id)) {
     const box = objects.get(key), node = targetDocument.createElement('div'), content = targetDocument.createElement('div')
-    node.className = box.get('kind') === 'shape' ? 'slide-object shape-object' : 'slide-object'
+    node.className = box.get('kind') === 'shape' ? 'slide-object shape-object' : box.get('kind') === 'image' ? 'slide-object image-object' : 'slide-object'
     node.style.left = (100 * box.get('x') / SW) + '%'
     node.style.top = (100 * box.get('y') / SH) + '%'
     node.style.width = (100 * box.get('width') / SW) + '%'
@@ -2393,6 +2405,38 @@ $('next-slide').addEventListener('click', () => navigatePresentation(1))
 document.addEventListener('keydown', onPresentationKey)
 document.addEventListener('fullscreenchange', onFullscreenChange)
 
+// Read structural Yjs text rather than serializing HTML into the outline.
+function outlineText(node) {
+  if (typeof node.toDelta === 'function') return node.toDelta().map(part => typeof part.insert === 'string' ? part.insert : '').join('')
+  return typeof node.toArray === 'function' ? node.toArray().map(outlineText).join(node.nodeName === 'paragraph' ? '' : '\n') : ''
+}
+insertPickers = mountInsertPickers({ root, shapes: [...shapeCatalog.values()], readImage: readImageFile,
+  openModal: body => { if (!options.openInsertModal) throw new Error('This host does not provide the insertion modal.'); return options.openInsertModal(body) },
+  capture() {
+    const targetDoc=doc,targetSlide=activeSlide,source=options.captureSession?.()
+    return () => root.isConnected && !presenting && doc===targetDoc && activeSlide===targetSlide && slideIds().includes(targetSlide)
+      && (!options.sessionCurrent || options.sessionCurrent(source))
+  },
+  insertShape: addCatalogShape,
+  insertImage(value) {
+    stopDrag();const id=newId();history?.stopCapturing()
+    doc.transact(()=>{
+      makeBox(id,(SW-value.width)/2,(SH-value.height)/2,value.width,value.height,value.source,value.alt)
+      const box=objects.get(id);box.set('imageRatio',value.image.naturalWidth/value.image.naturalHeight)
+      for(const key of ['imageFit','cropX','cropY','cropImageWidth','cropImageHeight','aspectRatio'])box.set(key,value[key])
+    })
+    history?.stopCapturing();select(id);status('Image added')
+  },
+  log: error => console.error('Slides insertion failed:',error),
+})
+slideMenu = mountSlideMenu(root, () => !presenting, () => { try { insertPickers.shape() } catch (error) { status('Could not open shape picker: '+error.message,'error') } })
+slideViews = mountSlideViews({ root, canChange: () => !presenting, selectSlide,
+  getSlides: () => slideIds().map(id => ({ id, active: id === activeSlide,
+    text: orderedObjectIds(id).filter(key => !['image', 'shape'].includes(objects.get(key)?.get('kind')))
+      .map(key => outlineText(doc.getXmlFragment('slide-text-' + key))).filter(Boolean).join('\n\n'),
+  })),
+})
+
 if (options.url) connect().catch(reportConnectionError)
 else if (options.seed !== false) seedIfEmpty()
 render()
@@ -2437,9 +2481,15 @@ return {
   exportPowerPoint: () => exportPowerPoint(powerPointModel()),
   exportPdf: () => openSlidePrintView({ slideIds: slideIds(), renderSlide: presenterSlide, title: options.presentationTitle?.() || $('doc-name').value || 'CList presentation' }),
   snapshot, loadSnapshot, importContent, getReferences, addReferences, connect, disconnect, createSavedLayout, registerSavedLayout, removeSavedLayout,
+  setView: mode => slideViews.setMode(mode),
+  get viewMode() { return slideViews.mode },
   get document() { return doc },
   get connected() { return connected },
   destroy() {
+    inPlaceCrop?.destroy()
+    insertPickers?.destroy()
+    slideMenu?.destroy()
+    slideViews?.destroy()
     findReplace?.destroy()
     recoverySnapshot.destroy()
     textOverflow.destroy()

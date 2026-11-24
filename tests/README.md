@@ -3013,3 +3013,293 @@ Real IndexedDB durability, vendor editor behavior, native file pickers/downloads
 live OAuth/crypto and provider synchronization remain outside the automated mocks.
 Do not authorize real publication or destructive service actions as part of this
 smoke check. Commit/push still require the user's instruction.
+
+
+## Post-merge verification — 2026-11-23
+
+At upstream commit `d7e165d`, `node --test tests/*.test.cjs` passed **1396 tests**,
+zero failures/skips/cancellations. This supersedes earlier totals as the latest
+Node result, without changing their historical evidence. No browser, live-service
+or Python backend tests were run in this sweep. Normal-application checks remain
+pending. New upstream features are not covered by the earlier refactor-completion
+claim: calendar browsing/subscriptions/ICS, Event and gRSShopper Post editors,
+and reusable inline editor panes must be assessed on their own current code/tests.
+
+Additional Node modules: `calendar.test.cjs`, `calendar-ics.test.cjs`,
+`calendar-browser.test.cjs`, `calendar-browser-view.test.cjs`,
+`calendar-subscription.test.cjs`, `calendar-subscriptions.test.cjs`,
+`event-editor.test.cjs`, and `grsshopper-editor.test.cjs` under `tests/`.
+Their simulated DOM, service and storage evidence is not proof of live calendar
+publication, real TinyMCE rendering or remote gRSShopper writes.
+
+
+## Calendar session-boundary regressions — 2026-11-23
+
+`node --test tests/calendar-session.test.cjs tests/calendar.test.cjs tests/calendar-browser.test.cjs tests/event-editor.test.cjs`
+passed 75/75, zero failures/skips. The 11 new cases use the real collection-session
+validation, calendar save/publication modules and storage facade. Encryption,
+record reads, storage adapter writes and HTTP are mocked; no external requests
+or real writes. They cover server/username/token/caller expiry during encryption
+and event reads, already-expired publication, and unchanged successful payloads.
+
+Calendar saves assert their original session again after encryption, before put.
+Calendar publication captures the session server/token/username before reading
+events and revalidates before dispatch. Existing view/controller error handling
+remains responsible for feedback. Already-dispatched requests cannot be cancelled
+by these checks. Browser/live-service checks and a new full sweep were not run;
+1396 remains the earlier full-suite count, not the new targeted count.
+
+
+## gRSShopper publication completion guards — 2026-11-23
+
+`node --test tests/grsshopper-editor.test.cjs` passed 26/26, zero failures/skips.
+Eight new delayed-result cases cover Clear, body/description/title edits, account/
+session changes, editor switching and Publish-panel rebuilding. The real editor
+handler and pane switcher use simulated DOM/TinyMCE and mocked publication/upload
+APIs; no external requests or real writes. Existing successful publication and
+queued-upload cases remain passing. Browser/vendor/live-service checks were not run.
+
+Publication captures the post object/metadata, body/description, account, session,
+editor and view generation. A shared pending lock prevents rebuilt controls from
+starting another request. Accepted results are retained in a private, transient
+receipt even when the draft expires; stale completion does not adopt the post ID
+or trigger queued uploads. Automatic upload also requires the originally captured
+queued selection. The receipt is not durable or a user-facing recovery screen.
+Started service requests are not cancelled. Cache query: grsshopper-editor.js `.19`.
+
+
+## Calendar caches/ranges and queued upload regressions — 2026-11-23
+
+`node --test tests/calendar-subscriptions.test.cjs tests/calendar-browser.test.cjs tests/grsshopper-editor.test.cjs tests/calendar-ics.test.cjs`
+passed 81/81, zero failures/skips. Nine new cases cover feed/session/server cache
+identity, superseded/cleared/expired reads, overnight/multi-day/all-day overlap
+with exclusive ends, and older uploads completing after a new selection, Clear,
+account change or session expiry. HTTP, storage, uploads and vendor editor effects
+are mocked; no live requests or writes. Browser/live-service checks were not run.
+
+Subscription cache identity includes the captured OAuth issuer session, account
+key, feed URL and proxy. Request tickets reject superseded completions and clearing
+expires pending tickets. Cache data/credentials remain module-private and unpersisted.
+Calendar display uses interval overlap; a missing all-day end means one local day,
+a missing timed end means a point event. Date-only all-day bounds use local dates.
+Queued upload completion clears only its original still-owned selection. A per-
+selection pending lock prevents duplicate dispatch; old failures cannot replace
+current feedback. Started uploads are not cancelled or automatically retried.
+Changed application scripts use cache marker `2026-11-23.20`.
+
+
+## Slide editor views — browser pending (2026-11-23.21)
+
+Open [Slide editor views](https://localhost:51888/tests/slides-views.browser.html).
+Expected: PASS, 15 checks. Then inspect all four layouts using the View selector;
+drag slides in the sorter, use Ctrl/Cmd/Shift selection and move controls, and
+verify that switching back preserves the selected slide, its content and notes.
+Double-click or press Enter on a sorter thumbnail to return to Slide only.
+Outline is a selectable text overview, not a second text editor.
+
+The fixture uses the real rebuilt embedded editor, locally served vendor modules,
+local Yjs data and browser DOM. It does not connect a provider or write storage.
+Browser layout, actual vendor integration and drag events remain user-pending.
+No browser was operated by the agent. Ordinary CList Slides uses the same bundle.
+
+`npm --prefix slides/clist-slides-poc run build:embed` completed successfully.
+`node --test tests/slides-views.test.cjs tests/slides-find-replace.test.cjs tests/slides-layout.test.cjs tests/slides-io.test.cjs tests/slides-recovery.test.cjs tests/slides-recovery-worker.test.cjs tests/slides-recovery-startup.test.cjs`
+passed 42/42, zero failures/skips. Four new Node cases cover view selection/guards,
+outline updates/literal text, stale cleanup and sorter-grid hit testing using a
+simulated DOM. Existing slides recovery, IO, layout and find/replace tests remain
+passing; the startup fixture accepts the new cache-query format without weakening
+its recovery assertions. This is a focused run, not a new full-suite result.
+
+
+### Slides canvas cleanup — browser pending, 2026-11-23.22
+
+The slide label, interaction hint, dimensions and object count now live in the
+editor information footer outside canvas-space. The slide viewport and the notes
+area (in Slide + notes) remain in canvas-space. Text buttons, including generated
+dialog/thumbnail controls, include btn-small. Icon-only toolbar behavior is retained.
+The embedded bundle was rebuilt successfully. Six focused view/startup Node tests
+passed. Open tests/slides-views.browser.html at marker `.22`: expected PASS, 18
+checks, then inspect footer/canvas spacing manually. Browser evidence pending.
+
+
+### Slides rail simplification — browser pending, 2026-11-23.23
+
+Add slide/Duplicate now use the standard compact btn-small sizing without the
+full-width btn overrides. Thumbnail frames have one square-cornered outline,
+coloured for selection, with the slide number at the upper left outside the frame.
+The up/down buttons and canvas-bottom (including dimensions/object counts) are
+removed from markup and rendering. Reordering remains available through dragging
+and Alt+Up/Down; the existing thumbnail/multiple-selection browser fixtures now
+use that keyboard path instead of removed buttons. No browser results claimed.
+The embedded build and six focused view/startup Node tests pass. Run
+slides-views.browser.html at marker `.23` (18 checks), then inspect compact
+buttons/frame spacing and sorter dragging. Earlier `.21`/`.22` descriptions are
+historical and superseded by this layout update.
+
+
+Slides views fixture correction `.24`: the `.23` text-button assertion incorrectly
+counted the Material Icons ligature `search` as a text label. The check now excludes
+icon markup while still requiring btn-small on text buttons and reports offending
+labels. PASS/FAIL is above the editor, failures include message plus stack, and
+module loading is caught visibly. Application bundle is unchanged at `.23`.
+Expected remains 18 checks; browser rerun pending. Inline script syntax checked.
+
+
+Slides rail/footer `.25` supersedes prior button sizing requests: Add slide and
+Duplicate use class=btn, Delete uses btn btn-secondary, with no rail-specific
+button sizing overrides. The SLIDES heading is removed. Remaining footer metadata
+stays mounted for existing control references but is hidden with display:none.
+The rebuilt bundle and six focused Node checks pass. Browser fixture `.25` expects
+21 checks (browser pending); `.24` previously passed 18 user-reported checks.
+
+
+## Shared compact-button styling — browser pending, 2026-11-23.26
+
+Compact actions use `.btn-small` as a complete style, sharing the `.btn` base
+appearance/padding/radius/margins and hover/disabled/active behavior, with 0.8rem
+text. Transfer rows, Slides controls and legacy compact account/navigation,
+collection, chat and modal actions opt into the class. Container-specific action
+font-size/padding overrides were removed. Layout, icon artwork/thumbnail frames
+and vendor-owned widgets retain separate geometry. No data contracts changed.
+
+Embedded Slides build succeeded. The full `node --test tests/*.test.cjs` run
+passed 1428/1428, zero failures/skips. The web-page view test now expects btn-small;
+its behavior assertions remain unchanged. This is Node evidence, not visual proof.
+Open slides-views.browser.html at `.26`: expected PASS, 21 checks. In the normal
+application, also inspect editor transfer choices, Accounts/Options, collection
+choices and chat cards for uniform compact actions. No browser/live-service
+checks were run by the agent. Prior layout/class instructions are superseded.
+
+
+## Slides two-level menus — browser pending, 2026-11-23.27
+
+Slides defaults to Slide only. The top menu starts with View and New Slide;
+both menu rows use the same slide-menu-bar/tools classes. The default lower
+row contains Add Slide, Duplicate and Template. Template reveals the existing
+next-slide layout chooser, including registered layouts; it does not create a
+parallel template system. Existing toolbar nodes/handlers are moved into groups.
+Text selection activates Text, other/multiple objects activate Arrange, and clear
+selection restores New Slide. A manually chosen top-level group persists until
+the object selection changes. Insert/Present expose their existing actions.
+
+The host write-title-row is hidden on Slides initialization without deleting its
+metadata; normal editor switching restores other editors' chrome. Slide numbers
+have explicit dark foreground on the existing light rail. Slides select controls
+use the compact button's font, padding and height. Both rows scroll horizontally
+on narrow screens. View/menu choices remain local and do not change deck data.
+
+Embedded build succeeded. `node --test tests/slides-menu.test.cjs tests/slides-views.test.cjs tests/slides-find-replace.test.cjs tests/slides-layout.test.cjs tests/slides-io.test.cjs tests/slides-recovery.test.cjs tests/slides-recovery-worker.test.cjs tests/slides-recovery-startup.test.cjs`
+passed 44/44, zero failures/skips. Node uses simulated controls; it is not browser
+layout evidence. Open slides-views.browser.html at marker `.27`: expected PASS,
+29 checks. Inspect menus/number contrast in the fixture and verify the title row
+is absent in normal CList Slides and returns when switching to another editor.
+No browser or live-service tests were run by the agent; user results pending.
+
+
+Slides menu stacking `.28`: removed the legacy two-column toolbar rule and made
+each slide-menu-bar span the full grid width. The browser fixture adds an actual
+bounding-box stacking check: expected PASS, 30 checks. Build succeeded; two focused
+menu Node cases pass. Browser layout remains user-pending; no full sweep repeated.
+
+
+Slides correction `.29` supersedes the unrequested category/context changes in
+`.27`/`.28`: only New Slide is added alongside View; Insert/Text/Arrange/Present
+category buttons and automatic category switching are removed. All original icon
+controls remain visible in their original order in the upper bar. The lower bar
+retains the requested Add Slide/Duplicate/Template actions. The original wrapping
+icon layout is retained; zoom controls are a non-shrinking horizontal group, so
+Fit cannot stack vertically. Other previously requested view/title/rail/button
+changes remain. Build and eight focused menu/view/startup Node tests pass.
+Browser fixture `.29` expects 32 checks, including original-icon presence and
+one-line zoom controls. Browser pending. Nothing committed/pushed.
+
+
+Slides dropdown/template adjustment `.30`: the visible View label is removed;
+the first option reads View slide only. Select appearance (including a thin border)
+is centralized in the shared Slides select rule; contextual rules retain layout
+widths only. Choosing a visible template dispatches the existing Add Slide handler
+once with the selected layout, then hides the chooser. Reopening clears its active
+selection so the same template can be chosen again. Hidden/stale changes cannot
+insert a slide. The existing catalog/saved-layout insertion paths are reused.
+Seven focused menu/view Node cases pass; embedded build succeeded. Browser fixture
+`.30` expects 36 checks, including blank-template insertion; browser pending.
+
+
+Slides requested Insert menu `.31`: Insert immediately follows New Slide. Its
+lower row contains Shape, Image and Text; Shape toggles the existing shape-icon
+palette, while Image/Text reuse their original controls and handlers with the
+requested text labels. Other toolbar icons/order remain unchanged. Switching
+back to New Slide restores its three actions. No automatic category switching
+or additional menu categories were added. Build and eight menu/view Node cases
+pass; browser `.31` expects 40 checks, pending user report.
+
+
+## Slides wide insertion pickers — browser pending, 2026-11-23.32
+
+Shape opens a wide modal with simple outline SVG previews and labeled selection
+buttons from the existing validated shape catalog. Image opens a wide modal with
+local file selection, preview, editable frame width/height, Fit/Fill crop mode,
+horizontal/vertical crop controls and alt text. Image libraries is a disabled
+future-source option, not a functioning connector. No new menu categories added.
+The host reuses showModal(...,{wide:true,hideDefaultClose:true}); picker Cancel
+closes only its own shell. The source shape catalog and right-column crop data
+are reused rather than replaced. Modal-source file decoding and destination guards
+reject closed/replaced/session/slide targets and superseded reads before insertion.
+Dialogs do not modify the deck until a shape is chosen or Insert image is pressed.
+
+Build: `npm --prefix slides/clist-slides-poc run build:embed` succeeded.
+`node --test tests/slides-insert-picker.test.cjs tests/slides-menu.test.cjs tests/slides-views.test.cjs tests/slides-find-replace.test.cjs tests/slides-layout.test.cjs tests/slides-io.test.cjs tests/slides-recovery.test.cjs tests/slides-recovery-worker.test.cjs tests/slides-recovery-startup.test.cjs`
+passed 50/50, zero failures/skips. New picker Node cases mock file decoding,
+insert effects and the modal shell; real browser image decoding is not inferred.
+
+Open slides-views.browser.html at `.32`: expected PASS, 47 checks. Its real local
+embedded editor/Yjs/DOM tests use a fixture modal shell with shared wide-modal CSS
+and a locally generated PNG; no providers, real file/storage writes or external
+service requests. In normal CList also inspect actual wide-modal sizing, keyboard
+interaction, shape appearance, file chooser/preview, frame/crop controls and Cancel.
+Browser results remain pending until reported; no browser operated by the agent.
+
+
+## Clickable shapes and rectangle cropping — browser pending, 2026-11-23.33
+
+Shape previews themselves are clickable/focusable choices with accessible names;
+visible shape-name buttons are removed. Image selection uses a movable/resizable
+rectangle over the original source. Corner handles resize; dragging moves; arrows
+move and Shift+arrows resize. Done previews the selected region, then Insert image
+adds it. Adjust crop returns to the source. Image-library options remain unavailable.
+
+Existing images use Crop image in the right-hand controls or a double-click.
+The rectangle appears directly on the slide; Done/Cancel crop actions appear in
+the lower menu row. Done commits one undoable crop; Cancel changes no document
+fields. Source image data is retained, so cropping is nondestructive. It updates
+existing frame/cropImageWidth/cropImageHeight/cropX/cropY/imageFit/aspectRatio fields,
+not a new bitmap/schema. Previous slider controls are removed. Ownership checks
+reject replaced/locked/changed image, slide/document/session and disposal targets.
+
+Embedded build succeeded. `node --test tests/slides-crop.test.cjs tests/slides-insert-picker.test.cjs tests/slides-menu.test.cjs tests/slides-views.test.cjs tests/slides-find-replace.test.cjs tests/slides-layout.test.cjs tests/slides-io.test.cjs tests/slides-recovery.test.cjs tests/slides-recovery-worker.test.cjs tests/slides-recovery-startup.test.cjs`
+passed 53/53, zero failures/skips. New Node cases cover normalized crop geometry,
+corner clamps, field round trips, pointer staging/keyboard movement and stale Done;
+file decoding/deck insertions/modal shell are mocked in picker unit cases.
+
+Open slides-views.browser.html at `.33`: expected PASS, 52 checks. It uses real
+local vendor/Yjs/DOM with a fixture modal shell and locally generated PNG. Browser
+checks include modal rectangle Done, source retention and direct-slide Cancel/Done.
+Manual: drag/move/resize with pointer/touch in both places, check the crop against
+the rendered result, and test cancellation and undo in normal Slides. Browser and
+live-service outcomes remain user-pending; no browser operated by the agent.
+
+
+Crop keyboard routing fix `.34`: user `.33` browser failed when crop Cancel
+vanished after arrow resizing. The editor's capture-phase keyboard handler ran
+object movement before the crop handler, invalidating the captured image. Crop
+stage keys now bypass that handler. A new Node regression failed before the fix
+and passes after; normal object routing remains checked. Eight focused crop/picker
+Node cases and the embedded build pass. Browser `.34` expects 53 checks, adding
+explicit verification that resizing the rectangle leaves image data/control
+ownership intact until Done. Browser pending; `.33` is a reported failure.
+
+
+User-reported Slides browser PASS: 53 checks at `2026-11-23.34`, including
+rectangle cropping, direct-slide Done/Cancel, wide pickers and document preservation.
+This supersedes the pending status for `.34`; live collaboration/storage remain
+outside that fixture.

@@ -669,3 +669,21 @@ DOM APIs in extracted data files may help later; do not ban HTML or DOM APIs acr
 
 The first implementation should be phase 1 alone. No broad file moves, framework adoption,
 or automatic conversion of existing services is needed to adopt the guidance now.
+
+
+## Post-merge verification — 2026-11-23
+
+At upstream commit `d7e165d`, `node --test tests/*.test.cjs` passed **1396 tests**,
+zero failures/skips/cancellations. This supersedes earlier totals as the latest
+Node result, without changing their historical evidence. No browser, live-service
+or Python backend tests were run in this sweep. Normal-application checks remain
+pending. New upstream features are not covered by the earlier refactor-completion
+claim: calendar browsing/subscriptions/ICS, Event and gRSShopper Post editors,
+and reusable inline editor panes must be assessed on their own current code/tests.
+
+Additional Node modules: `calendar.test.cjs`, `calendar-ics.test.cjs`,
+`calendar-browser.test.cjs`, `calendar-browser-view.test.cjs`,
+`calendar-subscription.test.cjs`, `calendar-subscriptions.test.cjs`,
+`event-editor.test.cjs`, and `grsshopper-editor.test.cjs` under `tests/`.
+Their simulated DOM, service and storage evidence is not proof of live calendar
+publication, real TinyMCE rendering or remote gRSShopper writes.

@@ -19,10 +19,10 @@
             }
         } catch (error) { console.error('Could not restore the saved colour scheme.', error); }
     </script>
-    <link rel="stylesheet" href="css/interface.css?v=2026-11-23.1">
-    <link rel="stylesheet" href="css/reader.css?v=1">
-    <link rel="stylesheet" href="css/kvlist.css">
-    <link rel="stylesheet" href="css/sidebar.css">
+    <link rel="stylesheet" href="css/interface.css?v=2026-11-23.34">
+    <link rel="stylesheet" href="css/reader.css?v=2026-11-23.34">
+    <link rel="stylesheet" href="css/kvlist.css?v=2026-11-23.34">
+    <link rel="stylesheet" href="css/sidebar.css?v=2026-11-23.34">
     <link rel="icon" type="image/x-icon" href="assets/icons/CList.ico">
 
     <!-- Google Fonts for the entire page -->
@@ -330,12 +330,12 @@
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="js/local-kvstore.js" defer></script>
 <script src="js/utilities.js?v=1" defer></script>
-<script src="js/ui.js?v=2026-11-23.1" defer></script>
+<script src="js/ui.js?v=2026-11-23.34" defer></script>
 <script src="js/account-transfer-workflow.js?v=2026-11-23.14" defer></script>
 <script src="js/account-transfer-controller.js?v=2026-11-23.14" defer></script>
 <script src="js/account-transfer.js?v=2026-11-23.14" defer></script>  <!-- Export/import account data (Local or hosted); calls window.CList.storage.kv.* (storage.js + adapters below), crypto_utils.js, ui.js, kvstore.js's getEncKey -- all resolved by call time since nothing here runs until a button click, well after every deferred script has executed -->
 <script src="js/references-state.js?v=2026-11-20.1" defer></script>
-<script src="js/references-view.js?v=2026-11-20.1" defer></script>
+<script src="js/references-view.js?v=2026-11-23.34" defer></script>
 <script src="js/references.js?v=2026-11-22.8" defer></script>
 <script src="js/crypto_utils.js" defer></script>
 <script src="js/storage.js" defer></script>          <!-- window.CList.storage.kv.* facade; defines KvStoreError, must load before the two adapters below -->
@@ -344,12 +344,12 @@
 <script src="js/account-state.js?v=2026-11-23.4" defer></script>
 <script src="js/account-reauthorization.js?v=2026-11-23.15" defer></script>
 <script src="js/account-form.js?v=2026-11-23.15" defer></script>
-<script src="js/account-panel.js" defer></script>
+<script src="js/account-panel.js?v=2026-11-23.34" defer></script>
 <script src="js/personal-options-workflow.js?v=2026-11-23.13" defer></script>
 <script src="js/personal-options.js?v=2026-11-23.13" defer></script>
 <script src="js/personal-options-view.js?v=2026-11-23.13" defer></script>
 <script src="js/personal-options-transfer.js?v=2026-11-23.14" defer></script>
-<script src="js/kvstore.js?v=2026-11-23.13" defer></script>
+<script src="js/kvstore.js?v=2026-11-23.34" defer></script>
 <script src="js/auth-panel-state.js?v=2026-11-20.20" defer></script>
 <script src="js/auth-panel-view.js?v=2026-11-20.20" defer></script>
 <script src="js/auth-panel.js?v=2026-11-20.20" defer></script>
@@ -367,7 +367,7 @@
 <script src="js/admin-settings-view.js?v=2026-11-20.20" defer></script>
 <script src="js/admin-settings.js?v=2026-11-20.20" defer></script>
 <script src="js/password-confirmation-workflow.js?v=2026-11-20.9" defer></script>
-<script src="js/password-confirmation-view.js?v=2026-11-20.9" defer></script>
+<script src="js/password-confirmation-view.js?v=2026-11-23.34" defer></script>
 <script src="js/password-confirmation.js?v=2026-11-20.11" defer></script>
 <script src="js/did-identity-workflow.js?v=2026-11-20.13" defer></script>
 <script src="js/did-identity-view.js?v=2026-11-20.13" defer></script>
@@ -402,26 +402,26 @@
 <script src="js/following.js?v=2026-11-20.5" defer></script>     <!-- Loads usere and account data -->
 <script src="js/editors.js?v=2026-11-23.17" defer></script>
 <script src="js/editor-state.js?v=2026-11-20.1" defer></script>
-<script src="js/editor-switch-view.js?v=2026-11-20.1" defer></script>
+<script src="js/editor-switch-view.js?v=2026-11-23.34" defer></script>
 <script src="js/editor-switch.js?v=2026-11-20.1" defer></script>
 <script src="js/editor-controls-state.js?v=2026-11-20.1" defer></script>
-<script src="js/editor-controls-view.js?v=2026-11-20.1" defer></script>
+<script src="js/editor-controls-view.js?v=2026-11-23.34" defer></script>
 <script src="js/editor-controls.js?v=2026-11-20.1" defer></script>
 <script src="js/editor-panes-state.js?v=2026-11-20.1" defer></script>
 <script src="js/editor-panes-view.js?v=2026-11-20.1" defer></script>
 <script src="js/editor-panes.js?v=2026-11-20.1" defer></script>
 <script src="js/editor-load-state.js?v=2026-11-20.1" defer></script>
-<script src="js/editor-load-view.js?v=2026-11-20.1" defer></script>
+<script src="js/editor-load-view.js?v=2026-11-23.34" defer></script>
 <script src="js/editor-load.js?v=2026-11-20.1" defer></script>   <!-- Major function handlers-->
 <script src="js/reader-state.js" defer></script>
 <script src="js/action-menu-view.js?v=2026-11-20.23" defer></script>
 <script src="js/action-menu.js?v=2026-11-20.23" defer></script>
 <script src="js/menu-shell-view.js?v=2026-11-21.2" defer></script>
 <script src="js/menu-shell.js?v=2026-11-21.1" defer></script>
-<script src="js/reader-view.js?v=2026-11-21.1" defer></script>
+<script src="js/reader-view.js?v=2026-11-23.34" defer></script>
 <script src="js/reader.js?v=2026-11-20.1" defer></script>
 <script src="js/find-state.js?v=2026-11-20.1" defer></script>
-<script src="js/find-view.js?v=2026-11-20.1" defer></script>
+<script src="js/find-view.js?v=2026-11-23.34" defer></script>
 <script src="js/find.js?v=2026-11-20.1" defer></script>
 <script src="js/oauth-config.js?v=2026-11-23.5" defer></script>
 <script src="js/oauth-strategies.js" defer></script>
@@ -454,7 +454,7 @@
 <script src="js/discord_reader.js?v=2026-11-20.1" defer></script>
 <script src="js/discord_setup_requests.js?v=2026-11-23.12" defer></script>
 <script src="js/discord_setup.js?v=2026-11-23.12" defer></script>
-<script src="js/discord_setup_view.js?v=2026-11-23.12" defer></script>
+<script src="js/discord_setup_view.js?v=2026-11-23.34" defer></script>
 <script src="js/discord_admin.js?v=2026-11-23.12" defer></script>
 <script src="js/discord_admin_view.js?v=2026-11-23.12" defer></script>
 <script src="js/discord_account.js?v=2026-11-23.12" defer></script>
@@ -474,7 +474,7 @@
 <script src="js/localrss_opml.js" defer></script>
 <script src="js/public-feeds.js?v=2026-11-20.20" defer></script>
 <script src="js/public-feed-requests.js?v=2026-11-20.1" defer></script>
-<script src="js/public-feed-view.js?v=2026-11-20.1" defer></script>
+<script src="js/public-feed-view.js?v=2026-11-23.34" defer></script>
 <script src="js/public-feed-reader.js?v=2026-11-20.1" defer></script>
 <script src="js/public-feed-editor.js?v=2" defer></script>
 <script src="js/youtube.js" defer></script>
@@ -494,7 +494,7 @@
 <script src="js/page-store-save-view.js?v=2026-11-22.3" defer></script>
 <script src="js/page-store-save.js?v=2026-11-22.3" defer></script>
 <script src="js/page-store-browser-workflow.js?v=2026-11-22.4" defer></script>
-<script src="js/page-store-browser-view.js?v=2026-11-22.4" defer></script>
+<script src="js/page-store-browser-view.js?v=2026-11-23.34" defer></script>
 <script src="js/page-store-bundle-workflow.js?v=2026-11-22.5" defer></script>
 <script src="js/page-store-bundle-view.js?v=2026-11-22.5" defer></script>
 <script src="js/page-store-bundle.js?v=2026-11-22.5" defer></script>
@@ -524,7 +524,7 @@
 <script src="js/etherpad_connection_view.js?v=2026-11-22.12" defer></script>
 <script src="js/etherpad.js?v=2026-11-22.12" defer></script>
 <script src="js/collab_documents_requests.js?v=2026-11-21.19" defer></script>
-<script src="js/collab_documents_view.js?v=2026-11-21.19" defer></script>
+<script src="js/collab_documents_view.js?v=2026-11-23.34" defer></script>
 <script src="js/collab_documents.js?v=2026-11-21.19" defer></script>
 <script src="js/collab_connection_preparation.js?v=2026-11-21.23" defer></script>
 <script src="js/collab_connection_view.js?v=2026-11-21.21" defer></script>
@@ -550,7 +550,7 @@
 <script src="js/collab_content_workflow.js?v=2026-11-22.1" defer></script>
 <script src="js/collab_content_view.js?v=2026-11-22.1" defer></script>
 <script src="js/collab_content.js?v=2026-11-22.1" defer></script>
-<script src="js/collab_mount_view.js?v=2026-11-22.2" defer></script>
+<script src="js/collab_mount_view.js?v=2026-11-23.34" defer></script>
 <script src="js/collab_mount.js?v=2026-11-22.2" defer></script>
 <script src="js/collab.js?v=2026-11-22.2" defer></script>
 <script src="js/collab_setup_workflow.js?v=2026-11-23.10" defer></script>
@@ -572,7 +572,7 @@
 <script src="js/slides_io_workflow.js?v=2026-11-23.2" defer></script>
 <script src="js/slides_io.js?v=2026-11-23.2" defer></script>
 <script src="js/slides_io_view.js?v=2026-11-23.2" defer></script>
-<script src="js/slides.js?v=2026-11-23.2" defer></script>
+<script src="js/slides.js?v=2026-11-23.34" defer></script>
 <script src="js/tags-state.js?v=2026-11-20.1" defer></script>
 <script src="js/tags-workflow.js?v=2026-11-20.1" defer></script>
 <script src="js/tags-view.js?v=2026-11-20.1" defer></script>
@@ -583,7 +583,7 @@
 <script src="js/annotate_publish.js" defer></script>
 <script src="js/annotate.js?v=2026-11-20.23" defer></script>
 <script src="js/annotate_requests.js?v=2026-11-20.1" defer></script>
-<script src="js/annotate_view.js?v=2026-11-20.4" defer></script>
+<script src="js/annotate_view.js?v=2026-11-23.34" defer></script>
 <script src="js/annotate_reader.js?v=2026-11-20.4" defer></script>   <!-- Annotation store -->
 <script src="js/annotate_setup_workflow.js?v=2026-11-23.11" defer></script>
 <script src="js/annotate_setup.js?v=2026-11-23.11" defer></script>
@@ -597,8 +597,8 @@
 <script src="js/annotate_send_view.js?v=2026-11-22.8" defer></script>
 <script src="js/annotate_send.js?v=2026-11-22.8" defer></script>
 <script src="js/annotate-editor.js?v=2026-11-23.1" defer></script>   <!-- Dedicated annotation editor -->
-<script src="js/collection-formats.js?v=2026-11-20.1" defer></script> <!-- Collection format interpreters -->
-<script src="js/collections.js?v=2026-11-20.1" defer></script>
+<script src="js/collection-formats.js?v=2026-11-23.34" defer></script> <!-- Collection format interpreters -->
+<script src="js/collections.js?v=2026-11-23.34" defer></script>
 <script src="js/collection-session.js?v=2026-11-20.1" defer></script>
 <script src="js/collection-workflow.js?v=2026-11-20.1" defer></script>
 <script src="js/collection-members-view.js?v=2026-11-20.1" defer></script>
@@ -606,7 +606,7 @@
 <script src="js/collection-browser-view.js?v=2026-11-20.1" defer></script>
 <script src="js/collection-browser.js?v=2026-11-20.1" defer></script>
 <script src="js/collection-import-workflow.js?v=2026-11-20.1" defer></script>
-<script src="js/collection-import-view.js?v=2026-11-20.1" defer></script>
+<script src="js/collection-import-view.js?v=2026-11-23.34" defer></script>
 <script src="js/collection-import.js?v=2026-11-20.1" defer></script>
 <script src="js/collection-opening-workflow.js?v=2026-11-20.1" defer></script>
 <script src="js/collection-opening-view.js?v=2026-11-20.1" defer></script>
@@ -618,16 +618,16 @@
 <script src="js/collection-draft.js?v=2026-11-22.10" defer></script>
 <script src="js/collection-draft-view.js?v=2026-11-22.10" defer></script>
 <script src="js/collection-editor.js?v=2026-11-22.10" defer></script>
-<script src="js/calendar.js?v=2026-11-22.1" defer></script> <!-- Core calendar module: single source of truth for calendar events -->
+<script src="js/calendar.js?v=2026-11-23.34" defer></script> <!-- Core calendar module: single source of truth for calendar events -->
 <script src="js/calendar-browser-view.js?v=2026-11-23.1" defer></script>
-<script src="js/calendar-browser.js?v=2026-11-22.1" defer></script>
+<script src="js/calendar-browser.js?v=2026-11-23.34" defer></script>
 <script src="js/ics.js?v=2026-11-21.1" defer></script> <!-- RFC5545 VEVENT parse/generate, no DOM/fetch -->
 <script src="js/calendar-subscription.js?v=2026-11-21.1" defer></script> <!-- Calendar (subscription) schema only -->
-<script src="js/calendar-subscriptions.js?v=2026-11-21.1" defer></script> <!-- fetch/parse/cache subscription events -->
-<script src="js/calendar-publish.js?v=2026-11-21.1" defer></script> <!-- publish/unpublish own calendar as ICS -->
+<script src="js/calendar-subscriptions.js?v=2026-11-23.34" defer></script> <!-- fetch/parse/cache subscription events -->
+<script src="js/calendar-publish.js?v=2026-11-23.34" defer></script> <!-- publish/unpublish own calendar as ICS -->
 <script src="js/event-editor.js?v=2026-11-23.1" defer></script> <!-- Event editor (write pane), registers editorHandlers['event'] -->
 <script src="js/collection-publishing-workflow.js" defer></script>
-<script src="js/collection-publishing-view.js" defer></script>
+<script src="js/collection-publishing-view.js?v=2026-11-23.34" defer></script>
 <script src="js/collection-publishing.js" defer></script>
 <script src="js/collection-entry-publishing.js" defer></script>
 <script src="js/jsonbin.js" defer></script>
@@ -639,7 +639,7 @@
 <script src="js/dropbox_save_workflow.js?v=2026-11-20.1" defer></script>
 <script src="js/dropbox_save_view.js?v=2026-11-20.1" defer></script>
 <script src="js/dropbox_save.js?v=2026-11-20.1" defer></script>
-<script src="js/dropbox_picker_view.js?v=2026-11-20.1" defer></script>
+<script src="js/dropbox_picker_view.js?v=2026-11-23.34" defer></script>
 <script src="js/dropbox_picker.js?v=2026-11-20.1" defer></script>
 <script src="js/dropbox_setup.js?v=2026-11-23.3" defer></script>
 <script src="js/dropbox_setup_view.js?v=2026-11-23.3" defer></script>
@@ -647,10 +647,10 @@
 <script src="js/hypothesis.js?v=2" defer></script>
 <script src="js/hypothesis_publish.js" defer></script>
 <script src="js/grsshopper_publish.js" defer></script>
-<script src="js/grsshopper-editor.js" defer></script>   <!-- Dedicated gRSShopper post editor -->
+<script src="js/grsshopper-editor.js?v=2026-11-23.34" defer></script>   <!-- Dedicated gRSShopper post editor -->
 <script src="js/chatgpt_requests.js?v=2026-11-21.17" defer></script>
 <script src="js/chatgpt_template_requests.js?v=2026-11-21.18" defer></script>
-<script src="js/chatgpt_template_view.js?v=2026-11-21.18" defer></script>
+<script src="js/chatgpt_template_view.js?v=2026-11-23.34" defer></script>
 <script src="js/chatgpt_template_form.js?v=2026-11-21.18" defer></script>
 <script src="js/chatgpt.js?v=2026-11-21.18" defer></script>
 <script src="js/summarize-workflow.js?v=2026-11-21.15" defer></script>
@@ -675,7 +675,7 @@
 <script src="js/dynamicp2p_discussion_actions.js?v=2026-11-21.8" defer></script>
 <script src="js/dynamicp2p_discussion_bridge.js?v=2026-11-21.5" defer></script>
 <script src="js/dynamicp2p_popup.js?v=2026-11-21.6" defer></script>
-<script src="js/dynamicp2p_cards_view.js?v=2026-11-21.7" defer></script>
+<script src="js/dynamicp2p_cards_view.js?v=2026-11-23.34" defer></script>
 <script src="js/dynamicp2p_cards.js?v=2026-11-21.7" defer></script>
 <script src="js/dynamicp2p_share_workflow.js?v=2026-11-21.8" defer></script>
 <script src="js/dynamicp2p_share_view.js?v=2026-11-21.8" defer></script>
@@ -697,17 +697,17 @@
 <script src="js/dynamicp2p_collaboration.js?v=2026-11-21.13" defer></script>
 <script src="js/dynamicp2p.js?v=2026-11-21.14" defer></script>
 <script src="js/publishing-workflow.js" defer></script>
-<script src="js/publishing-view.js" defer></script>
+<script src="js/publishing-view.js?v=2026-11-23.34" defer></script>
 <script src="js/web-page-records.js" defer></script>
 <script src="js/web-page-workflow.js" defer></script>
 <script src="js/my-pages-state.js?v=2026-11-20.1" defer></script>
 <script src="js/my-pages-workflow.js?v=2026-11-20.1" defer></script>
 <script src="js/my-pages-view.js?v=2026-11-20.1" defer></script>
 <script src="js/my-pages.js?v=2026-11-20.1" defer></script>
-<script src="js/web-page-view.js" defer></script>
+<script src="js/web-page-view.js?v=2026-11-23.34" defer></script>
 <script src="js/web-page-publishing.js" defer></script>
 <script src="js/save-state.js?v=2026-11-20.1" defer></script>
-<script src="js/save-view.js?v=2026-11-20.1" defer></script>
+<script src="js/save-view.js?v=2026-11-23.34" defer></script>
 <script src="js/save-panel.js?v=2026-11-20.1" defer></script>
 <script src="js/publish.js?v=2026-11-21.25" defer></script>
 <script src="js/webmention.js?v=2026-11-23.13" defer></script>

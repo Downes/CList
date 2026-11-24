@@ -17,6 +17,7 @@ function fixture() {
     };
     const CList = { storage: { kv } };
     const ctx = vm.createContext({ structuredClone, window: { CList }, console: { log() {}, error() {} }, crypto: { randomUUID: () => 'new-id' },
+        assertCollectionSession: session => { if (!session.token) throw Error('This calendar operation is no longer current.'); },
         prepareCollectionSession: async session => { if (!session.token) throw Error('This calendar operation is no longer current.'); session.encKey ||= 'key'; },
         kvErrorMessage: err => `kvstore error: ${err.message}`,
         encryptWithKey: async (key, plaintext) => `enc(${plaintext})`,

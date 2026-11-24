@@ -1,6 +1,6 @@
 # CList Architecture
 
-CList is a personal learning and communications application: a browser-based tool for reading feeds, writing content, publishing to social platforms, and chatting with peers. It has **no server-side logic of its own** — all files are static HTML/CSS/JS that can be served from any web host, or run directly as a local desktop application. The instance at `clist.mooc.ca` is one deployment; any user can host their own copy at any URL, or run it offline.
+CList is a personal learning and communications application: a browser-based tool for reading feeds, writing content, publishing to social platforms, and chatting with peers. Its browser interface is static HTML/CSS/JS that can be served from a web host or the Python desktop launcher. Optional LocalRSS desktop bundles also run a local backend; not every repository file is static client code. The instance at `clist.mooc.ca` is one deployment; any user can host their own copy at any URL, or run it offline.
 
 Every feature that requires a back end delegates to one of the purpose-built services described below.
 
@@ -371,3 +371,29 @@ The following ordering constraints do apply:
 | `crypto_utils.js` before `kvstore.js` | `kvstore.js` calls `deriveEncKey` / `deriveAuthHash` |
 | `kvstore.js` before service files | Service files call `getSiteSpecificCookie`, `getAccounts`, `loginRequired` — all defined in `kvstore.js` |
 | `interface.js` last | Reads from all registries and wires up the full UI; handlers registered after it runs would be invisible |
+
+
+## Calendar and additional editor integration (current checkout)
+
+- `calendar.js` owns encrypted `calendar:` event records and reuses collection
+  storage sessions. `ics.js` parses/builds ICS. `calendar-browser.js` owns browser
+  state/actions and `calendar-browser-view.js` renders the calendar.
+- `calendar-subscription.js` registers the Calendar account schema/hooks;
+  `calendar-subscriptions.js` reads subscription feeds. Calendar accounts are
+  sources for the calendar browser, not ordinary reader-registry handlers.
+- `event-editor.js` registers the Event editor. Its `contentTypes: []` keeps it
+  out of ordinary file-type matching; recognized feed markup and reference/quote
+  insertion use its explicit editor APIs. Save to My Calendar requires login;
+  Download as .ics file is a separate export path.
+- `grsshopper-editor.js` registers `grsshopper-post`, a dedicated HTML post editor
+  with Write, Edit, Upload and Publish panes. `grsshopper_publish.js` provides
+  service publication/upload operations. The image-library selector is currently
+  a disabled placeholder; it is not an implemented library picker.
+- `editor-panes-state.js` owns pane definitions/active state,
+  `editor-panes-view.js` owns pane rendering, and `editor-panes.js` orchestrates
+  pane switching and uploader dispatch. Inline panes are separate from the
+  shared menu/modal navigation shell.
+
+Calendar publishing in `calendar-publish.js` expects a backend implementing
+PUT/DELETE `/auth/calendar` and public `/users/{username}/calendar.ics`.
+Client code and mocked tests do not establish those routes are deployed.

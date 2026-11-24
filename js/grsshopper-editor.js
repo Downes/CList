@@ -30,6 +30,10 @@
 // the same post instead of creating a new one. The post's two body fields — long-form content
 // (Write pane) and description (Edit pane) — each live in their own TinyMCE instance, not here,
 // same split as annotate-edit's ref/body separation.
+let _grsshopperPublishPending = false;
+let _grsshopperPublishView = 0;
+// Private accepted receipt; retained even when the originating draft has expired.
+let _grsshopperPublicationReceipt = null;
 let _grsshopperPost = { title: '', link: '', author: '', feed: '', id: null };
 
 // The full reference object a quoted source entry carried (see insertLink/insertLinkVia below) —
@@ -287,25 +291,35 @@ function _grsshopperStageUpload(selection, statusEl) {
 // in one request (see grsshopper_publish.js's uploadForPost / api/clist.pl's
 // api_clist_upload_for_post). Called both from the Upload pane (post already existed) and from
 // the Publish pane right after a successful save (post didn't exist until now).
+const _grsshopperUploadsPending = new WeakSet();
 async function _grsshopperSendPendingUpload(statusEl) {
     const pending = _grsshopperPendingUpload;
-    if (!pending || !_grsshopperPost.id) return;
+    if (!pending || !_grsshopperPost.id || _grsshopperUploadsPending.has(pending)) return;
     const account = _grsshopperSelectedAccount();
     if (!account) return;
+    const post = _grsshopperPost, postId = post.id, source = captureOAuthIssuerSource();
+    const editor = currentEditor, accountJson = JSON.stringify(account);
+    const current = () => currentOAuthIssuerSource(source) && currentEditor === editor
+        && _grsshopperPost === post && post.id === postId && _grsshopperPendingUpload === pending
+        && JSON.stringify(_grsshopperSelectedAccount()) === accountJson;
+    _grsshopperUploadsPending.add(pending);
     const label = pending.file ? pending.file.name : pending.sourceUrl;
     if (statusEl) statusEl.textContent = `Uploading "${label}" to gRSShopper…`;
     try {
         const result = await window.CList.uploaders.gRSShopper.uploadForPost(structuredClone(account), {
-            postId: _grsshopperPost.id, sourceUrl: pending.sourceUrl, file: pending.file,
+            postId, sourceUrl: pending.sourceUrl, file: pending.file,
         });
+        if (!current()) return;
         _grsshopperPendingUpload = null;
         showStatusMessage(`Uploaded "${label}" to gRSShopper.`);
         if (statusEl) statusEl.textContent = `Uploaded: ${result.url}`;
     } catch (error) {
         console.error('[grsshopper-editor] upload failed', error);
-        showErrorModal(error.message, { title: 'Upload failed' });
-        if (statusEl) statusEl.textContent = 'Upload failed — see error for details.';
-    }
+        if (current()) {
+            showErrorModal(error.message, { title: 'Upload failed' });
+            if (statusEl) statusEl.textContent = 'Upload failed — see error for details.';
+        }
+    } finally { _grsshopperUploadsPending.delete(pending); }
 }
 
 // Bespoke Upload pane for the three selection mechanisms (plus the in-scope placeholder for a
@@ -418,6 +432,7 @@ function _grsshopperRenderUploadPane(container) {
 }
 
 function _grsshopperRenderPublishPane(container) {
+    const viewId = ++_grsshopperPublishView;
     container.innerHTML = '';
 
     const status = document.createElement('p');
@@ -437,6 +452,8 @@ function _grsshopperRenderPublishPane(container) {
     container.appendChild(status);
 
     btn.addEventListener('click', async () => {
+        if (_grsshopperPublishPending || viewId !== _grsshopperPublishView || container.style.display === 'none' || btn.parentNode !== container || container.isConnected === false) return;
+        if (JSON.stringify(_grsshopperSelectedAccount()) !== JSON.stringify(account)) return;
         if (!_grsshopperPost.title || !_grsshopperPost.link || !_grsshopperGetDescription()) {
             showErrorModal('Fill in Title, Link URL, and Description on the Edit pane first.', { title: 'Missing fields' });
             return;
@@ -451,20 +468,33 @@ function _grsshopperRenderPublishPane(container) {
             content: editorHandlers['grsshopper-post'].getContent(),
             id: _grsshopperPost.id || undefined,
         };
+        const post = _grsshopperPost, snapshot = JSON.stringify(post), source = captureOAuthIssuerSource();
+        const editor = currentEditor, queuedUpload = _grsshopperPendingUpload;
+        const current = () => currentOAuthIssuerSource(source) && currentEditor === editor
+            && _grsshopperPost === post && JSON.stringify(post) === snapshot
+            && JSON.stringify(_grsshopperSelectedAccount()) === JSON.stringify(acct)
+            && _grsshopperGetDescription() === fields.description
+            && editorHandlers['grsshopper-post'].getContent() === fields.content
+            && viewId === _grsshopperPublishView && container.style.display !== 'none'
+            && container.isConnected !== false && btn.parentNode === container;
+        _grsshopperPublishPending = true;
         btn.disabled = true;
         btn.textContent = _grsshopperPost.id ? 'Updating…' : 'Publishing…';
         try {
             const result = await window.grsshopperSavePost(acct, fields);
+            _grsshopperPublicationReceipt = { account: acct, fields, result: structuredClone(result) };
+            if (!current()) return;
             _grsshopperPost.id = result.id;
             status.textContent = `Saved: ${result.url}`;
             showStatusMessage(`Saved to ${acct.title || acct.instance}.`);
             // The post id gRSShopper just returned is the thing a queued upload (Upload pane)
             // was waiting on — send it now, same request that does the post<->file graph-link.
-            _grsshopperSendPendingUpload();
+            if (_grsshopperPendingUpload === queuedUpload) _grsshopperSendPendingUpload();
         } catch (error) {
             console.error('[grsshopper-editor] publish failed', error);
-            showErrorModal(error.message, { title: 'Publish failed' });
+            if (current()) showErrorModal(error.message, { title: 'Publish failed' });
         } finally {
+            _grsshopperPublishPending = false;
             btn.disabled = false;
             btn.textContent = _grsshopperPost.id ? 'Update Post' : 'Publish Post';
         }

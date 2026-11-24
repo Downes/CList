@@ -51,7 +51,7 @@ try {
   check(JSON.stringify([...changedPreviews()])==='["s50"]','background updates one thumbnail')
   buttons.get('s10').dispatchEvent(new MouseEvent('click',{bubbles:true}))
   check(changedPreviews().size===0,'selection does not redraw preview content')
-  root.querySelector('[data-control="slide-down"]').click()
+  rail.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',altKey:true,bubbles:true}))
   check(changedPreviews().size===0,'reordering reuses previews')
   stable()
   root.querySelector('[data-control="undo"]').click();changedPreviews();stable()

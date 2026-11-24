@@ -296,7 +296,7 @@ function _offerCollectionChoice(parsed, format, { renderTarget, onCancel, onNati
 
     function makeButton(icon, label, onClick) {
         const btn = document.createElement('button');
-        btn.className = 'account-button';
+        btn.className = 'btn-small account-button';
         const iconEl = document.createElement('span');
         iconEl.className = 'material-icons';
         iconEl.textContent = icon;

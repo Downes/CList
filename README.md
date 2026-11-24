@@ -10,11 +10,13 @@ API reference, and [instructions for AI coding tools](docs/ai/publishing.md).
 
 A personal learning and communications application — a browser-based tool for reading feeds,
 annotating and composing responses, publishing to social platforms, and collaborating or chatting
-with peers. CList has **no server-side logic of its own**: every file is static HTML/CSS/JS,
-served by any web host or run directly as a desktop app. A live instance runs at
+with peers. The browser application is static HTML/CSS/JS, served by a web host or
+through the Python desktop launcher. Optional desktop LocalRSS bundles also run a
+local backend; the repository is not limited to static files. A live instance runs at
 [clist.mooc.ca](https://clist.mooc.ca); anyone can host their own copy or run it from disk.
 
-Features include feed reading, in-place annotation, multi-platform publishing (Mastodon, Bluesky,
+Features include calendar browsing and ICS subscriptions, an Event editor, a dedicated
+gRSShopper Post editor, feed reading, in-place annotation, multi-platform publishing (Mastodon, Bluesky,
 WordPress, Blogger, and more), local and cloud-backed save/load (including Dropbox), AI-assisted
 writing, real-time collaborative editing (rich text and native LaTeX, with PDF compilation and a
 shared bibliography), peer-to-peer chat, and a portable `did:web` identity tied to a user's own
@@ -24,8 +26,9 @@ kvstore instance. See [docs/architecture.md](docs/architecture.md) for how these
 
 Pre-built desktop binaries for Windows, macOS, and Linux are available on the
 [Releases page](https://github.com/Downes/CList/releases). A new release is built and published
-automatically on every push to `main` (see [`.github/workflows/build.yml`](.github/workflows/build.yml)),
-so the latest release always matches the current code.
+by a workflow triggered on pushes to `main` (see [`.github/workflows/build.yml`](.github/workflows/build.yml)).
+A release depends on successful builds; check its commit/tag rather than assuming
+it contains every change currently on `main`.
 
 | Platform | File |
 |----------|------|
@@ -35,8 +38,10 @@ so the latest release always matches the current code.
 
 ## Architecture
 
-CList is 100% client-side HTML/JS. All pages are static files served directly by a web server
-(Caddy, nginx, etc.) or opened from disk. Optional back-end services provide the pieces a static
+The CList browser application uses client-side HTML/JS. Its pages are static files
+served by a web server (Caddy, nginx, etc.) or the desktop launcher. Opening files
+directly has feature restrictions, including OAuth. Optional LocalRSS desktop
+bundles include a local backend. Optional back-end services provide the pieces a static
 page can't do on its own:
 
 | Service | Purpose | Repository |

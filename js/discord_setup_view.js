@@ -43,7 +43,7 @@ function createDiscordSetupView(container) {
             if (!rows.length) { const empty = document.createElement('p'); empty.textContent = 'No channels registered yet — ask your admin to add one under Manage channels.'; list.appendChild(empty); }
             for (const row of rows) {
                 const item = document.createElement('div'); item.className = 'account-list-item';
-                const button = document.createElement('button'); button.type = 'button'; button.className = 'account-button' + (row.key ? ' selected' : ''); button.textContent = row.name; item.appendChild(button); list.appendChild(item);
+                const button = document.createElement('button'); button.type = 'button'; button.className = 'btn-small account-button' + (row.key ? ' selected' : ''); button.textContent = row.name; item.appendChild(button); list.appendChild(item);
                 button.onclick = () => current() && list.contains(button) && guard() && choose(row);
             }
         },

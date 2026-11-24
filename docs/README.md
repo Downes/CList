@@ -16,3 +16,8 @@ directory, including [the combined publishing guide](publish_structure.md),
 and [data contracts](data-contracts.md).
 They support both audiences. The human testing guide explains how to run checks;
 the AI testing instructions define verification and reporting responsibilities.
+
+For the current module boundaries, including calendar and additional editors, see
+[Architecture](architecture.md) and [Editor structure](editors_structure.md).
+Historical plans and dated test counts describe their recorded checkpoints; use
+the latest testing checkpoint for current automated results.

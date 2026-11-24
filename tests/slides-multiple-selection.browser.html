@@ -49,7 +49,7 @@ try {
   key('Escape');same(selected(),['c'],'escape keeps active slide')
 
   click('first');click('c',{ctrlKey:true});click('e',{ctrlKey:true})
-  control('slide-up').click();same(order(),['first','c','b','e','d'],'move disjoint slides one place earlier')
+  root.querySelector('.rail').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowUp',altKey:true,bubbles:true}));same(order(),['first','c','b','e','d'],'move disjoint slides one place earlier')
   same(selected(),['first','c','e'],'move retains selection')
   control('undo').click();same(order(),['first','b','c','d','e'],'one undo restores move')
   control('duplicate-slide').click()

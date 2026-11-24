@@ -1,4 +1,4 @@
-import { createSlideEditor, loadSlideCatalogs } from './dist-embed/editor.js?v=2'
+import { createSlideEditor, loadSlideCatalogs } from './dist-embed/editor.js?v=2026-11-23.34'
 
 // Mount into any CList div. Caller owns the returned instance and its lifetime.
 export async function mountCListSlides(container, options = {}) {
@@ -14,7 +14,7 @@ export async function mountCListSlides(container, options = {}) {
     const account = findAccountByType('Collab', { accounts })
     const url = options.url || account?.parsedValue?.instance || clist.defaults.COLLAB.replace(/^http/, 'ws')
     const documentName = options.documentName || 'presentation'
-    const cssUrl = new URL('./dist-embed/editor.css', import.meta.url).href
+    const cssUrl = new URL('./dist-embed/editor.css?v=2026-11-23.34', import.meta.url).href
     if (![...document.querySelectorAll('link[rel="stylesheet"]')].some(link => link.href === cssUrl)) {
       const link = document.createElement('link')
       link.rel = 'stylesheet'
@@ -23,6 +23,13 @@ export async function mountCListSlides(container, options = {}) {
     }
     const editor = createSlideEditor(container, {
       ...options, dependencies, catalogs, documentName,
+      captureSession: captureOAuthIssuerSource, sessionCurrent: currentOAuthIssuerSource,
+      openInsertModal(body) {
+        showModal(body, { wide: true, hideDefaultClose: true })
+        const modal = document.getElementById('generic-modal')
+        const current = () => modal?.isConnected && modal.contains(body) && document.getElementById('generic-modal') === modal
+        return { current, close: () => { if (current()) modal.remove() } }
+      },
       url: options.autoConnect === false ? undefined : url,
       token: () => getSiteSpecificCookie(clist.config.flaskSiteUrl, clist.keys.ACCESS_TOKEN) || 'anonymous',
       parameters: () => ({ kvstoreUrl: clist.config.flaskSiteUrl }),

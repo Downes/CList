@@ -6,7 +6,9 @@ This overrides the per-stage full-suite directions below. Report the exact teste
 scope; do not describe focused checks as full validation.
 
 Closing validation update (2026-11-23): the user subsequently authorized the deferred
-full sweep. `node --test tests/*.test.cjs` passed 1288/1288, zero failures/skips.
+full sweep. The pre-merge run passed 1288/1288. After pulling upstream commit
+`d7e165d`, `node --test tests/*.test.cjs` passed 1396/1396, zero failures/skips
+(2026-11-23). Browser and live-service checks were not run in that sweep.
 Small-stage targeted testing remains the default; do not repeat an unchanged full
 suite. Final normal-application checks are user-pending in docs/testing.md.
 
@@ -339,3 +341,9 @@ failures, late provider-hook completion and accepted-receipt refresh-only retry.
 Use immediately affected setup/reauthorization/callback regressions, with no live
 storage or authorization. Browser fixture `.17` is pending until the user's report.
 Do not claim this saver-local sequence is app-wide refresh coordination.
+
+
+For calendar cache/range and gRSShopper upload changes, use the focused command in
+the Calendar caches/ranges section of docs/testing.md. Include superseded/cleared
+responses, session/feed cache identity, exclusive event ends and newer queued
+upload protection. Keep mocked evidence separate from real browser/live checks.

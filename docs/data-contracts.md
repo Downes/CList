@@ -1835,3 +1835,17 @@ the accepted write receipt; explicit refresh repeats reads/effects, not the writ
 Failures remain logged. The counter is private, contains no credentials and does
 not change account data shapes. This does not coordinate other controllers that
 independently install account lists or cancel already-started provider hooks.
+
+
+## Slides rectangle crop geometry
+
+`src/crop-rectangle.js` uses a transient normalized {x,y,width,height} rectangle
+inside the original image, clamped to its bounds. `cropProperties` maps it to the
+existing image fields: frame size is the full rendered source size multiplied by
+the rectangle dimensions; cropImageWidth/Height retain that full rendered size;
+cropX/Y encode offsets as percentages of the excess dimensions. Original source
+and imageRatio remain unchanged. This introduces no new persisted image shape.
+Modal Done stages a preview; Insert commits. Direct-slide Done commits in one
+history boundary after validating the original object snapshot and session;
+Cancel/stale completion must not write. This is nondestructive cropping, not a
+raster-file rewrite. Older cropping text/sliders in historical notes are superseded.

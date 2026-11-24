@@ -3,7 +3,7 @@
 function editorControlsOption(option, fallbackIcon) {
     if (!option.logoSrc) return makeEditorButton(option.label, option.icon || fallbackIcon, option.select);
     const button = document.createElement('button');
-    button.className = 'account-button';
+    button.className = 'btn-small account-button';
     const icon = document.createElement('span');
     icon.className = 'service-icon-img';
     icon.style.webkitMask = `url('${option.logoSrc}') no-repeat center / contain`;
@@ -50,7 +50,7 @@ window.CList.ui.editorControls = {
             ['Discard and continue', discard, false], ['Cancel', cancel, true],
         ]) {
             const button = document.createElement('button');
-            button.className = secondary ? 'btn btn-secondary' : 'btn';
+            button.className = secondary ? 'btn-small btn-secondary' : 'btn-small';
             button.textContent = label; button.onclick = () => select(); row.appendChild(button);
         }
         root.appendChild(row);

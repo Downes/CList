@@ -794,3 +794,62 @@ retrieval and encryption before add; an accepted add is not repeated. Duplicate
 creation clicks are blocked, failures preserve selected tags, and a late result
 cannot retarget a newer selection or erase a newer offer. Credentials and keys
 remain transient, outside `CList.state.writeTags`.
+
+
+## Calendar and additional editor integration (current checkout)
+
+- `calendar.js` owns encrypted `calendar:` event records and reuses collection
+  storage sessions. `ics.js` parses/builds ICS. `calendar-browser.js` owns browser
+  state/actions and `calendar-browser-view.js` renders the calendar.
+- `calendar-subscription.js` registers the Calendar account schema/hooks;
+  `calendar-subscriptions.js` reads subscription feeds. Calendar accounts are
+  sources for the calendar browser, not ordinary reader-registry handlers.
+- `event-editor.js` registers the Event editor. Its `contentTypes: []` keeps it
+  out of ordinary file-type matching; recognized feed markup and reference/quote
+  insertion use its explicit editor APIs. Save to My Calendar requires login;
+  Download as .ics file is a separate export path.
+- `grsshopper-editor.js` registers `grsshopper-post`, a dedicated HTML post editor
+  with Write, Edit, Upload and Publish panes. `grsshopper_publish.js` provides
+  service publication/upload operations. The image-library selector is currently
+  a disabled placeholder; it is not an implemented library picker.
+- `editor-panes-state.js` owns pane definitions/active state,
+  `editor-panes-view.js` owns pane rendering, and `editor-panes.js` orchestrates
+  pane switching and uploader dispatch. Inline panes are separate from the
+  shared menu/modal navigation shell.
+
+Calendar publishing in `calendar-publish.js` expects a backend implementing
+PUT/DELETE `/auth/calendar` and public `/users/{username}/calendar.ics`.
+Client code and mocked tests do not establish those routes are deployed.
+
+
+### Slides display views
+
+The embedded Slides toolbar offers View: Slide only, Slide + notes (default),
+Outline and Slide sorter. `slides/clist-slides-poc/src/slide-views.js` owns these
+local display choices, the selector and selectable text outline. They are not
+stored in the Yjs deck or exported snapshots. Notes retain the existing editable
+Yjs notes map; sorter reuses the existing thumbnail nodes, slide selection and
+reordering actions with grid-aware drop positioning. Outline reads structural
+text from existing Yjs fragments and renders it literally. It is an overview,
+not a second editing surface. Double-click/Enter in the sorter opens Slide only.
+Presentation mode temporarily uses its existing layout; the editing view is retained.
+Build the embedded bundle after source changes. The CList mount module and CSS/JS
+bundle URLs carry `2026-11-23.21` to avoid testing previously cached assets.
+
+
+Slides display/menu update `.27` supersedes the earlier notes-default description:
+Slide only is now default. `src/slide-menu.js` owns local group/context choices
+and moves existing control nodes into two matching menu rows. Context updates
+are keyed by selected object IDs, so periodic rendering does not override a
+manually selected group. Templates reuse slide-layout. `src/slide-views.js`
+continues to own display modes; neither choice is written into the Yjs deck.
+
+
+Slides insertion dialogs (`src/insert-picker.js`) receive explicit file-decoding,
+shape/image insertion, target-ownership and modal-shell dependencies from editor.js.
+The CList mounting bridge supplies the existing wide showModal shell and issuer
+session helpers. Dialog state/files remain transient and outside Yjs until an
+explicit insertion. Shape uses the current catalogs; image uses the existing
+imageRatio/imageFit/cropX/cropY/alt fields, preserving the right-column controls.
+Image-library connections are not implemented. Other embedding hosts must supply
+openInsertModal(body), returning current()/close() for their modal shell.

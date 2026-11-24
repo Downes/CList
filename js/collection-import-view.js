@@ -15,7 +15,7 @@ window.CList.ui.collectionImport = {
         view.root.replaceChildren();
         const text = document.createElement('p'); text.className = error ? 'error-message' : 'feed-status-message'; text.textContent = message;
         view.root.appendChild(text);
-        if (back) { const button = document.createElement('button'); button.className = 'btn btn-secondary'; button.textContent = 'Back'; button.onclick = back; view.root.appendChild(button); }
+        if (back) { const button = document.createElement('button'); button.className = 'btn-small btn-secondary'; button.textContent = 'Back'; button.onclick = back; view.root.appendChild(button); }
     },
     preview(view, parsed, actions) {
         view.root.replaceChildren();
@@ -26,8 +26,8 @@ window.CList.ui.collectionImport = {
         if (parsed.items.length > 5) { const row = document.createElement('li'); row.textContent = `…and ${parsed.items.length - 5} more`; list.appendChild(row); }
         const label = document.createElement('label'); label.textContent = 'Save as: ';
         const name = document.createElement('input'); name.className = 'input-field'; name.type = 'text'; name.value = parsed.title || ''; name.maxLength = 50; label.appendChild(name);
-        const save = document.createElement('button'); save.className = 'btn'; save.textContent = 'Save as collection'; save.onclick = () => actions.save(name.value);
-        const cancel = document.createElement('button'); cancel.className = 'btn btn-secondary'; cancel.textContent = 'Cancel'; cancel.onclick = actions.cancel;
+        const save = document.createElement('button'); save.className = 'btn-small'; save.textContent = 'Save as collection'; save.onclick = () => actions.save(name.value);
+        const cancel = document.createElement('button'); cancel.className = 'btn-small btn-secondary'; cancel.textContent = 'Cancel'; cancel.onclick = actions.cancel;
         const error = document.createElement('p'); error.className = 'error-message';
         view.root.append(title, count, list, label, save, cancel, error);
         view.save = save; view.error = error;

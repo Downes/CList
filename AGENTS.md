@@ -146,7 +146,7 @@ btn.textContent = 'Label';
 ```
 
 - `.btn` — standard labelled action; `--highlight-color` background, `--highlight-text-color` (white) text
-- `.btn-small` — compact variant for buttons inside panels, pickers, and inline controls; same colours, smaller padding and font
+- `.btn-small` — compact variant for buttons inside panels, pickers, and inline controls; same shared appearance/padding as `.btn`, with `0.8rem` text; do not add container-specific button sizing
 - `.btn-secondary` — grey (`#888`) override; combine with `.btn` or `.btn-small` for cancel / destructive-abort actions
 - **Do not** invent new button styles. Do not add service-specific CSS classes or inline style attributes for buttons.
 

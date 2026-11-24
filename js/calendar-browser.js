@@ -196,8 +196,13 @@ function _calendarRangeBounds(range, now = new Date()) {
 function _calendarEventsInRange(events, range, now = new Date()) {
     const [start, end] = _calendarRangeBounds(range, now);
     return events.filter(event => {
-        const eventStart = new Date(event.start);
-        return !isNaN(eventStart.getTime()) && eventStart >= start && eventStart < end;
+        const date = value => event.allDay && /^\d{4}-\d{2}-\d{2}$/.test(value || '')
+            ? new Date(...value.split('-').map((part, index) => Number(part) - (index === 1 ? 1 : 0))) : new Date(value);
+        const eventStart = date(event.start);
+        if (isNaN(eventStart.getTime())) return false;
+        let eventEnd = event.end ? date(event.end) : null;
+        if (!eventEnd && event.allDay) { eventEnd = new Date(eventStart); eventEnd.setDate(eventEnd.getDate() + 1); }
+        return eventStart < end && (eventEnd > eventStart ? eventEnd > start : eventStart >= start);
     });
 }
 // Toggles the left-pane overlay that lists calendar sources -- same

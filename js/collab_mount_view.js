@@ -15,7 +15,7 @@ function ensureCollabMountStyles(doc = document) {
             #collab-doc-id { font-size: 0.85em; padding: 4px 6px; border: 1px solid;
                              border-radius: 4px; width: 200px; }
             #collab-doc-warning { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 0.8em; color: #a00; padding: 2px 0; }
-            #collab-doc-warning button { font-size: 0.8em; padding: 1px 7px; border: 1px solid;
+            #collab-doc-warning button {   border: 1px solid;
                 border-radius: 3px; cursor: pointer; }
             #collab-format-toolbar { display: flex; gap: 3px; }
             #collab-who { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; flex: 1; padding: 0 4px; }

@@ -48,7 +48,7 @@ export function setToolbarIcon(button, definition = null) {
     // Markup comes only from the fixed icon definitions above.
     svg.innerHTML = drawings[button.dataset.control] || '<circle cx="12" cy="12" r="8"/>'
   }
-  button.className = 'clist-action-btn'
+  button.className = 'clist-action-btn btn-small'
   button.type = 'button'
   button.setAttribute('aria-label', button.title)
   button.replaceChildren(svg)

@@ -211,32 +211,32 @@ function kvstoreMePanel() {
         <div class="me-section me-section--top">
 
             <div class="nav-item" data-federation="1">
-                <button class="nav-btn" id="me-nav-following">Following</button>
+                <button class="btn-small nav-btn" id="me-nav-following">Following</button>
                 <p class="nav-desc">People you follow. Their annotations appear alongside your own when you view annotation threads.</p>
             </div>
 
             <div class="nav-item">
-                <button class="nav-btn" id="me-nav-identity">Identity</button>
+                <button class="btn-small nav-btn" id="me-nav-identity">Identity</button>
                 <p class="nav-desc">Manage your decentralized identity (DID), link your social accounts, and control what is publicly visible.</p>
             </div>
 
             <div class="nav-item">
-                <button class="nav-btn" id="me-nav-options">Options</button>
+                <button class="btn-small nav-btn" id="me-nav-options">Options</button>
                 <p class="nav-desc">Configure application preferences and settings.</p>
             </div>
 
             <div class="nav-item" data-federation="1">
-                <button class="nav-btn" id="me-nav-annotations">Annotations</button>
+                <button class="btn-small nav-btn" id="me-nav-annotations">Annotations</button>
                 <p class="nav-desc">View all your annotations.</p>
             </div>
 
             <div class="nav-item">
-                <button class="nav-btn" id="me-nav-collections">My Collections</button>
+                <button class="btn-small nav-btn" id="me-nav-collections">My Collections</button>
                 <p class="nav-desc">Manage your saved collections of links and resources.</p>
             </div>
 
             <div class="nav-item" data-admin-only="1">
-                <button class="nav-btn" id="me-nav-app-settings">App Settings</button>
+                <button class="btn-small nav-btn" id="me-nav-app-settings">App Settings</button>
                 <p class="nav-desc">View or change admin-editable runtime settings for apps that support it.</p>
             </div>
 
@@ -299,14 +299,14 @@ function kvstoreDidPanel() {
         : `This will permanently delete your identity key and remove your DID document from its public URL. Anyone who has linked to your DID will get a 404. You can generate a new DID at any time, but it will have a new key and a fresh identity. If you do, anyone who linked to your DID will get your new public key automatically the next time they resolve it — DID resolution always fetches fresh from the URL.`;
 
     div.innerHTML = `
-        <button class="back-btn" id="did-back-btn">&#8592; Back</button>
+        <button class="btn-small back-btn" id="did-back-btn">&#8592; Back</button>
 
         <div class="me-section" id="public-accounts-section" style="display:none;">
             <h3>Public Accounts</h3>
             <p>Checked accounts are listed in your public DID document and discoverable by others. Click 'Update DID' to register your list in your DID document. Other existing public links are retained.</p>
             <div id="account-list" class="me-status">Loading…</div>
             <div class="kv-action-buttons">
-                <button class="kv-action-btn kv-save-btn" id="did-update-btn">Update DID</button>
+                <button class="btn-small kv-action-btn kv-save-btn" id="did-update-btn">Update DID</button>
             </div>
         </div>
 
@@ -318,7 +318,7 @@ function kvstoreDidPanel() {
             </details>
             <div id="did-status" class="me-status">Checking…</div>
             <div class="kv-action-buttons">
-                <button class="kv-action-btn kv-save-btn" id="did-btn">Generate Identity Key</button>
+                <button class="btn-small kv-action-btn kv-save-btn" id="did-btn">Generate Identity Key</button>
             </div>
             <details class="did-help" id="did-regen-help" style="display:none;">
                 <summary>What does regenerating do?</summary>
@@ -328,7 +328,7 @@ function kvstoreDidPanel() {
                 <summary>Remove DID…</summary>
                 <p>${removeHelpHtml}</p>
                 <div class="kv-action-buttons">
-                    <button class="kv-action-btn kv-delete-btn" id="did-remove-btn">Yes, remove my DID</button>
+                    <button class="btn-small kv-action-btn kv-delete-btn" id="did-remove-btn">Yes, remove my DID</button>
                 </div>
             </details>
         </div>
@@ -350,7 +350,7 @@ function kvstoreDidPanel() {
                     style="width:100%; box-sizing:border-box; padding:0.35em 0.5em; font-size:0.9em; border:1px solid #ccc; border-radius:4px;">
             </div>
             <div class="kv-action-buttons">
-                <button class="kv-action-btn kv-save-btn" id="prove-identity-btn">Prove Same Identity</button>
+                <button class="btn-small kv-action-btn kv-save-btn" id="prove-identity-btn">Prove Same Identity</button>
             </div>
             <div id="prove-identity-result" class="me-status"></div>
         </div>

@@ -491,7 +491,7 @@ test('_calendarRangeBounds computes Day/Week(Monday-start)/Month as [start, end)
     assert.equal(monthEnd.getMonth(), 11);
 });
 
-test('_calendarEventsInRange keeps only events whose start falls within the window', () => {
+test('_calendarEventsInRange keeps point events whose start falls within the window', () => {
     const f = fixture();
     const now = new Date(2026, 10, 25);
     const events = [
@@ -502,4 +502,18 @@ test('_calendarEventsInRange keeps only events whose start falls within the wind
     ];
     const kept = f.ctx._calendarEventsInRange(events, 'Day', now);
     assert.deepEqual(kept.map(event => event.id), ['in']);
+});
+
+
+test('range filtering includes overnight/multi-day overlap and respects exclusive ends', () => {
+    const f = fixture(), now = new Date(2026,10,25,12);
+    const events = [
+        {id:'overnight',start:'2026-11-24T23:00:00',end:'2026-11-25T02:00:00'},
+        {id:'multi',start:'2026-11-23',end:'2026-11-27',allDay:true},
+        {id:'ended',start:'2026-11-23',end:'2026-11-25',allDay:true},
+        {id:'one-day',start:'2026-11-25',allDay:true},
+        {id:'tomorrow',start:'2026-11-26',allDay:true},
+        {id:'boundary',start:'2026-11-24T23:00:00',end:'2026-11-25T00:00:00'},
+    ];
+    assert.deepEqual(f.ctx._calendarEventsInRange(events,'Day',now).map(e=>e.id),['overnight','multi','one-day']);
 });

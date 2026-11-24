@@ -7,13 +7,13 @@ function setup(loading = false) {
     const source = readFileSync('js/slides.js', 'utf8')
     const start = source.indexOf('initialize: async () => {') + 'initialize: '.length
     let initialize = source.slice(start, source.indexOf('\n        getDocId:', start)).trim().replace(/,$/, '')
-    initialize = initialize.replace(/await import\('\.\.\/slides\/clist-slides-poc\/clist\.js(?:\?v=\d+)?'\)/, 'await editorModule()')
+    initialize = initialize.replace(/await import\('\.\.\/slides\/clist-slides-poc\/clist\.js(?:\?v=[^']+)?'\)/, 'await editorModule()')
         .replace(/await import\('\.\/slides-recovery\.js\?v=\d+'\)/, 'await recoveryModule()')
-    const timers = [], errors = [], container = { style: {} }
+    const timers = [], errors = [], container = { style: {} }, titleRow = { style: {} }
     const context = vm.createContext({
         pendingContent: loading ? { type: 'file', value: 'presentation' } : null,
         instance: null, mounting: null, recovery: null, currentEditor: 'text', modal: 'load-dialog',
-        document: { getElementById: () => container },
+        document: { getElementById: id => id === 'write-title-row' ? titleRow : container },
         window: { CList: { pageStore: {}, savers: [] } },
         editorModule: async () => ({ mountCListSlides: async () => ({}) }),
         recoveryModule: async () => ({ createSlideRecovery: () => ({ start: async () => { context.modal = 'recovery-dialog' } }) }),
@@ -22,12 +22,13 @@ function setup(loading = false) {
         setTimeout: callback => timers.push(callback), console,
     })
     vm.runInContext('this.initialize = ' + initialize, context)
-    return { context, timers, errors }
+    return { context, timers, errors, titleRow }
 }
 
 test('startup recovery opens after the calling Load flow has closed its dialog', async () => {
     const s = setup()
     await s.context.initialize()
+    assert.equal(s.titleRow.style.display, 'none', 'Slides hides the host title field');
     assert.equal(s.context.modal, 'load-dialog', 'initialization does not open recovery prematurely')
     assert.equal(s.timers.length, 1)
     s.context.modal = null // The caller's post-initialization cleanup.
