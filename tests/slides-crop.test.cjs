@@ -38,3 +38,14 @@ test('editor capture-phase keyboard routing leaves crop-area arrows for the crop
  assert.equal(objectKeys,0,'crop key must not reach object movement before its target handler')
  context.event.target={closest:()=>null};vm.runInContext('onHistoryKey(event)',context);assert.equal(objectKeys,1,'normal object shortcuts remain routed')
 })
+
+test('canvas capture-phase pointer routing does not deselect a crop grip press',()=>{
+ const fs=require('node:fs'),vm=require('node:vm'),source=fs.readFileSync('slides/clist-slides-poc/src/editor.js','utf8')
+ const start=source.indexOf("root.addEventListener('pointerdown', event =>",source.indexOf('marquee = mountMarquee'))
+ const handler=source.slice(start,source.indexOf('function addCatalogShape(',start))
+ let listener,cleared=0
+ const root={addEventListener:(name,fn)=>listener=fn,contains:()=>false,focus(){}},target={closest:selector=>selector.includes('.canvas-space')||selector.includes('.slide-crop-stage')?{}:null}
+ const context=vm.createContext({root,slide:{},presenting:false,pasteSurfaceActive:false,editorFocused:null,select:()=>cleared++,updatePastePoint(){},stopDrag(){},document:{activeElement:null},window:{getSelection:()=>null}})
+ vm.runInContext(handler,context);listener({target,button:0,preventDefault(){}});assert.equal(cleared,0)
+ target.closest=selector=>selector.includes('.canvas-space')?{}:null;listener({target,button:0,preventDefault(){}});assert.equal(cleared,1,'ordinary background presses still clear selection')
+})

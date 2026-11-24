@@ -1,17 +1,17 @@
 <!doctype html>
 <meta charset="utf-8">
 <title>Slide editor views</title>
-<link rel="stylesheet" href="../css/interface.css?v=2026-11-23.34">
-<link rel="stylesheet" href="../slides/clist-slides-poc/dist-embed/editor.css?v=2026-11-23.34">
+<link rel="stylesheet" href="../css/interface.css?v=2026-11-24.19">
+<link rel="stylesheet" href="../slides/clist-slides-poc/dist-embed/editor.css?v=2026-11-24.19">
 <h1>Slide editor views</h1>
-<p>Test 2026-11-23.34. Real embedded editor, local Yjs deck and DOM, with a fixture modal shell using shared wide-modal CSS. No collaboration connection, external service requests or storage writes. Editor/vendor assets are served locally.</p>
+<p>Test 2026-11-24.19. Real embedded editor, local Yjs deck and DOM, with a fixture modal shell using shared wide-modal CSS. No collaboration connection, external service requests or storage writes. Editor/vendor assets are served locally.</p>
 <pre id="result" role="status">Checking…</pre><div id="host" style="width:100%;height:800px"></div>
 <script>
 (async()=>{
 let count=0
 const check=(value,message)=>{if(!value)throw Error(message);count++}
 try {
- const [dependencies,{createSlideEditor}]=await Promise.all([import('../js/vendor/collab-editor-bundle.js'),import('../slides/clist-slides-poc/dist-embed/editor.js?v=2026-11-23.34')])
+ const [dependencies,{createSlideEditor}]=await Promise.all([import('../js/vendor/collab-editor-bundle.js'),import('../slides/clist-slides-poc/dist-embed/editor.js?v=2026-11-24.19')])
  const openInsertModal=body=>{
   document.getElementById('generic-modal')?.remove()
   const modal=document.createElement('div'),content=document.createElement('div');modal.id='generic-modal';content.id='modal-content';content.className='modal-content--wide'
@@ -19,7 +19,8 @@ try {
   const current=()=>modal.isConnected&&modal.contains(body)&&document.getElementById('generic-modal')===modal
   return {current,close:()=>{if(current())modal.remove()}}
  }
- const editor=createSlideEditor(document.getElementById('host'),{dependencies,seed:false,openInsertModal})
+ let layoutSaveCalls=0
+ const editor=createSlideEditor(document.getElementById('host'),{dependencies,seed:false,openInsertModal,onSaveLayout:()=>layoutSaveCalls++})
  const {Y}=dependencies,doc=editor.document
  doc.transact(()=>{
   doc.getMap('slide-pages').set('first',0);doc.getMap('slide-pages').set('second',1)
@@ -40,7 +41,7 @@ try {
  const layout=root.querySelector('[data-control="slide-layout"]'),add=root.querySelector('[data-control="add-slide"]')
  check(!layout.hidden,'Template reveals existing layout chooser')
  check(Math.abs(layout.getBoundingClientRect().height-add.getBoundingClientRect().height)<1,'select and button heights align')
- root.querySelector('[data-object-id="outline-text"]').click()
+ root.querySelector('.slide-object[data-id="outline-text"] .tiptap').focus()
  check(root.dataset.slideMenu==='new' && root.querySelectorAll('[data-menu]').length===2,'only requested New Slide and Insert menu categories')
  newSlide.click();check(root.dataset.slideMenu==='new','New Slide retains its requested options')
  const number=root.querySelector('.slide-number')
@@ -85,10 +86,23 @@ try {
  root.querySelector('[data-control="choose-shape"]').click()
  check(document.querySelector('#modal-content.modal-content--wide .slide-shape-grid'),'Shape opens wide line-art picker')
  check([...document.querySelectorAll('.slide-shape-grid button')].every(button=>button.querySelector('svg') && !button.textContent.trim() && button.getAttribute('aria-label')),'shape previews themselves are accessible choices without name buttons')
+ check(getComputedStyle(document.querySelector('.slide-shape-grid button')).backgroundColor==='rgba(0, 0, 0, 0)','shape choices have no filled background')
  const shapesBefore=doc.getMap('slide-objects').size
  document.querySelector('.slide-shape-grid button').click()
  check(doc.getMap('slide-objects').size===shapesBefore+1 && !document.getElementById('generic-modal'),'shape choice inserts once and closes')
- const objectCount=doc.getMap('slide-objects').size;root.querySelector('[data-control="add-text"]').click()
+ check(!root.querySelector('[data-panel="objects"]'),'Objects section removed from right panel')
+ const shapeNode=root.querySelector('.shape-object.selected'),shapeBox=doc.getMap('slide-objects').get(shapeNode.dataset.id),rotate=shapeNode.querySelector('.rotation-handle')
+ check(rotate && getComputedStyle(rotate).display!=='none','selected shape has a rotation handle')
+ const rotateCapture=rotate.setPointerCapture;rotate.setPointerCapture=()=>{}
+ const rotateFrom=Number(shapeBox.get('rotation'))||0,shapePosition=[shapeBox.get('x'),shapeBox.get('y')].join(',')
+ rotate.dispatchEvent(new PointerEvent('pointerdown',{pointerId:95,button:0,isPrimary:true,clientX:100,clientY:100,bubbles:true,cancelable:true}))
+ rotate.dispatchEvent(new PointerEvent('pointermove',{pointerId:95,clientX:130,clientY:100,bubbles:true}))
+ check(shapeBox.get('rotation')===rotateFrom+30,'rightward handle movement rotates clockwise')
+ rotate.dispatchEvent(new PointerEvent('pointermove',{pointerId:95,clientX:70,clientY:100,bubbles:true}))
+ rotate.dispatchEvent(new PointerEvent('pointerup',{pointerId:95,bubbles:true}));rotate.setPointerCapture=rotateCapture
+ check(shapeBox.get('rotation')===rotateFrom-30 && [shapeBox.get('x'),shapeBox.get('y')].join(',')===shapePosition,'leftward handle movement rotates counterclockwise without moving shape')
+ const beforeTextIds=new Set(doc.getMap('slide-objects').keys()),objectCount=beforeTextIds.size;root.querySelector('[data-control="add-text"]').click()
+ const addedTextId=[...doc.getMap('slide-objects').keys()].find(id=>!beforeTextIds.has(id))
  check(doc.getMap('slide-objects').size===objectCount+1,'Text inserts through existing action')
  root.querySelector('[data-control="add-image"]').click()
  let modal=document.getElementById('generic-modal')
@@ -111,6 +125,13 @@ try {
  check(root.querySelector('[data-control="image-fit"]').value==='cover' && !root.querySelector('[data-control="crop-image"]').disabled,'crop can be adjusted directly on the slide')
  const beforeDirect=JSON.stringify(imageBox.toJSON());root.querySelector('[data-control="crop-image"]').click()
  check(root.querySelector('.slide-direct-crop [data-control="crop-rectangle"]'),'Crop image opens the rectangle directly on the slide')
+ const selection=root.querySelector('.slide-direct-crop [data-control="crop-rectangle"]'),grip=selection.querySelector('[data-corner="se"]'),bounds=selection.getBoundingClientRect()
+ // Synthetic pointer routing; capture itself requires a trusted pointer, so stub it only here.
+ const capture=selection.setPointerCapture;selection.setPointerCapture=()=>{}
+ grip.dispatchEvent(new PointerEvent('pointerdown',{pointerId:91,button:0,isPrimary:true,clientX:bounds.right,clientY:bounds.bottom,bubbles:true,cancelable:true}))
+ check(root.contains(selection) && root.querySelector('[data-control="crop-cancel"]') && JSON.stringify(imageBox.toJSON())===beforeDirect,'pressing a crop grip retains crop mode and image selection')
+ selection.dispatchEvent(new PointerEvent('pointerup',{pointerId:91,bubbles:true}));selection.setPointerCapture=capture
+
  key(root.querySelector('.slide-direct-crop [data-control="crop-rectangle"]'),'ArrowUp',true,20)
  check(JSON.stringify(imageBox.toJSON())===beforeDirect && root.querySelector('[data-control="crop-cancel"]'),'crop key resizing is staged without moving the image or closing controls')
  root.querySelector('[data-control="crop-cancel"]').click()
@@ -121,13 +142,115 @@ try {
  check(imageBox.get('height')<oldHeight && imageBox.get('source')===originalSource,'Done applies the crop without replacing the source image')
  const beforeCancel=JSON.stringify(editor.snapshot());root.querySelector('[data-control="add-image"]').click();modal=document.getElementById('generic-modal');[...modal.querySelectorAll('button')].find(button=>button.textContent==='Cancel').click()
  check(!document.getElementById('generic-modal') && JSON.stringify(editor.snapshot())===beforeCancel,'Cancel does not insert or alter the deck')
+ check(!root.querySelector('.object-grip'),'objects have no separate move handles')
+ const imageNode=root.querySelector('.image-object[data-id="'+imageId+'"]'),oldX=imageBox.get('x')
+ const captureImage=imageNode.setPointerCapture;imageNode.setPointerCapture=()=>{}
+ imageNode.querySelector('img').dispatchEvent(new PointerEvent('pointerdown',{pointerId:92,button:0,isPrimary:true,clientX:100,clientY:100,bubbles:true,cancelable:true}))
+ imageNode.dispatchEvent(new PointerEvent('pointermove',{pointerId:92,clientX:120,clientY:100,altKey:true,bubbles:true}))
+ imageNode.dispatchEvent(new PointerEvent('pointerup',{pointerId:92,bubbles:true}));imageNode.setPointerCapture=captureImage
+ check(imageBox.get('x')>oldX,'dragging the image body moves the image')
+ const textNode=root.querySelector('.slide-object[data-id="'+addedTextId+'"]'),textBox=doc.getMap('slide-objects').get(addedTextId),beforeText=JSON.stringify(textBox.toJSON())
+ const textPress=new PointerEvent('pointerdown',{pointerId:93,button:0,isPrimary:true,bubbles:true,cancelable:true})
+ textNode.querySelector('.tiptap').dispatchEvent(textPress)
+ check(!textPress.defaultPrevented && JSON.stringify(textBox.toJSON())===beforeText,'text press preserves native selection and does not move the box')
+ textNode.dispatchEvent(new PointerEvent('pointerup',{pointerId:93,bubbles:true}))
+ const captureText=textNode.setPointerCapture;textNode.setPointerCapture=()=>{}
+ const textX=textBox.get('x')
+ textNode.querySelector('.tiptap').dispatchEvent(new PointerEvent('pointerdown',{pointerId:94,button:0,isPrimary:true,clientX:100,clientY:100,bubbles:true,cancelable:true}))
+ await new Promise(resolve=>setTimeout(resolve,500))
+ textNode.dispatchEvent(new PointerEvent('pointermove',{pointerId:94,clientX:120,clientY:100,altKey:true,bubbles:true}))
+ textNode.dispatchEvent(new PointerEvent('pointerup',{pointerId:94,bubbles:true}));textNode.setPointerCapture=captureText
+ check(textBox.get('x')>textX,'holding over text then dragging moves the whole box')
+ for (const [objectNode,objectBox,label] of [[imageNode,imageBox,'image'],[textNode,textBox,'text box']]) {
+  objectNode.focus()
+  const handle=objectNode.querySelector('.rotation-handle'),originalAngle=Number(objectBox.get('rotation'))||0
+  check(handle && getComputedStyle(handle).display!=='none' && handle.getAttribute('aria-label')==='Rotate '+label,label+' has the shared rotation handle')
+  const originalGeometry=[objectBox.get('x'),objectBox.get('y'),objectBox.get('width'),objectBox.get('height')].join(',')
+  const captureRotation=handle.setPointerCapture;handle.setPointerCapture=()=>{}
+  handle.dispatchEvent(new PointerEvent('pointerdown',{pointerId:96,button:0,isPrimary:true,clientX:100,clientY:100,bubbles:true,cancelable:true}))
+  handle.dispatchEvent(new PointerEvent('pointermove',{pointerId:96,clientX:125,clientY:100,bubbles:true}))
+  check(objectBox.get('rotation')===originalAngle+25,label+' rotates clockwise')
+  handle.dispatchEvent(new PointerEvent('pointermove',{pointerId:96,clientX:75,clientY:100,bubbles:true}))
+  handle.dispatchEvent(new PointerEvent('pointerup',{pointerId:96,bubbles:true}));handle.setPointerCapture=captureRotation
+  check(objectBox.get('rotation')===originalAngle-25 && [objectBox.get('x'),objectBox.get('y'),objectBox.get('width'),objectBox.get('height')].join(',')===originalGeometry,label+' rotates counterclockwise without changing geometry')
+ }
+ for (const [objectNode,objectBox,label] of [[shapeNode,shapeBox,'shape'],[imageNode,imageBox,'image'],[textNode,textBox,'text box']]) {
+  objectBox.set('rotation',0);objectNode.focus()
+  check(getComputedStyle(objectNode.querySelector('[data-resize-edge="right"]')).cursor==='ew-resize' && getComputedStyle(objectNode.querySelector('[data-resize-edge="top"]')).cursor==='ns-resize',label+' has double-arrow border cursors')
+  for (const edge of ['right','bottom','left','top']) {
+   const border=objectNode.querySelector('[data-resize-edge="'+edge+'"]'),captureEdge=border.setPointerCapture; border.setPointerCapture=()=>{}
+   const beforeEdge=objectBox.toJSON(),horizontal=['left','right'].includes(edge),negative=['left','top'].includes(edge)
+   border.dispatchEvent(new PointerEvent('pointerdown',{pointerId:97,button:0,isPrimary:true,clientX:100,clientY:100,bubbles:true,cancelable:true}))
+   // Shrink proportionally in slide units: tiny crops must not hit their minimum
+   // before the following edge is exercised, regardless of viewport/zoom.
+   const minimum=label==='text box'?(horizontal?100:55):1
+   const scale=1280/root.querySelector('.slide').getBoundingClientRect().width
+   const step=((horizontal?beforeEdge.width:beforeEdge.height)-minimum)*.2/scale
+   border.dispatchEvent(new PointerEvent('pointermove',{pointerId:97,clientX:100+(horizontal?(negative?step:-step):0),clientY:100+(horizontal?0:(negative?step:-step)),bubbles:true}))
+   border.dispatchEvent(new PointerEvent('pointerup',{pointerId:97,bubbles:true}));border.setPointerCapture=captureEdge
+   const afterEdge=objectBox.toJSON()
+   check(horizontal ? afterEdge.width<beforeEdge.width && afterEdge.height===beforeEdge.height && Math.abs((negative?afterEdge.x+afterEdge.width:afterEdge.x)-(negative?beforeEdge.x+beforeEdge.width:beforeEdge.x))<.01 : afterEdge.height<beforeEdge.height && afterEdge.width===beforeEdge.width && Math.abs((negative?afterEdge.y+afterEdge.height:afterEdge.y)-(negative?beforeEdge.y+beforeEdge.height:beforeEdge.y))<.01,label+' '+edge+' border resizes with opposite edge fixed')
+  }
+ }
+ imageNode.focus()
+ const modeGroup=root.querySelector('[data-control="image-handle-mode"]'),resizeMode=modeGroup.querySelector('[data-image-handle-mode="resize"]'),cropMode=modeGroup.querySelector('[data-image-handle-mode="crop"]')
+ check(!modeGroup.hidden && resizeMode.getAttribute('aria-pressed')==='true','selected image defaults to Resize')
+ const modeBounds=modeGroup.getBoundingClientRect(),lowerBounds=bars[1].getBoundingClientRect()
+ check(Math.abs((modeBounds.left+modeBounds.right)/2-(lowerBounds.left+lowerBounds.right)/2)<2,'Resize/Crop toggle centered in lower menu')
+ check(!root.querySelector('[data-panel="geometry"]'),'Position and size section removed')
+ const modeDrag=()=>{
+  const border=imageNode.querySelector('[data-resize-edge="right"]'),capture=border.setPointerCapture;border.setPointerCapture=()=>{}
+  border.dispatchEvent(new PointerEvent('pointerdown',{pointerId:98,button:0,isPrimary:true,clientX:100,clientY:100,bubbles:true,cancelable:true}))
+  border.dispatchEvent(new PointerEvent('pointermove',{pointerId:98,clientX:99,clientY:100,bubbles:true}))
+  border.dispatchEvent(new PointerEvent('pointerup',{pointerId:98,bubbles:true}));border.setPointerCapture=capture
+ }
+ const resizedWidth=imageBox.get('width'),resizedSource=imageBox.get('cropImageWidth');modeDrag()
+ check(imageBox.get('width')<resizedWidth && Math.abs(imageBox.get('cropImageWidth')/imageBox.get('width')-resizedSource/resizedWidth)<.001,'Resize scales image and retains crop fraction')
+ cropMode.click();const fixedSource=imageBox.get('cropImageWidth'),cropWidth=imageBox.get('width');modeDrag()
+ check(cropMode.getAttribute('aria-pressed')==='true' && imageBox.get('width')<cropWidth && imageBox.get('cropImageWidth')===fixedSource,'Crop changes frame without scaling source')
+ resizeMode.click();textNode.focus()
+ check(modeGroup.hidden,'image handle choices hidden for text selection')
  const previousIds=new Set(doc.getMap('slide-pages').keys())
  newSlide.click();if(layout.hidden)root.querySelector('[data-control="choose-template"]').click()
  layout.value='blank';layout.dispatchEvent(new Event('change',{bubbles:true}))
  const inserted=[...doc.getMap('slide-pages').keys()].filter(id=>!previousIds.has(id))
  check(inserted.length===1,'choosing a template inserts one new slide')
  check(![...doc.getMap('slide-objects').values()].some(box=>box.get('slide')===inserted[0]),'blank template produces a blank slide')
- document.getElementById('result').textContent='PASS: '+count+' checks. Real local embedded slide views, notes, outline updates, sorter selection, double-click return, wide shape/image pickers, rectangle preview/crop, direct-slide Done/Cancel and document preservation. No collaboration or storage writes. Use View above to inspect layout and drag slides manually.'
+ const menuRight=root.querySelector('.slide-menu-right'),themeControls=root.querySelector('.slide-theme-controls'),themeSelect=themeControls.querySelector('[data-control="theme"]')
+ check(menuRight.contains(root.querySelector('[data-control="present"]')) && menuRight.contains(root.querySelector('.canvas-zoom')) && menuRight.contains(root.querySelector('[data-control="open-find"]')),'presentation and zoom controls share right group')
+ check(Math.abs(menuRight.getBoundingClientRect().right-bars[0].getBoundingClientRect().right)<2,'upper presentation group aligned right')
+ check(Math.abs(themeControls.getBoundingClientRect().right-bars[1].getBoundingClientRect().right)<2,'Themes controls aligned right in lower menu')
+ const originalTheme=doc.getMap('slide-design').get('theme')||{id:themeSelect.value}
+ root.querySelector('[data-control="open-themes"]').click();modal=document.getElementById('generic-modal')
+ check(modal?.querySelector('.modal-content--wide .slide-theme-picker') && modal.querySelector('[data-control="modal-theme"]') && modal.querySelectorAll('[data-theme-colour]').length===4,'wide Themes dialog has dropdown and four editable swatches')
+ const paletteColumn=modal.querySelector('[data-control="colour-themes"]'),designColumn=modal.querySelector('[data-control="slide-designs"]')
+ check(paletteColumn.querySelector('h3').textContent==='Colour Themes' && designColumn.querySelector('h3').textContent==='Slide designs' && paletteColumn.contains(modal.querySelector('[data-control="save-theme"]')) && designColumn.contains(modal.querySelector('[data-control="save-slide-design"]')),'theme and design saving separated into named columns')
+ check([...designColumn.querySelectorAll('li')].some(item=>item.textContent===layout.options[0].textContent) && designColumn.textContent.includes('Slide designs can be selected when creating a new slide.'),'available slide designs listed by name with creation guidance')
+ check(root.querySelector('[data-control="add-slide"]').textContent==='Blank Slide' && root.querySelector('[data-control="choose-template"]').textContent==='Slide Design','lower menu uses Blank Slide and Slide Design labels')
+ const themeChooser=modal.querySelector('[data-control="modal-theme"]'),otherTheme=[...themeChooser.options].find(option=>option.value!==themeChooser.value)
+ themeChooser.value=otherTheme.value;themeChooser.dispatchEvent(new Event('change',{bubbles:true}))
+ check(doc.getMap('slide-design').get('theme').id===otherTheme.value && themeSelect.value===otherTheme.value,'modal theme choice updates presentation and toolbar dropdown')
+ modal.querySelector('[data-control="theme-name"]').value='Browser custom palette'
+ const colourInput=modal.querySelector('[data-theme-colour="fillColour"]');colourInput.value='#123456';colourInput.dispatchEvent(new Event('input',{bubbles:true}))
+ check([...modal.querySelectorAll('.theme-preview span')].some(swatch=>getComputedStyle(swatch).backgroundColor==='rgb(18, 52, 86)'),'colour picker updates swatch preview')
+ modal.querySelector('[data-control="save-theme"]').click()
+ const custom=doc.getMap('slide-design').get('theme')
+ check(custom.label==='Browser custom palette' && custom.fillColour==='#123456' && doc.getMap('slide-design').get('saved-theme:'+custom.id).id===custom.id,'new colour theme is applied and saved in presentation')
+ const reopened=new Y.Doc();Y.applyUpdate(reopened,Y.encodeStateAsUpdate(doc))
+ check(reopened.getMap('slide-design').get('saved-theme:'+custom.id).fillColour==='#123456','custom theme survives native Yjs save/load');reopened.destroy()
+ themeSelect.value=originalTheme.id;themeSelect.dispatchEvent(new Event('change',{bubbles:true}))
+ themeSelect.value=custom.id;themeSelect.dispatchEvent(new Event('change',{bubbles:true}))
+ check(doc.getMap('slide-design').get('theme').id===custom.id,'saved custom palette remains selectable after another theme')
+ root.querySelector('[data-control="open-themes"]').click();modal=document.getElementById('generic-modal')
+ ;[...modal.querySelectorAll('button')].find(button=>button.textContent==='Save current slide as a new design').click()
+ check(layoutSaveCalls===1 && !document.getElementById('generic-modal'),'Themes reuses existing Save design as layout action')
+ check(themeSelect.getBoundingClientRect().right<=bars[1].getBoundingClientRect().right+1,'theme dropdown itself stays inside lower menu')
+ const host=document.getElementById('host'),hostWidth=host.style.width
+ host.style.width='460px'
+ await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))
+ check(themeSelect.getBoundingClientRect().right<=bars[1].getBoundingClientRect().right+1 && themeControls.getBoundingClientRect().right<=root.getBoundingClientRect().right+1,'theme controls remain inside a narrow editor')
+ host.style.width=hostWidth
+ document.getElementById('result').textContent='PASS: '+count+' checks. Real local embedded slide views, notes, outline updates, sorter selection, double-click return, wide shape/image pickers, rectangle preview/crop, direct-slide Done/Cancel, body dragging, native text pointer routing and document preservation. No collaboration or storage writes. Use View above to inspect layout and drag slides manually.'
 }catch(error){document.getElementById('result').textContent='FAIL: '+error.message+'\n'+(error.stack||'')}
 })();
 </script>

@@ -1,7 +1,7 @@
 const {test}=require('node:test')
 const assert=require('node:assert/strict')
 const {menuShellDocument}=require('./helpers/menu-shell-dom.cjs')
-async function fixture(){
+async function fixture({right=false}={}){
  const {mountSlideMenu}=await import('../slides/clist-slides-poc/src/slide-menu.js')
  const doc=menuShellDocument(),root=doc.createElement('div');root.ownerDocument=doc
  const toolbar=doc.createElement('header'),tools=doc.createElement('div'),footer=doc.createElement('footer'),rail=doc.createElement('div')
@@ -9,6 +9,12 @@ async function fixture(){
  toolbar.append(tools);root.append(toolbar,rail,footer);doc.body.append(root)
  const control=name=>{const n=doc.createElement(name==='slide-layout'?'select':name==='shape-tools'?'span':'button');n.setAttribute('data-control',name);tools.append(n);return n}
  for(const id of ['add-slide','duplicate-slide','add-text','add-image','shape-tools','bold','duplicate','present','undo','redo','connection-status'])control(id)
+ if(right){
+  for(const node of tools.children)Object.defineProperty(node,'nextElementSibling',{get(){return this.nextSibling}})
+  const divider=doc.createElement('span');divider.className='rule';Object.defineProperty(divider,'nextElementSibling',{get(){return this.nextSibling}});tools.append(divider)
+  tools.append(root.querySelector('[data-control="present"]'))
+  const zoom=doc.createElement('div');zoom.className='canvas-zoom';tools.append(zoom)
+ }
  const layout=control('slide-layout'),original=root.querySelector('[data-control="add-slide"]');let enabled=true, shapeOpens=0
  const menu=mountSlideMenu(root,()=>enabled,()=>shapeOpens++)
  return {root,menu,layout,original,shapeOpens:()=>shapeOpens,enable:value=>enabled=value}
@@ -48,4 +54,11 @@ test('Insert follows New Slide and shows Shape, Image, Text using existing contr
  group.children[0].dispatch('click');assert.equal(f.shapeOpens(),1);assert.equal(shapes.hidden,true)
  let clicked=0;const text=group.children.find(n=>n.getAttribute('data-control')==='add-text');text.onclick=()=>clicked++;text.click();assert.equal(clicked,1)
  f.menu.choose('new');assert.equal(group.hidden,true)
+})
+
+
+test('controls after the last divider and zoom reuse a right-hand upper group',async()=>{
+ const f=await fixture({right:true}),group=f.root.querySelector('.slide-menu-right')
+ assert.ok(group);assert.ok(group.contains(f.root.querySelector('[data-control="present"]')))
+ assert.ok(group.contains(f.root.querySelector('.canvas-zoom')))
 })

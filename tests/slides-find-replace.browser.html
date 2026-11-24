@@ -1,12 +1,14 @@
 <!doctype html>
 <meta charset="utf-8">
-<link rel="stylesheet" href="../css/interface.css">
-<link rel="stylesheet" href="../slides/clist-slides-poc/dist-embed/editor.css">
+<link rel="stylesheet" href="../css/interface.css?v=2026-11-24.19">
+<link rel="stylesheet" href="../slides/clist-slides-poc/dist-embed/editor.css?v=2026-11-24.19">
+<p>Test 2026-11-24.19. Real embedded editor, Yjs and lower-menu search. Local assets only; no collaboration, external service requests or storage writes.</p>
 <div id="host"></div><pre id="result">Checking Find and Replace...</pre>
 <script type="module">
 import * as dependencies from '../js/vendor/collab-editor-bundle.js'
-import { createSlideEditor } from '../slides/clist-slides-poc/dist-embed/editor.js'
-const check=(value,message)=>{if(!value)throw new Error(message)}
+import { createSlideEditor } from '../slides/clist-slides-poc/dist-embed/editor.js?v=2026-11-24.19'
+let count=0
+const check=(value,message)=>{if(!value)throw new Error(message);count++}
 try {
   const {Y}=dependencies,messages=[],errors=[]
   window.showErrorModal=message=>errors.push(message)
@@ -32,6 +34,14 @@ try {
     control('find-query').dispatchEvent(new Event('input',{bubbles:true}));enter(control('find-query'))
   }
   const reset=()=>editor.loadSnapshot(baseline)
+  control('open-find').click()
+  const lower=root.querySelectorAll('.slide-menu-bar')[1],themes=root.querySelector('.slide-theme-controls')
+  check(lower.contains(panel) && !root.querySelector('.inspector [data-panel="find"]'),'search is in lower menu, not inspector')
+  check(getComputedStyle(themes).display==='none' && !panel.hidden,'search temporarily replaces lower menu controls')
+  check(['find-query','find-replacement'].every(name=>control(name).placeholder && control(name).getAttribute('aria-label') && !control(name).title && !control(name).parentNode.textContent.trim()),'search fields use placeholders and accessible labels')
+  check(['find-query','find-replacement'].every(name=>Math.abs(control(name).getBoundingClientRect().height-control('find-next').getBoundingClientRect().height)<1),'text inputs match menu button height')
+  control('find-done').click()
+  check(!panel.open && panel.hidden && getComputedStyle(themes).display!=='none','Done restores Themes and lower menu')
   search('cat')
   check(panel.open,'Find remains open when jumping to a match')
   check(control('find-results').children.length===7,'matches across all slides including locked text')
@@ -65,7 +75,7 @@ try {
   control('find-replacement').value='stale';control('find-replace').click()
   check(plain('title').startsWith('Changed') && !plain('title').includes('stale'),'stale match is revalidated before replacement')
   control('find-query').focus();control('find-query').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))
-  check(!panel.open && document.activeElement===control('open-find'),'Escape closes inspector section')
+  check(!panel.open && document.activeElement===control('open-find'),'Escape closes lower-menu search')
   root.dispatchEvent(new KeyboardEvent('keydown',{key:'h',ctrlKey:true,bubbles:true,cancelable:true}))
   check(panel.open && document.activeElement===control('find-replacement'),'Ctrl+H opens replacement')
   root.requestFullscreen=async()=>{};control('present').click()
@@ -73,7 +83,7 @@ try {
   check(!panel.open && control('open-find').disabled && plain('title')===before,'presentation mode blocks find/replace edits')
   control('exit-presentation').click()
   check(!errors.length,'no search errors')
-  document.body.dataset.result='PASS: cross-slide search and exact selection, next/previous, case/whole words, current/all replacements, rich formatting/links, locked text, undo/redo, stale-match safety, shortcuts and presentation guard'
+  document.body.dataset.result='PASS: '+count+' checks. Lower-menu search, placeholders/button-height fields, Done/Themes restoration, cross-slide search and exact selection, next/previous, case/whole words, current/all replacements, rich formatting/links, locked text, undo/redo, stale-match safety, shortcuts and presentation guard'
   document.getElementById('result').textContent=document.body.dataset.result
 }catch(error){console.error(error);document.body.dataset.result='FAIL: '+error.message;document.getElementById('result').textContent=document.body.dataset.result}
 </script>

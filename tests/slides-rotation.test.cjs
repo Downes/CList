@@ -1,0 +1,10 @@
+const {test}=require('node:test')
+const assert=require('node:assert/strict')
+test('horizontal rotation is clockwise right, counterclockwise left, continuous across wrap',async()=>{
+ const {rotationFromDrag}=await import('../slides/clist-slides-poc/src/object-rotation.js')
+ assert.equal(rotationFromDrag(0,30),30)
+ assert.equal(rotationFromDrag(0,-30),-30)
+ assert.equal(rotationFromDrag(170,20),-170)
+ assert.equal(rotationFromDrag(-170,-20),170)
+ assert.equal(rotationFromDrag(25,720),25)
+})

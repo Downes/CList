@@ -10,7 +10,7 @@ export function mountSlideMenu(root, canChange = () => true, openShapes = null) 
   const insertButton = document.createElement('button'); insertButton.className = 'btn-small'; insertButton.textContent = 'Insert'; insertButton.title = 'Insert options'; insertButton.dataset.menu = 'insert'
   const group = document.createElement('div'); group.className = 'slide-menu-options'; group.dataset.menuGroup = 'new'
   for (const name of ['add-slide','duplicate-slide']) {
-    const control = root.querySelector('[data-control="' + name + '"]'); if (control) group.append(control)
+    const control = root.querySelector('[data-control="' + name + '"]'); if (control) { if (name === 'add-slide') { control.textContent = 'Blank Slide'; control.title = 'Blank Slide' } group.append(control) }
   }
   const button = document.createElement('button'); button.className = 'btn-small'; button.textContent = 'New Slide'; button.title = 'New Slide options'; button.dataset.menu = 'new'
   const choose = id => {
@@ -33,7 +33,7 @@ export function mountSlideMenu(root, canChange = () => true, openShapes = null) 
   const shapes = root.querySelector('[data-control="shape-tools"]')
   if (shapes) { shapes.hidden = true; insertGroup.append(shapes) }
   shape.addEventListener('click', () => { if (!disposed && canChange() && active === 'insert') openShapes?.() })
-  const template = document.createElement('button'); template.className = 'btn-small'; template.textContent = 'Template'; template.title = 'Choose the layout for the next slide'; template.dataset.control = 'choose-template'
+  const template = document.createElement('button'); template.className = 'btn-small'; template.textContent = 'Slide Design'; template.title = 'Choose a design for the next slide'; template.dataset.control = 'choose-template'
   const layouts = root.querySelector('[data-control="slide-layout"]'), oldLabel = layouts?.parentNode
   group.append(template)
   if (layouts) { layouts.hidden = true; group.append(layouts); if (oldLabel?.classList.contains('slide-layout-label')) oldLabel.remove() }
@@ -46,6 +46,13 @@ export function mountSlideMenu(root, canChange = () => true, openShapes = null) 
   layouts?.addEventListener('change', insertTemplate)
   root.querySelector('.slide-create-actions')?.remove()
   const zoom = root.querySelector('.canvas-zoom'); if (zoom) top.append(zoom)
+  const divider = [...top.children].filter(node => node.classList.contains('rule')).at(-1)
+  if (divider) {
+    const right = document.createElement('div'); right.className = 'slide-menu-right'
+    let control = divider.nextElementSibling
+    while (control) { const next = control.nextElementSibling; right.append(control); control = next }
+    top.append(right)
+  }
   const status = root.querySelector('[data-control="connection-status"]'); if (status) root.querySelector('.slide-editor-info')?.append(status)
   choose('new')
   return { choose, get active() { return active }, destroy() { disposed = true; layouts?.removeEventListener('change', insertTemplate) } }

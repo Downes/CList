@@ -1,0 +1,58 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Slides object clipboard</title>
+<link rel="stylesheet" href="../css/interface.css?v=2026-11-24.18">
+<link rel="stylesheet" href="../slides/clist-slides-poc/dist-embed/editor.css?v=2026-11-24.18">
+<h1>Slides object clipboard</h1>
+<p>Test 2026-11-24.18. Real embedded editor, local Yjs objects and clipboard event routing. Controlled synthetic clipboard payloads only; no operating-system clipboard changes, external requests or storage writes. Actual Ctrl/Cmd shortcuts require manual testing.</p>
+<pre id="result" role="status">Checking…</pre><div id="host" style="width:100%;height:800px"></div>
+<script>
+(async()=>{
+let count=0
+const check=(value,message)=>{if(!value)throw Error(message);count++}
+try {
+ const [dependencies,{createSlideEditor}]=await Promise.all([import('../js/vendor/collab-editor-bundle.js'),import('../slides/clist-slides-poc/dist-embed/editor.js?v=2026-11-24.18')])
+ const editor=createSlideEditor(document.getElementById('host'),{dependencies,seed:false})
+ const {Y}=dependencies,doc=editor.document,objects=doc.getMap('slide-objects')
+ const png=document.createElement('canvas');png.width=20;png.height=16
+ doc.transact(()=>{
+  doc.getMap('slide-pages').set('first',0)
+  objects.set('shape',new Y.Map(Object.entries({kind:'shape',shapeType:'rectangle',slide:'first',x:100,y:100,width:160,height:100,rotation:0,layer:0,custom:'shape extension'})))
+  objects.set('image',new Y.Map(Object.entries({kind:'image',slide:'first',source:png.toDataURL(),alt:'Literal image',imageRatio:1.25,imageFit:'cover',cropImageWidth:200,cropImageHeight:160,cropX:50,cropY:50,x:400,y:100,width:100,height:80,rotation:0,layer:1})))
+  objects.set('text',new Y.Map(Object.entries({kind:'text',slide:'first',x:100,y:300,width:400,height:120,rotation:0,layer:2,fillColour:'#abcdef'})))
+  const paragraph=new Y.XmlElement('paragraph'),text=new Y.XmlText();text.insert(0,'Clipboard <literal>');paragraph.insert(0,[text]);doc.getXmlFragment('slide-text-text').insert(0,[paragraph])
+ })
+ const root=document.querySelector('.clist-slides'),slide=root.querySelector('.slide')
+ const clipboard=()=>{const values=new Map();return {getData:type=>values.get(type)||'',setData:(type,value)=>values.set(type,String(value)),clearData:type=>type?values.delete(type):values.clear(),get types(){return [...values.keys()]}}}
+ const event=(target,type,data)=>{const value=new Event(type,{bubbles:true,cancelable:true});Object.defineProperty(value,'clipboardData',{value:data});target.dispatchEvent(value);return value}
+ const pointer=(x,y)=>{const bounds=slide.getBoundingClientRect();slide.dispatchEvent(new PointerEvent('pointermove',{clientX:bounds.left+x*bounds.width/1280,clientY:bounds.top+y*bounds.height/720,bubbles:true}))}
+ const stable=data=>{const copy={...data};for(const key of ['x','y','slide','layer'])delete copy[key];return JSON.stringify(copy)}
+ for(const id of ['shape','image','text']){
+  const source=objects.get(id).toJSON(),sourceText=doc.getXmlFragment('slide-text-'+id).toString(),node=root.querySelector('.slide-object[data-id="'+id+'"]')
+  if(id==='shape'){
+   const oldEditor=root.querySelector('.slide-object[data-id="text"] .tiptap');oldEditor.focus()
+   const range=document.createRange();range.selectNodeContents(oldEditor);document.getSelection().removeAllRanges();document.getSelection().addRange(range)
+  }
+  node.focus();if(id==='shape')check(document.getSelection().isCollapsed,'selecting shape clears old text selection');if(!node.classList.contains('selected'))throw Error(id+' did not receive object selection on focus');const data=clipboard(),before=objects.size
+  event(document.body,'copy',data)
+  check(!!data.getData('application/x-clist-slide-objects') && objects.size===before,id+' copy captures without changing source; status: '+root.querySelector('[data-control="connection-status"]').textContent+'; types: '+data.types.join(','))
+  pointer(70,60);const ids=new Set(objects.keys());event(document.body,'paste',data)
+  const pastedId=[...objects.keys()].find(key=>!ids.has(key)),pasted=objects.get(pastedId)
+  check(objects.size===before+1 && pasted.get('x')===70 && pasted.get('y')===60,id+' paste uses slide pointer')
+  check(stable(pasted.toJSON())===stable(source) && doc.getXmlFragment('slide-text-'+pastedId).toString()===sourceText,id+' paste preserves contents and properties')
+  const pastedNode=root.querySelector('.slide-object[data-id="'+pastedId+'"]'),cutData=clipboard();pastedNode.focus();event(document.body,'cut',cutData)
+  pointer(90,80);const afterCut=new Set(objects.keys());event(document.body,'paste',cutData)
+  const replacement=[...objects.keys()].find(key=>!afterCut.has(key))
+  check(!objects.has(pastedId) && objects.size===before+1 && objects.get(replacement).get('x')===90 && objects.get(replacement).get('y')===80,id+' cut removes original and pastes at new pointer')
+ }
+ const textEditor=root.querySelector('.slide-object[data-id="text"] .tiptap');textEditor.focus()
+ const nativeData=clipboard();event(textEditor,'copy',nativeData)
+ check(!nativeData.getData('application/x-clist-slide-objects'),'editing text retains native text clipboard route')
+ const outside=document.createElement('input');document.body.append(outside);outside.focus();const outsideData=clipboard();event(document.body,'copy',outsideData)
+ check(!outsideData.getData('application/x-clist-slide-objects'),'outside focus does not copy stale slide selection');outside.remove()
+ const locked=objects.get('shape');locked.set('locked',true);const lockedNode=root.querySelector('.slide-object[data-id="shape"]');lockedNode.focus();event(lockedNode,'cut',clipboard())
+ check(objects.has('shape'),'locked object cannot be cut');locked.set('locked',false)
+ document.getElementById('result').textContent='PASS: '+count+' checks. Real object copy/cut/paste routing for shapes, images and text boxes, pointer placement, content preservation, native text and locked-cut guards. Synthetic clipboard only; no OS clipboard changes or storage writes. Manually try Ctrl/Cmd+C, X and V.'
+}catch(error){document.getElementById('result').textContent='FAIL: '+error.message+'\n'+(error.stack||'')}
+})();
+</script>

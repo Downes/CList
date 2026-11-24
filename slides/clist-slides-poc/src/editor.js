@@ -1,4 +1,10 @@
+import { objectPasteOffset, ownsObjectClipboard } from './object-clipboard.js'
+import { mountThemePicker } from './theme-picker.js'
+import { imageHandleProperties, mountImageHandleMode } from './image-handle-mode.js'
+import { resizeObjectEdge } from './object-edge-resize.js'
+import { rotationFromDrag } from './object-rotation.js'
 import template from './template.js'
+import { bindObjectPointer } from './object-pointer.js'
 import { mountCropRectangle, cropProperties, currentImageCrop } from './crop-rectangle.js'
 import { mountInsertPickers } from './insert-picker.js'
 import { mountSlideMenu } from './slide-menu.js'
@@ -58,6 +64,8 @@ verticalGuide.hidden = horizontalGuide.hidden = true
 slide.append(verticalGuide, horizontalGuide)
 
 let doc = new Y.Doc()
+let themePicker = null
+let imageHandleMode = null
 let objects = doc.getMap('slide-objects')
 let pages = doc.getMap('slide-pages')
 let backgrounds = doc.getMap('slide-backgrounds')
@@ -133,7 +141,7 @@ function seedIfEmpty() {
   }, 'init')
   // Seed rich text only when we created the default document.
   views.get('title')?.editor.commands.setContent('<h1>Collaborative slides</h1>')
-  views.get('body')?.editor.commands.setContent('<p>Click here to edit together.</p><p>Drag the blue handle to move this box, or resize it from the lower-right corner.</p>')
+  views.get('body')?.editor.commands.setContent('<p>Click here to edit together.</p><p>Click and drag over text to select it. Hold on text or drag a box border to move it, or resize it from the lower-right corner.</p>')
 }
 function createView(id, box) {
   const node = document.createElement('div')
@@ -141,13 +149,36 @@ function createView(id, box) {
   node.dataset.id = id
   node.tabIndex = 0
   node.setAttribute('aria-label', box.get('kind') === 'shape' ? 'Shape object. Arrow keys move; Delete removes.' : box.get('kind') === 'image' ? 'Image object. Arrow keys move; Delete removes.' : 'Text object. Arrow keys move; Enter edits.')
-  const grip = document.createElement('div')
-  grip.className = 'object-grip'; grip.textContent = 'Move'
   const content = document.createElement('div')
   content.className = box.get('kind') === 'shape' ? 'shape-content' : box.get('kind') === 'image' ? 'image-content' : 'text-content'
   const resize = document.createElement('div')
   resize.className = 'resize-handle'
-  node.append(grip, content, resize)
+  node.append(content, resize)
+  for (const edge of ['left', 'right', 'top', 'bottom']) {
+    const border = document.createElement('div')
+    border.className = 'object-resize-edge object-resize-' + edge
+    border.dataset.resizeEdge = edge
+    border.title = 'Resize ' + edge + ' edge'
+    border.addEventListener('pointerdown', event => beginDrag(event, id, 'edge-' + edge))
+    node.append(border)
+  }
+  {
+    const objectLabel = box.get('kind') === 'image' ? 'image' : box.get('kind') === 'shape' ? 'shape' : 'text box'
+    const rotate = document.createElement('div')
+    rotate.className = 'rotation-handle'
+    rotate.title = 'Rotate ' + objectLabel + ': drag right clockwise, left counterclockwise'
+    rotate.setAttribute('role', 'slider'); rotate.setAttribute('aria-label', 'Rotate ' + objectLabel)
+    rotate.setAttribute('aria-valuemin', '-180'); rotate.setAttribute('aria-valuemax', '180')
+    rotate.tabIndex = 0
+    rotate.addEventListener('pointerdown', event => beginDrag(event, id, 'rotate'))
+    rotate.addEventListener('keydown', event => {
+      if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return
+      event.preventDefault(); event.stopPropagation()
+      if (presenting || box.get('locked') === true) return
+      box.set('rotation', rotationFromDrag(box.get('rotation'), event.key === 'ArrowRight' ? 1 : -1))
+    })
+    node.append(rotate)
+  }
   slide.append(node)
   // A different named Y.XmlFragment for each text box within the SAME Y.Doc.
   let editor = null
@@ -179,22 +210,21 @@ function createView(id, box) {
     onBlur: () => { if (editorFocused === id) editorFocused = null; history?.stopCapturing() },
   }) } finally { suppressHistory = false }
   }
-  node.addEventListener('pointerdown', e => {
-    if (presenting) return
-    if (e.shiftKey && e.target !== resize && e.target !== grip) {
-      e.preventDefault(); e.stopPropagation()
-      select(id, true, false, true)
-      root.tabIndex = -1; root.focus({ preventScroll: true })
-      return
-    }
-    if (e.target !== resize && e.target !== grip) select(id, false, false, true)
-    if (!editor) node.focus({ preventScroll: true })
+  const disposePointer = bindObjectPointer(node, resize, {
+    current: () => !presenting && views.get(id)?.node === node,
+    text: () => !!editor,
+    select: additive => select(id, additive, false, true),
+    focus: () => { root.tabIndex = -1; root.focus({ preventScroll: true }) },
+    move: event => beginDrag(event, id, 'move'),
   })
-  node.addEventListener('dblclick', event => { if (box.get('kind') === 'image') { event.preventDefault(); event.stopPropagation(); select(id); startImageCrop() } })
-  node.addEventListener('focus', () => select(id, false, selectedIds.has(id)))
-  grip.addEventListener('pointerdown', e => beginDrag(e, id, 'move'))
+  node.addEventListener('dblclick', event => { if (box.get('kind') === 'image' && !event.target.closest('.rotation-handle')) { event.preventDefault(); event.stopPropagation(); select(id); startImageCrop() } })
+  node.addEventListener('focus', () => {
+    select(id, false, selectedIds.has(id))
+    const range = document.getSelection()
+    if (range?.anchorNode && root.contains(range.anchorNode)) range.removeAllRanges()
+  })
   resize.addEventListener('pointerdown', e => beginDrag(e, id, 'resize'))
-  views.set(id, { node, editor, box, content })
+  views.set(id, { node, editor, box, content, disposePointer })
   applyGeometry(id)
   if (selected === id) node.classList.add('selected')
 }
@@ -211,33 +241,41 @@ function currentTheme() {
   if (saved) { try { return validateThemeDefinition(saved) } catch (error) { /* Invalid incoming themes use safe defaults. */ } }
   return themeCatalog.values().next().value
 }
-for (const theme of themeCatalog.values()) {
-  const option = document.createElement('option')
-  option.value = theme.id; option.textContent = theme.label
-  $('theme').append(option)
+function availableThemes() {
+  const themes = new Map(themeCatalog)
+  for (const [key, value] of design.entries()) {
+    if (!key.startsWith('saved-theme:')) continue
+    try { const theme = validateThemeDefinition(value); themes.set(theme.id, theme) }
+    catch (error) { console.error('Invalid saved theme:', error); status('A saved theme could not be read. Other themes are still available.', 'error') }
+  }
+  const active = currentTheme(); themes.set(active.id, active)
+  return themes
 }
-$('theme').addEventListener('change', event => {
-  const theme = themeCatalog.get(event.target.value)
+function applyTheme(id) {
+  const theme = availableThemes().get(id)
   if (!theme || presenting) return
   history?.stopCapturing()
   design.set('theme', structuredClone(theme))
   history?.stopCapturing()
   status('Theme applied: ' + theme.label)
-})
+}
+$('theme').addEventListener('change', event => applyTheme(event.target.value))
 function renderTheme() {
-  const theme = currentTheme()
-  let custom = $('theme').querySelector('[data-document-theme]')
-  if (!themeCatalog.has(theme.id)) {
-    if (!custom) { custom = document.createElement('option'); custom.dataset.documentTheme = ''; $('theme').append(custom) }
-    custom.value = theme.id; custom.textContent = theme.label + ' (saved in presentation)'
-  } else custom?.remove()
-  $('theme').value = theme.id
+  const theme = currentTheme(), select = $('theme')
+  select.replaceChildren()
+  for (const entry of availableThemes().values()) {
+    const option = document.createElement('option'); option.value = entry.id; option.textContent = entry.label; select.append(option)
+  }
+  select.value = theme.id
   const preview = $('theme-preview')
-  preview.replaceChildren()
-  for (const colour of [theme.background, theme.textColour, theme.fillColour, theme.borderColour]) {
-    const swatch = document.createElement('span'); swatch.style.backgroundColor = colour; preview.append(swatch)
+  if (preview) {
+    preview.replaceChildren()
+    for (const colour of [theme.background, theme.textColour, theme.fillColour, theme.borderColour]) {
+      const swatch = document.createElement('span'); swatch.style.backgroundColor = colour; preview.append(swatch)
+    }
   }
 }
+
 function boxStyle(box) {
   const theme = currentTheme()
   const colour = (key, fallback) => /^#[0-9a-f]{6}$/i.test(box.get(key) || '') ? box.get(key) : fallback
@@ -298,6 +336,7 @@ function styleImage(image, box, canvasImage = false) {
   image.style.objectFit = 'contain'
   image.style.objectPosition = crop.x + '% ' + crop.y + '%'
   if (crop.fit === 'cover') {
+    image.style.objectFit = 'fill'
     const size = cropImageSize(box, image)
     image.style.position = 'absolute'
     image.style.width = canvasImage ? (size.width / 12.8) + 'cqw' : (100 * size.width / box.get('width')) + '%'
@@ -361,6 +400,7 @@ function applyGeometry(id) {
   node.style.width = `${100 * Number(box.get('width') || 0) / SW}%`
   node.style.height = `${100 * Number(box.get('height') || 0) / SH}%`
   node.style.transform = `rotate(${Number(box.get('rotation') || 0)}deg)`
+  node.querySelector('.rotation-handle')?.setAttribute('aria-valuenow', String(Number(box.get('rotation')) || 0))
   node.classList.toggle('locked', box.get('locked') === true)
   node.title = box.get('locked') === true ? 'Locked object: select it and click Unlock to move, resize or delete.' : ''
   node.style.zIndex = String(orderedObjectIds().indexOf(id))
@@ -481,6 +521,7 @@ function selectSlide(id, event = {}) {
 }
 function renderObjectList() {
   const list = $('object-list')
+  if (!list) return
   const ids = orderedObjectIds().reverse()
   for (const [id, button] of objectButtons) {
     if (!ids.includes(id)) { button.remove(); objectButtons.delete(id) }
@@ -681,7 +722,7 @@ function render() {
   $('slide-background').value = slideBackground(activeSlide)
   for (const [id, view] of views) {
     if (!objects.has(id) || (objects.get(id).get('slide') || 'first') !== activeSlide) {
-      view.editor?.destroy(); view.node.remove(); views.delete(id)
+      view.disposePointer?.(); view.editor?.destroy(); view.node.remove(); views.delete(id)
       selectedIds.delete(id)
       if (selected === id) selected = [...selectedIds].at(-1) || null
     }
@@ -762,14 +803,11 @@ function select(id, additive = false, keepGroup = false, reveal = false) {
   $('distribute-horizontal').disabled = $('distribute-vertical').disabled = hasLocked || selectedIds.size < 3
   for (const mode of ['left', 'center', 'right', 'top', 'middle', 'bottom']) $('align-' + mode).disabled = hasLocked || !multiple
   const box = selected ? objects.get(selected) : null
-  $('selection-details').textContent = multiple ? selectedIds.size + ' objects selected. Drag a Move handle or use arrow keys to move together.' : box
+  imageHandleMode?.update(box?.get('kind') === 'image' && !multiple, !hasLocked && !presenting)
+  if ($('selection-details')) $('selection-details').textContent = multiple ? selectedIds.size + ' objects selected. Drag an object or use arrow keys to move together.' : box
     ? `${selected}\nPosition: ${Math.round(box.get('x'))}, ${Math.round(box.get('y'))}\nSize: ${Math.round(box.get('width'))} × ${Math.round(box.get('height'))}`
     : 'Select an object'
-  for (const key of ['x', 'y', 'width', 'height']) {
-    const input = $('object-' + key)
-    input.disabled = hasLocked || !box || multiple
-    input.value = box ? String(Math.round(Number(box.get(key)) || 0)) : ''
-  }
+
   $('keep-aspect-ratio').disabled = hasLocked || multiple || box?.get('kind') !== 'image'
   $('keep-aspect-ratio').checked = box?.get('kind') === 'image' && box.get('keepAspectRatio') !== false
   const crop = box ? imageCrop(box) : { fit: 'contain', x: 50, y: 50 }
@@ -781,8 +819,6 @@ function select(id, additive = false, keepGroup = false, reveal = false) {
   $('crop-image').disabled = cropDisabled
   $('image-fit').disabled = cropDisabled
   $('image-fit').value = crop.fit
-  $('object-rotation').disabled = hasLocked || !box || multiple
-  $('object-rotation').value = box ? String(Number(box.get('rotation')) || 0) : ''
   $('cut-objects').disabled = !selectedIds.size || hasLocked
   $('copy-objects').disabled = !selectedIds.size
   updateFormatButtons()
@@ -835,12 +871,13 @@ function beginDrag(e, id, action) {
   views.get(id)?.node.focus({ preventScroll: true })
   const box = objects.get(id)
   if (!box) return
-  if (action === 'resize') freezeCropSize(box)
+  if (action === 'resize' || action.startsWith('edge-')) freezeCropSize(box)
   const scale = SW / slide.getBoundingClientRect().width
   const members = [...selectedIds].map(key => ({ id: key, ...objects.get(key).toJSON() }))
   const bounds = selectionBounds(members)
   activePointer = {
-    members, id, action, startX: e.clientX, startY: e.clientY, scale,
+    imageMode: imageHandleMode?.mode || 'resize', imageCrop: cropImageSize(box),
+    rotation: Number(box.get('rotation')) || 0, members, id, action, startX: e.clientX, startY: e.clientY, scale,
     original: action === 'move' ? bounds : {
       x: box.get('x'), y: box.get('y'), width: box.get('width'), height: box.get('height'),
     },
@@ -979,7 +1016,16 @@ function onPointerMove(e) {
   const dx = (e.clientX - startX) * scale
   const dy = (e.clientY - startY) * scale
   doc.transact(() => {
-    if (action === 'move') {
+    if (action.startsWith('edge-')) {
+      const crop = box.get('kind') === 'image' && activePointer.imageMode === 'crop' ? activePointer.imageCrop : { width: SW, height: SH }
+      const geometry = resizeObjectEdge(original, action.slice(5), dx, dy, activePointer.rotation, {
+        minWidth: views.get(id)?.editor ? 100 : 1, minHeight: views.get(id)?.editor ? 55 : 1,
+        maxWidth: Math.max(original.width, crop.width), maxHeight: Math.max(original.height, crop.height),
+      })
+      for (const [key, value] of Object.entries(geometry)) box.set(key, value)
+    } else if (action === 'rotate') {
+      box.set('rotation', rotationFromDrag(activePointer.rotation, e.clientX - startX))
+    } else if (action === 'move') {
       let x = Math.max(0, Math.min(SW - original.width, original.x + dx))
       let y = Math.max(0, Math.min(SH - original.height, original.y + dy))
       verticalGuide.hidden = horizontalGuide.hidden = true
@@ -1003,20 +1049,24 @@ function onPointerMove(e) {
         target.set('y', Math.round(member.y + y - original.y))
       }
     } else {
-      if (box.get('kind') === 'image' && box.get('keepAspectRatio') !== false) {
-        const ratio = imageAspectRatio(box)
+      if (box.get('kind') === 'image' && (activePointer.imageMode === 'resize' || box.get('keepAspectRatio') !== false)) {
+        const ratio = activePointer.imageMode === 'resize' ? original.width / original.height : imageAspectRatio(box)
         const desiredWidth = Math.abs(dx / original.width) >= Math.abs(dy / original.height) ? original.width + dx : (original.height + dy) * ratio
-        const crop = box.get('imageFit') === 'cover' ? cropImageSize(box) : { width: SW, height: SH }
+        const crop = box.get('kind') === 'image' && activePointer.imageMode === 'crop' ? activePointer.imageCrop : { width: SW, height: SH }
         const size = fitImageSize(desiredWidth, ratio, Math.min(SW - original.x, crop.width), Math.min(SH - original.y, crop.height))
         box.set('width', size.width)
         box.set('height', size.height)
       } else {
         const minimumWidth = !views.get(id)?.editor ? 1 : 100
         const minimumHeight = !views.get(id)?.editor ? 1 : 55
-        const crop = box.get('imageFit') === 'cover' ? cropImageSize(box) : { width: SW, height: SH }
+        const crop = box.get('kind') === 'image' && activePointer.imageMode === 'crop' ? activePointer.imageCrop : { width: SW, height: SH }
         box.set('width', Math.max(minimumWidth, Math.min(SW - original.x, crop.width, original.width + dx)))
         box.set('height', Math.max(minimumHeight, Math.min(SH - original.y, crop.height, original.height + dy)))
       }
+    }
+    if (box.get('kind') === 'image' && (action === 'resize' || action.startsWith('edge-'))) {
+      const next = { width: box.get('width'), height: box.get('height') }
+      for (const [key, value] of Object.entries(imageHandleProperties(original, next, activePointer.imageMode, activePointer.imageCrop))) box.set(key, value)
     }
   }, 'geometry')
 }
@@ -1297,8 +1347,8 @@ function pasteObjects() {
   try {
     const bounds = selectionBounds(objectClipboard.items.map(item => item.data))
     const offset = objectClipboard.cut && objectClipboard.pastes === 0 ? 0 : objectClipboard.sourceDocument === doc && objectClipboard.sourceSlide === activeSlide ? 28 * (objectClipboard.pastes + 1) : 28 * objectClipboard.pastes
-    const dx = Math.max(-bounds.x, Math.min(SW - bounds.x - bounds.width, offset))
-    const dy = Math.max(-bounds.y, Math.min(SH - bounds.y - bounds.height, offset))
+    const point = pastePoint?.document === doc && pastePoint.slide === activeSlide ? pastePoint : null
+    const { x: dx, y: dy } = objectPasteOffset(bounds, point, SW, SH, offset)
     const topLayer = Math.max(-1, ...orderedObjectIds().map(id => objectLayer(objects.get(id))))
     const groupIds = new Map()
     const copies = objectClipboard.items.map((item, index) => {
@@ -1365,20 +1415,21 @@ function writeObjectClipboard(event) {
   event.preventDefault()
   event.stopImmediatePropagation()
 }
-root.addEventListener('copy', event => {
-  if (presenting || clipboardTextTarget(event.target) || !selectedIds.size || !event.clipboardData) return
+function onSlideCopy(event) {
+  if (presenting || !selectedIds.size || !event.clipboardData || !root.getClientRects().length) return
+  if (!ownsObjectClipboard(root, event.target, document.activeElement, document)) return
   if (!copyObjects()) return
   try { writeObjectClipboard(event) }
   catch (error) {
     console.error('Slides clipboard write failed:', error)
     status('Could not write objects to clipboard: ' + error.message, 'error')
   }
-}, true)
+}
+document.addEventListener('copy', onSlideCopy, true)
+
 function onSlideCut(event) {
   if (presenting || !selectedIds.size || !event.clipboardData || !root.getClientRects().length) return
-  const pageTarget = event.target === document.body || event.target === document.documentElement || event.target === document
-  if (!root.contains(event.target) && !(pageTarget && root.contains(document.activeElement))) return
-  if (clipboardTextTarget(event.target) || document.activeElement?.closest?.('input, textarea, select')) return
+  if (!ownsObjectClipboard(root, event.target, document.activeElement, document)) return
   event.preventDefault()
   event.stopImmediatePropagation()
   cutObjects(event)
@@ -1388,7 +1439,7 @@ function onSlidePaste(event) {
   if (presenting || !event.clipboardData || !root.getClientRects().length) return
   const inside = root.contains(event.target)
   const pageTarget = event.target === document.body || event.target === document.documentElement || event.target === document
-  if (!inside && !(pasteSurfaceActive && pageTarget)) return
+  if (!inside && !(pageTarget && (root.contains(document.activeElement) || pasteSurfaceActive))) return
   if (!inside && document.activeElement?.closest?.('input, textarea, select, [contenteditable="true"]')) return
   if (event.target.closest?.('input, textarea, select')) return
   const textObject = event.target.closest?.('.slide-object')
@@ -1412,7 +1463,7 @@ function onSlidePaste(event) {
     }))
     const lines = paragraphs.reduce((sum, paragraph) => sum + Math.max(1, Math.ceil((paragraph.content[0]?.text.length || 0) / 45)), 0)
     const width = 690, height = Math.min(500, Math.max(100, lines * 42))
-    const point = pastePoint?.slide === activeSlide ? pastePoint : { x: 160, y: 160 }
+    const point = pastePoint?.document === doc && pastePoint.slide === activeSlide ? pastePoint : { x: 160, y: 160 }
     makeBox(id, Math.max(0, Math.min(SW - width, point.x)), Math.max(0, Math.min(SH - height, point.y)), width, height)
     views.get(id).editor.commands.setContent({ type: 'doc', content: paragraphs })
     history?.stopCapturing()
@@ -1429,7 +1480,7 @@ function updatePastePoint(event) {
   const rect = slide.getBoundingClientRect()
   if (rect.width <= 0 || rect.height <= 0) return
   if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) return
-  pastePoint = { slide: activeSlide, x: Math.round((event.clientX - rect.left) * SW / rect.width), y: Math.round((event.clientY - rect.top) * SH / rect.height) }
+  pastePoint = { document: doc, slide: activeSlide, x: Math.round((event.clientX - rect.left) * SW / rect.width), y: Math.round((event.clientY - rect.top) * SH / rect.height) }
 }
 root.addEventListener('pointermove', updatePastePoint)
 textOverflow = mountTextOverflow(root, slide, {
@@ -1452,7 +1503,7 @@ marquee = mountMarquee(root, slide, {
 })
 root.addEventListener('pointerdown', event => {
   const target = event.target
-  if (event.button !== 0 || presenting || !target.closest?.('.canvas-space') || target.closest('.slide-object, input, textarea, select, button, a')) return
+  if (event.button !== 0 || presenting || !target.closest?.('.canvas-space') || target.closest('.slide-crop-stage, .slide-object, input, textarea, select, button, a')) return
   event.preventDefault()
   pasteSurfaceActive = true
   updatePastePoint(event)
@@ -1637,52 +1688,6 @@ $('keep-aspect-ratio').addEventListener('change', event => {
     if (event.target.checked) box.set('aspectRatio', box.get('width') / box.get('height'))
     box.set('keepAspectRatio', event.target.checked)
   })
-})
-for (const key of ['x', 'y', 'width', 'height']) {
-  $('object-' + key).addEventListener('change', event => {
-    const box = objects.get(selected)
-    if (presenting || box?.get('locked') === true || !box) return
-    const value = Number(event.target.value)
-    const limit = key === 'x' ? SW - 1 : key === 'y' ? SH - 1 : key === 'width' ? SW : SH
-    const minimum = key === 'width' || key === 'height' ? 1 : 0
-    if (event.target.value.trim() === '' || !Number.isInteger(value) || value < minimum || value > limit) {
-      status(key + ' must be a whole number between ' + minimum + ' and ' + limit + '.', 'error')
-      select(selected)
-      return
-    }
-    doc.transact(() => {
-      if (['width', 'height'].includes(key)) freezeCropSize(box)
-      const cropLimit = box.get('imageFit') === 'cover' ? cropImageSize(box) : { width: SW, height: SH }
-      if (box.get('kind') === 'image' && box.get('keepAspectRatio') !== false && ['width', 'height'].includes(key)) {
-        const ratio = imageAspectRatio(box)
-        const size = fitImageSize(key === 'width' ? value : value * ratio, ratio, Math.min(SW, cropLimit.width), Math.min(SH, cropLimit.height))
-        box.set('width', size.width)
-        box.set('height', size.height)
-        box.set('x', Math.min(box.get('x'), SW - size.width))
-        box.set('y', Math.min(box.get('y'), SH - size.height))
-        return
-      }
-      const actual = key === 'width' ? Math.min(value, cropLimit.width) : key === 'height' ? Math.min(value, cropLimit.height) : value
-      box.set(key, actual)
-      // Keep the whole object within the slide when changing its size or position.
-      if (key === 'width') box.set('x', Math.min(Number(box.get('x')) || 0, SW - actual))
-      if (key === 'height') box.set('y', Math.min(Number(box.get('y')) || 0, SH - actual))
-      if (key === 'x') box.set('x', Math.min(value, SW - Number(box.get('width'))))
-      if (key === 'y') box.set('y', Math.min(value, SH - Number(box.get('height'))))
-    }, 'geometry')
-  })
-}
-
-$('object-rotation').addEventListener('change', event => {
-  const box = objects.get(selected)
-  if (presenting || box?.get('locked') === true || !box) return
-  const value = Number(event.target.value)
-  if (event.target.value.trim() === '' || !Number.isFinite(value) || value < -180 || value > 180) {
-    status('Rotation must be between -180 and 180 degrees.', 'error')
-    select(selected)
-    return
-  }
-  box.set('rotation', value)
 })
 
 function supportsFormatting(box) {
@@ -2018,12 +2023,13 @@ function loadSnapshot(data) {
   doc.off('update', renderThumbnails)
   doc.off('update', notifyChange)
   for (const view of views.values()) {
-    view.editor?.destroy()
+    view.disposePointer?.(); view.editor?.destroy()
     view.node.remove()
   }
   views.clear()
   selected = null; selectedIds.clear()
   editorFocused = null
+  pastePoint = null
   stopDrag()
   destroyHistory()
   doc.destroy()
@@ -2207,7 +2213,7 @@ function onObjectKey(event) {
   }, 'geometry')
 }
 function onHistoryKey(event) {
-  if (event.target.closest?.('.slide-crop-stage')) return
+  if (event.target.closest?.('.slide-crop-stage, .rotation-handle')) return
   onObjectKey(event)
   if (presenting || !(event.ctrlKey || event.metaKey) || event.altKey || !root.contains(event.target)) return
   const key = event.key.toLowerCase()
@@ -2430,6 +2436,20 @@ insertPickers = mountInsertPickers({ root, shapes: [...shapeCatalog.values()], r
   log: error => console.error('Slides insertion failed:',error),
 })
 slideMenu = mountSlideMenu(root, () => !presenting, () => { try { insertPickers.shape() } catch (error) { status('Could not open shape picker: '+error.message,'error') } })
+imageHandleMode = mountImageHandleMode(root, () => !presenting, () => stopDrag())
+themePicker = mountThemePicker({ root, current: () => !presenting && root.isConnected,
+  capture() { const target = doc, targetSlide = activeSlide, source = options.captureSession?.(); return () => root.isConnected && !presenting && doc === target && activeSlide === targetSlide && (!options.sessionCurrent || options.sessionCurrent(source)) },
+  theme: currentTheme, themes: () => [...availableThemes().values()], apply: applyTheme,
+  designs: () => [...layoutCatalog.values(), ...savedLayouts.values()].map(value => ({ label: value.label })),
+  save(value) {
+    const theme = validateThemeDefinition(value); history?.stopCapturing()
+    doc.transact(() => { design.set('saved-theme:' + theme.id, structuredClone(theme)); design.set('theme', structuredClone(theme)) }, 'theme')
+    history?.stopCapturing()
+  },
+  canSaveLayout: () => typeof options.onSaveLayout === 'function', saveLayout: () => $('save-layout').click(),
+  openModal: body => { if (!options.openInsertModal) throw new Error('This host does not provide the Themes dialog.'); return options.openInsertModal(body) },
+  error: error => status('Could not open Themes: ' + error.message, 'error'),
+})
 slideViews = mountSlideViews({ root, canChange: () => !presenting, selectSlide,
   getSlides: () => slideIds().map(id => ({ id, active: id === activeSlide,
     text: orderedObjectIds(id).filter(key => !['image', 'shape'].includes(objects.get(key)?.get('kind')))
@@ -2488,7 +2508,7 @@ return {
   destroy() {
     inPlaceCrop?.destroy()
     insertPickers?.destroy()
-    slideMenu?.destroy()
+    themePicker?.destroy(); imageHandleMode?.destroy(); slideMenu?.destroy()
     slideViews?.destroy()
     findReplace?.destroy()
     recoverySnapshot.destroy()
@@ -2497,6 +2517,7 @@ return {
     canvasZoom.destroy()
     presenter?.close()
     presenter = null
+    document.removeEventListener('copy', onSlideCopy, true)
     document.removeEventListener('cut', onSlideCut, true)
     document.removeEventListener('paste', onSlidePaste, true)
     document.removeEventListener('keydown', onPresentationKey)
@@ -2513,7 +2534,7 @@ return {
   notes.unobserve(renderNotes)
   doc.off('update', renderThumbnails)
     doc.off('update', notifyChange)
-    for (const view of views.values()) view.editor?.destroy()
+    for (const view of views.values()) { view.disposePointer?.(); view.editor?.destroy() }
     views.clear()
     destroyHistory()
     objectClipboard?.document.destroy()

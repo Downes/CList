@@ -46,7 +46,9 @@ export function replaceSlideText(matches, replacement) {
 }
 
 export function mountFindReplace({ root, Y, getDocument, getEntries, jump, transact, canEdit, selectedText, report, onError }) {
-  const inspector = root.querySelector('.inspector'), toolbar = root.querySelector('.tools')
+  const document = root.ownerDocument
+  const toolbar = root.querySelector('.slide-menu-right') || root.querySelector('.tools')
+  const lower = root.querySelectorAll('.slide-menu-bar')[1] || root.querySelector('.tools')
   const button = document.createElement('button')
   button.className = 'clist-action-btn btn-small'; button.type = 'button'
   button.dataset.control = 'open-find'
@@ -54,26 +56,32 @@ export function mountFindReplace({ root, Y, getDocument, getEntries, jump, trans
   button.setAttribute('aria-label',button.title)
   const icon = document.createElement('span'); icon.className = 'material-icons md-18 md-light'; icon.textContent = 'search'; button.append(icon)
   toolbar.append(button)
-  const panel = document.createElement('details'); panel.className = 'control-section'; panel.dataset.panel = 'find'
-  const summary = document.createElement('summary'); summary.textContent = 'Find and replace'
-  const body = document.createElement('div'); body.className = 'control-section-body'
-  panel.append(summary,body); inspector.prepend(panel)
+  const panel = document.createElement('div'); panel.className = 'slide-search-panel'; panel.dataset.panel = 'find'
+  panel.setAttribute('role','search'); panel.setAttribute('aria-label','Find and replace slide text'); panel.hidden = true; panel.open = false
+  const body = document.createElement('div'); body.className = 'slide-search-content'
+  panel.append(body); lower.append(panel)
+  function setOpen(value) {
+    panel.open = value; panel.hidden = !value
+    lower.dataset.searchOpen = String(value); button.setAttribute('aria-expanded',String(value))
+    if (!value) { clearTimeout(timer); timer = null }
+  }
   function field(labelText, type, name) {
     const label = document.createElement('label'), input = document.createElement('input')
-    input.type = type; input.dataset.control = name; input.title = labelText
-    if (type !== 'checkbox') { input.maxLength = 512; input.autocomplete = 'off' }
-    label.append(document.createTextNode(labelText),input); body.append(label)
+    input.type = type; input.dataset.control = name; input.setAttribute('aria-label',labelText)
+    if (type !== 'checkbox') { input.maxLength = 512; input.autocomplete = 'off'; input.placeholder = labelText; label.append(input) }
+    else label.append(document.createTextNode(labelText),input)
+    body.append(label)
     return input
   }
   const query = field('Find in slide text','search','find-query')
   const replacement = field('Replace with','text','find-replacement')
   const matchCase = field('Match case','checkbox','find-case'), wholeWord = field('Whole words','checkbox','find-word')
-  const actions = document.createElement('div'); actions.className = 'object-alignment'; body.append(actions)
-  const feedback = document.createElement('p'); feedback.className = 'helper'; feedback.setAttribute('role','status'); body.append(feedback)
+  const actions = document.createElement('div'); actions.className = 'slide-search-actions'; body.append(actions)
+  const feedback = document.createElement('p'); feedback.className = 'helper slide-search-feedback'; feedback.setAttribute('role','status'); body.append(feedback)
   const results = document.createElement('div'); results.className = 'object-list'; results.dataset.control = 'find-results'; results.setAttribute('aria-label','Matching slide text'); body.append(results)
-  const hint = document.createElement('p'); hint.className = 'helper'; hint.textContent = 'Searches text boxes on all slides. Locked boxes can be found but are not replaced. Enter/F3 finds next; Shift+F3 finds previous.'; body.append(hint)
+  const hint = document.createElement('p'); hint.className = 'helper'; hint.hidden = true; hint.textContent = 'Searches text boxes on all slides. Locked boxes can be found but are not replaced. Enter/F3 finds next; Shift+F3 finds previous.'; body.append(hint)
   let matches = [], current = -1, anchor = null, timer = null, destroyed = false
-  function safe(action) { return () => { try { action() } catch (error) { onError(error) } } }
+  function safe(action) { return () => { if (destroyed) return; try { action() } catch (error) { onError(error) } } }
   function action(label,name,run) {
     const node = document.createElement('button'); node.type = 'button'; node.className = 'btn btn-small'; node.textContent = label; node.title = label; node.dataset.control = name
     node.addEventListener('click',safe(run)); actions.append(node); return node
@@ -84,7 +92,7 @@ export function mountFindReplace({ root, Y, getDocument, getEntries, jump, trans
     previous.disabled = next.disabled = !matches.length || !canEdit()
     replace.disabled = current < 0 || !matches[current] || matches[current].entry.locked || !canEdit()
     replaceAll.disabled = !matches.some(match=>!match.entry.locked) || !canEdit()
-    results.replaceChildren()
+    results.replaceChildren(); results.hidden = !matches.length
     for (const [index,match] of matches.slice(0,100).entries()) {
       const item = document.createElement('button'); item.type = 'button'; item.className = 'btn btn-small'
       item.textContent = 'Slide '+match.entry.slideNumber+(match.entry.locked ? ' (locked)' : '')+': '+match.snippet
@@ -105,7 +113,7 @@ export function mountFindReplace({ root, Y, getDocument, getEntries, jump, trans
   function go(index) {
     if (!canEdit() || !matches.length) return
     current = (index+matches.length)%matches.length
-    remember(matches[current]); jump(matches[current]); panel.open = true; paint()
+    remember(matches[current]); jump(matches[current]); setOpen(true); paint()
   }
   function navigate(direction) { refresh(); go(current < 0 ? direction>0 ? 0 : matches.length-1 : current+direction) }
   function replaceCurrent() {
@@ -131,14 +139,13 @@ export function mountFindReplace({ root, Y, getDocument, getEntries, jump, trans
   const replace = action('Replace','find-replace',replaceCurrent), replaceAll = action('Replace all','find-replace-all',replaceEverywhere)
   function open(focusReplacement = false) {
     if (!canEdit()) return
-    for (const section of inspector.querySelectorAll(':scope > .control-section')) section.open = section===panel
     const selected = selectedText()
     if (selected && selected.length<=512 && !selected.includes('\n')) query.value = selected
-    panel.open = true; refresh(true)
+    setOpen(true); refresh(true)
     panel.scrollIntoView({block:'nearest'}); (focusReplacement ? replacement : query).focus(); (focusReplacement ? replacement : query).select()
   }
+  const done = action('Done','find-done',()=>{ setOpen(false); button.focus() }); done.classList.add('btn-secondary')
   button.addEventListener('click',safe(()=>open()))
-  panel.addEventListener('toggle',safe(()=>{if(panel.open)refresh()}))
   query.addEventListener('input',safe(()=>{ anchor=null; clearTimeout(timer); timer=setTimeout(safe(()=>refresh(true)),150) }))
   for (const option of [matchCase,wholeWord]) option.addEventListener('change',safe(()=>refresh(true)))
   function keyboard(event) {
@@ -147,18 +154,18 @@ export function mountFindReplace({ root, Y, getDocument, getEntries, jump, trans
     } else if (event.key==='F3' && panel.open && query.value && canEdit()) {
       event.preventDefault(); event.stopImmediatePropagation(); safe(()=>navigate(event.shiftKey?-1:1))()
     } else if (panel.contains(event.target)) {
-      if (event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); panel.open=false; button.focus() }
+      if (event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); setOpen(false); button.focus() }
       else if (event.key === 'Enter' && [query,replacement].includes(event.target)) {
         event.preventDefault(); event.stopImmediatePropagation(); safe(()=>event.target===query ? navigate(event.shiftKey?-1:1) : replaceCurrent())()
       }
     }
   }
   root.addEventListener('keydown',keyboard,true)
-  paint()
+  setOpen(false); paint()
   return {
     isOpen:()=>panel.open,
     changed() { if (!destroyed && panel.open && query.value) { clearTimeout(timer); timer=setTimeout(safe(()=>refresh()),150) } },
-    presenting(value) { button.disabled=value; if(value)panel.open=false },
-    destroy() { destroyed=true; clearTimeout(timer); root.removeEventListener('keydown',keyboard,true); panel.remove(); button.remove() },
+    presenting(value) { button.disabled=value; if(value)setOpen(false) },
+    destroy() { destroyed=true; setOpen(false); clearTimeout(timer); root.removeEventListener('keydown',keyboard,true); panel.remove(); button.remove() },
   }
 }

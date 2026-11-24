@@ -3303,3 +3303,272 @@ User-reported Slides browser PASS: 53 checks at `2026-11-23.34`, including
 rectangle cropping, direct-slide Done/Cancel, wide pickers and document preservation.
 This supersedes the pending status for `.34`; live collaboration/storage remain
 outside that fixture.
+
+
+## Shape background and crop-grip routing — browser pending, 2026-11-24.1
+
+Shape choices now explicitly use a transparent background in normal/hover/active
+states, with a visible keyboard focus outline. Crop-stage pointer presses bypass
+the canvas capture-phase background handler, so pressing a grip does not deselect
+the image and expire crop mode. The new routing regression failed before the fix
+and passes after; ordinary background deselection is still exercised.
+
+Embedded build succeeded; `node --test tests/slides-crop.test.cjs tests/slides-insert-picker.test.cjs`
+passed 9/9, zero failures/skips. Browser fixture at `.1` expects 55 checks, adding
+transparent shape background and synthetic grip-press routing. Synthetic capture
+is stubbed in that check because trusted pointer capture requires actual input.
+Manually press/hold/drag the corners and move the crop rectangle on the slide as
+well as in the modal; fixture success alone is not a real-pointer test. Browser
+and manual results remain user-pending. No files staged, committed or pushed.
+
+
+## Slide body dragging and native text selection — browser pending, 2026-11-24.2
+
+Removed separate Move handles. Images and shapes delegate body presses to the
+existing movement controller; text contents preserve native pointer defaults for
+caret placement and drag selection (including Shift). Text-box borders can move
+the box, while resize and crop controls retain their separate behavior.
+
+Embedded build succeeded. Focused Node command:
+`node --test tests/slides-object-pointer.test.cjs tests/slides-crop.test.cjs tests/slides-insert-picker.test.cjs tests/slides-menu.test.cjs tests/slides-views.test.cjs`
+passed 21/21. The browser fixture now expects 58 checks, including synthetic image
+body movement and unprevented text presses. Real mouse-held dragging, cursor
+placement and text-range selection require user checks; synthetic events cannot
+establish native text selection. No external services or storage writes tested.
+The user reported the previous `.1` fixture passed 55 checks.
+
+
+Browser fixture correction (2026-11-24.3): the text-pointer check now uses the
+text box inserted on the active second slide. The original outline text belongs
+to the first slide and has no mounted node while the second is active. Expected
+count remains 58; browser rerun pending. Production code unchanged.
+
+
+## Text-box hold to move — browser pending, 2026-11-24.4
+
+Holding still over text for 450 ms starts the existing whole-object drag.
+Quick release keeps caret placement; immediate movement beyond five pixels keeps
+native text selection. Release/cancel, a new press, visibility/window changes,
+view disposal and expired ownership cancel pending holds. Images/shapes still
+move immediately. The prior `.3` browser fixture passed 58 checks per user.
+
+Focused pointer/crop Node checks passed 11/11. Browser fixture `.4` expects 59
+checks including synthetic held-text movement. Trusted mouse caret/selection and
+hold gestures remain user-pending; capture is stubbed for synthetic pointer input.
+
+
+## Shape rotation handle — browser pending, 2026-11-24.5
+
+Removed the Objects section from the right inspector. Selected unlocked shapes
+have a short stem and circular rotation handle; horizontal screen movement rotates
+clockwise to the right and counterclockwise to the left, with continuous angle
+wrapping. Existing rotation data, undo transactions and pointer cleanup are reused.
+The handle also supports Left/Right keyboard adjustments, and is hidden for
+multiple selections and presentation mode.
+
+Embedded build succeeded. Focused rotation/pointer/crop Node checks passed 12/12:
+`node --test tests/slides-rotation.test.cjs tests/slides-object-pointer.test.cjs tests/slides-crop.test.cjs`.
+Browser fixture `.5` expects 63 checks. Synthetic rotation routing stubs capture;
+manual held-pointer rotation remains pending. The user reported `.4` passed 59
+checks. No external services or storage writes exercised.
+
+
+Browser fixture correction (2026-11-24.6): menu-selection check now focuses the
+actual text editor instead of clicking the removed Objects panel row. Expected
+count remains 63; browser rerun pending. Production code unchanged.
+
+
+## Shared image/text rotation handles — browser pending, 2026-11-24.7
+
+The existing shape rotation handle is now shared by images and text boxes, with
+object-specific accessible labels. Double-clicking an image rotation handle does
+not trigger image cropping. Existing lock/multiple-selection/presentation rules
+and data/undo behavior remain shared. The user confirmed real shape dragging
+works and reported the prior fixture passed 63 checks.
+
+Embedded build succeeded; focused rotation/pointer/crop Node checks passed 12/12.
+Browser fixture `.7` expects 69 checks, adding visible handle and both rotation
+directions for images/text without changing their position or size. Manual image
+and text rotation remains pending. No external requests or storage writes tested.
+
+
+## Border resizing — browser pending, 2026-11-24.8
+
+Shapes, images and text boxes have full-length four-edge resize hit areas, with
+horizontal/vertical double-arrow cursors. Left/right change width independently;
+top/bottom change height independently. The opposite edge stays fixed, including
+rotated objects. Existing lower-right resize, movement, crop and rotation controls
+remain. Edge resizing uses existing captured pointer/undo and lock guards.
+
+Embedded build succeeded. Focused edge-resize/rotation/pointer/crop Node checks
+passed 15/15. Browser fixture `.8` expects 84 checks including each object's four
+edges and cursor styles. Synthetic capture is stubbed; manually check real edge
+drags, rotated objects, text selection and cropped images. Prior `.7` passed 69
+checks per user. No external requests or real storage writes exercised.
+
+
+Browser fixture correction (2026-11-24.9): repeated fixed-pixel shrinking could
+reach the cropped image minimum before the last edge test. A Node reproduction
+confirmed that limit. Each fixture drag now uses 20% of its remaining slide-unit
+size above the minimum, converted to screen pixels. Expected count remains 84;
+browser rerun pending. Production code unchanged.
+
+
+## Image Resize/Crop handle mode — browser pending, 2026-11-24.10
+
+Selected images show Resize/Crop buttons in the lower menu, defaulting to Resize.
+Resize scales source dimensions with the frame, preserving an existing crop;
+corners preserve the current frame ratio and edges stretch one axis. Crop keeps
+source dimensions fixed while changing the frame, with crosshair cursors. The
+existing Crop image rectangle/Done/Cancel workflow remains separate. Mode is local
+UI state, captured at pointer start; changing it stops the active gesture.
+
+Embedded build succeeded. Focused image-mode/edge/pointer/crop/menu Node checks
+passed 21/21. Browser fixture `.10` expects 88 checks, including default selection,
+resize crop-fraction preservation, fixed-source cropping and text-selection hiding.
+Manual corners/edges and visual behavior remain user-pending. The user reported
+`.9` passed 84 checks and confirmed border resizing works. No external requests
+or real storage writes exercised.
+
+
+## Centered image mode and simplified inspector — browser pending, 2026-11-24.11
+
+Resize/Crop is centered in the lower menu using equal outer grid columns, keeping
+existing menu options on the left. Removed Position and size and its numeric-field
+listeners; pointer movement, edge/corner sizing and rotation handles remain.
+Embedded build succeeded; focused image-mode/menu/edge/rotation Node checks passed
+11/11. Browser fixture `.11` expects 90 checks, adding toggle alignment and absent
+geometry section. The user reported `.10` passed 88 checks. Browser layout rerun
+pending; no live services or storage writes exercised.
+
+
+## Toolbar alignment and Themes dialog — browser pending, 2026-11-24.12
+
+Upper controls after the last divider (presentation and zoom) reuse their existing
+nodes in a right-aligned group. The lower bar has a right-aligned Themes button
+and the original theme select; the Resize/Crop group retains its centered column.
+The original Themes inspector section is replaced by these controls.
+
+`src/theme-picker.js` owns the wide dialog, theme selection, four live colour
+swatches/pickers, named custom palette draft, Close and the existing Save design
+as layout handoff. editor.js validates saved themes through the shared catalog
+validator. Custom palettes are stored as `saved-theme:<id>` entries in the existing
+Yjs slide-design map and selected via its existing theme entry. They survive native
+presentation save/load; this is not a separate cross-presentation theme library.
+Captured document/session/modal ownership and newer-theme checks reject stale saves.
+
+Embedded build succeeded. Focused theme-picker/menu/image-handle Node checks
+passed 11/11:
+`node --test tests/slides-theme-picker.test.cjs tests/slides-menu.test.cjs tests/slides-image-handle-mode.test.cjs`.
+Browser fixture `.12` expects 100 checks, adding alignment, the wide dialog,
+selection/swatch preview, custom theme storage/native Yjs round-trip/reselection
+and mocked layout handoff. Actual layout storage, modal application integration,
+live collaboration and normal-app interaction remain user-pending. No external
+requests or real storage writes exercised. The user reported `.11` passed 90 checks.
+
+
+Upper toolbar correction (2026-11-24.13): Find is mounted after the menu builder;
+it previously appended beside the right group, occupying the bar's right edge.
+Find now uses that group when present, retaining the standalone toolbar fallback.
+Embedded build succeeded; Find/menu/theme Node checks passed 12/12. Fixture `.13`
+still expects 100 checks and now asserts Find is inside the group. Browser rerun
+pending after `.12` failed the right-alignment assertion.
+
+
+Theme dropdown containment (2026-11-24.14): the lower-bar theme group is bounded
+to its grid column; its select now shrinks instead of inheriting nonshrinking
+full-width form-field sizing, and the group can wrap when needed. Removed its
+trailing select margin. Embedded build succeeded; no JavaScript behavior changed.
+Fixture `.14` expects 102 checks, adding dropdown containment at normal and 460px
+editor widths. Browser checks remain pending. The user reported `.13` passed 100
+checks and confirmed the wide Themes dialog works, but found normal-app overflow.
+
+
+## Separate colour themes and slide designs — browser pending, 2026-11-24.15
+
+Themes now has distinct Colour Themes and Slide designs columns (stacked on small
+screens). The colour selection/palette draft/save action stays on the left. The
+right lists catalog and registered saved designs by literal name, explains that
+designs are selected when creating slides, and uses the existing save-layout
+handoff under Save current slide as a new design. Modal ownership now also
+captures the original slide. Lower-menu labels are Blank Slide and Slide Design;
+existing insertion paths are preserved.
+
+Embedded build succeeded. Focused theme/menu/image-mode Node checks passed 11/11.
+Fixture `.15` expects 105 checks for column/action separation, named design list,
+creation guidance and labels. Browser rerun pending; actual layout persistence
+remains outside this mocked layout handoff. The user reported `.14` passed 102
+checks and confirmed the Themes modal works. No external requests or real writes.
+
+
+## Object clipboard pointer placement — browser pending, 2026-11-24.16
+
+Reused native copy/cut/paste event handlers and existing Yjs object/text/reference
+cloning. Object paste now places the selection's bounding box at the last mouse
+position on the active slide, clamped to its edges, instead of using only the
+source offset. Pointer ownership includes the document and resets on replacement.
+Text-editing clipboard behavior remains native; select a whole text box (hold or
+Escape from text editing) to copy/cut the object. Existing offset fallback is
+retained when no pointer position exists for the active slide.
+
+Embedded build succeeded. Focused clipboard/pointer Node checks passed 9/9:
+`node --test tests/slides-clipboard.test.cjs tests/slides-object-pointer.test.cjs`.
+Run `https://localhost:51888/tests/slides-clipboard.browser.html`, marker `.16`,
+expecting 14 checks. It uses the real editor/Yjs/clipboard event handlers but only
+synthetic DataTransfer objects; no OS clipboard changes, requests or storage writes.
+Manual Ctrl/Cmd+C/X/V for all three object types, native text selection and grouped
+placement remain user-pending. The broader views fixture retains 105 checks and is
+not required for this focused clipboard step. User reported `.15` passed 105 checks.
+
+
+Clipboard fixture correction (2026-11-24.17): inject controlled clipboardData into
+dispatched events rather than depending on browser-created synthetic ClipboardEvent
+payload permissions. Added selection/status diagnostics. Production code unchanged;
+the `.16` copy assertion failed and `.17` rerun remains pending, expecting 14 checks.
+Real OS clipboard/keyboard behavior still requires manual testing.
+
+
+## Native object clipboard focus routing — browser pending, 2026-11-24.18
+
+The user reported actual Ctrl+C/V pasted old text despite `.17`'s 14 synthetic
+checks. Copy previously listened only on the editor root; native page-targeted
+copy events could bypass it. Copy now uses a document capture listener scoped to
+the focused editor, shared with cut ownership checks. Focused native text fields
+and other editors retain their clipboard behavior. Whole-object focus clears old
+DOM text selections; page-routed paste also accepts focused slide objects.
+
+Embedded build succeeded; clipboard/pointer Node checks passed 10/10. The focused
+clipboard browser fixture `.18` expects 16 checks, now routing copy/cut/paste via
+body and checking old text selection cleanup and outside-focus exclusion. This
+reproduces the old root-listener gap but still uses controlled clipboard payloads.
+Actual Ctrl+C/X/V after selecting shapes/images/text boxes remains user-pending.
+No OS clipboard, external services or real storage writes touched by checks.
+
+
+## Lower-menu search — browser pending, 2026-11-24.19
+
+Find/replace controls now mount in the lower menu instead of the right inspector.
+While open, CSS temporarily replaces the normal lower menu contents; Done or
+Escape from a search field restores their current state, including Themes.
+Presentation mode also closes search. Query/replacement fields have placeholders
+and aria-labels rather than visible labels/title tooltips. Slides text/search
+inputs share the existing menu select font/padding/height sizing. Search matching,
+replace/undo, locked-text guards and result navigation retain their existing paths.
+
+Embedded build succeeded. Focused Find data/view/menu Node checks passed 11/11:
+`node --test tests/slides-find-view.test.cjs tests/slides-find-replace.test.cjs tests/slides-menu.test.cjs`.
+Run `https://localhost:51888/tests/slides-find-replace.browser.html`, marker `.19`,
+expecting 30 checks. It exercises the real embedded editor/Yjs/search UI and adds
+lower-menu placement, Themes replacement/restoration, placeholder/aria labeling
+and field/button height checks. No collaboration, external services or storage
+writes. Browser layout/normal-app checks remain user-pending. The user reported
+the `.18` synthetic clipboard fixture passed 16; real Ctrl+C/V remains unconfirmed.
+
+
+Slide design editing part 1 checkpoint (2026-11-24): user reported the lower-menu
+search fixture `.19` passed all 30 checks. Earlier user-reported browser passes
+include the 105-check views fixture `.15` and 16-check controlled clipboard fixture
+`.18`. These are separate fixture results, not live collaboration or OS clipboard
+validation; the reported actual Ctrl+C/V fix still awaits explicit manual confirmation.
+The latest embedded build and focused 11-check Find data/view/menu Node run passed.
+Further slide editor design editing is planned after this first checkpoint.

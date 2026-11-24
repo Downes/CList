@@ -853,3 +853,21 @@ explicit insertion. Shape uses the current catalogs; image uses the existing
 imageRatio/imageFit/cropX/cropY/alt fields, preserving the right-column controls.
 Image-library connections are not implemented. Other embedding hosts must supply
 openInsertModal(body), returning current()/close() for their modal shell.
+
+
+Slides theme controls now live at the right of the lower menu. `src/theme-picker.js`
+uses the shared wide-modal adapter and explicit theme/read/apply/save/layout
+callbacks; palette drafts remain local until Save as new theme. editor.js stores
+validated custom palettes under `saved-theme:<id>` in the Yjs slide-design map and
+sets its existing `theme` value. Native Yjs save/load and collaboration preserve
+those entries; there is no separate global theme library. Existing layout saving
+uses its original host callback. Upper presentation/zoom controls are moved intact
+into `slide-menu-right`; lower Resize/Crop stays centered between menu choices and
+theme controls.
+
+
+`src/find-replace.js` now owns a lower-menu search surface. It toggles the lower
+bar's search-open state without changing normal menu groups' hidden/selection
+state, so Done/Escape restores the current New Slide/Insert, image-mode and Themes
+controls. Search/replace results remain in the same surface; the inspector no
+longer contains a Find section. Text/search inputs share compact menu dimensions.
