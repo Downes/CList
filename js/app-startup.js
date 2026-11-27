@@ -102,6 +102,7 @@ function installAppStartup() {
         state(value) {
             window.CList.state.appStartup = value;
             if (!status) return;
+            status.style.display = value.phase === 'ready' ? 'none' : '';
             status.textContent = value.phase === 'ready' ? '' : value.phase === 'failed' ? 'Tools could not load.' :
                 value.phase === 'loading-accounts' ? 'Loading accounts…' : 'Loading tools…';
         },

@@ -14,7 +14,6 @@
 // // TinyMCE Editor Handlers
 
 let TinyMCE_Intialized = false;
-let pendingTinymceDraftOffer = false;
 
 (function () {
 
@@ -24,74 +23,55 @@ let pendingTinymceDraftOffer = false;
         icon: 'web',
         contentTypes: ['text/html'],
         requiresAccount: false,
-        initialize: () => {
+        initialize: async () => {
             currentEditor = 'tinymce';
-            //closeAllEditors();
-            console.log("Not closing editors");
-
-            if (TinyMCE_Intialized) {
-                console.log("TinyMCE already initialized.");
-                const writePaneContent = window.CList.ui.view.writePaneContent;
-                writePaneContent.style.display = 'block'; // Show the content area
-                let tinymceEditorDiv = document.getElementById('tinymceEditorDiv');
-                tinymceEditorDiv.style.display = 'block'; // Show the editor
-                // Editor instance already exists, so there's no init callback coming to
-                // deliver pendingContent the way a first-time init does — consume it here.
-                loadPredefinedContent('tinymce');
+            const writePaneContent = window.CList.ui.view.writePaneContent;
+            writePaneContent.style.display = 'block';
+            let root = document.getElementById('tinymceEditorDiv');
+            if (!root) {
+                root = document.createElement('div'); root.id = 'tinymceEditorDiv';
+                root.innerHTML = '<textarea id="write-column"></textarea>';
+                writePaneContent.appendChild(root);
+            }
+            root.style.display = 'block';
+            if (!document.getElementById('write-column')) throw Error('The HTML editor field is unavailable. Reopen the editor and try again.');
+            if (typeof tinymce === 'undefined') throw Error('TinyMCE is unavailable. Reopen the editor to retry loading it.');
+            const account = currentEditorAccount;
+            const session = () => typeof readerSession === 'function' ? JSON.stringify(readerSession()) : null;
+            const source = session();
+            const owned = () => currentEditor === 'tinymce' && currentEditorAccount === account && session() === source
+                && document.getElementById('tinymceEditorDiv') === root && root.isConnected;
+            let editor = tinymce.get('write-column');
+            if (TinyMCE_Intialized && editor) {
+                await loadPredefinedContent('tinymce');
                 return true;
             }
-
-
-            // Check whether tinymceEditorDiv exists; if it doesn't, create it
-            const writePaneContent = window.CList.ui.view.writePaneContent;
-            let tinymceEditorDiv = document.getElementById('tinymceEditorDiv');
-            if (!tinymceEditorDiv) {
-                console.log("Creating TinyMCE editor div");
-                tinymceEditorDiv = document.createElement('div');
-                tinymceEditorDiv.id = 'tinymceEditorDiv';
-                tinymceEditorDiv.innerHTML = `<textarea id="write-column"></textarea>`;
-                writePaneContent.appendChild(tinymceEditorDiv);
+            TinyMCE_Intialized = false;
+            const offerDraft = !pendingContent;
+            try {
+                // A prior failed setup may have left an incomplete instance registered.
+                editor?.remove();
+                const editors = await tinymce.init(window.tinymceConfig);
+                editor = (editors || []).find(value => value.id === 'write-column');
+                if (!editor || tinymce.get('write-column') !== editor) throw Error('TinyMCE did not finish creating the HTML editor. Reopen it to retry.');
+                if (!owned()) { editor.remove(); return false; }
+                let references = document.getElementById('tinymce-references');
+                if (!references) {
+                    references = document.createElement('div'); references.id = 'tinymce-references';
+                    references.className = 'allReferences';
+                    writePaneContent.parentNode.insertBefore(references, writePaneContent.nextSibling);
+                }
+                TinyMCE_Intialized = true;
+                if (offerDraft) await offerDraftRestore('tinymce', 'text/html');
+                else await loadPredefinedContent('tinymce');
+                return true;
+            } catch (error) {
+                TinyMCE_Intialized = false;
+                try { tinymce.get('write-column')?.remove(); }
+                catch (cleanupError) { console.error('HTML editor cleanup failed:', cleanupError); }
+                console.error('HTML editor initialization failed:', error);
+                throw error; // The shared mount controller owns visible feedback and rollback.
             }
-
-            // Check whether write-column (used by TinyMCE) exists 
-            const editorElement = document.querySelector('#write-column');
-            if (editorElement) {
-                console.log("Editor element found:", editorElement);
-            } else {
-                console.error("Editor element not found for selector '#write-column'.");
-                showErrorModal("Editor element not found — please reload the page.", { title: 'Editor failed to load' });
-            }
-
-            // Check whether the TinyMCE editor is loaded; if it is, don't load it again
-            if (typeof tinymce === 'undefined') {
-                console.error('TinyMCE is not loaded.');
-                showErrorModal('TinyMCE failed to load — check your network connection.', { title: 'Editor failed to load' });
-            } else {
-                console.log('TinyMCE is loaded; initializing now:', tinymce);
-                tinymce.init(window.tinymceConfig);
-            }
-
-
-
-            tinymceEditorDiv.style.display = 'block'; // Show the editor
-
-
-
-            // Check whether <div id="tinymce-references" ...> exists; if it doesn't, create it
-            let tinymceReferences = document.getElementById('tinymce-references');
-            if (!tinymceReferences) {
-                tinymceReferences = document.createElement('div');
-                tinymceReferences.id = 'tinymce-references';
-                tinymceReferences.className = 'allReferences';
-                writePaneContent.parentNode.insertBefore(tinymceReferences, writePaneContent.nextSibling);
-            }
-
-            // Content is loaded once the editor instance is actually ready — see
-            // init_instance_callback in tinymceConfig. Calling loadPredefinedContent here
-            // races tinymce.init()'s async setup and can crash in editor.focus().
-            pendingTinymceDraftOffer = !pendingContent;
-            TinyMCE_Intialized = true;
-            console.log("TinyMCE editor initialized");
         },
         getContent: () => {
             // Retrieve content for TinyMCE  - locatioon defined in tinymceConfig.selector
@@ -220,15 +200,8 @@ tinymceConfig = {
             window._attributeDroppedContent(e);
         }, true);
 
-        if (pendingTinymceDraftOffer) {
-            pendingTinymceDraftOffer = false;
-            offerDraftRestore('tinymce', 'text/html');
-        } else {
-            // Editor instance is fully ready here — safe to load content and focus it,
-            // unlike calling this right after tinymce.init() (which races setup and can
-            // crash in editor.focus() -> mceFocus -> getRng on an uninitialized selection).
-            loadPredefinedContent('tinymce');
-        }
+        // Initial content/draft delivery is awaited by initialize(), after init resolves.
+
     },
     content_style: _dm ? `
         body { background: #1e1e1e; color: #e0e0e0; font-size: 14px; }

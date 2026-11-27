@@ -26,7 +26,16 @@
         pending.set(name, promise);
         return promise;
     }
-    window.ensureTinyMCE = () => load('TinyMCE', 'https://www.downes.ca/assets/tinymce/tinymce.min.js', () => typeof window.tinymce?.init === 'function');
+    const tinyBase = 'https://www.downes.ca/assets/tinymce';
+    const tinyReady = () => {
+        const api = window.tinymce;
+        if (typeof api?.init !== 'function' || typeof api.overrideDefaults !== 'function') return false;
+        // Dynamic loading can defeat TinyMCE's script-location autodetection.
+        // Its supported defaults API sets baseURL/baseURI and the asset suffix.
+        api.overrideDefaults({ ...api.defaultOptions, base_url: tinyBase, suffix: '.min' });
+        return true;
+    };
+    window.ensureTinyMCE = () => load('TinyMCE', tinyBase + '/tinymce.min.js', tinyReady);
     window.ensurePeerJS = () => load('PeerJS', 'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js', () => typeof window.Peer === 'function', { integrity: 'sha384-nlUQ8ZqCbvStErob+biJNzSgltf6urV3VGqhfIfzhmg9RXmpeRm76ELw0pYnKlTR', crossOrigin: 'anonymous' });
     window.ensureGoogleIdentity = () => load('Google authorization', 'https://accounts.google.com/gsi/client', () => typeof window.google?.accounts?.oauth2?.initTokenClient === 'function');
 })();

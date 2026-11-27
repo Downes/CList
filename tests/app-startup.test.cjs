@@ -89,7 +89,7 @@ test('real feature script loader marks evaluation failures and timeout unsafe to
 test('actual installer waits for core DOM startup and two frames, then unlocks only after accounts',async()=>{
     const events={}, frames=[], controls=[{id:'openFindButton',disabled:false},{id:'existingDisabled',disabled:true},{id:'logoutButton',disabled:false}];
     for(const control of controls){control.isConnected=true;control.getAttribute=()=>null;}
-    const status={},accounts=gate();let script;
+    const status={style:{}},accounts=gate();let script;
     const window={CList:{state:{}},addEventListener(){},removeEventListener(){}};
     const ctx=vm.createContext({window,URL,location:{href:'https://app.invalid/'},console,performance:{mark(){}},
         document:{readyState:'interactive',getElementById:id=>id==='app-feature-scripts'?{textContent:'["a.js"]'}:status,
@@ -104,6 +104,8 @@ test('actual installer waits for core DOM startup and two frames, then unlocks o
     assert.equal(script,undefined);frames.shift()();assert.equal(script,undefined);frames.shift()();await tick();
     assert.equal(script.src,'a.js');script.onload();await tick();
     assert.equal(window.CList.state.appStartup.phase,'loading-accounts');assert.equal(controls[0].disabled,true);
+    assert.equal(status.style.display,'');
     accounts.resolve();await tick();assert.equal(controls[0].disabled,false);assert.equal(controls[1].disabled,true);
     assert.equal(window.CList.state.appStartup.phase,'ready');assert.equal(status.textContent,'');
+    assert.equal(status.style.display,'none');
 });

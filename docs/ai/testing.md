@@ -394,3 +394,27 @@ switching, tags, OAuth callback pickup and live Chat signaling. Prior fixture
 PASS reports and mocked checks do not replace these integration checks. Recheck
 startup after instrumentation cleanup, including any retained pending slide/share
 checks documented above. No launcher restart is needed for frontend changes.
+
+
+### HTML editor asynchronous initialization
+
+Run `node --test tests/tinymce-initialization.test.cjs tests/editor-switch.test.cjs tests/external-libraries.test.cjs tests/annotation-body.test.cjs tests/collab-composer.test.cjs`.
+The real HTML handler/config is executed with TinyMCE, DOM, drafts and session
+APIs mocked. Checks cover waiting for init, delayed content delivery, partial
+instance cleanup, empty results, retry and expired sessions. No external scripts,
+storage or real TinyMCE iframe is exercised. The main HTML editor now awaits
+`tinymce.init()` before becoming initialized; content/draft delivery follows
+readiness instead of running in the instance callback. Failures propagate through
+the shared mount controller for visible feedback and source rollback.
+User browser check pending: reload, choose HTML, confirm toolbar and editable body,
+then switch away/back and test a saved HTML load. The user's blank-area report
+motivates this fix; passing mocked checks does not establish its live root cause.
+
+TinyMCE asset-path follow-up: user console showed theme/model/plugin/icon
+requests incorrectly resolving under localhost `/js/`. The shared TinyMCE loader
+now calls the library's supported `overrideDefaults` API with the remote
+`base_url` and `.min` suffix before any consumer initializes. Existing defaults
+are preserved, including when the API is already loaded. The focused external
+library and HTML initialization tests pass with APIs mocked; real browser
+rendering remains user-pending. The readiness fix alone did not resolve the
+reported blank editor; the console evidence established this additional cause.
