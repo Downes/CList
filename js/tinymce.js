@@ -20,6 +20,7 @@ let pendingTinymceDraftOffer = false;
 
     const tinymceHandler = {
         label: 'HTML (TinyMCE)',
+        loadDependencies: () => ensureTinyMCE(),
         icon: 'web',
         contentTypes: ['text/html'],
         requiresAccount: false,

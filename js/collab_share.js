@@ -19,7 +19,7 @@ function createCollabShareActions(target, deps, feedback) {
         },
         post(mode) {
             if (!valid(mode)) return false;
-            try { deps.post({ docId:target.docId,server:target.server,title:target.title,mode,link:deps.link(mode),current:deps.contextCurrent }); return true; }
+            try { deps.post({ docId:target.docId,server:target.server,title:target.title,...(target.editorType?{editorType:target.editorType}:{}),mode,link:deps.link(mode),current:deps.contextCurrent }); return true; }
             catch (error) { if (deps.current()) feedback.error(error); return false; }
         }
     };
@@ -37,6 +37,7 @@ function createCollabShareController(target, deps, view) {
     const assertCurrent = () => { if (!owned()) throw Error('The sharing panel expired.'); };
     const actions = createCollabShareActions(target, { ...deps, current: owned }, view.feedback);
     function load() {
+        if (deps.accessSettings === false) { phase='ready';render();return Promise.resolve(owned()); }
         if (!owned()) return Promise.resolve(false); if (readJob) return readJob;
         if (busy) return Promise.resolve(false);
         if (writes.get(key)?.pending) { blocked = true; receipt = 'pending'; phase = 'pending'; render(); view.message('A sharing update is still pending. Check current settings when it completes.', true); return Promise.resolve(false); }
@@ -50,6 +51,7 @@ function createCollabShareController(target, deps, view) {
         return readJob;
     }
     async function save(value) {
+        if (deps.accessSettings === false) return false;
         if (!owned() || busy) return false;
         if (blocked || confirmed === null || writes.has(key)) { blocked = true; render(); view.message('Check current settings before changing access.', true); return false; }
         if (value === confirmed) return true;

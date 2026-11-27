@@ -45,10 +45,10 @@ function createCollabComposerController(target, deps, view) {
     function initialize() {
         if (!owned()) { close(); return Promise.resolve(false); } if (initializing || rich) return initializing || Promise.resolve(true);
         if (timer != null) { deps.clear(timer); timer = null; }
-        if (!deps.hasRich()) { view.ready(plain,false); return Promise.resolve(true); }
+        if (!deps.ensureRich && !deps.hasRich()) { view.ready(plain,false); return Promise.resolve(true); }
         const attempt = ++initVersion, attemptEditors = new Set();
         phase = 'mounting'; busy = true; view.starting(view.seedHtml(plain,revision === 0)); state();
-        initializing = Promise.resolve().then(() => {
+        initializing = Promise.resolve().then(() => deps.ensureRich?.()).then(() => {
             if (!owned()) return [];
             return deps.init({ target:view.element,height:200,menubar:false,plugins:'link',toolbar:'bold italic link | undo redo',statusbar:false,
                 ...tinymceDarkOptions(),

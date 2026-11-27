@@ -163,3 +163,22 @@ If 10 people in a workshop all annotate an article, each person only sees the su
 ---
 
 *Next step: implement opportunities in order, starting with Opportunity 1.*
+
+
+## Shared active-editor Share command
+
+`editor-sharing.js` owns the Share command in right-main-command and captures the
+active handler's getSharing() descriptor. Collab, LaTeX and connected Slides use
+the existing Collab access controller/view/request modules; Etherpad supplies its
+supported pad URL without requesting Collab-only settings. Existing editor Share
+entry points use this same flow. Header visibility is refreshed after editor mounts
+and resource chrome changes, while every action independently checks source,
+session/account/switch ownership. Public URLs must be HTTP(S) without credentials.
+Copy uses the shared clipboard helper; Post uses the existing captured composer.
+
+
+PeerJS loads on demand through `external-libraries.js` when a chat session is
+requested, rather than at page startup. `dynamicp2p_session` guards delayed peer
+construction and queued joins; the bridge retains its synchronous session API.
+Sessions may be current before `resources.peer` exists, so readiness checks must
+allow a null peer. Existing sharing resumes from the peer-open callback.

@@ -108,7 +108,8 @@ const OAuthClient = {
             this._pickupRegistered = true;
             const pickup = () => { void controller.pickup(); };
             // Deferred scripts run at "interactive"; wait for every provider to register.
-            if (document.readyState !== 'complete') document.addEventListener('DOMContentLoaded', pickup, { once: true });
+            if (window.CList.startup) window.CList.startup.afterFeatures(pickup);
+            else if (document.readyState !== 'complete') document.addEventListener('DOMContentLoaded', pickup, { once: true });
             else queueMicrotask(pickup);
         }
     },

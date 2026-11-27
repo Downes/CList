@@ -152,6 +152,7 @@
                 sharedRefs = resource?.map || null
                 currentDocId = resource?.target.docId || null
                 if (resource) currentWsUrl = resource.target.wsUrl
+                if(typeof notifyEditorSharingChanged==='function')notifyEditorSharingChanged()
             },
         })
     }
@@ -262,7 +263,7 @@
                     share: async () => {
                         if (!currentDocId && !await connectFromInput()) return false
                         if (!view.current() || view !== controlsView) return false
-                        return latexControls().share()
+                        return typeof openEditorSharing==='function'?openEditorSharing(editorHandlers.latex.getSharing()):latexControls().share()
                     },
                 })
             }
@@ -326,6 +327,7 @@
         // editors.js's editor-switch state park/restore to recognize "still the same
         // live document" and resync references from the Y.Map instead of restoring a
         // stale local snapshot. null when not connected (e.g. local-only, pre-title).
+        getSharing: () => {if(!resourceLifecycle?.owned()||!currentDocId||!currentWsUrl)return null;const source=captureControlSource();return {docId:source.docId,server:source.wsUrl,title:source.title,current:()=>controlSourceCurrent(source,false,false)};},
         getDocId: () => resourceLifecycle?.owned() ? currentDocId : null,
 
         // Rebuild the shared global reference list from this document's own clist_refs

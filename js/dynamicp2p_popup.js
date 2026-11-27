@@ -89,7 +89,7 @@ function openOwnedP2pPopup() {
             open: (url, name) => window.open(url, name, 'width=420,height=620,resizable=yes'),
             schedule: callback => setTimeout(callback, 250), discussion: () => activeDiscussionName,
             state: state => { if (_p2pPopup === controller) window.CList.state.chatPopup = state; },
-            send: (text, current) => { if (!session.resources.peer.id) throw Error('Wait for the chat connection to open before sending.'); return sendMessage(text, current); },
+            send: (text, current) => { if (!session.resources.peer?.id) throw Error('Wait for the chat connection to open before sending.'); return sendMessage(text, current); },
             collaborate: current => { if (current()) return startCollabFromChat(); },
             error: error => showStatusMessage(error.message || String(error)),
             closed: () => { if (_p2pPopup === controller) chatBc = null; }

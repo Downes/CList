@@ -282,4 +282,5 @@ function loadContentToEditor(itemId) {
 }
 
 // Set the indicator label once all scripts have loaded
-document.addEventListener('DOMContentLoaded', () => { updateEditorIndicator(); });
+if (window.CList.startup) window.CList.startup.afterFeatures(()=>updateEditorIndicator());
+else document.addEventListener('DOMContentLoaded', () => { updateEditorIndicator(); });

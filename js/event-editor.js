@@ -257,6 +257,7 @@ async function _eventEditorDelete() {
     }
 
     editorHandlers['event'] = {
+        loadDependencies: () => ensureTinyMCE(),
         label: 'Event',
         icon: 'event',
         contentTypes: [],

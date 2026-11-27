@@ -31,7 +31,7 @@ const readPane = document.getElementById("read-pane");
 
 // Layout commands, storage and drag sizing are owned by pane-state.js,
 // pane-view.js and panes.js. Gesture interpretation remains below.
-document.addEventListener('DOMContentLoaded',()=>paneController().restore());
+if (!window.CList.startup) document.addEventListener('DOMContentLoaded',()=>paneController().restore());
 
 // ============================================================================
 // 4. Left/right panel content & overlay sections
@@ -120,7 +120,8 @@ function toggleLeftOverlaySection(id) {
 
 // Keyboard/feed-entry/touch navigation now uses navigation-{state,view}.js
 // and navigation.js. Public pane helpers remain compatible.
-document.addEventListener('DOMContentLoaded',()=>navigationController());
+if (window.CList.startup) window.CList.startup.afterFeatures(()=>navigationController());
+else document.addEventListener('DOMContentLoaded',()=>navigationController());
 function mobShowRead(){return paneController().show('read');}
 function mobShowWrite(){return paneController().show('write');}
 function mobShowLeft(){return openLeftPane();}

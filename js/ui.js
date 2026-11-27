@@ -33,7 +33,7 @@
 // ============================================================================
 
 window.CList = window.CList || {};
-window.CList.ui = {};
+window.CList.ui = window.CList.ui || {};
 
 // ============================================================================
 // 2. Structural DOM refs (window.CList.ui.view)

@@ -131,9 +131,9 @@
                 try {
                     if (!mounting) {
                         mounting = (async () => {
-                            const { mountCListSlides } = await import('../slides/clist-slides-poc/clist.js?v=2026-11-24.19')
+                            const { mountCListSlides } = await import('../slides/clist-slides-poc/clist.js?v=2026-11-25.19')
                             const { createSlideRecovery } = await import('./slides-recovery.js?v=4')
-                            const editor = await mountCListSlides(container, { autoConnect: false, presentationTitle: () => window.CList.ui.view.writeTitle?.textContent.trim() || '', onStatus: showStatusMessage, onChange: () => recovery?.changed(), onReferencesChange: refs => { if (currentEditor === 'slides') setReferences(refs) }, onSaveLayout: () => window.CList.savers.find(saver => saver.label === 'Save slide as layout').save(), onRenameSavedLayout: layout => manageLayoutDialog(layout, false), onDeleteSavedLayout: layout => manageLayoutDialog(layout, true) })
+                            const editor = await mountCListSlides(container, { autoConnect: false, presentationTitle: () => window.CList.ui.view.writeTitle?.textContent.trim() || '', onStatus: message => { showStatusMessage(message);if(typeof notifyEditorSharingChanged==='function')notifyEditorSharingChanged() }, onChange: () => recovery?.changed(), onReferencesChange: refs => { if (currentEditor === 'slides') setReferences(refs) }, onSaveLayout: () => window.CList.savers.find(saver => saver.label === 'Save slide as layout').save(), onRenameSavedLayout: layout => manageLayoutDialog(layout, false), onDeleteSavedLayout: layout => manageLayoutDialog(layout, true) })
                             recovery = createSlideRecovery({ editor, store: window.CList.pageStore, report: showStatusMessage, showError: showErrorModal,
                                 showDialog: body => buildDialogModal('Recover slides', body, [{ label: 'Close', onClick: close => close() }]).close })
                             offerRecovery = true
@@ -165,6 +165,7 @@
                 }, 0)
             }
         },
+        getSharing: () => {const owner=instance,source=owner?.getSharing?.();return source?{...source,current:()=>instance===owner&&source.current()}:null;},
         getDocId: () => instance ? 'slides' : null,
         resyncReferences: syncSlideReferences,
         getPublishContent: async () => ({type:'text/html',value:instance ? await instance.getHtml() : ''}),

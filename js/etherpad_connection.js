@@ -74,7 +74,7 @@ async function mountEtherpadConnection(account) {
     const fetchRequest = fetch;
     owner.controller = createEtherpadConnectionController({
         hasAccount: !!captured, current: () => _etherpadConnection === owner && source(), visible: () => currentEditor === 'etherpad',
-        present: state => { window.CList.state.etherpadConnection = state; },
+        present: state => { window.CList.state.etherpadConnection = state; if(typeof notifyEditorSharingChanged==='function')notifyEditorSharingChanged(); },
         list: () => readEtherpadPads(target, { fetch: fetchRequest }),
         guest: target => { owner.documents?.invalidate(); currentEtherpadAccount = null; currentEtherpadGuestBase = target.base; padName = target.pad; authorID = ''; },
         select: name => etherpadDocuments().open(name, false),

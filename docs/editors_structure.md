@@ -22,7 +22,7 @@ Each editor lives in its own `.js` file and registers itself in an IIFE so it do
 })();
 ```
 
-The script tag for the new file goes in `index.html` alongside the other editor scripts (`tinymce.js`, `etherpad.js`, `collab.js`, `latex.js`).
+Add the new file to the `app-feature-scripts` JSON manifest in `index.html` alongside the other editor modules (`tinymce.js`, `etherpad.js`, `collab.js`, `latex.js`). Keep dependency order; editor registration finishes before feature controls are enabled. See [Startup sequence](startup.md).
 
 ---
 
@@ -35,6 +35,7 @@ The script tag for the new file goes in `index.html` alongside the other editor 
 | `contentTypes` | `string[]` | MIME types the editor's `loadContent()` can genuinely accept, in preference order. Use `['text/html']` for rich editors, `['text/plain']` for plain text, both for editors that handle either. Drives editor routing/matching in `loadSavedPage()` and `populateLoadOptions()`'s auto-switch — see below. An empty array means "accepts no generic content at all" (see note below), never a wildcard. |
 | `requiresAccount` | `bool` | `true` if the editor needs a kvstore account with permission `'e'` (e.g. Etherpad). `false` for built-in editors. Account-backed editors only appear in the switcher when a matching account exists. |
 | `initialize()` | `function` | Set up and show the editor DOM. See contract below. |
+| `loadDependencies()` | `function` (optional) | Return a promise for libraries required before mounting. The shared switch controller awaits it before changing the visible editor and rejects completion if the source session/editor changes. TinyMCE consumers use `ensureTinyMCE()`. |
 | `getContent()` | `function` | Return the current editor content as a string. May be `async`. |
 | `loadContent({ type, value }, itemId?)` | `function` | Insert content into the editor. `type` is a MIME type string. `itemId` is the feed item DOM id, used to attach a reference (optional). |
 
@@ -871,3 +872,40 @@ bar's search-open state without changing normal menu groups' hidden/selection
 state, so Done/Escape restores the current New Slide/Insert, image-mode and Themes
 controls. Search/replace results remain in the same surface; the inspector no
 longer contains a Find section. Text/search inputs share compact menu dimensions.
+
+
+Selected slide text uses `src/text-format.js`: safe inline mark attributes and a
+contextual lower-menu view. editor.js supplies the host TipTap Mark class via the
+existing Link mark's constructor, preserving a single runtime, and applies edits
+to the live selection with history boundaries. Font/size/colour controls are moved
+intact from the inspector; highlighting and size arrows share the same mutation
+path. Presenter and PowerPoint rendering consume the same validated attributes.
+
+
+Text formatting now treats an empty selection in a selected text box as whole-box
+scope. `overflow.js` measures both growth and shrinkage, then editor.js commits
+base and proportionally scaled inline font sizes together. Fit lives in the lower
+text toolbar; Layouts and Text inspector sections are removed. Design saving
+continues through the Themes dialog and existing host layout workflow.
+
+
+`src/object-format.js` moves existing appearance and Arrange controls into the
+lower menu. Their lifetime follows object selection rather than focus in a
+particular input. Text controls and image modes remain contextual siblings; Search
+temporarily supersedes them. Fit now measures/commits half-size increments.
+
+
+Image inspector controls are now contextual lower-menu contents owned by
+object-format.js. `slide-format.js` owns the no-object Format Slide button/view;
+editor.js retains background-map mutations and undo boundaries, including removing
+an override to inherit theme colour. Text precedes object properties in DOM order.
+
+
+### External editor libraries on demand
+
+`external-libraries.js` owns coalesced TinyMCE/Google script loading, API validation,
+a 30-second deadline and explicit retries after failure. It performs no startup
+requests. HTML, annotation, event and gRSShopper editors declare `loadDependencies`;
+the Share composer awaits its injected `ensureRich` dependency and preserves its
+plain draft on failure. Blogger awaits Google Identity before token authorization.
+Callers own visible feedback; the loader never publishes or installs editor state.

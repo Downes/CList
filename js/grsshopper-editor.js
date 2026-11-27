@@ -532,6 +532,7 @@ function _grsshopperClear() {
     }
 
     editorHandlers['grsshopper-post'] = {
+        loadDependencies: () => ensureTinyMCE(),
         label: 'gRSShopper Post',
         icon: 'post_add',
         contentTypes: ['text/html'],

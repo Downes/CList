@@ -1,21 +1,22 @@
 // Startup/storage-event restoration and logout share a captured request lifetime.
 function createSessionLifecycle(deps,view) {
-    let generation=0,loggingOut=false,lastCleared=null;
-    const summary=(phase,error=null)=>{window.CList.state.sessionLifecycle={generation,phase,error};};
+    let generation=0,loggingOut=false,lastCleared=null,startedAt=0;
+    const timings={};
+    const summary=(phase,error=null,stage=null)=>{const elapsedMs=Math.max(0,deps.now()-startedAt);if(stage)timings[stage]=elapsedMs;window.CList.state.sessionLifecycle={generation,phase,error,stage,elapsedMs,timings:{...timings}};window.CList.ui.startupRecovery?.update(phase,stage);};
     const snapshotCurrent=snapshot=>{try{return JSON.stringify(sessionSnapshot(deps))===JSON.stringify(snapshot);}catch{return false;}};
     const restore=async({delay=0,navigate=false}={})=>{
         if(loggingOut)return;const request=++generation;let snapshot,validated=false;
         try{
             snapshot=sessionSnapshot(deps);const current=()=>generation===request&&!loggingOut&&snapshotCurrent(snapshot);
             const assertCurrent=()=>{if(!current()||!sessionSnapshotValid(snapshot,deps.now()))throw new Error('Session restoration expired.');};
-            const reader=deps.reader();summary('restoring');
+            const reader=deps.reader();startedAt=deps.now();for(const key of Object.keys(timings))delete timings[key];summary('restoring',null,'key');
             if(!sessionSnapshotValid(snapshot,deps.now())){
                 view.guest();summary('guest');
                 const message=deps.get(deps.keys.LOGOUT_MESSAGE);if(message){deps.remove(deps.keys.LOGOUT_MESSAGE);view.notice(message);}return;
             }
             if(delay)await deps.wait(delay);assertCurrent();
-            const accounts=await readRestoredAccounts(snapshot,{...deps,current,assertCurrent,validated(){validated=true;view.authenticated();}});
-            assertCurrent();view.accounts(accounts);summary('ready');
+            const accounts=await readRestoredAccounts(snapshot,{...deps,current,assertCurrent,validated(){validated=true;view.authenticated();summary('restoring',null,window.CList.startup?.phase() !== 'ready' && window.CList.startup ? 'features' : 'accounts');},accountsStarting(){summary('restoring',null,'accounts');}});
+            assertCurrent();view.accounts(accounts);summary('ready',null,'complete');
             if(navigate&&deps.reader()===reader){await deps.navigate();assertCurrent();}
         }catch(error){
             if(generation!==request||(snapshot&&!snapshotCurrent(snapshot)))return;
@@ -23,17 +24,17 @@ function createSessionLifecycle(deps,view) {
             view.failed(error.message,()=>{if(generation===request&&(!snapshot||snapshotCurrent(snapshot)))return restore();});
         }
     };
-    const logout=()=>{
+    const logout=({preserveDrafts=false}={})=>{
         if(loggingOut||(lastCleared&&snapshotCurrent(lastCleared)))return;generation++;deps.invalidateAuth();let snapshot,cleared;
         try{
             snapshot=sessionSnapshot(deps);loggingOut=true;summary('logging-out');
-            const result=clearCapturedSession(snapshot,deps);cleared=lastCleared=sessionSnapshot(deps);view.guest();summary('logged-out');
+            const result=clearCapturedSession(snapshot,{...deps,preserveDrafts});cleared=lastCleared=sessionSnapshot(deps);view.guest();summary('logged-out');
             if(result.warnings.length){console.error('Logout cleanup incomplete:',result.warnings);view.notice(result.message);}
             deps.reload();
         }catch(error){
             console.error('Logout failed:',error);summary('failed',error.message);
             if(cleared)view.failed('Session cleared, but the page could not reload: '+error.message,()=>{if(snapshotCurrent(cleared))return deps.reload();});
-            else view.failed('Logout could not finish: '+error.message,snapshot?()=>{if(snapshotCurrent(snapshot))return logout();}:null);
+            else view.failed('Logout could not finish: '+error.message,snapshot?()=>{if(snapshotCurrent(snapshot))return logout({preserveDrafts});}:null);
         }finally{loggingOut=false;}
     };
     return {restore,logout};
@@ -44,7 +45,7 @@ function sessionLifecycle(){
         keys:window.CList.keys,server:()=>window.CList.config.flaskSiteUrl,local:()=>!!window.CList.isLocalMode(),epoch:()=>window.CList.state.authEpoch||0,
         cookie:(...args)=>getSiteSpecificCookie(...args),deleteCookie:(...args)=>deleteSiteSpecificCookie(...args),
         get:key=>sessionStorage.getItem(key),set:(key,value)=>sessionStorage.setItem(key,value),remove:key=>sessionStorage.removeItem(key),listKeys:()=>Object.keys(sessionStorage),
-        getKey:site=>getEncKey(site),load:session=>loadAccountRecords(session),parse:account=>parseAccountValue(account),now:()=>Date.now(),wait:ms=>new Promise(resolve=>setTimeout(resolve,ms)),
+        prepareAccounts:()=>window.CList.startup?.whenFeaturesReady(),getKey:site=>getEncKey(site),load:session=>loadAccountRecords(session),parse:account=>parseAccountValue(account),now:()=>Date.now(),wait:ms=>new Promise(resolve=>setTimeout(resolve,ms)),
         reader:()=>window.CList.state.reader?.requestId??0,navigate:()=>playRead(),reload:()=>window.location.reload(),
         invalidateAuth(){window.CList.state.authEpoch=(window.CList.state.authEpoch||0)+1;if(typeof cancelAuthForLogout==='function')cancelAuthForLogout();}
     },window.CList.ui.sessionLifecycle);

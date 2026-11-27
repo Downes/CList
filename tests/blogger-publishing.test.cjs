@@ -112,3 +112,16 @@ for (const failure of ['authorization', 'API']) {
         assert.equal(f.cList.state.publishing.busy, false);
     });
 }
+
+
+test('Blogger waits for on-demand Google script and never publishes on library failure', async () => {
+    const f = fixture(); let finish;
+    f.context.window.ensureGoogleIdentity = () => new Promise(resolve => {finish = resolve;});
+    const pending = f.context.publishBloggerPost('123', 'client', 'Title', 'Body');
+    assert.equal(f.clients.length, 0); assert.equal(f.requests.length, 0);
+    finish(); await pending;
+    assert.equal(f.clients.length, 1); assert.equal(f.requests.length, 1);
+    f.context.window.ensureGoogleIdentity = async () => {throw Error('Google script unavailable');};
+    await assert.rejects(f.context.publishBloggerPost('123', 'client', 'Title', 'Body'), /Google script unavailable/);
+    assert.equal(f.requests.length, 1);
+});

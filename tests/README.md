@@ -3572,3 +3572,320 @@ include the 105-check views fixture `.15` and 16-check controlled clipboard fixt
 validation; the reported actual Ctrl+C/V fix still awaits explicit manual confirmation.
 The latest embedded build and focused 11-check Find data/view/menu Node run passed.
 Further slide editor design editing is planned after this first checkpoint.
+
+
+## Selected-text formatting — browser pending, 2026-11-25.1
+
+Selecting a nonempty range in a single text box shows a contextual lower-menu
+formatting group. Existing font/size/text-colour inputs move there; size arrows
+and a highlighting colour input are added. Changes apply a slideTextStyle mark to
+the selected range, preserving other text and existing marks. Controls remain
+available while focus moves to them; shape/image selection or a collapsed range
+restores the normal menu. Search temporarily takes precedence over this group.
+
+`src/text-format.js` validates fonts, sizes (8–200 px) and hex colours, builds its
+mark from the host's existing TipTap Mark runtime, and owns contextual controls.
+Presenter/standalone HTML and PowerPoint run capture retain supported inline
+formatting. Native Yjs snapshots retain marks. This does not establish live
+collaboration compatibility with older clients that lack the new mark schema.
+
+Embedded build succeeded. Focused formatting/search Node checks passed 9/9:
+`node --test tests/slides-text-format.test.cjs tests/slides-find-replace.test.cjs tests/slides-find-view.test.cjs`.
+These include the actual shared vendor Mark factory, safe attributes, presenter
+rendering and PowerPoint run mapping, with a minimal DOM fixture for export reads.
+Run `https://localhost:51888/tests/slides-text-format.browser.html`, marker `.1`,
+expecting 18 checks. Browser selection, toolbar focus, rendering/zoom, undo/redo,
+locked guards, native save/load and standalone HTML remain pending. Manual mouse
+selection/colour pickers and actual PowerPoint export are separate checks. No
+external requests, downloads or real storage writes performed.
+
+
+Formatting fixture correction (2026-11-25.2): the fixture clicked Next before the
+150 ms search debounce enabled it. It now uses Enter for immediate search and real
+text-range selection. The focused Find view test covers Enter while Next remains
+disabled. Expected browser count remains 18; production code unchanged, rerun pending.
+
+
+Formatting fixture measurement update (2026-11-25.3): after `.2` failed the inline
+zoom assertion, let rendering/ResizeObserver settle and check explicit 50%/100%
+zoom instead of measuring initial fit during synchronous formatting changes. The
+assertion reports actual/expected sizes and span styles on failure. Production
+code unchanged; count remains 18 and browser rerun is pending.
+
+
+Inline scale correction (2026-11-25.4): `.3` measured 18px rather than 20px at
+50%, and 36px rather than 40px at 100%. Live inline text now uses the explicit
+pixel scale from zoom.js instead of container-query font resolution. The existing
+ResizeObserver also observes the slide and updates that scale for independently
+sized/fullscreen slides. Exported HTML retains a container-query fallback where
+no live editor scale exists. No compensating browser-specific multiplier is used.
+Embedded build succeeded; focused zoom/format/search Node checks passed 11/11.
+Browser fixture `.4` still expects 18 checks; measured font scaling rerun pending.
+
+
+Font comparison refinement (2026-11-25.5): `.4` still returned 18/36px for nominal
+20/40px. Compare formatted text against a fixed-pixel reference span in the same
+DOM context and independently require doubling from 50% to 100%. Report reference
+font sizes and the live scale variable to distinguish browser text zoom from
+application scaling; no production change is inferred yet. Browser rerun pending,
+18 checks. This preserves the scaling assertion rather than imposing an arbitrary
+compensation for a possible browser font zoom.
+
+
+## Contextual rich-text icons — browser pending, 2026-11-25.6
+
+Moved the original Bold, Italic, Add link, Unlink, Numbered list and Bulleted list
+buttons to the right of the font/size/colour/highlight controls in the contextual
+lower toolbar. The same nodes and handlers are reused; they no longer occupy the
+upper menu. Toolbar enablement includes the moved controls, including locked text.
+
+Embedded build succeeded. Formatting/Find data/view Node checks passed 10/10,
+including existing-node placement/handler preservation. Formatting browser fixture
+`.6` expects 19 checks, adding exact icon placement/order. Browser rerun pending;
+normal-browser icon actions remain user checks. The user reported `.5` passed all
+18 checks; both formatted and fixed-size reference fonts measured 18/36px against
+nominal 20/40px, confirming matching browser text scaling and correct doubling.
+No external requests or real storage writes performed. No commit/push requested.
+
+
+## Small link modal and retained formatting selection — browser pending, 2026-11-25.7
+
+Add link now uses `src/link-picker.js` in the existing modal shell at normal width,
+with URL, literal display text, optional title, new-tab choice, Apply link and
+Cancel. The host modal adapter accepts `{wide:false}` while existing callers remain
+wide by default. Removed the old inline URL strip. Submit captures and validates
+the original editor/document/slide/session and text document; stale text cannot
+be overwritten. Cancel restores the original unchanged selection. Link title is
+an optional Link-mark attribute, retained by native snapshots and presenter HTML.
+
+Bold/italic/list commands and inline font/colour changes now use mapped editor
+selection after the transaction and synchronously restore editor focus/range,
+allowing consecutive commands without selecting the text again. Link insertion,
+changed literal display text and unlink also retain the resulting selected range.
+Existing formatting marks survive unchanged-text links and are retained from the
+first selected text run when replacing link display text.
+
+Embedded build succeeded. Focused link/format/Find-view Node checks passed 9/9:
+`node --test tests/slides-link-picker.test.cjs tests/slides-text-format.test.cjs tests/slides-find-view.test.cjs`.
+Formatting browser fixture `.7` expects 29 checks, adding sequential formatting,
+list mapping, small modal fields, validation, title/target, literal replacement,
+Cancel and stale-text protection. Browser/manual behavior remains pending. The
+user reported `.6` passed 19. No external requests or real storage writes tested.
+
+
+Link alt text (2026-11-25.8): the small link modal has an optional Link alt text
+field, stored as Link-mark ariaLabel and emitted as the anchor's aria-label (HTML
+alt is for images). Native snapshots and presenter/standalone HTML retain it.
+Build and seven focused link/format Node tests passed. Formatting fixture `.8`
+expects 30 checks, adding live/native/export accessible-label coverage; browser
+rerun pending. The user reported `.7` passed 29 checks. Nothing committed.
+
+
+## Whole-box formatting and grow/shrink Fit — browser pending, 2026-11-25.9
+
+A selected text box now shows lower-menu formatting even with an empty text
+selection. Empty-range commands temporarily select all text and restore a caret;
+nonempty ranges retain range-only formatting. Whole-box font/size/colour changes
+also update existing box defaults and override inline styles across all text.
+Whole-box link editing captures the full text and restores the caret on return.
+
+Fit moves into the lower toolbar. It binary-searches the largest fitting base
+size across 8–200 px, growing or shrinking as needed. Measurement temporarily
+previews base and inline font sizes and restores DOM styles; one owned document
+transaction commits the base size and proportional inline size changes. Existing
+font styles/colours and text are preserved; explicit inline font sizes clamp to
+the supported range. Empty text and locked boxes are skipped. Layouts/Text are
+removed from the inspector; the Themes modal still saves designs via the host
+callback and existing layout storage/import APIs remain.
+
+Embedded build succeeded; focused Fit/format/link Node checks passed 9/9:
+`node --test tests/slides-fit.test.cjs tests/slides-text-format.test.cjs tests/slides-link-picker.test.cjs`.
+Formatting fixture `.9` expects 36 checks, adding whole-box scope, Fit placement,
+removed inspector sections, growing/shrinking real DOM text and range scope after
+whole-box edits. Browser and manual measurements remain pending; no external
+requests or real storage writes tested. The preceding alt-text `.8` check has not
+been reported separately, and remains included in this fixture.
+
+
+## Clear highlighting, half-size Fit and persistent object menus — pending, 2026-11-25.10
+
+No highlight clears the highlightColour mark attribute for the selected range or
+whole box while preserving other marks. Fit searches in 0.5-size units and rounds
+scaled inline sizes to the nearest half within existing limits; displayed size
+values also round to half steps to avoid floating-point tails.
+
+`src/object-format.js` moves existing Fill/border and Arrange controls into the
+lower menu, reusing handlers and enablement. Text-box formatting stays alongside
+object controls; shapes show fill/border and Arrange; images retain Resize/Crop
+plus Arrange. Selection state controls visibility until deselection, with Search
+still temporarily taking priority. No Arrange operation semantics changed.
+
+Embedded build succeeded; six focused Fit/format Node checks passed. Formatting
+fixture `.10` expects 43 checks including clearing range/whole highlighting,
+half-size values, persistent shape colour/Arrange, image Arrange and deselection.
+Browser rerun pending. The user reported `.9` passed all 36 checks. No external
+requests or real storage writes tested; nothing committed or pushed.
+
+
+## Explicit Arrange mode — browser pending, 2026-11-25.11
+
+Arrange commands are hidden by default. A top-menu Arrange button appears for
+selected text boxes/shapes/images; clicking it replaces lower-menu contents with
+Arrange controls. The mode retains its captured object owner through formatting,
+locking and selection expansion while that object remains selected. Deselecting
+that object, switching to a different one or replacing its document resets the
+mode. Search can temporarily supersede Arrange and restore it on Done.
+
+Embedded build succeeded; focused object-menu/format/Fit Node checks passed 8/8.
+Formatting fixture `.11` expects 46 checks, adding explicit opening, command
+persistence, image mode replacement and deselection reset. Browser rerun pending.
+The user reported `.10` passed 43 checks but found the always-expanded Arrange UI
+broke the normal display; this replaces that design. No external requests/writes.
+
+
+Lower property label layout (2026-11-25.12): Fill/Fill colour/Border/Border colour/
+Border width labels and their controls use nonshrinking, nonwrapping inline groups.
+A horizontal divider separates the text-format row from shape properties when
+both are present, without adding a divider to standalone shape or Arrange views.
+CSS-only behavior change; embedded build succeeded. Formatting fixture `.12`
+expects 48 checks, adding label nonwrapping and the divider. Browser rerun pending.
+The user reported `.11` passed 46 checks. Nothing committed.
+
+
+Single-line lower menu (2026-11-25.13): remove full-width group bases and wrapping
+from lower menu controls, including object colours and Arrange. Colour controls
+size to their contents instead of a narrow shrinking wrapper. The lower bar uses
+horizontal scrolling when needed; labels/controls do not stack. The separator is
+now vertical between text and object properties. Search fields/actions/results
+also remain on the strip; results have a bounded horizontal scroller.
+CSS-only behavior change; embedded build succeeded. Formatting fixture `.13`
+expects 50 checks, adding one-line alignment and narrow-editor horizontal overflow.
+Browser rerun pending; user reported `.12` passed 48 but normal UI still stacked.
+Nothing committed or pushed.
+
+
+Lower-menu row correction (2026-11-25.14): `.13` failed line alignment because the
+old .text-format-controls sidebar rule still supplied flex-direction:column.
+Explicit row direction now overrides it for moved colour controls and Arrange
+groups. Fixture also checks row direction; expected count remains 50. Build passed;
+browser rerun pending. Nothing committed.
+
+
+## Divider order, contextual images and Format Slide — pending, 2026-11-25.15
+
+Place the text-format group immediately before object properties, so the vertical
+divider is between the groups rather than at the strip's beginning. The Image
+inspector section moves intact into contextual lower-menu image properties, with
+single-row description input and existing crop/replace/aspect/mode handlers.
+
+`src/slide-format.js` shows Format Slide in the top bar only without object
+selection. It opens the existing background-colour control in the lower bar, plus
+Use theme colour to delete the current slide's background override. The button
+toggles the view; New Slide/Insert leave it, and selecting an object closes it.
+No new persisted slide properties or geometry changes are introduced.
+
+Embedded build succeeded; focused slide/object/format Node checks passed 8/8.
+Formatting fixture `.15` expects 55 checks, strengthening divider position and
+adding Format Slide visibility/open/colour/reset/selection closure. Browser rerun
+pending. The user reported `.14` passed 50 checks but the divider was visibly at
+the beginning, which the previous border-only assertion did not detect. No
+external requests or real storage writes; nothing committed or pushed.
+
+
+Upper icon cleanup (2026-11-25.16): retire the old direct upper-menu object-action
+icons and their empty separators. Keep their bound command nodes for existing
+keyboard/internal dispatch. Contextual Arrange/Format Slide and right-group
+presentation/zoom/search remain. CSS-only change; embedded build succeeded.
+Formatting fixture `.16` expects 57 checks, adding hidden old icons and retained
+right-group controls. Browser rerun pending; user reported `.15` passed 55 checks.
+Nothing committed or pushed.
+
+
+## Shared collaborative editor access — browser pending, 2026-11-25.17
+
+The right-main-command Share button reads the active handler's optional getSharing
+capability. It is hidden for ordinary/local/unready resources. Collab, LaTeX,
+Slides and Etherpad expose captured resource descriptors. Editor switching and
+connection chrome updates refresh visibility; clicks revalidate ownership.
+
+`editor-sharing.js` reuses the real collab_share controller/view/requests, shared
+clipboard and existing publication composer. Modal headings are Share this <editor
+name>, followed by literal document title and supported links. Realtime editors
+reuse anonymous-read settings and read-only checking. Etherpad supplies its existing
+pad link with accessSettings:false, avoiding an unsupported Collab settings API.
+Original Collab/LaTeX/Etherpad Share entry points delegate to the shared flow when
+available. Post captures editor type and restores the original editor through the
+existing composer; source/session/account/switch/resource checks reject stale work.
+
+Embedded Slides build succeeded. Focused shared Share/composer/Etherpad/LaTeX Node
+checks passed 40/40:
+`node --test tests/editor-sharing.test.cjs tests/collab-share.test.cjs tests/collab-composer.test.cjs tests/etherpad-document.test.cjs tests/latex-controls.test.cjs`.
+Run `https://localhost:51888/tests/editor-sharing.browser.html`, marker `.17`,
+expecting 17 checks. Real shared header/controller/view/request code is used, but
+editor resources, sessions, HTTP, URL helper, clipboard and Post handoff are mocked.
+No external requests, access changes, OS clipboard writes, posts or storage writes.
+Normal app editor mounting, header visibility, live services and composer integration
+remain user-pending. Latest slide formatting `.16` user report passed 57 checks.
+
+
+The user reported PASS for the sharing fixture `.17`, but its mock modal covered
+the result text. Fixture `.18` removes the modal in finally after completion, so
+results are selectable on both success and failure. Expected count remains 17;
+production sharing behavior unchanged.
+
+
+Sharing visibility correction (2026-11-25.19): user reports Share visible only on
+LaTeX, including attempts with shared/connected resources. HTTPS reads confirmed
+localhost serves the current Collab/LaTeX/Etherpad/Slides/header source files.
+Resource installation/document state now explicitly schedules a header refresh;
+DOM observation is only a fallback. Collab and LaTeX installation, Etherpad
+connection/document updates and Slides status notify after committed changes.
+Slides sharing now requires a live captured remote resource/session, not completion
+of first sync; explicit disconnect/local mode still removes the capability.
+
+Embedded build succeeded. Thirteen focused header/adapter/shared-access Node tests
+passed, including actual extracted Collab/Etherpad/Slides getters with mocked
+resource ownership and an asynchronous no-DOM refresh check. Browser fixture `.19`
+expects 18 checks. Normal-app visibility remains user-pending; startup differs:
+LaTeX initializes connected while Collab/Slides may initialize locally. No automatic
+connection, document creation, remote settings writes or live service tests run.
+
+
+## Core-first startup and recovery
+
+See [Startup sequence](../docs/startup.md) for the core/feature boundary and manifest rules.
+Run the focused checks:
+
+```powershell
+node --test tests/app-startup.test.cjs tests/app-startup-core.test.cjs tests/startup-assets.test.cjs tests/startup-recovery.test.cjs tests/session-lifecycle.test.cjs tests/editor-switch.test.cjs tests/panes.test.cjs tests/navigation.test.cjs tests/oauth-callback.test.cjs tests/oauth-account.test.cjs tests/oauth-reauthorization.test.cjs tests/tags.test.cjs
+node --test tests/external-libraries.test.cjs tests/p2p-session.test.cjs tests/p2p-share.test.cjs tests/p2p-popup.test.cjs tests/p2p-discussions.test.cjs tests/p2p-discussion-actions.test.cjs
+python tests/launcher_startup_test.py
+```
+
+Node fixtures mock storage, crypto, script delivery, accounts and services. They
+cover early identity before schemas/accounts, paint before background requests,
+ordered registration, gated controls, safe retries, stale sessions and explicit
+initializers. The Python loopback fixture verifies concurrency and persistent
+connections using the real launcher classes; it does not exercise live proxies,
+TLS or LocalRSS. On-demand libraries retain failure/retry handling and PeerJS SRI.
+
+User-reported normal-browser evidence (2026-11-27): the core-first startup feels
+responsive; Loading tools and temporarily disabled feature buttons behave as
+intended. The supplied profile has core scripts loaded around 55ms, DOM ready at
+59ms, background loading starting around 81ms, registry completion around 1309ms,
+and account response completion around 1376ms. These are observations from one
+recording, not guaranteed timings or proof of every feature's behavior.
+
+Temporary console-report scripts, script-event probes and the polling timer were
+removed after profiling. Lightweight `clist:shellReady`/`clist:featuresReady`
+performance marks and safe session-stage timings remain. Material Icons is
+served locally with its Apache license. Runtime recovery appears after five
+seconds or a failure; Reset clears sign-in while preserving local content and
+drafts. No storage migration or destructive environment reset was added.
+
+Broader normal-app checks remain user-pending: saved hosted/Local and guest
+sessions, public feed choices, Read/Find/Accounts, editor picker and text/HTML
+switching, tags, OAuth callback pickup and live Chat signaling. Prior fixture
+PASS reports and mocked checks do not replace these integration checks. Recheck
+startup after instrumentation cleanup, including any retained pending slide/share
+checks documented above. No launcher restart is needed for frontend changes.

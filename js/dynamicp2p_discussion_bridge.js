@@ -1,7 +1,7 @@
 let _p2pDiscussionActions = null;
 function ownsP2pDiscussionAction(op) {
     if (!op?.session.isCurrent()) return false;
-    if (op.session.resources.peer.id !== op.peerId) return false;
+    if (op.session.resources.peer?.id !== op.peerId) return false;
     const expected = op.effects.active ? (op.kind === 'create' ? op.name : null) : op.before;
     if (activeDiscussionName !== expected) return false;
     const channels = op.session.resources.connections;
@@ -20,9 +20,9 @@ function getP2pDiscussionActions() {
             if (!session?.isCurrent()) throw Error('Reopen Chat before changing a discussion.');
             const name = kind === 'leave' ? activeDiscussionName || values.name : values.name;
             if (!name) throw Error('Please enter a discussion name.');
-            if (kind === 'create' && !session.resources.peer.id) throw Error('Peer ID not available yet. Wait for the connection to establish.');
+            if (kind === 'create' && !session.resources.peer?.id) throw Error('Peer ID not available yet. Wait for the connection to establish.');
             const url = window.CList.config.flaskSiteUrl;
-            return { name, public: values.public, peerId: session.resources.peer.id, session,
+            return { name, public: values.public, peerId: session.resources.peer?.id, session,
                 before: activeDiscussionName, channels: { ...session.resources.connections }, effects: {},
                 url: window.CList.defaults.DISCUSSIONS + '/api/discussions', token: getSiteSpecificCookie(url, window.CList.keys.ACCESS_TOKEN) };
         },

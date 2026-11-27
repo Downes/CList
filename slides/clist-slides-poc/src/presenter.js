@@ -1,3 +1,4 @@
+import { textFormatAttributes } from './text-format.js'
 // Read-only rich text rendering for presenter previews. No editor instance or Yjs writes.
 export function renderPresenterText(fragment, targetDocument) {
   const blocks = { paragraph: 'p', bulletList: 'ul', orderedList: 'ol', listItem: 'li', blockquote: 'blockquote', codeBlock: 'pre', horizontalRule: 'hr', hardBreak: 'br' }
@@ -14,8 +15,14 @@ export function renderPresenterText(fragment, targetDocument) {
           else if (name === 'link' && typeof value?.href === 'string' && /^(https?:|mailto:|tel:)/i.test(value.href)) {
             wrapper = targetDocument.createElement('a')
             wrapper.href = value.href
-            wrapper.target = '_blank'
+            wrapper.target = value.target === '_self' ? '_self' : '_blank'
+            if(typeof value.title === 'string')wrapper.title = value.title.slice(0,500)
+            if(typeof value.ariaLabel === 'string' && value.ariaLabel)wrapper.setAttribute('aria-label',value.ariaLabel.slice(0,500))
             wrapper.rel = 'noopener noreferrer'
+          }
+          if (name === 'slideTextStyle') {
+            wrapper = targetDocument.createElement('span')
+            for (const [key, attribute] of Object.entries(textFormatAttributes(value))) wrapper.setAttribute(key,attribute)
           }
           if (wrapper) { wrapper.append(content); content = wrapper }
         }

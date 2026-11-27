@@ -154,5 +154,6 @@ async function confirmWriteTagCollection(name,context){
         if(_writeTagsCreation===creation){_writeTagsCreation=null;window.CList.state.writeTags={...writeTagsState(),creating:false};window.CList.ui.tags.creationBusy(false);}
     }
 }
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>window.refreshWriteTags());
+if(window.CList.startup)window.CList.startup.afterFeatures(()=>window.refreshWriteTags());
+else if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>window.refreshWriteTags());
 else window.refreshWriteTags();

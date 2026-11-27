@@ -6,6 +6,7 @@ body { background:#151b23; color:#fff; }
 .stage { display:grid; justify-items:center; gap:16px; padding:16px; }
 .slide { position:relative; width:min(100%,1280px); aspect-ratio:16/9; overflow:hidden; container-type:inline-size; color:#202b3d; background:#fff; font-family:Inter,ui-sans-serif,system-ui,sans-serif; }
 .slide[hidden] { display:none; }
+.slide [data-font-size][data-slide-text-style] { font-size:calc(var(--slide-text-size)*var(--slide-text-unit,.078125cqw)) !important; }
 .slide-object { position:absolute; border:0; min-height:0; overflow:visible; }
 .text-content { height:100%; width:100%; overflow:hidden; padding:5px 8px; }
 .text-content .tiptap { height:100%; line-height:1.2; font-size:var(--slide-font-size,2.6cqw); color:inherit; text-align:inherit; }

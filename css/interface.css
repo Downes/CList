@@ -1403,3 +1403,5 @@ textarea.collection-editor-input { min-height: 60px; resize: vertical; }
 
 .annotation-send-controls { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .annotation-send-controls select { font-size:0.85rem; padding:2px 4px; }
+
+#editor-share-button[hidden], .collab-share-panel [hidden] { display: none !important; }

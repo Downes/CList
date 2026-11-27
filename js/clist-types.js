@@ -841,8 +841,9 @@
 /** @typedef {{session:CListPostLoginSession,steps:CListPostLoginStep[],discover:boolean,discovered:boolean,discoveryError:(string|null)}} CListPostLoginPlan Private captured setup, never presentation state or persistent storage. */
 /** @typedef {{operationId:number,pending:boolean,done:number,total:number,errors:string[],uncertainServices:Array<{key:string,label:string}>}} CListPostLoginState Safe counts/feedback/action labels; no accounts, keys, tokens or ciphertext. */
 
+/** @typedef {{phase:('shell-ready'|'loading-features'|'loading-accounts'|'ready'|'failed'),loaded:number,total:number,error:(string|null)}} CListAppStartupState Safe startup progress only; no accounts or credentials. */
 /** @typedef {{serverUrl:string,local:boolean,epoch:number,username:(string|null),token:(string|null),expires:(string|null),key:(string|null)}} CListSessionSnapshot Private cookie/tab-key capture; never presentation state. */
-/** @typedef {{generation:number,phase:('restoring'|'guest'|'ready'|'logging-out'|'logged-out'|'failed'),error:(string|null)}} CListSessionLifecycleState Safe lifetime/feedback only. */
+/** @typedef {{generation:number,phase:('restoring'|'guest'|'ready'|'logging-out'|'logged-out'|'failed'),error:(string|null),stage:(string|null),elapsedMs:number,timings:Object<string,number>}} CListSessionLifecycleState Safe lifetime/feedback only. */
 
 /** @typedef {{label:string,baseUrl:string,description?:string,requiresKvstoreUrlHeader?:boolean}} CListAdminApp Captured public metadata, never credentials. */
 /** @typedef {{key:string,label:string,type:string,sensitive:boolean,help:string}} CListAdminField Normalized schema field. */
@@ -981,4 +982,18 @@
  * @property {function():Promise<void>} [afterRefresh]
  * @property {boolean} [updateExisting] Reject missing/replaced-type records; merge instead of creating.
  * @property {function(CListAccountData,CListAccountData):CListAccountData} [mergeExisting]
+ */
+
+/**
+ * Private capability returned by an editor handler's optional getSharing().
+ * No credentials belong here or in presentation state; current guards the resource.
+ * @typedef {Object} CListEditorShareResource
+ * @property {string} docId
+ * @property {string} server
+ * @property {string} title
+ * @property {function():boolean} current
+ * @property {{edit:string,read?:string}} [links] Public URLs; defaults to realtime document links.
+ * @property {boolean} [accessSettings] False for services without the Collab access API.
+ * @property {string|null} [discussion]
+ * @property {*} [chatOwner] Private captured chat owner, never presentation state.
  */

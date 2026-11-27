@@ -41,7 +41,7 @@ window.CList.schemas['Proxyp'] = {
 //  baseURL
 // The function checks for these
 
-document.addEventListener('DOMContentLoaded', function() {
+function initializeSessionControls() {
 
     if (!window.CList?.config?.flaskSiteUrl) {
         throw new Error('Error: CList namespace not initialized.');
@@ -66,10 +66,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
 
-    sessionLifecycle().restore().catch(error=>{console.error('Could not restore session controls:',error);showStatusMessage('Could not restore session controls. Please reopen Login.');});
-
-
-});
+    return sessionLifecycle().restore().catch(error=>{console.error('Could not restore session controls:',error);showStatusMessage('Could not restore session controls. Please reopen Login.');});
+}
 
 // ── Auth-state helpers ────────────────────────────────────────────────────────
 

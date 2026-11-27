@@ -11,7 +11,7 @@ function ensureP2pSession() {
     _p2pSession?.dispose();
     const view = createP2pSessionView();
     const session = createP2pSessionController({
-        source: p2pSessionSource, createPeer: () => new Peer(),
+        source: p2pSessionSource, loadPeer: typeof Peer === 'undefined' ? () => ensurePeerJS() : null, createPeer: () => new Peer(),
         state: state => { if (_p2pSession === session) window.CList.state.chatSession = state; },
         activate(resources) {
             ({ peer, connections, knownPeers, processedPeerLists, processedMsgIds, usernames,
@@ -21,7 +21,7 @@ function ensureP2pSession() {
             initializeDid(current).catch(error => { if (current()) view.error(error); });
         },
         ready(id) {
-            appendMessage(`Your Peer ID: ${id}`, false, true); setUsername(myUsername?.trim() || 'Anon');
+            appendMessage(`Your Peer ID: ${id}`, false, true); setUsername(myUsername?.trim() || getSiteSpecificCookie(window.CList.config.flaskSiteUrl, window.CList.keys.USERNAME) || 'Anon');
             if (typeof resumeP2pShare === 'function') return resumeP2pShare(session);
         },
         connecting(id, name) { if (name) { appendMessage(`Joining: ${name}`); activeDiscussionName = name; } },

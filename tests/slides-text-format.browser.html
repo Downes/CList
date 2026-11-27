@@ -1,0 +1,161 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Slides selected text formatting</title>
+<link rel="stylesheet" href="../css/interface.css?v=2026-11-25.16">
+<link rel="stylesheet" href="../slides/clist-slides-poc/dist-embed/editor.css?v=2026-11-25.16">
+<p>Test 2026-11-25.16. Real embedded editor, shared TipTap/Yjs, selection formatting, presenter HTML and native snapshot. No collaboration, external service requests, downloads or storage writes. Manual mouse selection remains to be checked.</p>
+<pre id="result">Checking…</pre><div id="host" style="width:100%;height:800px"></div>
+<script>
+(async()=>{
+let count=0
+const check=(value,message)=>{if(!value)throw Error(message);count++}
+try {
+ const [dependencies,{createSlideEditor}]=await Promise.all([import('../js/vendor/collab-editor-bundle.js'),import('../slides/clist-slides-poc/dist-embed/editor.js?v=2026-11-25.16')])
+ const openInsertModal=(body,options={})=>{
+  document.getElementById('generic-modal')?.remove()
+  const modal=document.createElement('div'),content=document.createElement('div');modal.id='generic-modal';content.id='modal-content';if(options.wide!==false)content.className='modal-content--wide';content.append(body);modal.append(content);document.body.append(modal)
+  const current=()=>modal.isConnected&&modal.contains(body)&&document.getElementById('generic-modal')===modal
+  return {current,close:()=>{if(current())modal.remove()}}
+ }
+ const {Y}=dependencies,editor=createSlideEditor(document.getElementById('host'),{dependencies,seed:false,openInsertModal})
+ const root=document.querySelector('.clist-slides'),control=id=>root.querySelector('[data-control="'+id+'"]'),doc=()=>editor.document
+ doc().transact(()=>{
+  doc().getMap('slide-pages').set('first',0)
+  doc().getMap('slide-objects').set('text',new Y.Map(Object.entries({kind:'text',slide:'first',x:100,y:100,width:700,height:160,fontSize:32,layer:0})))
+  const p=new Y.XmlElement('paragraph'),text=new Y.XmlText();doc().getXmlFragment('slide-text-text').insert(0,[p]);p.insert(0,[text]);text.insert(0,'Alpha beta gamma')
+ })
+ const deltas=()=>doc().getXmlFragment('slide-text-text').get(0).get(0).toDelta(),attrs=()=>deltas().find(part=>part.insert==='beta')?.attributes?.slideTextStyle||{}
+ const change=(id,value,type='change')=>{control(id).value=value;control(id).dispatchEvent(new Event(type,{bubbles:true}))}
+ check(control('text-format').hidden,'formatting hidden until text is selected')
+ const topMenu=root.querySelectorAll('.slide-menu-bar')[0]
+ check([...topMenu.children].filter(node=>node.classList.contains('clist-action-btn')).every(node=>getComputedStyle(node).display==='none'),'old object action icons removed from upper menu')
+ check(getComputedStyle(control('present')).display!=='none' && getComputedStyle(control('open-find')).display!=='none','presentation and search icons remain on the right')
+ control('open-find').click();change('find-query','beta','input');control('find-query').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));control('find-done').click()
+ check(!control('text-format').hidden && root.querySelectorAll('.slide-menu-bar')[1].contains(control('text-format')),'selected text shows contextual lower toolbar')
+ const richIcons=['bold','italic','edit-link','remove-link','ordered-list','bullet-list'],formatGroup=control('text-format'),upper=root.querySelectorAll('.slide-menu-bar')[0]
+ check(richIcons.every(name=>formatGroup.contains(control(name)) && !upper.contains(control(name))) && [...formatGroup.children].filter(node=>richIcons.includes(node.dataset.control)).map(node=>node.dataset.control).join(',')===richIcons.join(','),'rich-text icons moved after colours in contextual lower menu')
+ check(control('text-format').contains(control('font-family')) && control('text-format').contains(control('text-colour')) && !root.querySelector('.inspector [data-control="font-family"]'),'existing text controls moved without duplication')
+ check([...root.querySelectorAll('.slide-object-colours label')].every(label=>getComputedStyle(label).whiteSpace==='nowrap' && getComputedStyle(label).flexShrink==='0'),'shape property labels and controls stay together without internal line breaks')
+ check(parseFloat(getComputedStyle(control('object-format')).borderLeftWidth)>0 && control('object-format').getBoundingClientRect().left>=control('text-format').getBoundingClientRect().right,'divider separates text formatting from shape properties')
+ const rowCentre=node=>{const r=node.getBoundingClientRect();return (r.top+r.bottom)/2}
+ check(getComputedStyle(root.querySelector('.slide-object-colours > .text-format-controls')).flexDirection==='row' && Math.abs(rowCentre(control('font-family'))-rowCentre(control('border-width')))<2,'text and object properties share one lower-menu line')
+ const host=document.getElementById('host'),hostWidth=host.style.width,lower=root.querySelectorAll('.slide-menu-bar')[1]
+ host.style.width='460px';await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))
+ check(lower.scrollWidth>lower.clientWidth && getComputedStyle(lower).overflowX==='auto' && Math.abs(rowCentre(control('font-family'))-rowCentre(control('border-width')))<2,'narrow lower menu scrolls horizontally instead of stacking')
+ host.style.width=hostWidth;await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))
+ check(Math.abs(control('font-size').getBoundingClientRect().height-control('font-family').getBoundingClientRect().height)<1,'font size aligns with menu select')
+ change('font-family','georgia')
+ check(attrs().fontFamily==='georgia' && !deltas()[0].attributes?.slideTextStyle,'font applies only to selected beta')
+ change('font-size','40');check(attrs().fontSize===40,'font size applies to selected text')
+ control('font-larger').click();check(attrs().fontSize===41,'up arrow increases size')
+ control('font-smaller').click();check(attrs().fontSize===40,'down arrow decreases size')
+ change('text-colour','#123456','input');check(attrs().textColour==='#123456','text colour applies to selection')
+ change('highlight-colour','#fedcba','input');check(attrs().highlightColour==='#fedcba','highlight colour applies to selection')
+ const settled=()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))
+ await settled()
+ const marked=root.querySelector('.slide-object[data-id="text"] .tiptap [data-slide-text-style]')
+ check(getComputedStyle(marked).color==='rgb(18, 52, 86)' && getComputedStyle(marked).backgroundColor==='rgb(254, 220, 186)' && getComputedStyle(marked).fontFamily.includes('Georgia'),'selected formatting renders on actual editor span')
+ const measured=[]
+ for(const zoom of ['50','100']){
+  change('canvas-zoom',zoom);await settled()
+  const span=root.querySelector('.slide-object[data-id="text"] .tiptap [data-slide-text-style]'),actual=parseFloat(getComputedStyle(span).fontSize),expected=40*root.querySelector('.slide').getBoundingClientRect().width/1280
+  const probe=document.createElement('span');probe.textContent='Reference';probe.style.cssText='position:absolute;visibility:hidden;font-size:'+expected+'px';span.parentNode.append(probe)
+  const reference=parseFloat(getComputedStyle(probe).fontSize);probe.remove()
+  measured.push({zoom,actual,expected,reference,unit:getComputedStyle(span).getPropertyValue('--slide-text-unit'),style:span.getAttribute('style')})
+ }
+ check(measured.every(value=>Math.abs(value.actual-value.reference)<.6) && Math.abs(measured[1].actual/measured[0].actual-2)<.02,'inline font scales with slide zoom: '+JSON.stringify(measured))
+ control('undo').click();check(!attrs().highlightColour && attrs().textColour==='#123456','highlight is a separate undo step')
+ control('redo').click();check(attrs().highlightColour==='#fedcba','redo restores highlighting')
+ doc().getMap('slide-objects').get('text').set('locked',true);const oldColour=attrs().textColour;change('text-colour','#000000','input')
+ check(control('font-larger').disabled && attrs().textColour===oldColour,'locked text cannot be formatted');doc().getMap('slide-objects').get('text').set('locked',false)
+ const snapshot=editor.snapshot();editor.loadSnapshot(snapshot)
+ check(attrs().fontSize===40 && attrs().highlightColour==='#fedcba','native save/load retains selected text formatting')
+ const parsed=new DOMParser().parseFromString(await editor.getHtml(),'text/html'),exported=parsed.querySelector('[data-slide-text-style]')
+ check(exported?.getAttribute('data-font-family')==='georgia' && exported.getAttribute('data-highlight-colour')==='#fedcba' && exported.style.color==='rgb(18, 52, 86)','standalone presenter HTML retains selected formatting')
+ doc().getMap('slide-objects').set('shape',new Y.Map(Object.entries({kind:'shape',slide:'first',x:850,y:100,width:100,height:100,layer:1})))
+ root.querySelector('.shape-object[data-id="shape"]').focus()
+ check(control('text-format').hidden,'shape selection restores normal lower menu')
+ const selectBeta=()=>{control('open-find').click();change('find-query','beta','input');control('find-query').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));control('find-done').click()}
+ const selection=()=>document.getSelection().toString()
+ selectBeta();control('bold').click();control('italic').click()
+ check(selection()==='beta' && !control('text-format').hidden,'bold then italic retain selected range for sequencing')
+ control('ordered-list').click();const orderedSelection=selection();control('ordered-list').click()
+ check(orderedSelection==='beta' && selection()==='beta','numbered list toggles retain mapped selection')
+ control('bullet-list').click();const bulletSelection=selection();control('bullet-list').click()
+ check(bulletSelection==='beta' && selection()==='beta','bulleted list toggles retain mapped selection')
+ control('edit-link').click()
+ let modal=document.getElementById('generic-modal'),form=modal.querySelector('[data-control="link-dialog"]')
+ const linkField=key=>form.querySelector('[data-link-field="'+key+'"]'),submit=()=>form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))
+ check(!modal.querySelector('.modal-content--wide') && linkField('text').value==='beta' && linkField('href') && linkField('title') && form.querySelector('[data-control="submit-link"]').type==='submit','Add link opens small modal with URL/text/title and Submit')
+ linkField('href').value='javascript:alert(1)';submit()
+ check(modal.isConnected && form.querySelector('[data-control="link-feedback"]').textContent.includes('URL'),'unsafe URL reports validation without losing fields')
+ linkField('href').value='https://example.invalid/link';linkField('title').value='Link tooltip';linkField('alt').value='Accessible link description';linkField('newTab').checked=false;submit()
+ let anchor=root.querySelector('.slide-object[data-id="text"] .tiptap a')
+ check(!document.getElementById('generic-modal') && anchor?.getAttribute('href')==='https://example.invalid/link' && anchor.title==='Link tooltip' && anchor.target==='_self' && selection()==='beta','link Submit applies metadata and retains text selection')
+ const linkSnapshot=editor.snapshot(),linkDocument=new Y.Doc();Y.applyUpdate(linkDocument,Uint8Array.from(atob(linkSnapshot.update),character=>character.charCodeAt(0)))
+ const savedLink=linkDocument.getXmlFragment('slide-text-text').get(0).get(0).toDelta().find(part=>part.attributes?.link)?.attributes.link
+ const linkedHtml=new DOMParser().parseFromString(await editor.getHtml(),'text/html')
+ check(anchor.getAttribute('aria-label')==='Accessible link description' && savedLink?.ariaLabel==='Accessible link description' && linkedHtml.querySelector('a')?.getAttribute('aria-label')==='Accessible link description','link alt text uses aria-label and survives native/presenter output');linkDocument.destroy()
+ control('remove-link').click()
+ check(!root.querySelector('.slide-object[data-id="text"] .tiptap a') && selection()==='beta','unlink retains selected text')
+ control('edit-link').click();modal=document.getElementById('generic-modal');form=modal.querySelector('[data-control="link-dialog"]');linkField('href').value='https://example.invalid/new';linkField('text').value='<New & beta>';submit()
+ anchor=root.querySelector('.slide-object[data-id="text"] .tiptap a')
+ check(anchor?.textContent==='<New & beta>' && !anchor.querySelector('new') && selection()==='<New & beta>','link display text is literal and new range remains selected')
+ control('edit-link').click();modal=document.getElementById('generic-modal');form=modal.querySelector('[data-control="link-dialog"]');form.querySelector('[data-control="cancel-link-dialog"]').click()
+ check(!document.getElementById('generic-modal') && selection()==='<New & beta>','Cancel restores selection without applying')
+ control('edit-link').click();modal=document.getElementById('generic-modal');form=modal.querySelector('[data-control="link-dialog"]');linkField('href').value='https://stale.invalid/'
+ doc().getXmlFragment('slide-text-text').get(0).get(0).insert(0,'Newer ');submit()
+ check(modal.isConnected && form.querySelector('[data-control="link-feedback"]').textContent.includes('changed') && !root.querySelector('a[href="https://stale.invalid/"]'),'stale text change rejects modal submission')
+ form.querySelector('[data-control="cancel-link-dialog"]').click()
+ const wholeBox=new Y.Map(Object.entries({kind:'text',slide:'first',x:100,y:350,width:400,height:140,fontSize:12,layer:3}))
+ doc().transact(()=>{doc().getMap('slide-objects').set('whole-box',wholeBox);const p=new Y.XmlElement('paragraph'),text=new Y.XmlText();doc().getXmlFragment('slide-text-whole-box').insert(0,[p]);p.insert(0,[text]);text.insert(0,'Small text')})
+ const wholeNode=root.querySelector('.slide-object[data-id="whole-box"]'),wholeDeltas=()=>doc().getXmlFragment('slide-text-whole-box').get(0).get(0).toDelta()
+ wholeNode.focus()
+ check(!control('text-format').hidden && document.getSelection().isCollapsed,'whole text-box selection shows formatting without a text range')
+ change('font-family','arial');change('highlight-colour','#ffeeaa','input')
+ check(wholeDeltas().every(part=>part.attributes?.slideTextStyle?.fontFamily==='arial' && part.attributes?.slideTextStyle?.highlightColour==='#ffeeaa') && document.getSelection().isCollapsed,'whole-box formatting applies to all text without leaving all text selected')
+ check(control('text-format').contains(control('fit-text')) && control('fit-text').textContent==='Fit' && !root.querySelector('.inspector [data-panel="layouts"],.inspector [data-panel="text"]'),'Fit in lower menu and Layouts/Text removed from inspector')
+ await settled();control('fit-text').click();await settled()
+ const grows=wholeBox.get('fontSize'),wholeContent=wholeNode.querySelector('.tiptap')
+ check(grows>12 && wholeContent.scrollHeight<=wholeContent.clientHeight+1 && wholeContent.scrollWidth<=wholeContent.clientWidth+1,'Fit enlarges small text to fill the box')
+ wholeBox.set('width',180);wholeBox.set('height',60);wholeBox.set('fontSize',180);await settled();control('fit-text').click();await settled()
+ check(wholeBox.get('fontSize')<180 && wholeContent.scrollHeight<=wholeContent.clientHeight+1 && wholeContent.scrollWidth<=wholeContent.clientWidth+1,'Fit contracts overflowing text to fit the box')
+ control('open-find').click();change('find-query','Small','input');control('find-query').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));control('find-done').click();change('text-colour','#ff0000','input')
+ const wholeParts=wholeDeltas()
+ check(wholeParts.find(part=>part.insert==='Small')?.attributes?.slideTextStyle?.textColour==='#ff0000' && wholeParts.some(part=>part.insert.includes('text') && part.attributes?.slideTextStyle?.textColour!=='#ff0000'),'selecting a text range switches from whole-box to range-only formatting')
+ control('clear-highlight').click()
+ check(!wholeDeltas().find(part=>part.insert==='Small')?.attributes?.slideTextStyle?.highlightColour && wholeDeltas().some(part=>part.insert.includes('text')&&part.attributes?.slideTextStyle?.highlightColour==='#ffeeaa'),'No highlight clears only selected text')
+ wholeNode.focus();control('clear-highlight').click()
+ check(wholeDeltas().every(part=>!part.attributes?.slideTextStyle?.highlightColour),'No highlight clears a whole selected text box')
+ control('fit-text').click();await settled()
+ check(Number(control('font-size').value)*2===Math.round(Number(control('font-size').value)*2) && wholeBox.get('fontSize')*2===Math.round(wholeBox.get('fontSize')*2),'Fit stores and displays half-size steps without float tails')
+ const objectControls=control('object-format'),arrange=objectControls.querySelector('.slide-arrange-controls'),shapeNode=root.querySelector('.shape-object[data-id="shape"]')
+ shapeNode.focus()
+ check(!objectControls.hidden && arrange.hidden && !control('arrange-objects').hidden && objectControls.contains(control('fill-colour')) && objectControls.contains(control('align-left')),'selected shape shows colours and top Arrange button without cluttering lower menu')
+ change('fill-colour','#abcdef')
+ check(shapeNode.classList.contains('selected') && !objectControls.hidden && arrange.hidden && !control('arrange-objects').hidden,'shape formatting controls persist after changing colour')
+ control('arrange-objects').click()
+ check(!arrange.hidden && objectControls.querySelector('.slide-object-colours').hidden && getComputedStyle(control('text-format')).display==='none','Arrange replaces other lower-menu contents')
+ control('lock-objects').click();control('unlock-objects').click()
+ check(shapeNode.classList.contains('selected') && !arrange.hidden && control('arrange-objects').getAttribute('aria-pressed')==='true','Arrange remains through commands on the selected object')
+ const photo=document.createElement('canvas');photo.width=photo.height=4;doc().getMap('slide-objects').set('photo',new Y.Map(Object.entries({kind:'image',slide:'first',source:photo.toDataURL(),x:800,y:200,width:80,height:80,layer:5})))
+ root.querySelector('.image-object[data-id="photo"]').focus()
+ check(arrange.hidden && !control('arrange-objects').hidden && !control('image-handle-mode').hidden,'selecting a new image resets Arrange while keeping its button available')
+ control('arrange-objects').click()
+ check(!arrange.hidden && getComputedStyle(control('image-handle-mode')).display==='none','image Arrange replaces image mode controls until deselection')
+ root.querySelector('.canvas-space').dispatchEvent(new PointerEvent('pointerdown',{button:0,bubbles:true,cancelable:true}))
+ check(objectControls.hidden && control('text-format').hidden && getComputedStyle(root.querySelector('.slide-theme-controls')).display!=='none','deselecting restores normal lower-menu options')
+ check(!control('format-slide').hidden && !root.querySelector('.inspector [data-panel="images"]'),'Format Slide shown without selection and Image inspector removed')
+ control('format-slide').click()
+ check(!control('slide-format').hidden && getComputedStyle(root.querySelector('.slide-theme-controls')).display==='none','Format Slide replaces lower contents with slide properties')
+ change('slide-background','#102030')
+ const activeSlide=root.querySelector('[data-slide-id][aria-current="true"]').dataset.slideId
+ check(doc().getMap('slide-backgrounds').get(activeSlide)==='#102030' && !control('slide-format').hidden,'slide colour changes the current slide and keeps formatting open')
+ control('reset-slide-colour').click()
+ check(!doc().getMap('slide-backgrounds').has(activeSlide) && control('slide-background').value===doc().getMap('slide-design').get('theme').background,'Use theme colour removes the custom background')
+ shapeNode.focus()
+ check(control('format-slide').hidden && control('slide-format').hidden,'object selection closes slide formatting')
+ document.getElementById('result').textContent='PASS: '+count+' checks. Real selected text font/size/arrows/colour/highlight, contextual menu, retained formatting/link selections, small link modal, proportional rendering, undo/redo, locked guard, native save/load and standalone HTML. No external requests or storage writes. Manually select text and use the lower menu. Zoom measurements: '+JSON.stringify(measured)
+}catch(error){document.getElementById('result').textContent='FAIL: '+error.message+'\n'+(error.stack||'')}
+})();
+</script>

@@ -1,5 +1,5 @@
 function createCollabShareView(doc = document, show = showModal) {
-    const root = doc.createElement('div'); let modal = null;
+    const root = doc.createElement('div'); root.className='collab-share-panel'; let modal = null;
     const heading = doc.createElement('h3'), label = doc.createElement('label'), check = doc.createElement('input'); check.type = 'checkbox'; check.id = 'collab-anon-check';
     const text = doc.createElement('span'); text.textContent = 'Allow anyone to read (no login required)'; label.append(check,text);
     const review = doc.createElement('button'); review.className = 'btn btn-small'; review.textContent = 'Check current settings';
@@ -9,9 +9,12 @@ function createCollabShareView(doc = document, show = showModal) {
     return {
         alive,
         mount(target, actions) {
-            heading.textContent = 'Share “' + target.title + '”';
+            heading.textContent = target.editorName ? 'Share this ' + target.editorName : 'Share “' + target.title + '”';
+            if(target.editorName){const name=doc.createElement('p');name.textContent=target.title;root.insertBefore(name,label);}
+            if(target.accessSettings === false){label.hidden=true;review.hidden=true;settings.hidden=true;}
             check.onchange = () => { if (alive()) actions.save(check.checked); }; review.onclick = () => { if (alive()) return actions.load(); };
             for (const [mode,caption] of [['edit','Co-edit link'],['read','Read-only link']]) {
+                if(!target.links[mode])continue;
                 const row = doc.createElement('div'), title = doc.createElement('h4'), link = doc.createElement('code'); title.textContent = caption; link.className = 'share-link-code'; link.textContent = target.links[mode]; row.append(title,link);
                 for (const [name,run] of [['Copy',()=>actions.copy(mode)],...(target.discussion ? [['Chat',()=>actions.chat(mode)]] : []),['Post',()=>actions.post(mode)]]) {
                     const button = doc.createElement('button'); button.className = 'btn btn-small'; button.textContent = name; button.onclick = () => { if (alive() && button.parentNode === row) return run(); }; row.appendChild(button);

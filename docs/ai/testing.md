@@ -347,3 +347,50 @@ For calendar cache/range and gRSShopper upload changes, use the focused command 
 the Calendar caches/ranges section of docs/testing.md. Include superseded/cleared
 responses, session/feed cache identity, exclusive event ends and newer queued
 upload protection. Keep mocked evidence separate from real browser/live checks.
+
+
+Active-editor sharing: use tests/editor-sharing.test.cjs and the matching browser
+fixture with the existing collab-share/composer, Etherpad document and LaTeX
+controls tests. Mock all services, sessions, resource owners, clipboard and Post
+handoffs. Verify unsupported service settings never issue Collab API requests;
+normal app editor mounting and live collaborative sharing remain separate checks.
+
+
+## Core-first startup and recovery
+
+See [Startup sequence](../startup.md) for the core/feature boundary and manifest rules.
+Run the focused checks:
+
+```powershell
+node --test tests/app-startup.test.cjs tests/app-startup-core.test.cjs tests/startup-assets.test.cjs tests/startup-recovery.test.cjs tests/session-lifecycle.test.cjs tests/editor-switch.test.cjs tests/panes.test.cjs tests/navigation.test.cjs tests/oauth-callback.test.cjs tests/oauth-account.test.cjs tests/oauth-reauthorization.test.cjs tests/tags.test.cjs
+node --test tests/external-libraries.test.cjs tests/p2p-session.test.cjs tests/p2p-share.test.cjs tests/p2p-popup.test.cjs tests/p2p-discussions.test.cjs tests/p2p-discussion-actions.test.cjs
+python tests/launcher_startup_test.py
+```
+
+Node fixtures mock storage, crypto, script delivery, accounts and services. They
+cover early identity before schemas/accounts, paint before background requests,
+ordered registration, gated controls, safe retries, stale sessions and explicit
+initializers. The Python loopback fixture verifies concurrency and persistent
+connections using the real launcher classes; it does not exercise live proxies,
+TLS or LocalRSS. On-demand libraries retain failure/retry handling and PeerJS SRI.
+
+User-reported normal-browser evidence (2026-11-27): the core-first startup feels
+responsive; Loading tools and temporarily disabled feature buttons behave as
+intended. The supplied profile has core scripts loaded around 55ms, DOM ready at
+59ms, background loading starting around 81ms, registry completion around 1309ms,
+and account response completion around 1376ms. These are observations from one
+recording, not guaranteed timings or proof of every feature's behavior.
+
+Temporary console-report scripts, script-event probes and the polling timer were
+removed after profiling. Lightweight `clist:shellReady`/`clist:featuresReady`
+performance marks and safe session-stage timings remain. Material Icons is
+served locally with its Apache license. Runtime recovery appears after five
+seconds or a failure; Reset clears sign-in while preserving local content and
+drafts. No storage migration or destructive environment reset was added.
+
+Broader normal-app checks remain user-pending: saved hosted/Local and guest
+sessions, public feed choices, Read/Find/Accounts, editor picker and text/HTML
+switching, tags, OAuth callback pickup and live Chat signaling. Prior fixture
+PASS reports and mocked checks do not replace these integration checks. Recheck
+startup after instrumentation cleanup, including any retained pending slide/share
+checks documented above. No launcher restart is needed for frontend changes.

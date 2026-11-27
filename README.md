@@ -159,3 +159,14 @@ source-launch workflow, install the complete backend requirements once with
 `python -m pip install -r requirements-localrss.txt`; installing only aiohttp may
 leave other dependencies missing. Source startup reports that command if backend
 loading fails. Build dependencies are installed automatically by bundle scripts.
+
+
+Desktop startup serves assets and proxy requests concurrently using a threaded
+loopback HTTP server. Restart the launcher after updating `launcher.py`;
+reloading the browser alone retains the old server. See the desktop startup
+concurrency checks in `docs/testing.md`.
+
+
+Startup now loads a small core shell first, restores session controls and paints,
+then loads the ordered feature manifest. Features become available after their
+registrations and account initialization finish; see [Startup sequence](docs/startup.md).

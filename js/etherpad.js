@@ -43,6 +43,7 @@ function etherpadPadUrl(name) {
     return etherpadDocumentUrl(base, name);
 }
 editorHandlers.etherpad = {
+    getSharing(){const owner=_etherpadConnection,pad=padName;if(!owner?.controller.active()||!pad||(!currentEtherpadGuestBase&&!currentEtherpadAccount))return null;const link=etherpadPadUrl(pad);return {docId:pad,server:new URL(link).origin,title:pad,links:{edit:link},accessSettings:false,current:()=>_etherpadConnection===owner&&owner.controller.active()&&padName===pad};},
     label: 'Etherpad', icon: 'group', contentTypes: ['text/html', 'text/plain'], requiresAccount: true,
     isActive: () => !!_etherpadConnection?.controller.active(),
     initialize: account => mountEtherpadConnection(account),

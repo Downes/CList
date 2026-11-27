@@ -211,6 +211,7 @@ function _restoreAnnotationFile(value, insert = false) {
     }
 
     editorHandlers['annotate-edit'] = {
+        loadDependencies: () => ensureTinyMCE(),
         label: 'Annotate',
         icon: 'edit',
         contentTypes: ['text/plain', 'text/html', 'application/vnd.clist.annotation+json'],

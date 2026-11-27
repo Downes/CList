@@ -25,7 +25,6 @@ Build (run from the project root):
 """
 
 import http.server
-import socketserver
 import threading
 import webbrowser
 import json
@@ -360,7 +359,19 @@ def print_linux_tls_instructions():
 # Request handler
 # ---------------------------------------------------------------------------
 
+class CListServer(http.server.ThreadingHTTPServer):
+    # Browsers load many assets concurrently and may pre-open idle connections.
+    # A single connection must not block all other assets or proxy requests.
+    daemon_threads = True
+    allow_reuse_address = True
+    request_queue_size = 128
+
+
 class CListHandler(http.server.SimpleHTTPRequestHandler):
+    # Static and proxy responses below are length-delimited. Reuse connections
+    # instead of repeating a TCP/TLS handshake for every startup script.
+    protocol_version = 'HTTP/1.1'
+    timeout = 15
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=BASE_DIR, **kwargs)
@@ -694,7 +705,7 @@ def main():
             print_linux_tls_instructions()
 
     try:
-        server = socketserver.TCPServer(('127.0.0.1', PORT), CListHandler)
+        server = CListServer(('127.0.0.1', PORT), CListHandler)
     except OSError:
         # Port already in use — check if it's an existing CList instance.
         if is_clist_running(BASE_URL):

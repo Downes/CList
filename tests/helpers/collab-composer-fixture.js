@@ -17,7 +17,7 @@ function composerFixture(options={}){
     const deps={install(handler){previous={...slot};slot.handler=handler;slot.editor='collab-share';},
         owns:handler=>slot.handler===handler&&slot.editor==='collab-share'&&slot.account===previous?.account&&slot.switchId===previous?.switchId,
         release(handler){if(slot.handler!==handler)return;const restore=slot.editor==='collab-share'&&slot.account===previous.account&&slot.switchId===previous.switchId;slot.handler=previous.handler;if(restore)slot.editor=previous.editor;},
-        hasRich:()=>!!options.rich,init:config=>{const editor=makeEditor(config);if(behavior.init)return behavior.init(config,editor);editor.emit('init');return Promise.resolve([editor]);},
+        ensureRich:options.ensureRich,hasRich:()=>!!options.rich,init:config=>{const editor=makeEditor(config);if(behavior.init)return behavior.init(config,editor);editor.emit('init');return Promise.resolve([editor]);},
         schedule:(callback,delay)=>{timers.push({callback,delay});return timers.length;},clear:id=>cleared.push(id),getCompletion:()=>slot.completion,setCompletion:value=>{slot.completion=value;},
         publishing:()=>slot.publishing,post:async()=>{postCalls.push(true);if(behavior.post)await behavior.post();},state:value=>states.push(structuredClone(value))};
     // Use the real public opener/view; Node does not deliver MutationObserver events.
@@ -27,6 +27,16 @@ function composerFixture(options={}){
         expire:()=>{valid=false;},dispose(){controller.close();if(!options.container)container.remove();}};
 }
 const collabComposerCases=[
+    ['lazy library waits and expired composer cannot initialize rich editor',async check=>{
+        const gate=composerGate(),f=composerFixture({ensureRich:()=>gate.promise});
+        const pending=f.controller.initialize();await composerFlush();check(f.editors.length===0,'library pending');
+        f.expire();gate.resolve();await pending;check(f.editors.length===0,'expired load rejected');f.dispose();
+    }],
+    ['lazy library failure keeps fallback draft and explicit retry can initialize',async check=>{
+        let fail=true;const f=composerFixture({ensureRich:async()=>{if(fail)throw Error('Library unavailable');}});
+        f.edit('Keep draft');await f.controller.initialize();check(f.editors.length===0&&f.container.textContent.includes('Library unavailable'),'visible failure');
+        fail=false;await f.controller.initialize();check(f.editors.length===1&&f.editors[0].getContent().includes('Keep draft'),'retry preserves draft');f.dispose();
+    }],
     ['fallback draft, owned handler and safe seed content',async check=>{
         const f=composerFixture();check(f.slot.editor==='collab-share'&&f.slot.handler===f.controller.handler,'temporary handler installed');
         const content=await f.controller.handler.getContent();check(content.includes('&lt;img')&&!content.includes('<img'),'fallback data encoded as literal HTML');

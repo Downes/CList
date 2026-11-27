@@ -1,164 +1,372 @@
-function Jo(n, l, c, i, p = 0) {
-  const g = l && Number.isFinite(l.x) && Number.isFinite(l.y), u = g ? l.x - n.x : p, b = g ? l.y - n.y : p;
-  return {
-    x: Math.max(-n.x, Math.min(c - n.x - n.width, u)),
-    y: Math.max(-n.y, Math.min(i - n.y - n.height, b))
-  };
-}
-function go(n, l, c, i) {
-  return !c || !n.contains(c) || c.isContentEditable || c.closest?.('input, textarea, select, [contenteditable="true"]') ? !1 : n.contains(l) || l === i || l === i.body || l === i.documentElement;
-}
-const Ht = [["background", "Background"], ["textColour", "Text"], ["fillColour", "Fill"], ["borderColour", "Border"]];
-function Yo(n, l, c, i) {
-  const p = String(l || "").trim();
-  if (!p || p.length > 120) throw new Error("Enter a theme name of 1–120 characters.");
-  for (const [g] of Ht) if (!/^#[0-9a-f]{6}$/i.test(c[g] || "")) throw new Error("Choose a valid colour for each swatch.");
-  return { ...n, id: i, label: p, ...Object.fromEntries(Ht.map(([g]) => [g, c[g]])) };
-}
-function _o(n) {
-  const { root: l } = n, c = l.ownerDocument, i = (w, S, h) => {
-    const k = c.createElement(w);
-    return S !== void 0 && (k.textContent = S), h && (k.className = h), k;
-  }, p = l.querySelector('[data-control="theme"]'), g = l.querySelector('[data-panel="themes"]'), u = i("div", void 0, "slide-menu-options slide-theme-controls"), b = i("button", "Themes", "btn-small");
-  b.title = "Choose and customise presentation themes", b.dataset.control = "open-themes", u.append(b, p), g?.remove(), l.querySelectorAll(".slide-menu-bar")[1].append(u);
-  let E = !1, f = null, y = 0;
-  function A() {
-    if (!(E || !n.current()))
-      try {
-        let me = function() {
-          a.replaceChildren();
-          for (const le of n.themes()) {
-            const be = i("option", le.label);
-            be.value = le.id, a.append(be);
-          }
-          a.value = n.theme().id;
-        }, Ce = function() {
-          R.replaceChildren();
-          for (const [le, be] of Ht) {
-            const ze = i("span");
-            ze.style.backgroundColor = q[le].value, ze.title = be, R.append(ze);
-          }
-        }, Ie = function() {
-          re = n.theme(), O = JSON.stringify(re);
-          for (const [le] of Ht) q[le].value = re[le];
-          me(), Ce();
-        };
-        f?.close();
-        const w = ++y, S = n.capture(), h = i("div", void 0, "clist-slides slide-insert-picker slide-theme-picker"), k = i("h2", "Themes"), L = i("label", "Presentation theme"), a = i("select"), R = i("div", void 0, "theme-preview");
-        a.dataset.control = "modal-theme", L.append(a);
-        const F = i("p");
-        F.setAttribute("role", "status"), F.dataset.control = "theme-feedback";
-        const P = i("button", "Save current slide as a new design", "btn-small");
-        P.disabled = !n.canSaveLayout(), P.title = "Save the current slide as a new slide design", P.dataset.control = "save-slide-design";
-        const v = i("h3", "Save a new colour theme"), ne = i("label", "Theme name"), _ = i("input");
-        _.type = "text", _.maxLength = 120, _.dataset.control = "theme-name", ne.append(_);
-        const M = i("div", void 0, "slide-theme-colours"), q = {};
-        for (const [le, be] of Ht) {
-          const ze = i("label", be), Fe = i("input");
-          Fe.type = "color", Fe.dataset.themeColour = le, ze.append(Fe), M.append(ze), q[le] = Fe;
-        }
-        const Z = i("div", void 0, "slide-picker-actions"), U = i("button", "Save as new theme", "btn-small"), ee = i("button", "Close", "btn-small btn-secondary");
-        U.title = "Save and apply a new colour theme in this presentation", U.dataset.control = "save-theme", ee.title = "Close Themes", Z.append(ee);
-        const K = i("div", void 0, "slide-theme-columns"), te = i("section"), Y = i("section");
-        te.dataset.control = "colour-themes", Y.dataset.control = "slide-designs";
-        const pe = i("ul");
-        pe.dataset.control = "slide-design-list";
-        for (const le of n.designs()) {
-          const be = i("li", le.label);
-          pe.append(be);
-        }
-        te.append(i("h3", "Colour Themes"), L, R, v, ne, M, U), Y.append(i("h3", "Slide designs"), pe, i("p", "Slide designs can be selected when creating a new slide."), P), K.append(te, Y), h.append(k, K, F, Z);
-        let re = n.theme(), O = JSON.stringify(re);
-        Ie();
-        const X = n.openModal(h);
-        f = X;
-        const Qe = () => !E && w === y && S() && X.current(), Ve = (le) => {
-          console.error("Slides themes:", le), X.current() && (F.textContent = le.message || String(le));
-        }, Ke = () => {
-          if (!Qe()) throw new Error("The presentation changed. Close and reopen Themes.");
-          if (JSON.stringify(n.theme()) !== O) throw new Error("The theme changed elsewhere. Close and reopen Themes before saving.");
-        };
-        for (const le of Object.values(q)) le.addEventListener("input", () => {
-          Qe() && Ce();
-        });
-        a.addEventListener("change", () => {
-          try {
-            Ke(), n.apply(a.value), Ie(), F.textContent = "Theme applied.";
-          } catch (le) {
-            Ve(le);
-          }
-        }), U.addEventListener("click", () => {
-          try {
-            Ke(), n.save(Yo(re, _.value, Object.fromEntries(Object.entries(q).map(([le, be]) => [le, be.value])), "custom-" + crypto.randomUUID())), Ie(), _.value = "", F.textContent = "Theme saved in this presentation.";
-          } catch (le) {
-            Ve(le);
-          }
-        }), P.addEventListener("click", () => {
-          try {
-            Ke(), X.close(), n.saveLayout();
-          } catch (le) {
-            Ve(le);
-          }
-        }), ee.addEventListener("click", () => {
-          w === y && (y++, X.close());
-        });
-      } catch (w) {
-        console.error("Slides themes:", w), n.error(w);
-      }
+function sr(n, i) {
+  const l = n.ownerDocument, r = n.querySelector(".slide-menu-bar"), d = n.querySelectorAll(".slide-menu-bar")[1], m = n.querySelector('[data-panel="slide"]'), p = n.querySelector('[data-control="slide-background"]'), y = l.createElement("div");
+  y.className = "slide-slide-format", y.dataset.control = "slide-format", y.hidden = !0, y.setAttribute("aria-label", "Slide formatting");
+  const x = l.createElement("label");
+  x.append(l.createTextNode("Slide colour"), p), y.append(x), m.remove(), d.append(y);
+  const h = l.createElement("button");
+  h.className = "btn-small btn-secondary", h.textContent = "Use theme colour", h.title = "Remove the custom slide colour and use the theme background", h.dataset.control = "reset-slide-colour", y.append(h);
+  const g = l.createElement("button");
+  g.className = "btn-small", g.textContent = "Format Slide", g.title = "Format the current slide", g.dataset.control = "format-slide", r.insertBefore(g, n.querySelector(".slide-menu-right"));
+  let S = !1, b = !1, v = !1;
+  function f() {
+    g.hidden = !b, g.setAttribute("aria-pressed", String(S)), y.hidden = !S, d.dataset.slideFormatOpen = String(S);
   }
-  return b.addEventListener("click", A), { destroy() {
-    E = !0, y++, f?.close(), u.remove();
+  g.addEventListener("click", () => {
+    !v && b && (S = !S, f());
+  }), h.addEventListener("click", () => {
+    !v && b && S && i();
+  });
+  const E = [...r.querySelectorAll("[data-menu]")], A = () => {
+    !v && S && (S = !1, f());
+  };
+  for (const s of E) s.addEventListener("click", A);
+  return f(), { update(s) {
+    v || (b = s, b || (S = !1), f());
+  }, destroy() {
+    v = !0;
+    for (const s of E) s.removeEventListener("click", A);
+    y.remove(), g.remove(), delete d.dataset.slideFormatOpen;
   } };
 }
-function Zo(n, l, c, i) {
-  return c === "crop" ? { imageFit: "cover", cropImageWidth: i.width, cropImageHeight: i.height } : {
-    imageFit: "cover",
-    cropImageWidth: i.width * l.width / n.width,
-    cropImageHeight: i.height * l.height / n.height,
-    aspectRatio: l.width / l.height
+function lr(n) {
+  const i = n.ownerDocument, l = n.querySelectorAll(".slide-menu-bar")[1], r = n.querySelector(".slide-menu-bar"), d = i.createElement("div");
+  d.className = "slide-object-format", d.dataset.control = "object-format", d.hidden = !0;
+  const m = n.querySelector('[data-panel="appearance"]'), p = n.querySelector('[data-panel="arrange"]'), y = m.querySelector(".control-section-body"), x = p.querySelector(".control-section-body");
+  y.classList.add("slide-object-colours"), x.classList.add("slide-arrange-controls"), x.setAttribute("aria-label", "Arrange selected objects");
+  const h = i.createElement("span");
+  h.textContent = "Arrange", x.insertBefore(h, x.firstChild);
+  const g = n.querySelector('[data-panel="images"]'), S = g?.querySelector(".control-section-body");
+  if (S) {
+    S.classList.add("slide-image-properties");
+    const F = S.querySelector("textarea");
+    F && (F.rows = 1), d.append(S), g.remove();
+  }
+  d.append(y, x), m.remove(), p.remove(), l.append(d);
+  const b = i.createElement("button");
+  b.className = "btn-small", b.textContent = "Arrange", b.title = "Arrange selected objects", b.dataset.control = "arrange-objects", r.insertBefore(b, n.querySelector(".slide-menu-right"));
+  let v = [], f = null, E = !1, A = !1;
+  function s() {
+    const F = !!f;
+    b.hidden = !v.length, b.setAttribute("aria-pressed", String(F));
+    const T = v.length === 1 && v[0]?.get?.("kind") === "image";
+    S && (S.hidden = !T || F), d.hidden = !v.length || !E && !F && !T, y.hidden = !E || F, x.hidden = !F, l.dataset.objectSelected = String(!!v.length), l.dataset.arrangeOpen = String(F);
+  }
+  return b.addEventListener("click", () => {
+    A || !v.length || (f = v[0], s());
+  }), s(), { update(F, T) {
+    A || (v = F, E = T, f && !v.includes(f) && (f = null), s());
+  }, destroy() {
+    A = !0, d.remove(), b.remove(), delete l.dataset.objectSelected, delete l.dataset.arrangeOpen;
+  } };
+}
+function zo(n) {
+  try {
+    return ["http:", "https:", "mailto:", "tel:"].includes(new URL(n).protocol);
+  } catch {
+    return !1;
+  }
+}
+function cr(n) {
+  const i = String(n.href || "").trim(), l = String(n.text || ""), r = String(n.title || "").trim(), d = String(n.alt || "").trim();
+  if (!zo(i)) throw new Error("Enter an http, https, mailto, or tel URL.");
+  if (!l.trim()) throw new Error("Enter the link text.");
+  if (r.length > 500) throw new Error("Keep the link title under 500 characters.");
+  if (d.length > 500) throw new Error("Keep link alt text under 500 characters.");
+  return { href: i, text: l, title: r, alt: d, newTab: !!n.newTab };
+}
+function dr(n) {
+  const i = n.root.ownerDocument;
+  let l = null, r = null, d = 0, m = !1;
+  function p(x = !1) {
+    const h = r;
+    d++, l?.close(), l = null, r = null, n.closed(), x && h?.current() && h.restore();
+  }
+  function y() {
+    if (!m)
+      try {
+        p(), r = n.capture();
+        const x = r, h = ++d, g = i.createElement("form");
+        g.className = "clist-slides slide-insert-picker slide-link-picker", g.dataset.control = "link-dialog";
+        const S = i.createElement("h3");
+        S.textContent = "Add or edit link", g.append(S);
+        const b = {};
+        for (const [_, q, ee] of [["href", "url", "Link URL"], ["text", "text", "Link text"], ["title", "text", "Link title (optional)"], ["alt", "text", "Link alt text (optional)"]]) {
+          const se = i.createElement("label"), oe = i.createElement("input");
+          oe.type = q, oe.placeholder = ee, oe.setAttribute("aria-label", ee), oe.dataset.linkField = _, oe.value = x.values[_] || "", (_ === "title" || _ === "alt") && (oe.maxLength = 500), se.append(oe), g.append(se), b[_] = oe;
+        }
+        const v = i.createElement("label"), f = i.createElement("input");
+        f.type = "checkbox", f.checked = x.values.newTab, f.dataset.linkField = "newTab", v.append(f, i.createTextNode("Open in new tab")), g.append(v);
+        const E = i.createElement("p");
+        E.setAttribute("role", "status"), E.dataset.control = "link-feedback", g.append(E);
+        const A = i.createElement("div");
+        A.className = "slide-picker-actions";
+        const s = i.createElement("button");
+        s.type = "submit", s.className = "btn-small", s.textContent = "Apply link", s.title = "Apply link", s.dataset.control = "submit-link";
+        const F = i.createElement("button");
+        F.type = "button", F.className = "btn-small btn-secondary", F.textContent = "Cancel", F.title = "Cancel link editing", F.dataset.control = "cancel-link-dialog", A.append(s, F), g.append(A);
+        const T = n.openModal(g);
+        l = T;
+        let z = !1;
+        const C = () => !m && h === d && T.current() && x.current();
+        g.addEventListener("submit", (_) => {
+          if (_.preventDefault(), !z)
+            try {
+              if (!C()) throw new Error("The selected text changed. Cancel and reopen Add link.");
+              const q = cr({ href: b.href.value, text: b.text.value, title: b.title.value, alt: b.alt.value, newTab: f.checked });
+              z = !0, x.apply(q), p(), x.focus();
+            } catch (q) {
+              console.error("Slides link:", q), T.current() && (E.textContent = q.message || String(q));
+            } finally {
+              z = !1;
+            }
+        }), F.addEventListener("click", () => {
+          h === d && p(!0);
+        }), g.addEventListener("keydown", (_) => {
+          _.key === "Escape" && (_.preventDefault(), _.stopPropagation(), h === d && p(!0));
+        }), b.href.focus();
+      } catch (x) {
+        console.error("Slides link:", x), p(), n.error(x);
+      }
+  }
+  return { open: y, close: p, destroy() {
+    m = !0, p();
+  } };
+}
+const Mt = { system: "system-ui, sans-serif", arial: "Arial, Helvetica, sans-serif", verdana: "Verdana, Geneva, sans-serif", georgia: "Georgia, serif", times: '"Times New Roman", Times, serif', courier: '"Courier New", Courier, monospace' };
+function Rn(n = {}) {
+  const i = {};
+  Object.hasOwn(Mt, n.fontFamily) && (i.fontFamily = n.fontFamily), n.fontSize != null && Number.isFinite(Number(n.fontSize)) && Number(n.fontSize) >= 8 && Number(n.fontSize) <= 200 && (i.fontSize = Number(n.fontSize));
+  for (const l of ["textColour", "highlightColour"]) /^#[0-9a-f]{6}$/i.test(n[l] || "") && (i[l] = n[l]);
+  return i;
+}
+function To(n) {
+  const i = Rn(n), l = { "data-slide-text-style": "" }, r = [];
+  i.fontFamily && (l["data-font-family"] = i.fontFamily, r.push("font-family:" + Mt[i.fontFamily])), i.fontSize && (l["data-font-size"] = String(i.fontSize), r.push("font-size:" + i.fontSize + "px", "--slide-text-size:" + i.fontSize));
+  for (const [d, m, p] of [["textColour", "text-colour", "color"], ["highlightColour", "highlight-colour", "background-color"]])
+    i[d] && (l["data-" + m] = i[d], r.push(p + ":" + i[d]));
+  return r.length && (l.style = r.join(";")), l;
+}
+function ur(n) {
+  return n.create({
+    name: "slideTextStyle",
+    addAttributes() {
+      return Object.fromEntries([["fontFamily", "font-family"], ["fontSize", "font-size"], ["textColour", "text-colour"], ["highlightColour", "highlight-colour"]].map(([i, l]) => [i, {
+        default: null,
+        parseHTML: (r) => Rn({ [i]: r.getAttribute("data-" + l) })[i] ?? null
+      }]));
+    },
+    parseHTML() {
+      return [{ tag: "span[data-slide-text-style]" }];
+    },
+    renderHTML({ mark: i }) {
+      return ["span", To(i.attrs), 0];
+    }
+  });
+}
+function pr(n, i) {
+  const l = n.ownerDocument, r = n.querySelectorAll(".slide-menu-bar")[1], d = l.createElement("div");
+  d.className = "slide-text-format", d.dataset.control = "text-format", d.hidden = !0, d.setAttribute("role", "group"), d.setAttribute("aria-label", "Selected text formatting");
+  let m = !1;
+  const p = {};
+  for (const S of ["font-family", "font-size", "text-colour"]) {
+    const b = n.querySelector('[data-control="' + S + '"]'), v = b.parentNode;
+    d.append(b), v.remove(), p[S] = b;
+  }
+  p["font-family"].setAttribute("aria-label", "Font"), p["font-size"].setAttribute("aria-label", "Font size"), p["font-size"].step = "0.5", p["text-colour"].setAttribute("aria-label", "Text colour");
+  for (const [S, b, v] of [[-1, "keyboard_arrow_down", "Decrease font size"], [1, "keyboard_arrow_up", "Increase font size"]]) {
+    const f = l.createElement("button");
+    f.className = "clist-action-btn btn-small", f.title = v, f.setAttribute("aria-label", v), f.dataset.control = S < 0 ? "font-smaller" : "font-larger";
+    const E = l.createElement("span");
+    E.className = "material-icons md-18 md-light", E.textContent = b, f.append(E), f.addEventListener("click", () => {
+      !m && !d.hidden && !f.disabled && i("fontSize", Math.max(8, Math.min(200, Number(p["font-size"].value) + S)));
+    }), d.insertBefore(f, p["text-colour"]), p[f.dataset.control] = f;
+  }
+  const y = l.createElement("input");
+  y.type = "color", y.value = "#ffff00", y.dataset.control = "highlight-colour", y.title = "Highlighting colour", y.setAttribute("aria-label", "Highlighting colour"), y.addEventListener("input", () => {
+    !m && !d.hidden && !y.disabled && i("highlightColour", y.value);
+  }), d.append(y), p["highlight-colour"] = y;
+  const x = l.createElement("button");
+  x.className = "btn-small btn-secondary", x.textContent = "No highlight", x.title = "Remove highlighting", x.dataset.control = "clear-highlight", x.addEventListener("click", () => {
+    !m && !d.hidden && !x.disabled && i("highlightColour", null);
+  }), d.append(x), p["clear-highlight"] = x;
+  for (const S of ["bold", "italic", "edit-link", "remove-link", "ordered-list", "bullet-list"]) {
+    const b = n.querySelector('[data-control="' + S + '"]');
+    d.append(b), p[S] = b;
+  }
+  const h = n.querySelector('[data-control="fit-text"]');
+  h && (h.textContent = "Fit", h.title = "Grow or shrink text to fill the box", d.append(h), p["fit-text"] = h);
+  const g = n.querySelector('[data-control="text-overflow-status"]');
+  return g && (g.hidden = !0, d.append(g)), r.insertBefore(d, n.querySelector('[data-control="object-format"]')), { update(S, b, v) {
+    if (!m) {
+      d.hidden = !S, r.dataset.textFormatOpen = String(S);
+      for (const f of Object.values(p)) f.disabled = !v;
+      S && (p["font-family"].value = b.family, p["font-size"].value = String(Math.round(b.size * 2) / 2), p["text-colour"].value = b.colour, y.value = b.highlight || "#ffff00");
+    }
+  }, destroy() {
+    m = !0, d.remove(), delete r.dataset.textFormatOpen;
+  } };
+}
+function fr(n, i, l, r, d = 0) {
+  const m = i && Number.isFinite(i.x) && Number.isFinite(i.y), p = m ? i.x - n.x : d, y = m ? i.y - n.y : d;
+  return {
+    x: Math.max(-n.x, Math.min(l - n.x - n.width, p)),
+    y: Math.max(-n.y, Math.min(r - n.y - n.height, y))
   };
 }
-function Qo(n, l, c) {
-  const i = n.ownerDocument, p = i.createElement("div");
-  p.className = "slide-menu-options", p.dataset.control = "image-handle-mode", p.hidden = !0, p.setAttribute("role", "group"), p.setAttribute("aria-label", "Image handle behavior");
-  let g = "resize", u = !1;
-  const b = ["resize", "crop"].map((f) => {
-    const y = i.createElement("button");
-    return y.className = "btn-small", y.textContent = f === "resize" ? "Resize" : "Crop", y.dataset.imageHandleMode = f, y.title = f === "resize" ? "Handles resize the image" : "Handles crop the image", y.addEventListener("click", () => {
-      u || p.hidden || !l() || (g = f, E(), c());
-    }), p.append(y), y;
+function ko(n, i, l, r) {
+  return !l || !n.contains(l) || l.isContentEditable || l.closest?.('input, textarea, select, [contenteditable="true"]') ? !1 : n.contains(i) || i === r || i === r.body || i === r.documentElement;
+}
+const $t = [["background", "Background"], ["textColour", "Text"], ["fillColour", "Fill"], ["borderColour", "Border"]];
+function hr(n, i, l, r) {
+  const d = String(i || "").trim();
+  if (!d || d.length > 120) throw new Error("Enter a theme name of 1–120 characters.");
+  for (const [m] of $t) if (!/^#[0-9a-f]{6}$/i.test(l[m] || "")) throw new Error("Choose a valid colour for each swatch.");
+  return { ...n, id: r, label: d, ...Object.fromEntries($t.map(([m]) => [m, l[m]])) };
+}
+function mr(n) {
+  const { root: i } = n, l = i.ownerDocument, r = (b, v, f) => {
+    const E = l.createElement(b);
+    return v !== void 0 && (E.textContent = v), f && (E.className = f), E;
+  }, d = i.querySelector('[data-control="theme"]'), m = i.querySelector('[data-panel="themes"]'), p = r("div", void 0, "slide-menu-options slide-theme-controls"), y = r("button", "Themes", "btn-small");
+  y.title = "Choose and customise presentation themes", y.dataset.control = "open-themes", p.append(y, d), m?.remove(), i.querySelectorAll(".slide-menu-bar")[1].append(p);
+  let x = !1, h = null, g = 0;
+  function S() {
+    if (!(x || !n.current()))
+      try {
+        let Ne = function() {
+          s.replaceChildren();
+          for (const ge of n.themes()) {
+            const Ee = r("option", ge.label);
+            Ee.value = ge.id, s.append(Ee);
+          }
+          s.value = n.theme().id;
+        }, ke = function() {
+          F.replaceChildren();
+          for (const [ge, Ee] of $t) {
+            const Be = r("span");
+            Be.style.backgroundColor = se[ge].value, Be.title = Ee, F.append(Be);
+          }
+        }, H = function() {
+          ue = n.theme(), Le = JSON.stringify(ue);
+          for (const [ge] of $t) se[ge].value = ue[ge];
+          Ne(), ke();
+        };
+        h?.close();
+        const b = ++g, v = n.capture(), f = r("div", void 0, "clist-slides slide-insert-picker slide-theme-picker"), E = r("h2", "Themes"), A = r("label", "Presentation theme"), s = r("select"), F = r("div", void 0, "theme-preview");
+        s.dataset.control = "modal-theme", A.append(s);
+        const T = r("p");
+        T.setAttribute("role", "status"), T.dataset.control = "theme-feedback";
+        const z = r("button", "Save current slide as a new design", "btn-small");
+        z.disabled = !n.canSaveLayout(), z.title = "Save the current slide as a new slide design", z.dataset.control = "save-slide-design";
+        const C = r("h3", "Save a new colour theme"), _ = r("label", "Theme name"), q = r("input");
+        q.type = "text", q.maxLength = 120, q.dataset.control = "theme-name", _.append(q);
+        const ee = r("div", void 0, "slide-theme-colours"), se = {};
+        for (const [ge, Ee] of $t) {
+          const Be = r("label", Ee), Te = r("input");
+          Te.type = "color", Te.dataset.themeColour = ge, Be.append(Te), ee.append(Be), se[ge] = Te;
+        }
+        const oe = r("div", void 0, "slide-picker-actions"), L = r("button", "Save as new theme", "btn-small"), U = r("button", "Close", "btn-small btn-secondary");
+        L.title = "Save and apply a new colour theme in this presentation", L.dataset.control = "save-theme", U.title = "Close Themes", oe.append(U);
+        const G = r("div", void 0, "slide-theme-columns"), J = r("section"), K = r("section");
+        J.dataset.control = "colour-themes", K.dataset.control = "slide-designs";
+        const le = r("ul");
+        le.dataset.control = "slide-design-list";
+        for (const ge of n.designs()) {
+          const Ee = r("li", ge.label);
+          le.append(Ee);
+        }
+        J.append(r("h3", "Colour Themes"), A, F, C, _, ee, L), K.append(r("h3", "Slide designs"), le, r("p", "Slide designs can be selected when creating a new slide."), z), G.append(J, K), f.append(E, G, T, oe);
+        let ue = n.theme(), Le = JSON.stringify(ue);
+        H();
+        const Ce = n.openModal(f);
+        h = Ce;
+        const ot = () => !x && b === g && v() && Ce.current(), We = (ge) => {
+          console.error("Slides themes:", ge), Ce.current() && (T.textContent = ge.message || String(ge));
+        }, Z = () => {
+          if (!ot()) throw new Error("The presentation changed. Close and reopen Themes.");
+          if (JSON.stringify(n.theme()) !== Le) throw new Error("The theme changed elsewhere. Close and reopen Themes before saving.");
+        };
+        for (const ge of Object.values(se)) ge.addEventListener("input", () => {
+          ot() && ke();
+        });
+        s.addEventListener("change", () => {
+          try {
+            Z(), n.apply(s.value), H(), T.textContent = "Theme applied.";
+          } catch (ge) {
+            We(ge);
+          }
+        }), L.addEventListener("click", () => {
+          try {
+            Z(), n.save(hr(ue, q.value, Object.fromEntries(Object.entries(se).map(([ge, Ee]) => [ge, Ee.value])), "custom-" + crypto.randomUUID())), H(), q.value = "", T.textContent = "Theme saved in this presentation.";
+          } catch (ge) {
+            We(ge);
+          }
+        }), z.addEventListener("click", () => {
+          try {
+            Z(), Ce.close(), n.saveLayout();
+          } catch (ge) {
+            We(ge);
+          }
+        }), U.addEventListener("click", () => {
+          b === g && (g++, Ce.close());
+        });
+      } catch (b) {
+        console.error("Slides themes:", b), n.error(b);
+      }
+  }
+  return y.addEventListener("click", S), { destroy() {
+    x = !0, g++, h?.close(), p.remove();
+  } };
+}
+function gr(n, i, l, r) {
+  return l === "crop" ? { imageFit: "cover", cropImageWidth: r.width, cropImageHeight: r.height } : {
+    imageFit: "cover",
+    cropImageWidth: r.width * i.width / n.width,
+    cropImageHeight: r.height * i.height / n.height,
+    aspectRatio: i.width / i.height
+  };
+}
+function br(n, i, l) {
+  const r = n.ownerDocument, d = r.createElement("div");
+  d.className = "slide-menu-options", d.dataset.control = "image-handle-mode", d.hidden = !0, d.setAttribute("role", "group"), d.setAttribute("aria-label", "Image handle behavior");
+  let m = "resize", p = !1;
+  const y = ["resize", "crop"].map((h) => {
+    const g = r.createElement("button");
+    return g.className = "btn-small", g.textContent = h === "resize" ? "Resize" : "Crop", g.dataset.imageHandleMode = h, g.title = h === "resize" ? "Handles resize the image" : "Handles crop the image", g.addEventListener("click", () => {
+      p || d.hidden || !i() || (m = h, x(), l());
+    }), d.append(g), g;
   });
-  function E() {
-    n.dataset.imageHandleMode = g, b.forEach((f) => {
-      const y = f.dataset.imageHandleMode === g;
-      f.setAttribute("aria-pressed", String(y)), f.className = y ? "btn-small" : "btn-small btn-secondary";
+  function x() {
+    n.dataset.imageHandleMode = m, y.forEach((h) => {
+      const g = h.dataset.imageHandleMode === m;
+      h.setAttribute("aria-pressed", String(g)), h.className = g ? "btn-small" : "btn-small btn-secondary";
     });
   }
-  return n.querySelectorAll(".slide-menu-bar")[1].append(p), E(), {
+  return n.querySelectorAll(".slide-menu-bar")[1].append(d), x(), {
     get mode() {
-      return g;
+      return m;
     },
-    update(f, y) {
-      p.hidden = !f, b.forEach((A) => A.disabled = !y);
+    update(h, g) {
+      d.hidden = !h, y.forEach((S) => S.disabled = !g);
     },
     destroy() {
-      u = !0, p.remove();
+      p = !0, d.remove();
     }
   };
 }
-function ei(n, l, c, i, p = 0, g = {}) {
-  const u = p * Math.PI / 180, b = Math.cos(u), E = Math.sin(u), f = c * b + i * E, y = -c * E + i * b, A = l === "left" || l === "right", w = l === "left" || l === "top", S = A ? "width" : "height", h = A ? f : y, k = A ? g.minWidth ?? 1 : g.minHeight ?? 1, L = A ? g.maxWidth ?? 1 / 0 : g.maxHeight ?? 1 / 0, a = Math.max(k, Math.min(L, n[S] + (w ? -h : h))), R = (a - n[S]) * (w ? -1 : 1) / 2, F = A ? R * b : -R * E, P = A ? R * E : R * b, v = A ? a : n.width, ne = A ? n.height : a;
+function yr(n, i, l, r, d = 0, m = {}) {
+  const p = d * Math.PI / 180, y = Math.cos(p), x = Math.sin(p), h = l * y + r * x, g = -l * x + r * y, S = i === "left" || i === "right", b = i === "left" || i === "top", v = S ? "width" : "height", f = S ? h : g, E = S ? m.minWidth ?? 1 : m.minHeight ?? 1, A = S ? m.maxWidth ?? 1 / 0 : m.maxHeight ?? 1 / 0, s = Math.max(E, Math.min(A, n[v] + (b ? -f : f))), F = (s - n[v]) * (b ? -1 : 1) / 2, T = S ? F * y : -F * x, z = S ? F * x : F * y, C = S ? s : n.width, _ = S ? n.height : s;
   return {
-    x: n.x + (n.width - v) / 2 + F,
-    y: n.y + (n.height - ne) / 2 + P,
-    width: v,
-    height: ne
+    x: n.x + (n.width - C) / 2 + T,
+    y: n.y + (n.height - _) / 2 + z,
+    width: C,
+    height: _
   };
 }
-function mo(n, l) {
-  return ((Math.round((Number(n) || 0) + l) + 180) % 360 + 360) % 360 - 180;
+function So(n, i) {
+  return ((Math.round((Number(n) || 0) + i) + 180) % 360 + 360) % 360 - 180;
 }
-const ti = `
+const wr = `
     <header class="toolbar">
       <div class="tools">
         <button class="btn-small" data-control="undo" title="Undo (Ctrl+Z)">Undo</button>
@@ -183,7 +391,7 @@ const ti = `
 <div class="canvas-zoom" role="group" aria-label="Canvas zoom"><button class="btn-small btn-secondary" data-control="zoom-out" title="Zoom out" aria-label="Zoom out">−</button><select data-control="canvas-zoom" title="Canvas zoom" aria-label="Canvas zoom"><option value="fit">Fit</option><option value="25">25%</option><option value="50">50%</option><option value="75">75%</option><option value="100">100%</option><option value="125">125%</option><option value="150">150%</option><option value="200">200%</option></select><button class="btn-small btn-secondary" data-control="zoom-in" title="Zoom in" aria-label="Zoom in">+</button><button class="btn-small btn-secondary" data-control="zoom-fit" title="Fit the whole slide in the canvas">Fit slide</button></div>
       <span data-control="connection-status" class="status">Local only</span>
     </header>
-    <div class="link-controls" data-control="link-controls" hidden><label>Link URL <input data-control="link-url" type="url" placeholder="https://example.com" title="Link destination" /></label><button class="btn-small" data-control="apply-link" title="Apply link to selected text">Apply link</button><button class="btn-small btn-secondary" data-control="cancel-link" title="Cancel editing link">Cancel</button></div>
+
     <section class="workspace">
       <aside class="rail"><div class="slide-create-actions"><button class="btn-small" data-control="add-slide" title="Add a slide">Add slide</button><button class="btn-small" data-control="duplicate-slide" title="Duplicate the current slide">Duplicate</button></div><div data-control="slide-list" class="slide-list" aria-label="Slides"></div><div class="slide-actions"><button class="btn-small btn-secondary" data-control="delete-slide" title="Delete selected slide">Delete</button></div></aside>
       <div class="canvas-space">
@@ -195,519 +403,542 @@ const ti = `
     </section>
 <footer hidden class="slide-editor-info" aria-label="Slide information"><div class="canvas-top"><span data-control="slide-label">Slide 1</span><span class="hint">Drag empty slide space to select. Shift adds. Alt bypasses snapping.</span></div></footer>
 <div class="presentation-controls" data-control="presentation-controls" hidden><button class="btn-small" data-control="previous-slide" title="Previous slide">Previous</button><span data-control="presentation-position" aria-live="polite"></span><button class="btn-small" data-control="next-slide" title="Next slide">Next</button><button class="btn-small" data-control="presentation-presenter-view" title="Open presenter view">Presenter view</button><button class="btn-small btn-secondary" data-control="exit-presentation" title="Return to editing">Exit presentation</button><span data-control="presentation-status" role="status"></span></div>`;
-function ni(n, l, c) {
-  const i = n.ownerDocument || n, p = c.schedule || setTimeout, g = c.unschedule || clearTimeout;
-  let u = null;
-  const b = () => {
-    u && g(u.timer), u = null, i.removeEventListener("pointermove", E, !0), i.removeEventListener("pointerup", f, !0), i.removeEventListener("pointercancel", f, !0), i.removeEventListener("pointerdown", b, !0), i.removeEventListener("visibilitychange", b), n.ownerDocument?.defaultView?.removeEventListener("blur", b);
-  }, E = (A) => {
-    u && A.pointerId === u.pointerId && Math.hypot(A.clientX - u.clientX, A.clientY - u.clientY) > 5 && b();
-  }, f = (A) => {
-    A.pointerId === u?.pointerId && b();
-  }, y = (A) => {
-    if (b(), !(!c.current() || A.button !== 0 || A.isPrimary === !1 || A.target === l)) {
-      if (c.text() && A.target.closest?.(".text-content")) {
-        c.select(!1);
-        const w = {
+function xr(n, i, l) {
+  const r = n.ownerDocument || n, d = l.schedule || setTimeout, m = l.unschedule || clearTimeout;
+  let p = null;
+  const y = () => {
+    p && m(p.timer), p = null, r.removeEventListener("pointermove", x, !0), r.removeEventListener("pointerup", h, !0), r.removeEventListener("pointercancel", h, !0), r.removeEventListener("pointerdown", y, !0), r.removeEventListener("visibilitychange", y), n.ownerDocument?.defaultView?.removeEventListener("blur", y);
+  }, x = (S) => {
+    p && S.pointerId === p.pointerId && Math.hypot(S.clientX - p.clientX, S.clientY - p.clientY) > 5 && y();
+  }, h = (S) => {
+    S.pointerId === p?.pointerId && y();
+  }, g = (S) => {
+    if (y(), !(!l.current() || S.button !== 0 || S.isPrimary === !1 || S.target === i)) {
+      if (l.text() && S.target.closest?.(".text-content")) {
+        l.select(!1);
+        const b = {
           button: 0,
-          pointerId: A.pointerId,
-          clientX: A.clientX,
-          clientY: A.clientY,
+          pointerId: S.pointerId,
+          clientX: S.clientX,
+          clientY: S.clientY,
           currentTarget: n,
           preventDefault() {
           },
           stopPropagation() {
           }
         };
-        u = { ...w, timer: p(() => {
-          b(), !(!c.current() || !n.isConnected) && c.move(w);
-        }, 450) }, i.addEventListener("pointermove", E, !0), i.addEventListener("pointerup", f, !0), i.addEventListener("pointercancel", f, !0), i.addEventListener("pointerdown", b, !0), i.addEventListener("visibilitychange", b), n.ownerDocument?.defaultView?.addEventListener("blur", b);
+        p = { ...b, timer: d(() => {
+          y(), !(!l.current() || !n.isConnected) && l.move(b);
+        }, 450) }, r.addEventListener("pointermove", x, !0), r.addEventListener("pointerup", h, !0), r.addEventListener("pointercancel", h, !0), r.addEventListener("pointerdown", y, !0), r.addEventListener("visibilitychange", y), n.ownerDocument?.defaultView?.addEventListener("blur", y);
         return;
       }
-      if (A.shiftKey) {
-        A.preventDefault(), A.stopPropagation(), c.select(!0), c.focus();
+      if (S.shiftKey) {
+        S.preventDefault(), S.stopPropagation(), l.select(!0), l.focus();
         return;
       }
-      c.move(A);
+      l.move(S);
     }
   };
-  return n.addEventListener("pointerdown", y), () => {
-    b(), n.removeEventListener("pointerdown", y);
+  return n.addEventListener("pointerdown", g), () => {
+    y(), n.removeEventListener("pointerdown", g);
   };
 }
-const zt = 0.02, ut = (n, l, c) => Math.max(l, Math.min(c, Number(n) || 0));
-function Ut(n = {}) {
+const Rt = 0.02, ut = (n, i, l) => Math.max(i, Math.min(l, Number(n) || 0));
+function Vt(n = {}) {
   n ||= {};
-  const l = ut(n.width ?? 1, zt, 1), c = ut(n.height ?? 1, zt, 1);
-  return { x: ut(n.x, 0, 1 - l), y: ut(n.y, 0, 1 - c), width: l, height: c };
+  const i = ut(n.width ?? 1, Rt, 1), l = ut(n.height ?? 1, Rt, 1);
+  return { x: ut(n.x, 0, 1 - i), y: ut(n.y, 0, 1 - l), width: i, height: l };
 }
-function bo(n, l, c, i) {
-  if (n = Ut(n), l === "move") return { ...n, x: ut(n.x + c, 0, 1 - n.width), y: ut(n.y + i, 0, 1 - n.height) };
-  let p = n.x, g = n.y, u = p + n.width, b = g + n.height;
-  return l.includes("w") && (p = ut(p + c, 0, u - zt)), l.includes("e") && (u = ut(u + c, p + zt, 1)), l.includes("n") && (g = ut(g + i, 0, b - zt)), l.includes("s") && (b = ut(b + i, g + zt, 1)), { x: p, y: g, width: u - p, height: b - g };
+function Eo(n, i, l, r) {
+  if (n = Vt(n), i === "move") return { ...n, x: ut(n.x + l, 0, 1 - n.width), y: ut(n.y + r, 0, 1 - n.height) };
+  let d = n.x, m = n.y, p = d + n.width, y = m + n.height;
+  return i.includes("w") && (d = ut(d + l, 0, p - Rt)), i.includes("e") && (p = ut(p + l, d + Rt, 1)), i.includes("n") && (m = ut(m + r, 0, y - Rt)), i.includes("s") && (y = ut(y + r, m + Rt, 1)), { x: d, y: m, width: p - d, height: y - m };
 }
-function jn(n, l, c) {
-  return n = Ut(n), {
-    width: l * n.width,
-    height: c * n.height,
+function Pn(n, i, l) {
+  return n = Vt(n), {
+    width: i * n.width,
+    height: l * n.height,
     imageFit: "cover",
-    cropImageWidth: l,
-    cropImageHeight: c,
+    cropImageWidth: i,
+    cropImageHeight: l,
     cropX: n.width < 1 ? 100 * n.x / (1 - n.width) : 50,
     cropY: n.height < 1 ? 100 * n.y / (1 - n.height) : 50,
-    aspectRatio: l * n.width / (c * n.height)
+    aspectRatio: i * n.width / (l * n.height)
   };
 }
-function oi(n, l) {
-  if (n.get("imageFit") !== "cover") return Ut();
-  const c = Number(n.get("cropImageWidth")) || Math.max(n.get("width"), n.get("height") * l), i = Number(n.get("cropImageHeight")) || c / l, p = Math.min(1, n.get("width") / c), g = Math.min(1, n.get("height") / i);
-  return Ut({ width: p, height: g, x: (1 - p) * (Number.isFinite(Number(n.get("cropX"))) ? Number(n.get("cropX")) : 50) / 100, y: (1 - g) * (Number.isFinite(Number(n.get("cropY"))) ? Number(n.get("cropY")) : 50) / 100 });
+function vr(n, i) {
+  if (n.get("imageFit") !== "cover") return Vt();
+  const l = Number(n.get("cropImageWidth")) || Math.max(n.get("width"), n.get("height") * i), r = Number(n.get("cropImageHeight")) || l / i, d = Math.min(1, n.get("width") / l), m = Math.min(1, n.get("height") / r);
+  return Vt({ width: d, height: m, x: (1 - d) * (Number.isFinite(Number(n.get("cropX"))) ? Number(n.get("cropX")) : 50) / 100, y: (1 - m) * (Number.isFinite(Number(n.get("cropY"))) ? Number(n.get("cropY")) : 50) / 100 });
 }
-function Co({ container: n, source: l, ratio: c, initial: i, current: p = () => !0, onDone: g, onCancel: u, actionsContainer: b = n }) {
-  const E = n.ownerDocument;
-  let f = Ut(i), y = null, A = !1;
-  const w = E.createElement("div");
-  w.className = "slide-crop-stage", w.style.aspectRatio = String(c);
-  const S = E.createElement("img");
-  S.src = l, S.alt = "Image to crop", S.draggable = !1;
-  const h = E.createElement("div");
-  h.className = "slide-crop-rectangle", h.tabIndex = 0, h.dataset.control = "crop-rectangle", h.setAttribute("role", "group"), h.setAttribute("aria-label", "Crop area. Arrow keys move; Shift plus arrows resizes.");
-  for (const P of ["nw", "ne", "sw", "se"]) {
-    const v = E.createElement("span");
-    v.className = "slide-crop-handle " + P, v.dataset.corner = P, v.setAttribute("aria-hidden", "true"), h.append(v);
+function Io({ container: n, source: i, ratio: l, initial: r, current: d = () => !0, onDone: m, onCancel: p, actionsContainer: y = n }) {
+  const x = n.ownerDocument;
+  let h = Vt(r), g = null, S = !1;
+  const b = x.createElement("div");
+  b.className = "slide-crop-stage", b.style.aspectRatio = String(l);
+  const v = x.createElement("img");
+  v.src = i, v.alt = "Image to crop", v.draggable = !1;
+  const f = x.createElement("div");
+  f.className = "slide-crop-rectangle", f.tabIndex = 0, f.dataset.control = "crop-rectangle", f.setAttribute("role", "group"), f.setAttribute("aria-label", "Crop area. Arrow keys move; Shift plus arrows resizes.");
+  for (const z of ["nw", "ne", "sw", "se"]) {
+    const C = x.createElement("span");
+    C.className = "slide-crop-handle " + z, C.dataset.corner = z, C.setAttribute("aria-hidden", "true"), f.append(C);
   }
-  const k = E.createElement("div");
-  k.className = "slide-picker-actions";
-  const L = E.createElement("button"), a = E.createElement("button");
-  L.className = "btn-small", L.textContent = "Done", L.title = "Apply the selected crop", L.dataset.control = "crop-done", a.className = "btn-small btn-secondary", a.textContent = "Cancel crop", a.title = "Cancel cropping", a.dataset.control = "crop-cancel", k.append(L, a), w.append(S, h), n.append(w), b.append(k);
-  const R = () => {
-    h.style.left = f.x * 100 + "%", h.style.top = f.y * 100 + "%", h.style.width = f.width * 100 + "%", h.style.height = f.height * 100 + "%";
-  }, F = () => {
-    y && h.hasPointerCapture?.(y.id) && h.releasePointerCapture(y.id), y = null;
+  const E = x.createElement("div");
+  E.className = "slide-picker-actions";
+  const A = x.createElement("button"), s = x.createElement("button");
+  A.className = "btn-small", A.textContent = "Done", A.title = "Apply the selected crop", A.dataset.control = "crop-done", s.className = "btn-small btn-secondary", s.textContent = "Cancel crop", s.title = "Cancel cropping", s.dataset.control = "crop-cancel", E.append(A, s), b.append(v, f), n.append(b), y.append(E);
+  const F = () => {
+    f.style.left = h.x * 100 + "%", f.style.top = h.y * 100 + "%", f.style.width = h.width * 100 + "%", f.style.height = h.height * 100 + "%";
+  }, T = () => {
+    g && f.hasPointerCapture?.(g.id) && f.releasePointerCapture(g.id), g = null;
   };
-  return h.addEventListener("pointerdown", (P) => {
-    if (A || !p() || P.isPrimary === !1 || P.button !== 0 || y) return;
-    const v = w.getBoundingClientRect();
-    !v.width || !v.height || (P.preventDefault(), P.stopPropagation(), y = { id: P.pointerId, x: P.clientX, y: P.clientY, rect: { ...f }, handle: P.target.dataset.corner || "move", bounds: v }, h.setPointerCapture?.(P.pointerId), h.focus({ preventScroll: !0 }));
-  }), h.addEventListener("pointermove", (P) => {
-    if (!(!y || P.pointerId !== y.id)) {
-      if (!p()) {
-        F();
+  return f.addEventListener("pointerdown", (z) => {
+    if (S || !d() || z.isPrimary === !1 || z.button !== 0 || g) return;
+    const C = b.getBoundingClientRect();
+    !C.width || !C.height || (z.preventDefault(), z.stopPropagation(), g = { id: z.pointerId, x: z.clientX, y: z.clientY, rect: { ...h }, handle: z.target.dataset.corner || "move", bounds: C }, f.setPointerCapture?.(z.pointerId), f.focus({ preventScroll: !0 }));
+  }), f.addEventListener("pointermove", (z) => {
+    if (!(!g || z.pointerId !== g.id)) {
+      if (!d()) {
+        T();
         return;
       }
-      P.preventDefault(), P.stopPropagation(), f = bo(y.rect, y.handle, (P.clientX - y.x) / y.bounds.width, (P.clientY - y.y) / y.bounds.height), R();
+      z.preventDefault(), z.stopPropagation(), h = Eo(g.rect, g.handle, (z.clientX - g.x) / g.bounds.width, (z.clientY - g.y) / g.bounds.height), F();
     }
-  }), h.addEventListener("pointerup", F), h.addEventListener("pointercancel", () => {
-    y && (f = y.rect, R()), F();
-  }), h.addEventListener("keydown", (P) => {
-    A || !p() || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(P.key) || (P.preventDefault(), P.stopPropagation(), f = bo(f, P.shiftKey ? "se" : "move", P.key === "ArrowLeft" ? -0.01 : P.key === "ArrowRight" ? 0.01 : 0, P.key === "ArrowUp" ? -0.01 : P.key === "ArrowDown" ? 0.01 : 0), R());
-  }), L.addEventListener("click", () => {
-    A || (F(), p() ? g({ ...f }) : u());
-  }), a.addEventListener("click", () => {
-    A || (F(), u());
-  }), R(), { get rect() {
-    return { ...f };
+  }), f.addEventListener("pointerup", T), f.addEventListener("pointercancel", () => {
+    g && (h = g.rect, F()), T();
+  }), f.addEventListener("keydown", (z) => {
+    S || !d() || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(z.key) || (z.preventDefault(), z.stopPropagation(), h = Eo(h, z.shiftKey ? "se" : "move", z.key === "ArrowLeft" ? -0.01 : z.key === "ArrowRight" ? 0.01 : 0, z.key === "ArrowUp" ? -0.01 : z.key === "ArrowDown" ? 0.01 : 0), F());
+  }), A.addEventListener("click", () => {
+    S || (T(), d() ? m({ ...h }) : p());
+  }), s.addEventListener("click", () => {
+    S || (T(), p());
+  }), F(), { get rect() {
+    return { ...h };
   }, destroy() {
-    A = !0, F(), w.remove(), k.remove();
+    S = !0, T(), b.remove(), E.remove();
   } };
 }
-function ii(n) {
-  const l = n.root.ownerDocument;
-  let c = 0, i = !1, p = null;
-  const g = (f, y, A) => {
-    const w = l.createElement(f);
-    return y !== void 0 && (w.textContent = y), A && (w.className = A), w;
+function kr(n) {
+  const i = n.root.ownerDocument;
+  let l = 0, r = !1, d = null;
+  const m = (h, g, S) => {
+    const b = i.createElement(h);
+    return g !== void 0 && (b.textContent = g), S && (b.className = S), b;
   };
-  function u(f) {
-    if (i) throw new Error("This slide editor is closed.");
-    const y = ++c, A = n.capture();
-    if (!A()) throw new Error("The destination slide is no longer active.");
-    p?.close();
-    const w = g("div", void 0, "clist-slides slide-insert-picker"), S = g("h2", f), h = g("div"), k = g("p"), L = g("div", void 0, "slide-picker-actions");
-    k.setAttribute("role", "status"), k.dataset.control = "picker-feedback";
-    const a = g("button", "Cancel", "btn-small btn-secondary");
-    a.title = "Cancel insertion", w.append(S, h, k, L), L.append(a);
-    const R = n.openModal(w);
-    p = R;
-    const F = () => !i && c === y && A() && R.current();
-    return a.addEventListener("click", () => {
-      c === y && (c++, R.close());
-    }), { body: w, content: h, actions: L, current: F, error: (v) => {
-      n.log(v), F() && (k.textContent = v.message || String(v));
-    }, close: R.close };
+  function p(h) {
+    if (r) throw new Error("This slide editor is closed.");
+    const g = ++l, S = n.capture();
+    if (!S()) throw new Error("The destination slide is no longer active.");
+    d?.close();
+    const b = m("div", void 0, "clist-slides slide-insert-picker"), v = m("h2", h), f = m("div"), E = m("p"), A = m("div", void 0, "slide-picker-actions");
+    E.setAttribute("role", "status"), E.dataset.control = "picker-feedback";
+    const s = m("button", "Cancel", "btn-small btn-secondary");
+    s.title = "Cancel insertion", b.append(v, f, E, A), A.append(s);
+    const F = n.openModal(b);
+    d = F;
+    const T = () => !r && l === g && S() && F.current();
+    return s.addEventListener("click", () => {
+      l === g && (l++, F.close());
+    }), { body: b, content: f, actions: A, current: T, error: (C) => {
+      n.log(C), T() && (E.textContent = C.message || String(C));
+    }, close: F.close };
   }
-  function b() {
-    const f = u("Choose a shape"), y = g("div", void 0, "slide-shape-grid");
-    f.content.append(y);
-    for (const A of n.shapes) {
-      const w = g("div", void 0, "slide-shape-tile"), S = l.createElementNS("http://www.w3.org/2000/svg", "svg");
-      S.setAttribute("viewBox", A.viewBox.join(" ")), S.setAttribute("aria-hidden", "true"), S.setAttribute("fill", "none"), S.setAttribute("stroke", "currentColor"), S.setAttribute("stroke-width", String(Math.max(A.viewBox[2], A.viewBox[3]) / 45));
-      for (const k of A.elements) {
-        const L = l.createElementNS("http://www.w3.org/2000/svg", k.tag);
-        for (const [a, R] of Object.entries(k.attributes)) L.setAttribute(a, String(R));
-        L.setAttribute("fill", "none"), S.append(L);
+  function y() {
+    const h = p("Choose a shape"), g = m("div", void 0, "slide-shape-grid");
+    h.content.append(g);
+    for (const S of n.shapes) {
+      const b = m("div", void 0, "slide-shape-tile"), v = i.createElementNS("http://www.w3.org/2000/svg", "svg");
+      v.setAttribute("viewBox", S.viewBox.join(" ")), v.setAttribute("aria-hidden", "true"), v.setAttribute("fill", "none"), v.setAttribute("stroke", "currentColor"), v.setAttribute("stroke-width", String(Math.max(S.viewBox[2], S.viewBox[3]) / 45));
+      for (const E of S.elements) {
+        const A = i.createElementNS("http://www.w3.org/2000/svg", E.tag);
+        for (const [s, F] of Object.entries(E.attributes)) A.setAttribute(s, String(F));
+        A.setAttribute("fill", "none"), v.append(A);
       }
-      const h = g("button", void 0, "clist-action-btn btn-small slide-shape-choice");
-      h.title = "Insert " + A.label, h.setAttribute("aria-label", A.label), h.dataset.shape = A.id, h.append(S), h.addEventListener("click", () => {
-        if (f.current())
+      const f = m("button", void 0, "clist-action-btn btn-small slide-shape-choice");
+      f.title = "Insert " + S.label, f.setAttribute("aria-label", S.label), f.dataset.shape = S.id, f.append(v), f.addEventListener("click", () => {
+        if (h.current())
           try {
-            n.insertShape(A.id), f.close();
-          } catch (k) {
-            f.error(k);
+            n.insertShape(S.id), h.close();
+          } catch (E) {
+            h.error(E);
           }
-      }), w.append(h), y.append(w);
+      }), b.append(f), g.append(b);
     }
-    return f.body;
+    return h.body;
   }
-  function E() {
-    const f = u("Insert image"), y = g("div", void 0, "slide-picker-actions"), A = g("button", "Choose image file", "btn-small"), w = g("button", "Image libraries", "btn-small btn-secondary");
-    A.title = "Choose a PNG, JPEG, GIF or WebP image", w.disabled = !0, w.title = "Image libraries are not available yet";
-    const S = g("input");
-    S.type = "file", S.accept = "image/png,image/jpeg,image/gif,image/webp", S.hidden = !0, S.dataset.control = "picker-file";
-    const h = g("p", "Image library connections can be added here in the future.");
-    y.append(A, w, S), f.content.append(y, h);
-    const k = g("div", void 0, "slide-image-preview"), L = g("div", void 0, "slide-image-fields");
-    k.hidden = L.hidden = !0;
-    const a = g("label", "Description (alt text)"), R = g("input");
-    R.type = "text", R.maxLength = 2e3, R.dataset.control = "picker-alt", a.append(R), L.append(a);
-    const F = g("button", "Insert image", "btn-small"), P = g("button", "Adjust crop", "btn-small");
-    F.title = "Insert this image", F.disabled = !0, F.dataset.control = "picker-insert", P.title = "Adjust the crop rectangle", P.hidden = !0, P.dataset.control = "picker-adjust-crop", f.actions.insertBefore(F, f.actions.firstElementChild), f.actions.insertBefore(P, F), f.content.append(k, L);
-    let v = null, ne = 0, _ = !1, M = null, q = null;
-    function Z() {
-      const K = Math.min(1, 800 / v.image.naturalWidth, 500 / v.image.naturalHeight);
-      return { width: v.image.naturalWidth * K, height: v.image.naturalHeight * K };
+  function x() {
+    const h = p("Insert image"), g = m("div", void 0, "slide-picker-actions"), S = m("button", "Choose image file", "btn-small"), b = m("button", "Image libraries", "btn-small btn-secondary");
+    S.title = "Choose a PNG, JPEG, GIF or WebP image", b.disabled = !0, b.title = "Image libraries are not available yet";
+    const v = m("input");
+    v.type = "file", v.accept = "image/png,image/jpeg,image/gif,image/webp", v.hidden = !0, v.dataset.control = "picker-file";
+    const f = m("p", "Image library connections can be added here in the future.");
+    g.append(S, b, v), h.content.append(g, f);
+    const E = m("div", void 0, "slide-image-preview"), A = m("div", void 0, "slide-image-fields");
+    E.hidden = A.hidden = !0;
+    const s = m("label", "Description (alt text)"), F = m("input");
+    F.type = "text", F.maxLength = 2e3, F.dataset.control = "picker-alt", s.append(F), A.append(s);
+    const T = m("button", "Insert image", "btn-small"), z = m("button", "Adjust crop", "btn-small");
+    T.title = "Insert this image", T.disabled = !0, T.dataset.control = "picker-insert", z.title = "Adjust the crop rectangle", z.hidden = !0, z.dataset.control = "picker-adjust-crop", h.actions.insertBefore(T, h.actions.firstElementChild), h.actions.insertBefore(z, T), h.content.append(E, A);
+    let C = null, _ = 0, q = !1, ee = null, se = null;
+    function oe() {
+      const G = Math.min(1, 800 / C.image.naturalWidth, 500 / C.image.naturalHeight);
+      return { width: C.image.naturalWidth * G, height: C.image.naturalHeight * G };
     }
-    function U(K) {
-      M?.destroy(), M = null, q = K, k.textContent = "";
-      const te = Z(), Y = jn(K, te.width, te.height), pe = g("div", void 0, "slide-cropped-preview"), re = g("img");
-      pe.style.aspectRatio = Y.width + "/" + Y.height, pe.style.width = "min(100%, " + Math.min(640, 340 * Y.width / Y.height) + "px)", re.src = v.source, re.alt = "Cropped image preview", re.style.width = 100 / K.width + "%", re.style.height = 100 / K.height + "%", re.style.left = -100 * K.x / K.width + "%", re.style.top = -100 * K.y / K.height + "%", pe.append(re), k.append(pe), F.disabled = !1, P.hidden = !1;
+    function L(G) {
+      ee?.destroy(), ee = null, se = G, E.textContent = "";
+      const J = oe(), K = Pn(G, J.width, J.height), le = m("div", void 0, "slide-cropped-preview"), ue = m("img");
+      le.style.aspectRatio = K.width + "/" + K.height, le.style.width = "min(100%, " + Math.min(640, 340 * K.width / K.height) + "px)", ue.src = C.source, ue.alt = "Cropped image preview", ue.style.width = 100 / G.width + "%", ue.style.height = 100 / G.height + "%", ue.style.left = -100 * G.x / G.width + "%", ue.style.top = -100 * G.y / G.height + "%", le.append(ue), E.append(le), T.disabled = !1, z.hidden = !1;
     }
-    function ee() {
-      !f.current() || !v || _ || (M?.destroy(), k.textContent = "", F.disabled = !0, P.hidden = !0, k.style.width = "min(100%, " + Math.min(640, 340 * v.image.naturalWidth / v.image.naturalHeight) + "px)", M = Co({
-        container: k,
-        source: v.source,
-        ratio: v.image.naturalWidth / v.image.naturalHeight,
-        initial: q,
-        current: f.current,
-        onDone: U,
-        onCancel: () => U(q || { x: 0, y: 0, width: 1, height: 1 })
+    function U() {
+      !h.current() || !C || q || (ee?.destroy(), E.textContent = "", T.disabled = !0, z.hidden = !0, E.style.width = "min(100%, " + Math.min(640, 340 * C.image.naturalWidth / C.image.naturalHeight) + "px)", ee = Io({
+        container: E,
+        source: C.source,
+        ratio: C.image.naturalWidth / C.image.naturalHeight,
+        initial: se,
+        current: h.current,
+        onDone: L,
+        onCancel: () => L(se || { x: 0, y: 0, width: 1, height: 1 })
       }));
     }
-    return P.addEventListener("click", ee), A.addEventListener("click", () => {
-      f.current() && !_ && S.click();
-    }), S.addEventListener("change", async () => {
-      if (!f.current() || _ || !S.files?.[0]) return;
-      const K = ++ne, te = S.files[0];
-      v = null, q = null, M?.destroy(), M = null, F.disabled = !0, P.hidden = !0, k.hidden = L.hidden = !0;
+    return z.addEventListener("click", U), S.addEventListener("click", () => {
+      h.current() && !q && v.click();
+    }), v.addEventListener("change", async () => {
+      if (!h.current() || q || !v.files?.[0]) return;
+      const G = ++_, J = v.files[0];
+      C = null, se = null, ee?.destroy(), ee = null, T.disabled = !0, z.hidden = !0, E.hidden = A.hidden = !0;
       try {
-        const Y = await n.readImage(te);
-        if (!f.current() || K !== ne) return;
-        v = Y, R.value = te.name, k.hidden = L.hidden = !1, ee();
-      } catch (Y) {
-        K === ne && f.error(Y);
+        const K = await n.readImage(J);
+        if (!h.current() || G !== _) return;
+        C = K, F.value = J.name, E.hidden = A.hidden = !1, U();
+      } catch (K) {
+        G === _ && h.error(K);
       } finally {
-        K === ne && (S.value = "");
+        G === _ && (v.value = "");
       }
-    }), F.addEventListener("click", () => {
-      if (!(!f.current() || !v || !q || M || _)) {
-        _ = !0, F.disabled = !0;
+    }), T.addEventListener("click", () => {
+      if (!(!h.current() || !C || !se || ee || q)) {
+        q = !0, T.disabled = !0;
         try {
-          const K = Z(), te = jn(q, K.width, K.height);
-          n.insertImage({ ...v, ...te, alt: R.value.slice(0, 2e3) }), f.close();
-        } catch (K) {
-          f.error(K), _ = !1, F.disabled = !1;
+          const G = oe(), J = Pn(se, G.width, G.height);
+          n.insertImage({ ...C, ...J, alt: F.value.slice(0, 2e3) }), h.close();
+        } catch (G) {
+          h.error(G), q = !1, T.disabled = !1;
         }
       }
-    }), f.body;
+    }), h.body;
   }
-  return { shape: b, image: E, destroy() {
-    i = !0, c++, p?.close(), p = null;
+  return { shape: y, image: x, destroy() {
+    r = !0, l++, d?.close(), d = null;
   } };
 }
-function ri(n, l = () => !0, c = null) {
-  const i = n.ownerDocument, p = n.querySelector(".toolbar"), g = n.querySelector(".tools"), u = i.createElement("div");
-  u.className = "slide-menu-bar tools", g.className = "slide-menu-bar tools", u.setAttribute("aria-label", "Slide menu"), g.setAttribute("aria-label", "Slide menu options"), p.insertBefore(u, g);
-  let b = !1, E = "new";
-  const f = i.createElement("div");
-  f.className = "slide-menu-options", f.dataset.menuGroup = "insert";
-  const y = i.createElement("button");
-  y.className = "btn-small", y.textContent = "Insert", y.title = "Insert options", y.dataset.menu = "insert";
-  const A = i.createElement("div");
-  A.className = "slide-menu-options", A.dataset.menuGroup = "new";
-  for (const _ of ["add-slide", "duplicate-slide"]) {
-    const M = n.querySelector('[data-control="' + _ + '"]');
-    M && (_ === "add-slide" && (M.textContent = "Blank Slide", M.title = "Blank Slide"), A.append(M));
+function Sr(n, i = () => !0, l = null) {
+  const r = n.ownerDocument, d = n.querySelector(".toolbar"), m = n.querySelector(".tools"), p = r.createElement("div");
+  p.className = "slide-menu-bar tools", m.className = "slide-menu-bar tools", p.setAttribute("aria-label", "Slide menu"), m.setAttribute("aria-label", "Slide menu options"), d.insertBefore(p, m);
+  let y = !1, x = "new";
+  const h = r.createElement("div");
+  h.className = "slide-menu-options", h.dataset.menuGroup = "insert";
+  const g = r.createElement("button");
+  g.className = "btn-small", g.textContent = "Insert", g.title = "Insert options", g.dataset.menu = "insert";
+  const S = r.createElement("div");
+  S.className = "slide-menu-options", S.dataset.menuGroup = "new";
+  for (const q of ["add-slide", "duplicate-slide"]) {
+    const ee = n.querySelector('[data-control="' + q + '"]');
+    ee && (q === "add-slide" && (ee.textContent = "Blank Slide", ee.title = "Blank Slide"), S.append(ee));
   }
-  const w = i.createElement("button");
-  w.className = "btn-small", w.textContent = "New Slide", w.title = "New Slide options", w.dataset.menu = "new";
-  const S = (_) => b || !l() || !["new", "insert"].includes(_) ? !1 : (E = _, A.hidden = _ !== "new", f.hidden = _ !== "insert", w.setAttribute("aria-pressed", String(_ === "new")), y.setAttribute("aria-pressed", String(_ === "insert")), n.dataset.slideMenu = _, !0);
-  w.addEventListener("click", () => S("new")), u.append(w);
-  for (const _ of [...g.children]) u.append(_);
-  g.append(A, f), y.addEventListener("click", () => S("insert")), u.insertBefore(y, w.nextSibling);
-  const h = i.createElement("button");
-  h.className = "btn-small", h.textContent = "Shape", h.title = "Choose a shape", h.dataset.control = "choose-shape", f.append(h);
-  for (const [_, M] of [["add-image", "Image"], ["add-text", "Text"]]) {
-    const q = n.querySelector('[data-control="' + _ + '"]');
-    q && (q.className = "btn-small", q.textContent = M, f.append(q));
+  const b = r.createElement("button");
+  b.className = "btn-small", b.textContent = "New Slide", b.title = "New Slide options", b.dataset.menu = "new";
+  const v = (q) => y || !i() || !["new", "insert"].includes(q) ? !1 : (x = q, S.hidden = q !== "new", h.hidden = q !== "insert", b.setAttribute("aria-pressed", String(q === "new")), g.setAttribute("aria-pressed", String(q === "insert")), n.dataset.slideMenu = q, !0);
+  b.addEventListener("click", () => v("new")), p.append(b);
+  for (const q of [...m.children]) p.append(q);
+  m.append(S, h), g.addEventListener("click", () => v("insert")), p.insertBefore(g, b.nextSibling);
+  const f = r.createElement("button");
+  f.className = "btn-small", f.textContent = "Shape", f.title = "Choose a shape", f.dataset.control = "choose-shape", h.append(f);
+  for (const [q, ee] of [["add-image", "Image"], ["add-text", "Text"]]) {
+    const se = n.querySelector('[data-control="' + q + '"]');
+    se && (se.className = "btn-small", se.textContent = ee, h.append(se));
   }
-  const k = n.querySelector('[data-control="shape-tools"]');
-  k && (k.hidden = !0, f.append(k)), h.addEventListener("click", () => {
-    !b && l() && E === "insert" && c?.();
+  const E = n.querySelector('[data-control="shape-tools"]');
+  E && (E.hidden = !0, h.append(E)), f.addEventListener("click", () => {
+    !y && i() && x === "insert" && l?.();
   });
-  const L = i.createElement("button");
-  L.className = "btn-small", L.textContent = "Slide Design", L.title = "Choose a design for the next slide", L.dataset.control = "choose-template";
-  const a = n.querySelector('[data-control="slide-layout"]'), R = a?.parentNode;
-  A.append(L), a && (a.hidden = !0, A.append(a), R?.classList.contains("slide-layout-label") && R.remove()), L.addEventListener("click", () => {
-    !b && l() && a && (a.hidden = !a.hidden, a.hidden || (a.selectedIndex = -1, a.focus()));
+  const A = r.createElement("button");
+  A.className = "btn-small", A.textContent = "Slide Design", A.title = "Choose a design for the next slide", A.dataset.control = "choose-template";
+  const s = n.querySelector('[data-control="slide-layout"]'), F = s?.parentNode;
+  S.append(A), s && (s.hidden = !0, S.append(s), F?.classList.contains("slide-layout-label") && F.remove()), A.addEventListener("click", () => {
+    !y && i() && s && (s.hidden = !s.hidden, s.hidden || (s.selectedIndex = -1, s.focus()));
   });
-  const F = () => {
-    b || !l() || E !== "new" || a.hidden || !a.value || (n.querySelector('[data-control="add-slide"]')?.click(), a.hidden = !0);
+  const T = () => {
+    y || !i() || x !== "new" || s.hidden || !s.value || (n.querySelector('[data-control="add-slide"]')?.click(), s.hidden = !0);
   };
-  a?.addEventListener("change", F), n.querySelector(".slide-create-actions")?.remove();
-  const P = n.querySelector(".canvas-zoom");
-  P && u.append(P);
-  const v = [...u.children].filter((_) => _.classList.contains("rule")).at(-1);
-  if (v) {
-    const _ = i.createElement("div");
-    _.className = "slide-menu-right";
-    let M = v.nextElementSibling;
-    for (; M; ) {
-      const q = M.nextElementSibling;
-      _.append(M), M = q;
+  s?.addEventListener("change", T), n.querySelector(".slide-create-actions")?.remove();
+  const z = n.querySelector(".canvas-zoom");
+  z && p.append(z);
+  const C = [...p.children].filter((q) => q.classList.contains("rule")).at(-1);
+  if (C) {
+    const q = r.createElement("div");
+    q.className = "slide-menu-right";
+    let ee = C.nextElementSibling;
+    for (; ee; ) {
+      const se = ee.nextElementSibling;
+      q.append(ee), ee = se;
     }
-    u.append(_);
+    p.append(q);
   }
-  const ne = n.querySelector('[data-control="connection-status"]');
-  return ne && n.querySelector(".slide-editor-info")?.append(ne), S("new"), { choose: S, get active() {
-    return E;
+  const _ = n.querySelector('[data-control="connection-status"]');
+  return _ && n.querySelector(".slide-editor-info")?.append(_), v("new"), { choose: v, get active() {
+    return x;
   }, destroy() {
-    b = !0, a?.removeEventListener("change", F);
+    y = !0, s?.removeEventListener("change", T);
   } };
 }
-const yo = [
+const Co = [
   ["slide", "View slide only"],
   ["notes", "Slide + notes"],
   ["outline", "Outline"],
   ["sorter", "Slide sorter"]
 ];
-function ai({ root: n, getSlides: l, selectSlide: c, canChange: i = () => !0 }) {
-  const p = n.ownerDocument;
-  let g = "slide", u = !1;
-  const b = p.createElement("label"), E = p.createElement("select");
-  b.className = "slide-view-picker", E.dataset.control = "slide-view", E.title = "Choose slide editor view", E.setAttribute("aria-label", "Slide editor view");
-  for (const [a, R] of yo) {
-    const F = p.createElement("option");
-    F.value = a, F.textContent = R, E.append(F);
+function Er({ root: n, getSlides: i, selectSlide: l, canChange: r = () => !0 }) {
+  const d = n.ownerDocument;
+  let m = "slide", p = !1;
+  const y = d.createElement("label"), x = d.createElement("select");
+  y.className = "slide-view-picker", x.dataset.control = "slide-view", x.title = "Choose slide editor view", x.setAttribute("aria-label", "Slide editor view");
+  for (const [s, F] of Co) {
+    const T = d.createElement("option");
+    T.value = s, T.textContent = F, x.append(T);
   }
-  b.append(E);
-  const f = n.querySelector(".tools");
-  f.insertBefore(b, f.firstElementChild || null);
-  const y = p.createElement("section");
-  y.className = "slide-outline", y.setAttribute("aria-label", "Presentation outline"), n.querySelector(".workspace").append(y);
-  const A = n.querySelector('[data-control="slide-list"]'), w = /* @__PURE__ */ new Map();
-  function S() {
-    if (u || g !== "outline") return;
-    const a = l(), R = new Set(a.map((P) => P.id));
-    for (const [P, v] of w) R.has(P) || (v.section.remove(), w.delete(P));
-    let F = y.firstElementChild;
-    a.forEach((P, v) => {
-      let ne = w.get(P.id);
-      if (!ne) {
-        const M = p.createElement("section"), q = p.createElement("button"), Z = p.createElement("div");
-        q.className = "btn-small", q.title = "Select this slide", Z.className = "slide-outline-text", q.addEventListener("click", () => {
-          !u && i() && c(P.id);
-        }), M.append(q, Z), ne = { section: M, button: q, text: Z }, w.set(P.id, ne);
+  y.append(x);
+  const h = n.querySelector(".tools");
+  h.insertBefore(y, h.firstElementChild || null);
+  const g = d.createElement("section");
+  g.className = "slide-outline", g.setAttribute("aria-label", "Presentation outline"), n.querySelector(".workspace").append(g);
+  const S = n.querySelector('[data-control="slide-list"]'), b = /* @__PURE__ */ new Map();
+  function v() {
+    if (p || m !== "outline") return;
+    const s = i(), F = new Set(s.map((z) => z.id));
+    for (const [z, C] of b) F.has(z) || (C.section.remove(), b.delete(z));
+    let T = g.firstElementChild;
+    s.forEach((z, C) => {
+      let _ = b.get(z.id);
+      if (!_) {
+        const ee = d.createElement("section"), se = d.createElement("button"), oe = d.createElement("div");
+        se.className = "btn-small", se.title = "Select this slide", oe.className = "slide-outline-text", se.addEventListener("click", () => {
+          !p && r() && l(z.id);
+        }), ee.append(se, oe), _ = { section: ee, button: se, text: oe }, b.set(z.id, _);
       }
-      ne.button.textContent = "Slide " + (v + 1), ne.button.setAttribute("aria-current", String(P.active));
-      const _ = P.text || "(No text on this slide)";
-      ne.text.textContent !== _ && (ne.text.textContent = _), F === ne.section ? F = F.nextElementSibling : y.insertBefore(ne.section, F);
+      _.button.textContent = "Slide " + (C + 1), _.button.setAttribute("aria-current", String(z.active));
+      const q = z.text || "(No text on this slide)";
+      _.text.textContent !== q && (_.text.textContent = q), T === _.section ? T = T.nextElementSibling : g.insertBefore(_.section, T);
     });
   }
-  function h(a) {
-    return u || !i() || !yo.some(([R]) => R === a) ? (E.value = g, !1) : (g = a, n.dataset.slideView = g, E.value = g, A.title = g === "sorter" ? "Drag to reorder. Double-click a slide or press Enter to edit it." : "Slides", S(), !0);
+  function f(s) {
+    return p || !r() || !Co.some(([F]) => F === s) ? (x.value = m, !1) : (m = s, n.dataset.slideView = m, x.value = m, S.title = m === "sorter" ? "Drag to reorder. Double-click a slide or press Enter to edit it." : "Slides", v(), !0);
   }
-  const k = () => h(E.value), L = (a) => {
-    if (g !== "sorter" || !i() || a.type === "keydown" && a.key !== "Enter") return;
-    const R = a.target.closest("[data-slide-id]");
-    !R || !A.contains(R) || (a.preventDefault(), a.stopPropagation(), c(R.dataset.slideId), h("slide"), E.focus());
+  const E = () => f(x.value), A = (s) => {
+    if (m !== "sorter" || !r() || s.type === "keydown" && s.key !== "Enter") return;
+    const F = s.target.closest("[data-slide-id]");
+    !F || !S.contains(F) || (s.preventDefault(), s.stopPropagation(), l(F.dataset.slideId), f("slide"), x.focus());
   };
-  return E.addEventListener("change", k), A.addEventListener("dblclick", L), A.addEventListener("keydown", L, !0), h(g), {
-    refresh: S,
-    setMode: h,
+  return x.addEventListener("change", E), S.addEventListener("dblclick", A), S.addEventListener("keydown", A, !0), f(m), {
+    refresh: v,
+    setMode: f,
     get mode() {
-      return g;
+      return m;
     },
-    focus(a) {
-      w.get(a)?.button.focus({ preventScroll: !0 });
+    focus(s) {
+      b.get(s)?.button.focus({ preventScroll: !0 });
     },
     destroy() {
-      u = !0, E.removeEventListener("change", k), A.removeEventListener("dblclick", L), A.removeEventListener("keydown", L, !0), b.remove(), y.remove(), w.clear(), delete n.dataset.slideView;
+      p = !0, x.removeEventListener("change", E), S.removeEventListener("dblclick", A), S.removeEventListener("keydown", A, !0), y.remove(), g.remove(), b.clear(), delete n.dataset.slideView;
     }
   };
 }
-function si(n, l, c, i = !1) {
-  return n.findIndex((p) => i ? c < p.top || c <= p.bottom && l < p.left + p.width / 2 : c < p.top + p.height / 2);
+function Cr(n, i, l, r = !1) {
+  return n.findIndex((d) => r ? l < d.top || l <= d.bottom && i < d.left + d.width / 2 : l < d.top + d.height / 2);
 }
-function So(n) {
+function Fo(n) {
   try {
-    const l = new URL(n);
-    return ["http:", "https:"].includes(l.protocol) ? l.href : "";
+    const i = new URL(n);
+    return ["http:", "https:"].includes(i.protocol) ? i.href : "";
   } catch {
     return "";
   }
 }
-function Mn(n) {
+function zn(n) {
   if (!n || typeof n.url != "string") return null;
-  const l = So(n.url);
-  return l ? { ...JSON.parse(JSON.stringify(n)), url: l } : null;
+  const i = Fo(n.url);
+  return i ? { ...JSON.parse(JSON.stringify(n)), url: i } : null;
 }
-function li(n, l) {
+function Ar(n, i) {
   if (!n || !["text/html", "text/plain"].includes(n.type) || typeof n.value != "string") throw new Error("Import HTML or plain text into Slides.");
-  const c = document.createElement("div");
+  const l = document.createElement("div");
   if (n.type === "text/html") {
-    const i = new DOMParser().parseFromString(n.value, "text/html");
-    i.querySelectorAll("script, style, iframe, object, embed, template, form, button, input, select, textarea, .clist-actions, .status-actions, .material-icons").forEach((p) => p.remove());
-    for (const p of i.querySelectorAll("img")) p.replaceWith(i.createTextNode(p.alt || ""));
-    for (const p of i.body.querySelectorAll("*")) {
-      for (const g of [...p.attributes]) g.name !== "href" && p.removeAttribute(g.name);
-      if (p.hasAttribute("href")) {
-        const g = So(p.getAttribute("href"));
-        g ? p.setAttribute("href", g) : p.removeAttribute("href");
+    const r = new DOMParser().parseFromString(n.value, "text/html");
+    r.querySelectorAll("script, style, iframe, object, embed, template, form, button, input, select, textarea, .clist-actions, .status-actions, .material-icons").forEach((d) => d.remove());
+    for (const d of r.querySelectorAll("img")) d.replaceWith(r.createTextNode(d.alt || ""));
+    for (const d of r.body.querySelectorAll("*")) {
+      for (const m of [...d.attributes]) m.name !== "href" && d.removeAttribute(m.name);
+      if (d.hasAttribute("href")) {
+        const m = Fo(d.getAttribute("href"));
+        m ? d.setAttribute("href", m) : d.removeAttribute("href");
       }
     }
-    c.innerHTML = i.body.innerHTML;
+    l.innerHTML = r.body.innerHTML;
   } else
-    for (const i of n.value.split(/\r?\n/)) {
-      const p = document.createElement("p");
-      p.textContent = i, c.append(p);
+    for (const r of n.value.split(/\r?\n/)) {
+      const d = document.createElement("p");
+      d.textContent = r, l.append(d);
     }
-  for (const i of l) {
-    const p = document.createElement("p"), g = document.createElement("a");
-    g.href = i.url, g.textContent = i.title || i.url, p.append(document.createTextNode("Source: "), g), c.append(p);
+  for (const r of i) {
+    const d = document.createElement("p"), m = document.createElement("a");
+    m.href = r.url, m.textContent = r.title || r.url, d.append(document.createTextNode("Source: "), m), l.append(d);
   }
-  if (!c.textContent.trim()) throw new Error("There is no readable text to import.");
-  return c.innerHTML;
+  if (!l.textContent.trim()) throw new Error("There is no readable text to import.");
+  return l.innerHTML;
 }
-function ci(n, l, c) {
-  let i = null, p = !1;
-  const g = /* @__PURE__ */ new WeakMap(), u = n.querySelector('[data-control="fit-text"]'), b = n.querySelector('[data-control="text-overflow-status"]');
-  function E(h) {
-    const k = h.content.querySelector(".tiptap");
-    return !!k && k.clientHeight > 0 && (k.scrollHeight > k.clientHeight + 1 || k.scrollWidth > k.clientWidth + 1);
+function Lr(n, i = 8, l = 200) {
+  let r = Math.ceil(i * 2), d = Math.floor(l * 2), m = r;
+  for (; r <= d; ) {
+    const p = Math.floor((r + d) / 2);
+    n(p / 2) ? (m = p, r = p + 1) : d = p - 1;
   }
-  function f() {
-    if (i = null, p) return;
-    let h = 0;
-    const k = c.selected();
-    for (const R of c.views()) {
-      if (!R.editor) continue;
-      const F = E(R);
-      k.includes(R) && (h += Number(F));
-      let P = g.get(R.node);
-      !P && F && (P = document.createElement("span"), P.className = "text-overflow-badge", P.textContent = "Text overflow", P.title = "Text does not fit in this box. Use Fit text or enlarge the box.", R.node.append(P), g.set(R.node, P)), P && P.hidden === F && (P.hidden = !F);
+  return m / 2;
+}
+const Po = (n, i) => Math.max(8, Math.min(200, Math.round(n * i * 2) / 2));
+function Mr(n, i, l) {
+  let r = null, d = !1;
+  const m = /* @__PURE__ */ new WeakMap(), p = n.querySelector('[data-control="fit-text"]'), y = n.querySelector('[data-control="text-overflow-status"]');
+  function x(E) {
+    const A = E.content.querySelector(".tiptap");
+    return !!A && A.clientHeight > 0 && (A.scrollHeight > A.clientHeight + 1 || A.scrollWidth > A.clientWidth + 1);
+  }
+  function h() {
+    if (r = null, d) return;
+    let E = 0;
+    const A = l.selected();
+    for (const T of l.views()) {
+      if (!T.editor) continue;
+      const z = x(T);
+      A.includes(T) && (E += Number(z));
+      let C = m.get(T.node);
+      !C && z && (C = document.createElement("span"), C.className = "text-overflow-badge", C.textContent = "Text overflow", C.title = "Text does not fit in this box. Use Fit text or enlarge the box.", T.node.append(C), m.set(T.node, C)), C && C.hidden === z && (C.hidden = !z);
     }
-    const L = c.presenting() || !k.length || k.some((R) => R.box.get("locked") === !0) || !k.some((R) => R.editor);
-    u.disabled !== L && (u.disabled = L);
-    const a = h ? h + " selected text box" + (h === 1 ? " overflows." : "es overflow.") + " Use Fit text or enlarge the box." : k.some((R) => R.editor) ? "Selected text fits." : "Select a text box to check its fit.";
-    b.textContent !== a && (b.textContent = a);
+    const s = l.presenting() || !A.length || A.some((T) => T.box.get("locked") === !0) || !A.some((T) => T.editor);
+    p.disabled !== s && (p.disabled = s);
+    const F = E ? E + " selected text box" + (E === 1 ? " overflows." : "es overflow.") + " Use Fit text or enlarge the box." : A.some((T) => T.editor) ? "Selected text fits." : "Select a text box to check its fit.";
+    y.textContent !== F && (y.textContent = F);
+  }
+  function g() {
+    !d && r === null && (r = requestAnimationFrame(h));
+  }
+  function S() {
+    const E = l.selected();
+    if (l.presenting() || E.some((s) => s.box.get("locked") === !0)) return;
+    const A = [];
+    for (const s of E) {
+      if (!s.editor || !s.editor.getText().trim()) continue;
+      const F = s.node.style.getPropertyValue("--slide-font-size"), T = l.size(s.box), z = i.getBoundingClientRect().width / 1280;
+      if (z <= 0) continue;
+      const C = [...s.content.querySelectorAll("[data-slide-text-style][data-font-size]")].map((q) => ({ node: q, style: q.style.cssText, size: Number(q.getAttribute("data-font-size")) }));
+      let _ = T;
+      try {
+        _ = Lr((q) => {
+          s.node.style.setProperty("--slide-font-size", q * z + "px");
+          for (const ee of C) ee.node.style.setProperty("font-size", Po(ee.size, q / T) * z + "px", "important");
+          return !x(s);
+        });
+      } finally {
+        s.node.style.setProperty("--slide-font-size", F);
+        for (const q of C) q.node.style.cssText = q.style;
+      }
+      _ !== T && A.push({ box: s.box, view: s, size: _, scale: _ / T });
+    }
+    l.apply(A), h();
+  }
+  const b = () => {
+    try {
+      S();
+    } catch (E) {
+      console.error("Slides Fit:", E), l.error?.(E);
+    }
+  };
+  p.addEventListener("click", b);
+  const v = new MutationObserver(g);
+  v.observe(i, { childList: !0, subtree: !0, characterData: !0, attributes: !0, attributeFilter: ["style", "class"] });
+  const f = new ResizeObserver(g);
+  return f.observe(i), document.fonts?.addEventListener("loadingdone", g), g(), { schedule: g, destroy() {
+    d = !0, r !== null && cancelAnimationFrame(r), v.disconnect(), f.disconnect(), document.fonts?.removeEventListener("loadingdone", g), p.removeEventListener("click", b);
+  } };
+}
+function Nr(n, i, l) {
+  const r = document.createElement("div");
+  r.className = "selection-marquee", r.hidden = !0, r.setAttribute("aria-hidden", "true"), i.append(r);
+  let d = null;
+  function m(b) {
+    const v = i.getBoundingClientRect();
+    return { x: Math.max(0, Math.min(1280, (b.clientX - v.left) * 1280 / v.width)), y: Math.max(0, Math.min(720, (b.clientY - v.top) * 720 / v.height)) };
+  }
+  function p() {
+    const b = d;
+    d = null, r.hidden = !0, b && i.hasPointerCapture(b.pointer) && i.releasePointerCapture(b.pointer);
   }
   function y() {
-    !p && i === null && (i = requestAnimationFrame(f));
+    if (!d) return;
+    const b = d.original;
+    p(), l.select(b);
   }
-  function A() {
-    const h = c.selected();
-    if (c.presenting() || h.some((L) => L.box.get("locked") === !0)) return;
-    const k = [];
-    for (const L of h) {
-      if (!L.editor || !E(L)) continue;
-      const a = L.node.style.getPropertyValue("--slide-font-size"), R = c.size(L.box);
-      let F = 8;
-      try {
-        let P = 8, v = Math.floor(R);
-        for (; P <= v; ) {
-          const ne = Math.floor((P + v) / 2);
-          L.node.style.setProperty("--slide-font-size", ne / 12.8 + "cqw"), E(L) ? v = ne - 1 : (F = ne, P = ne + 1);
-        }
-      } finally {
-        L.node.style.setProperty("--slide-font-size", a);
-      }
-      F < R && k.push({ box: L.box, size: F });
-    }
-    c.apply(k), f();
+  function x(b) {
+    b.button !== 0 || b.isPrimary === !1 || (y(), d = { start: m(b), clientX: b.clientX, clientY: b.clientY, pointer: b.pointerId, original: l.selected(), additive: b.shiftKey, slide: l.slideId(), moved: !1 }, i.setPointerCapture(b.pointerId));
   }
-  u.addEventListener("click", A);
-  const w = new MutationObserver(y);
-  w.observe(l, { childList: !0, subtree: !0, characterData: !0, attributes: !0, attributeFilter: ["style", "class"] });
-  const S = new ResizeObserver(y);
-  return S.observe(l), document.fonts?.addEventListener("loadingdone", y), y(), { schedule: y, destroy() {
-    p = !0, i !== null && cancelAnimationFrame(i), w.disconnect(), S.disconnect(), document.fonts?.removeEventListener("loadingdone", y), u.removeEventListener("click", A);
-  } };
-}
-function di(n, l, c) {
-  const i = document.createElement("div");
-  i.className = "selection-marquee", i.hidden = !0, i.setAttribute("aria-hidden", "true"), l.append(i);
-  let p = null;
-  function g(w) {
-    const S = l.getBoundingClientRect();
-    return { x: Math.max(0, Math.min(1280, (w.clientX - S.left) * 1280 / S.width)), y: Math.max(0, Math.min(720, (w.clientY - S.top) * 720 / S.height)) };
-  }
-  function u() {
-    const w = p;
-    p = null, i.hidden = !0, w && l.hasPointerCapture(w.pointer) && l.releasePointerCapture(w.pointer);
-  }
-  function b() {
-    if (!p) return;
-    const w = p.original;
-    u(), c.select(w);
-  }
-  function E(w) {
-    w.button !== 0 || w.isPrimary === !1 || (b(), p = { start: g(w), clientX: w.clientX, clientY: w.clientY, pointer: w.pointerId, original: c.selected(), additive: w.shiftKey, slide: c.slideId(), moved: !1 }, l.setPointerCapture(w.pointerId));
-  }
-  function f(w) {
-    if (!p || w.pointerId !== p.pointer) return;
-    if (c.slideId() !== p.slide) {
-      b();
+  function h(b) {
+    if (!d || b.pointerId !== d.pointer) return;
+    if (l.slideId() !== d.slide) {
+      y();
       return;
     }
-    if (!p.moved && Math.hypot(w.clientX - p.clientX, w.clientY - p.clientY) < 4) return;
-    p.moved = !0, w.preventDefault();
-    const S = g(w), h = Math.min(p.start.x, S.x), k = Math.min(p.start.y, S.y), L = Math.abs(S.x - p.start.x), a = Math.abs(S.y - p.start.y);
-    Object.assign(i.style, { left: h / 12.8 + "%", top: k / 7.2 + "%", width: L / 12.8 + "%", height: a / 7.2 + "%" }), i.hidden = !1;
-    const R = new Set(p.additive ? p.original : []);
-    for (const F of c.objects())
-      F.x < h + L && F.x + F.width > h && F.y < k + a && F.y + F.height > k && R.add(F.id);
-    c.select([...R]);
+    if (!d.moved && Math.hypot(b.clientX - d.clientX, b.clientY - d.clientY) < 4) return;
+    d.moved = !0, b.preventDefault();
+    const v = m(b), f = Math.min(d.start.x, v.x), E = Math.min(d.start.y, v.y), A = Math.abs(v.x - d.start.x), s = Math.abs(v.y - d.start.y);
+    Object.assign(r.style, { left: f / 12.8 + "%", top: E / 7.2 + "%", width: A / 12.8 + "%", height: s / 7.2 + "%" }), r.hidden = !1;
+    const F = new Set(d.additive ? d.original : []);
+    for (const T of l.objects())
+      T.x < f + A && T.x + T.width > f && T.y < E + s && T.y + T.height > E && F.add(T.id);
+    l.select([...F]);
   }
-  function y(w) {
-    !p || w.pointerId !== p.pointer || (f(w), u());
+  function g(b) {
+    !d || b.pointerId !== d.pointer || (h(b), p());
   }
-  function A(w) {
-    p && w.key === "Escape" && (w.preventDefault(), w.stopPropagation(), b());
+  function S(b) {
+    d && b.key === "Escape" && (b.preventDefault(), b.stopPropagation(), y());
   }
-  return l.addEventListener("pointermove", f), l.addEventListener("pointerup", y), l.addEventListener("pointercancel", b), l.addEventListener("lostpointercapture", b), n.addEventListener("keydown", A, !0), { begin: E, cancel: b, destroy() {
-    u(), l.removeEventListener("pointermove", f), l.removeEventListener("pointerup", y), l.removeEventListener("pointercancel", b), l.removeEventListener("lostpointercapture", b), n.removeEventListener("keydown", A, !0), i.remove();
+  return i.addEventListener("pointermove", h), i.addEventListener("pointerup", g), i.addEventListener("pointercancel", y), i.addEventListener("lostpointercapture", y), n.addEventListener("keydown", S, !0), { begin: x, cancel: y, destroy() {
+    p(), i.removeEventListener("pointermove", h), i.removeEventListener("pointerup", g), i.removeEventListener("pointercancel", y), i.removeEventListener("lostpointercapture", y), n.removeEventListener("keydown", S, !0), r.remove();
   } };
 }
-function ui(n, l) {
-  const c = (w) => n.querySelector('[data-control="' + w + '"]'), i = c("canvas-viewport"), p = c("slide"), g = c("canvas-zoom"), u = [25, 50, 75, 100, 125, 150, 200];
-  let b = "fit", E = 100;
-  function f() {
-    if (l() || !i.clientWidth || !i.clientHeight) return;
-    const w = Math.max(1, i.clientWidth - 48), S = Math.max(1, i.clientHeight - 48);
-    b === "fit" && (E = Math.min(100, w / 1280 * 100, S / 720 * 100));
-    const h = 1280 * E / 100, k = 720 * E / 100;
-    p.style.setProperty("--canvas-slide-width", h + "px"), i.style.setProperty("--canvas-stage-width", h + 48 + "px"), i.style.setProperty("--canvas-stage-height", k + 48 + "px"), g.options[0].textContent = "Fit (" + Math.round(E) + "%)", g.value = b, c("zoom-out").disabled = E <= 25, c("zoom-in").disabled = E >= 200;
+function jr(n, i) {
+  const l = (b) => n.querySelector('[data-control="' + b + '"]'), r = l("canvas-viewport"), d = l("slide"), m = l("canvas-zoom"), p = [25, 50, 75, 100, 125, 150, 200];
+  let y = "fit", x = 100;
+  function h() {
+    if (i() || !r.clientWidth || !r.clientHeight) return;
+    const b = Math.max(1, r.clientWidth - 48), v = Math.max(1, r.clientHeight - 48);
+    y === "fit" && (x = Math.min(100, b / 1280 * 100, v / 720 * 100));
+    const f = 1280 * x / 100, E = 720 * x / 100;
+    d.style.setProperty("--canvas-slide-width", f + "px"), d.style.setProperty("--slide-text-unit", f / 1280 + "px"), r.style.setProperty("--canvas-stage-width", f + 48 + "px"), r.style.setProperty("--canvas-stage-height", E + 48 + "px"), m.options[0].textContent = "Fit (" + Math.round(x) + "%)", m.value = y, l("zoom-out").disabled = x <= 25, l("zoom-in").disabled = x >= 200;
   }
-  function y(w) {
-    b = w, b !== "fit" && (E = Number(b)), f(), b === "fit" && (i.scrollLeft = 0, i.scrollTop = 0);
+  function g(b) {
+    y = b, y !== "fit" && (x = Number(y)), h(), y === "fit" && (r.scrollLeft = 0, r.scrollTop = 0);
   }
-  g.addEventListener("change", () => y(g.value)), c("zoom-fit").addEventListener("click", () => y("fit")), c("zoom-in").addEventListener("click", () => y(String(u.find((w) => w > E + 0.1) || 200))), c("zoom-out").addEventListener("click", () => y(String([...u].reverse().find((w) => w < E - 0.1) || 25)));
-  const A = new ResizeObserver(f);
-  return A.observe(i), f(), { update: f, destroy() {
-    A.disconnect();
+  m.addEventListener("change", () => g(m.value)), l("zoom-fit").addEventListener("click", () => g("fit")), l("zoom-in").addEventListener("click", () => g(String(p.find((b) => b > x + 0.1) || 200))), l("zoom-out").addEventListener("click", () => g(String([...p].reverse().find((b) => b < x - 0.1) || 25)));
+  const S = new ResizeObserver((b) => {
+    b.some((f) => f.target === r) && h();
+    const v = d.getBoundingClientRect().width;
+    v > 0 && d.style.setProperty("--slide-text-unit", v / 1280 + "px");
+  });
+  return S.observe(r), S.observe(d), h(), { update: h, destroy() {
+    S.disconnect();
   } };
 }
-const pi = {
+const zr = {
   "copy-format": '<path d="M3 3h12v7H3zM15 6h4v8h-8v7H8v-9h8V8M6 3v7M10 3v7"/>',
   "paste-format": '<path d="M3 3h12v7H3zM15 6h4v7h-8v8H8v-9h8V8M18 17h5m-2.5-2.5v5"/>',
   undo: '<path d="M9 5 4 10l5 5M4 10h10a6 6 0 0 1 0 12"/>',
@@ -730,163 +961,167 @@ const pi = {
   "presenter-view": '<rect x="2" y="4" width="20" height="14" rx="1"/><path d="M15 4v14M3 14h11M8 22l4-4 4 4M18 8h2m-2 4h2"/>',
   present: '<rect x="2" y="3" width="20" height="15" rx="1"/><path d="m10 7 6 4-6 4zM12 18v4M8 22h8"/>'
 };
-function fi() {
+function Tr() {
   const n = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   return n.setAttribute("viewBox", "0 0 24 24"), n.setAttribute("aria-hidden", "true"), n.setAttribute("focusable", "false"), n.setAttribute("fill", "none"), n.setAttribute("stroke", "currentColor"), n.setAttribute("stroke-width", "1.8"), n.setAttribute("stroke-linecap", "round"), n.setAttribute("stroke-linejoin", "round"), n;
 }
-function wo(n, l = null) {
-  const c = fi();
-  if (l) {
-    c.setAttribute("viewBox", l.viewBox.join(" ")), c.setAttribute("stroke-width", String(Math.max(l.viewBox[2], l.viewBox[3]) / 12));
-    for (const i of l.elements) {
-      const p = document.createElementNS("http://www.w3.org/2000/svg", i.tag);
-      for (const [g, u] of Object.entries(i.attributes)) p.setAttribute(g, String(u));
-      c.append(p);
+function Ao(n, i = null) {
+  const l = Tr();
+  if (i) {
+    l.setAttribute("viewBox", i.viewBox.join(" ")), l.setAttribute("stroke-width", String(Math.max(i.viewBox[2], i.viewBox[3]) / 12));
+    for (const r of i.elements) {
+      const d = document.createElementNS("http://www.w3.org/2000/svg", r.tag);
+      for (const [m, p] of Object.entries(r.attributes)) d.setAttribute(m, String(p));
+      l.append(d);
     }
   } else
-    c.innerHTML = pi[n.dataset.control] || '<circle cx="12" cy="12" r="8"/>';
-  n.className = "clist-action-btn btn-small", n.type = "button", n.setAttribute("aria-label", n.title), n.replaceChildren(c);
+    l.innerHTML = zr[n.dataset.control] || '<circle cx="12" cy="12" r="8"/>';
+  n.className = "clist-action-btn btn-small", n.type = "button", n.setAttribute("aria-label", n.title), n.replaceChildren(l);
 }
-function xo(n, l) {
-  const c = { paragraph: "p", bulletList: "ul", orderedList: "ol", listItem: "li", blockquote: "blockquote", codeBlock: "pre", horizontalRule: "hr", hardBreak: "br" }, i = { bold: "strong", italic: "em", strike: "s", code: "code", underline: "u" };
-  function p(u) {
-    if (typeof u.toDelta == "function") {
-      const y = l.createDocumentFragment();
-      for (const A of u.toDelta()) {
-        if (typeof A.insert != "string") continue;
-        let w = l.createTextNode(A.insert);
-        for (const [S, h] of Object.entries(A.attributes || {})) {
-          let k;
-          i[S] ? k = l.createElement(i[S]) : S === "link" && typeof h?.href == "string" && /^(https?:|mailto:|tel:)/i.test(h.href) && (k = l.createElement("a"), k.href = h.href, k.target = "_blank", k.rel = "noopener noreferrer"), k && (k.append(w), w = k);
+function Lo(n, i) {
+  const l = { paragraph: "p", bulletList: "ul", orderedList: "ol", listItem: "li", blockquote: "blockquote", codeBlock: "pre", horizontalRule: "hr", hardBreak: "br" }, r = { bold: "strong", italic: "em", strike: "s", code: "code", underline: "u" };
+  function d(p) {
+    if (typeof p.toDelta == "function") {
+      const g = i.createDocumentFragment();
+      for (const S of p.toDelta()) {
+        if (typeof S.insert != "string") continue;
+        let b = i.createTextNode(S.insert);
+        for (const [v, f] of Object.entries(S.attributes || {})) {
+          let E;
+          if (r[v] ? E = i.createElement(r[v]) : v === "link" && typeof f?.href == "string" && /^(https?:|mailto:|tel:)/i.test(f.href) && (E = i.createElement("a"), E.href = f.href, E.target = f.target === "_self" ? "_self" : "_blank", typeof f.title == "string" && (E.title = f.title.slice(0, 500)), typeof f.ariaLabel == "string" && f.ariaLabel && E.setAttribute("aria-label", f.ariaLabel.slice(0, 500)), E.rel = "noopener noreferrer"), v === "slideTextStyle") {
+            E = i.createElement("span");
+            for (const [A, s] of Object.entries(To(f))) E.setAttribute(A, s);
+          }
+          E && (E.append(b), b = E);
         }
-        y.append(w);
+        g.append(b);
       }
-      return y;
+      return g;
     }
-    const b = u.getAttributes?.() || {}, E = u.nodeName === "heading" ? "h" + Math.max(1, Math.min(6, Number(b.level) || 1)) : c[u.nodeName] || "div", f = l.createElement(E);
-    u.nodeName === "orderedList" && Number.isInteger(b.start) && (f.start = b.start);
-    for (const y of u.toArray?.() || []) f.append(p(y));
-    return f;
+    const y = p.getAttributes?.() || {}, x = p.nodeName === "heading" ? "h" + Math.max(1, Math.min(6, Number(y.level) || 1)) : l[p.nodeName] || "div", h = i.createElement(x);
+    p.nodeName === "orderedList" && Number.isInteger(y.start) && (h.start = y.start);
+    for (const g of p.toArray?.() || []) h.append(d(g));
+    return h;
   }
-  const g = l.createDocumentFragment();
-  for (const u of n.toArray()) g.append(p(u));
-  return g;
+  const m = i.createDocumentFragment();
+  for (const p of n.toArray()) m.append(d(p));
+  return m;
 }
-function hi({ renderSlide: n, navigate: l, jump: c, present: i, end: p }) {
-  const g = window.open("", "_blank", "popup,width=1200,height=850");
-  if (!g) throw new Error("Allow pop-up windows for CList to open Presenter view.");
-  const u = g.document;
-  u.title = "CList Slides — Presenter view", u.documentElement.lang = "en";
-  for (const Y of document.querySelectorAll('link[rel="stylesheet"], style')) u.head.append(Y.cloneNode(!0));
-  u.body.className = "clist-presenter-page";
-  const b = u.createElement("main");
-  b.className = "clist-slides presenter-console", u.body.replaceChildren(b);
-  const E = u.createElement("header");
-  E.className = "presenter-header";
-  const f = u.createElement("h1");
-  f.textContent = "Presenter view";
-  const y = u.createElement("span"), A = u.createElement("span"), w = u.createElement("p");
-  y.dataset.control = "presenter-position", A.dataset.control = "presenter-timer", A.setAttribute("aria-label", "Elapsed presentation time"), w.setAttribute("role", "status"), E.append(f, y, A);
-  function S(Y) {
-    console.error("Presenter view failed:", Y), w.textContent = Y.message;
+function Ir({ renderSlide: n, navigate: i, jump: l, present: r, end: d }) {
+  const m = window.open("", "_blank", "popup,width=1200,height=850");
+  if (!m) throw new Error("Allow pop-up windows for CList to open Presenter view.");
+  const p = m.document;
+  p.title = "CList Slides — Presenter view", p.documentElement.lang = "en";
+  for (const K of document.querySelectorAll('link[rel="stylesheet"], style')) p.head.append(K.cloneNode(!0));
+  p.body.className = "clist-presenter-page";
+  const y = p.createElement("main");
+  y.className = "clist-slides presenter-console", p.body.replaceChildren(y);
+  const x = p.createElement("header");
+  x.className = "presenter-header";
+  const h = p.createElement("h1");
+  h.textContent = "Presenter view";
+  const g = p.createElement("span"), S = p.createElement("span"), b = p.createElement("p");
+  g.dataset.control = "presenter-position", S.dataset.control = "presenter-timer", S.setAttribute("aria-label", "Elapsed presentation time"), b.setAttribute("role", "status"), x.append(h, g, S);
+  function v(K) {
+    console.error("Presenter view failed:", K), b.textContent = K.message;
   }
-  function h(Y, pe, re) {
-    const O = u.createElement("button");
-    return O.className = "btn-small", O.textContent = Y, O.title = Y, O.dataset.control = pe, O.addEventListener("click", () => {
+  function f(K, le, ue) {
+    const Le = p.createElement("button");
+    return Le.className = "btn-small", Le.textContent = K, Le.title = K, Le.dataset.control = le, Le.addEventListener("click", () => {
       try {
-        Promise.resolve(re()).catch(S);
-      } catch (me) {
-        S(me);
+        Promise.resolve(ue()).catch(v);
+      } catch (Ne) {
+        v(Ne);
       }
-    }), E.append(O), O;
+    }), x.append(Le), Le;
   }
-  const k = h("Previous", "presenter-previous", () => l(-1)), L = h("Next", "presenter-next", () => l(1)), a = h("Present", "presenter-start", i), R = h("End presentation", "presenter-end", p);
-  let F = 0, P = null;
-  function v() {
-    const Y = Math.floor((F + (P === null ? 0 : Date.now() - P)) / 1e3);
-    A.textContent = "Elapsed " + String(Math.floor(Y / 60)).padStart(2, "0") + ":" + String(Y % 60).padStart(2, "0");
+  const E = f("Previous", "presenter-previous", () => i(-1)), A = f("Next", "presenter-next", () => i(1)), s = f("Present", "presenter-start", r), F = f("End presentation", "presenter-end", d);
+  let T = 0, z = null;
+  function C() {
+    const K = Math.floor((T + (z === null ? 0 : Date.now() - z)) / 1e3);
+    S.textContent = "Elapsed " + String(Math.floor(K / 60)).padStart(2, "0") + ":" + String(K % 60).padStart(2, "0");
   }
-  h("Reset timer", "presenter-reset-timer", () => {
-    F = 0, P !== null && (P = Date.now()), v();
+  f("Reset timer", "presenter-reset-timer", () => {
+    T = 0, z !== null && (z = Date.now()), C();
   });
-  const ne = u.createElement("div");
-  ne.className = "presenter-grid";
-  function _(Y, pe) {
-    const re = u.createElement("section"), O = u.createElement("h2"), me = u.createElement("div");
-    return O.textContent = Y, me.dataset.control = pe, re.append(O, me), ne.append(re), me;
+  const _ = p.createElement("div");
+  _.className = "presenter-grid";
+  function q(K, le) {
+    const ue = p.createElement("section"), Le = p.createElement("h2"), Ne = p.createElement("div");
+    return Le.textContent = K, Ne.dataset.control = le, ue.append(Le, Ne), _.append(ue), Ne;
   }
-  const M = _("Current slide", "presenter-current"), q = _("Next slide", "presenter-upcoming"), Z = u.createElement("h2"), U = u.createElement("div"), ee = u.createElement("p");
-  Z.textContent = "Speaker notes", U.className = "presenter-notes", U.dataset.control = "presenter-notes", ee.className = "helper", ee.textContent = "Keep this window on your screen. Present shows only the slides in the main window. Arrow keys navigate; Escape ends the presentation.", b.append(E, ee, w, ne, Z, U), g.addEventListener("keydown", (Y) => {
-    if (!(Y.ctrlKey || Y.altKey || Y.metaKey || Y.isComposing || Y.key === " " && Y.target?.tagName === "BUTTON" || !["ArrowRight", "ArrowDown", "PageDown", " ", "ArrowLeft", "ArrowUp", "PageUp", "Home", "End", "Escape"].includes(Y.key))) {
-      Y.preventDefault();
+  const ee = q("Current slide", "presenter-current"), se = q("Next slide", "presenter-upcoming"), oe = p.createElement("h2"), L = p.createElement("div"), U = p.createElement("p");
+  oe.textContent = "Speaker notes", L.className = "presenter-notes", L.dataset.control = "presenter-notes", U.className = "helper", U.textContent = "Keep this window on your screen. Present shows only the slides in the main window. Arrow keys navigate; Escape ends the presentation.", y.append(x, U, b, _, oe, L), m.addEventListener("keydown", (K) => {
+    if (!(K.ctrlKey || K.altKey || K.metaKey || K.isComposing || K.key === " " && K.target?.tagName === "BUTTON" || !["ArrowRight", "ArrowDown", "PageDown", " ", "ArrowLeft", "ArrowUp", "PageUp", "Home", "End", "Escape"].includes(K.key))) {
+      K.preventDefault();
       try {
-        Y.key === "Escape" ? Promise.resolve(p()).catch(S) : Y.key === "Home" || Y.key === "End" ? c(Y.key === "Home" ? "first" : "last") : l(["ArrowLeft", "ArrowUp", "PageUp"].includes(Y.key) ? -1 : 1);
-      } catch (re) {
-        S(re);
+        K.key === "Escape" ? Promise.resolve(d()).catch(v) : K.key === "Home" || K.key === "End" ? l(K.key === "Home" ? "first" : "last") : i(["ArrowLeft", "ArrowUp", "PageUp"].includes(K.key) ? -1 : 1);
+      } catch (ue) {
+        v(ue);
       }
     }
   });
-  const K = window.setInterval(() => {
-    g.closed ? window.clearInterval(K) : v();
+  const G = window.setInterval(() => {
+    m.closed ? window.clearInterval(G) : C();
   }, 250);
-  function te() {
-    window.clearInterval(K), g.closed || g.close(), window.removeEventListener("beforeunload", te);
+  function J() {
+    window.clearInterval(G), m.closed || m.close(), window.removeEventListener("beforeunload", J);
   }
-  return g.addEventListener("unload", () => {
-    window.clearInterval(K), window.removeEventListener("beforeunload", te);
-  }), window.addEventListener("beforeunload", te), v(), {
+  return m.addEventListener("unload", () => {
+    window.clearInterval(G), window.removeEventListener("beforeunload", J);
+  }), window.addEventListener("beforeunload", J), C(), {
     get closed() {
-      return g.closed;
+      return m.closed;
     },
     focus() {
-      g.focus();
+      m.focus();
     },
-    close: te,
-    update({ id: Y, nextId: pe, index: re, total: O, notes: me, presenting: Ce }) {
-      if (!g.closed) {
-        if (y.textContent = "Slide " + (re + 1) + " of " + O, U.textContent = me || "No speaker notes for this slide.", M.replaceChildren(n(Y, u)), pe) q.replaceChildren(n(pe, u));
+    close: J,
+    update({ id: K, nextId: le, index: ue, total: Le, notes: Ne, presenting: ke }) {
+      if (!m.closed) {
+        if (g.textContent = "Slide " + (ue + 1) + " of " + Le, L.textContent = Ne || "No speaker notes for this slide.", ee.replaceChildren(n(K, p)), le) se.replaceChildren(n(le, p));
         else {
-          const Ie = u.createElement("p");
-          Ie.textContent = "End of presentation", q.replaceChildren(Ie);
+          const H = p.createElement("p");
+          H.textContent = "End of presentation", se.replaceChildren(H);
         }
-        k.disabled = re === 0, L.disabled = re === O - 1, a.disabled = Ce, R.disabled = !Ce, Ce && P === null ? P = Date.now() : !Ce && P !== null && (F += Date.now() - P, P = null), v();
+        E.disabled = ue === 0, A.disabled = ue === Le - 1, s.disabled = ke, F.disabled = !ke, ke && z === null ? z = Date.now() : !ke && z !== null && (T += Date.now() - z, z = null), C();
       }
     }
   };
 }
-async function gi({ slideIds: n, renderSlide: l, title: c = "CList presentation" }) {
-  const i = window.open("", "_blank");
-  if (!i) throw new Error("Allow pop-up windows for CList to export slides as PDF.");
-  const p = i.document;
-  p.title = c, p.documentElement.lang = "en";
-  const g = p.createElement("header");
-  g.className = "slide-print-controls";
-  const u = p.createElement("p");
-  u.setAttribute("role", "status"), u.textContent = "Preparing slides…";
-  const b = p.createElement("button");
-  b.className = "btn", b.textContent = "Print / Save as PDF", b.title = "Open the print dialog to save this presentation as a PDF", b.disabled = !0, g.append(u, b);
-  const E = p.createElement("main");
-  E.className = "clist-slides slide-print-deck", p.body.replaceChildren(g, E);
-  function f(y) {
-    console.error("Slides PDF export failed:", y), u.className = "error-message", u.textContent = "Could not prepare PDF export: " + y.message;
+async function Fr({ slideIds: n, renderSlide: i, title: l = "CList presentation" }) {
+  const r = window.open("", "_blank");
+  if (!r) throw new Error("Allow pop-up windows for CList to export slides as PDF.");
+  const d = r.document;
+  d.title = l, d.documentElement.lang = "en";
+  const m = d.createElement("header");
+  m.className = "slide-print-controls";
+  const p = d.createElement("p");
+  p.setAttribute("role", "status"), p.textContent = "Preparing slides…";
+  const y = d.createElement("button");
+  y.className = "btn", y.textContent = "Print / Save as PDF", y.title = "Open the print dialog to save this presentation as a PDF", y.disabled = !0, m.append(p, y);
+  const x = d.createElement("main");
+  x.className = "clist-slides slide-print-deck", d.body.replaceChildren(m, x);
+  function h(g) {
+    console.error("Slides PDF export failed:", g), p.className = "error-message", p.textContent = "Could not prepare PDF export: " + g.message;
   }
-  b.addEventListener("click", () => {
+  y.addEventListener("click", () => {
     try {
-      i.focus(), i.print();
-    } catch (y) {
-      f(y);
+      r.focus(), r.print();
+    } catch (g) {
+      h(g);
     }
   });
   try {
-    const y = [];
-    for (const w of document.querySelectorAll('link[rel="stylesheet"], style')) {
-      const S = w.cloneNode(!0);
-      w.tagName === "LINK" && (S.href = w.href, y.push(new Promise((h, k) => {
-        S.addEventListener("load", h, { once: !0 }), S.addEventListener("error", () => k(new Error("A presentation stylesheet could not load.")), { once: !0 });
-      }))), p.head.append(S);
+    const g = [];
+    for (const b of document.querySelectorAll('link[rel="stylesheet"], style')) {
+      const v = b.cloneNode(!0);
+      b.tagName === "LINK" && (v.href = b.href, g.push(new Promise((f, E) => {
+        v.addEventListener("load", f, { once: !0 }), v.addEventListener("error", () => E(new Error("A presentation stylesheet could not load.")), { once: !0 });
+      }))), d.head.append(v);
     }
-    const A = p.createElement("style");
-    A.textContent = `
+    const S = d.createElement("style");
+    S.textContent = `
       @page { size: 1280px 720px; margin: 0; }
       html, body { display: block; width: auto; height: auto; min-height: 100%; overflow: visible; margin: 0; padding: 0; }
       body { background: #eee; }
@@ -903,307 +1138,311 @@ async function gi({ slideIds: n, renderSlide: l, title: c = "CList presentation"
         .slide-print-page { width: 1280px; height: 720px; margin: 0; break-inside: avoid; break-after: page; }
         .slide-print-page:last-child { break-after: auto; }
       }
-    `, p.head.append(A);
-    for (const w of n) {
-      const S = p.createElement("section");
-      S.className = "slide-print-page", S.append(l(w, p)), E.append(S);
+    `, d.head.append(S);
+    for (const b of n) {
+      const v = d.createElement("section");
+      v.className = "slide-print-page", v.append(i(b, d)), x.append(v);
     }
-    if (await Promise.all(y), await p.fonts.ready, await Promise.all([...E.querySelectorAll("img")].map((w) => w.decode())), i.closed) return;
-    u.textContent = "Choose Save as PDF in the print dialog. Use all pages, no margins, no headers or footers, and enable background graphics. Each slide is one landscape page; speaker notes are excluded.", b.disabled = !1;
-  } catch (y) {
-    throw f(y), y;
+    if (await Promise.all(g), await d.fonts.ready, await Promise.all([...x.querySelectorAll("img")].map((b) => b.decode())), r.closed) return;
+    p.textContent = "Choose Save as PDF in the print dialog. Use all pages, no margins, no headers or footers, and enable background graphics. Each slide is one landscape page; speaker notes are excluded.", y.disabled = !1;
+  } catch (g) {
+    throw h(g), g;
   }
 }
-let Bt;
-function Mo() {
-  return window.PptxGenJS ? Promise.resolve(window.PptxGenJS) : (Bt || (Bt = new Promise((n, l) => {
-    const c = document.createElement("script"), i = "../../../js/vendor/pptxgen.bundle.js";
-    c.src = new URL(i, import.meta.url).href, c.onload = () => {
-      window.PptxGenJS ? n(window.PptxGenJS) : (Bt = null, c.remove(), l(new Error("The PowerPoint export library did not initialize.")));
-    }, c.onerror = () => {
-      Bt = null, c.remove(), l(new Error("The PowerPoint export library could not load. Please retry."));
-    }, document.head.append(c);
-  })), Bt);
+let Xt;
+function Do() {
+  return window.PptxGenJS ? Promise.resolve(window.PptxGenJS) : (Xt || (Xt = new Promise((n, i) => {
+    const l = document.createElement("script"), r = "../../../js/vendor/pptxgen.bundle.js";
+    l.src = new URL(r, import.meta.url).href, l.onload = () => {
+      window.PptxGenJS ? n(window.PptxGenJS) : (Xt = null, l.remove(), i(new Error("The PowerPoint export library did not initialize.")));
+    }, l.onerror = () => {
+      Xt = null, l.remove(), i(new Error("The PowerPoint export library could not load. Please retry."));
+    }, document.head.append(l);
+  })), Xt);
 }
-const St = (n) => n / 96, pt = (n) => n * 0.75, cn = (n) => n.replace("#", ""), mi = { system: "Arial", arial: "Arial", verdana: "Verdana", georgia: "Georgia", times: "Times New Roman", courier: "Courier New" };
-function bi(n, l) {
-  const c = [];
-  function i(u, b = {}) {
-    if (u.nodeType === 3) {
-      u.textContent && c.push({ text: u.textContent, options: { ...b } });
+const Lt = (n) => n / 96, at = (n) => n * 0.75, Ot = (n) => n.replace("#", ""), Ro = { system: "Arial", arial: "Arial", verdana: "Verdana", georgia: "Georgia", times: "Times New Roman", courier: "Courier New" };
+function Pr(n, i) {
+  const l = [];
+  function r(p, y = {}) {
+    if (p.nodeType === 3) {
+      p.textContent && l.push({ text: p.textContent, options: { ...y } });
       return;
     }
-    const E = u.nodeName.toLowerCase(), f = { ...b };
-    if (["strong", "b"].includes(E) && (f.bold = !0), ["em", "i"].includes(E) && (f.italic = !0), E === "u" && (f.underline = { style: "sng" }), ["s", "strike"].includes(E) && (f.strike = "sngStrike"), ["code", "pre"].includes(E) && (f.fontFace = "Courier New"), E === "a" && /^(https?:|mailto:|tel:)/i.test(u.getAttribute("href") || "") && (f.hyperlink = { url: u.getAttribute("href") }, f.color = "2365BF", f.underline = { style: "sng" }), E === "br") {
-      c.push({ text: "", options: { ...f, breakLine: !0 } });
+    const x = p.nodeName.toLowerCase(), h = { ...y };
+    if (["strong", "b"].includes(x) && (h.bold = !0), ["em", "i"].includes(x) && (h.italic = !0), x === "u" && (h.underline = { style: "sng" }), ["s", "strike"].includes(x) && (h.strike = "sngStrike"), ["code", "pre"].includes(x) && (h.fontFace = "Courier New"), x === "a" && /^(https?:|mailto:|tel:)/i.test(p.getAttribute("href") || "") && (h.hyperlink = { url: p.getAttribute("href") }, h.color = "2365BF", h.underline = { style: "sng" }), p.hasAttribute?.("data-slide-text-style")) {
+      const g = Rn({ fontFamily: p.getAttribute("data-font-family"), fontSize: p.getAttribute("data-font-size"), textColour: p.getAttribute("data-text-colour"), highlightColour: p.getAttribute("data-highlight-colour") });
+      g.fontFamily && (h.fontFace = Ro[g.fontFamily]), g.fontSize && (h.fontSize = at(g.fontSize)), g.textColour && (h.color = Ot(g.textColour)), g.highlightColour && (h.highlight = Ot(g.highlightColour));
+    }
+    if (x === "br") {
+      l.push({ text: "", options: { ...h, breakLine: !0 } });
       return;
     }
-    for (const y of u.childNodes) i(y, f);
+    for (const g of p.childNodes) r(g, h);
   }
-  function p(u, b = null) {
-    const E = u.nodeName.toLowerCase();
-    if (E === "ul" || E === "ol") {
-      let f = Number(u.getAttribute("start")) || 1;
-      for (const y of u.children) p(y, { ordered: E === "ol", index: f++, level: (b?.level ?? -1) + 1 });
+  function d(p, y = null) {
+    const x = p.nodeName.toLowerCase();
+    if (x === "ul" || x === "ol") {
+      let h = Number(p.getAttribute("start")) || 1;
+      for (const g of p.children) d(g, { ordered: x === "ol", index: h++, level: (y?.level ?? -1) + 1 });
       return;
     }
-    if (E === "li" || E === "blockquote" || E === "div")
-      for (const f of u.childNodes)
-        f.nodeType === 3 ? f.textContent.trim() && g(f, b) : p(f, b);
-    else g(u, b);
+    if (x === "li" || x === "blockquote" || x === "div")
+      for (const h of p.childNodes)
+        h.nodeType === 3 ? h.textContent.trim() && m(h, y) : d(h, y);
+    else m(p, y);
   }
-  function g(u, b) {
-    const E = c.length, f = {};
-    /^H[1-6]$/.test(u.nodeName) && (f.bold = !0), i(u, f), c.length === E && c.push({ text: "​", options: {} });
-    for (const y of c.slice(E))
-      y.options.paraSpaceAfter = b ? pt(l * 0.2) : 6, b && (y.options.bullet = b.ordered ? { type: "number", startAt: b.index, indent: pt(l * 1.5) } : { indent: pt(l * 1.5) }, y.options.indentLevel = Math.min(8, b.level), y.options.hanging = pt(l * 0.3));
-    c[c.length - 1].options.breakLine = !0;
+  function m(p, y) {
+    const x = l.length, h = {};
+    /^H[1-6]$/.test(p.nodeName) && (h.bold = !0), r(p, h), l.length === x && l.push({ text: "​", options: {} });
+    for (const g of l.slice(x))
+      g.options.paraSpaceAfter = y ? at(i * 0.2) : 6, y && (g.options.bullet = y.ordered ? { type: "number", startAt: y.index, indent: at(i * 1.5) } : { indent: at(i * 1.5) }, g.options.indentLevel = Math.min(8, y.level), g.options.hanging = at(i * 0.3));
+    l[l.length - 1].options.breakLine = !0;
   }
-  for (const u of n.childNodes) p(u);
-  return c.length && delete c[c.length - 1].options.breakLine, c;
+  for (const p of n.childNodes) d(p);
+  return l.length && delete l[l.length - 1].options.breakLine, l;
 }
-function Ao(n) {
+function Oo(n) {
   return {
-    fill: n.fill ? { color: cn(n.fillColour) } : { color: "FFFFFF", transparency: 100 },
-    line: n.border ? { color: cn(n.borderColour), width: pt(n.width) } : { color: "FFFFFF", transparency: 100 }
+    fill: n.fill ? { color: Ot(n.fillColour) } : { color: "FFFFFF", transparency: 100 },
+    line: n.border ? { color: Ot(n.borderColour), width: at(n.width) } : { color: "FFFFFF", transparency: 100 }
   };
 }
-function yi(n, l, c, i) {
-  const p = l.definition;
-  if (p.elements.length !== 1) return !1;
-  const { tag: g, attributes: u } = p.elements[0], [b, E, f, y] = p.viewBox, A = g === "rect" && !u.rx && !u.ry && (u.x || 0) === b && (u.y || 0) === E && u.width === f && u.height === y, w = g === "ellipse" && u.cx === b + f / 2 && u.cy === E + y / 2 && u.rx === f / 2 && u.ry === y / 2 || g === "circle" && f === y && u.cx === b + f / 2 && u.cy === E + y / 2 && u.r === f / 2, S = g === "line" && u.x1 === b && u.y1 === E && u.x2 === b + f && u.y2 === E + y;
-  if (!A && !w && !S) return !1;
-  const h = l.style.border ? Math.min(l.style.width, l.width, l.height) : 0, k = St(h / 2), L = Ao({ ...l.style, width: h });
-  return S && (L.fill.transparency = 100), n.addShape(A ? i.ShapeType.rect : w ? i.ShapeType.ellipse : i.ShapeType.line, {
-    ...c,
-    x: c.x + k,
-    y: c.y + k,
-    w: Math.max(1e-3, c.w - k * 2),
-    h: Math.max(1e-3, c.h - k * 2),
-    ...L
+function Dr(n, i, l, r) {
+  const d = i.definition;
+  if (d.elements.length !== 1) return !1;
+  const { tag: m, attributes: p } = d.elements[0], [y, x, h, g] = d.viewBox, S = m === "rect" && !p.rx && !p.ry && (p.x || 0) === y && (p.y || 0) === x && p.width === h && p.height === g, b = m === "ellipse" && p.cx === y + h / 2 && p.cy === x + g / 2 && p.rx === h / 2 && p.ry === g / 2 || m === "circle" && h === g && p.cx === y + h / 2 && p.cy === x + g / 2 && p.r === h / 2, v = m === "line" && p.x1 === y && p.y1 === x && p.x2 === y + h && p.y2 === x + g;
+  if (!S && !b && !v) return !1;
+  const f = i.style.border ? Math.min(i.style.width, i.width, i.height) : 0, E = Lt(f / 2), A = Oo({ ...i.style, width: f });
+  return v && (A.fill.transparency = 100), n.addShape(S ? r.ShapeType.rect : b ? r.ShapeType.ellipse : r.ShapeType.line, {
+    ...l,
+    x: l.x + E,
+    y: l.y + E,
+    w: Math.max(1e-3, l.w - E * 2),
+    h: Math.max(1e-3, l.h - E * 2),
+    ...A
   }), !0;
 }
-async function wi(n) {
-  const l = new Image();
-  l.src = n.source, await l.decode();
-  const c = document.createElement("canvas"), i = Math.min(2, 4096 / Math.max(n.width, n.height));
-  c.width = Math.max(1, Math.round(n.width * i)), c.height = Math.max(1, Math.round(n.height * i));
-  const p = c.getContext("2d");
-  if (!p) throw new Error("The browser could not prepare a presentation image.");
-  p.scale(c.width / n.width, c.height / n.height);
-  let g, u;
+async function Rr(n) {
+  const i = new Image();
+  i.src = n.source, await i.decode();
+  const l = document.createElement("canvas"), r = Math.min(2, 4096 / Math.max(n.width, n.height));
+  l.width = Math.max(1, Math.round(n.width * r)), l.height = Math.max(1, Math.round(n.height * r));
+  const d = l.getContext("2d");
+  if (!d) throw new Error("The browser could not prepare a presentation image.");
+  d.scale(l.width / n.width, l.height / n.height);
+  let m, p;
   if (n.crop?.fit === "cover")
-    g = n.crop.width || Math.max(n.width, n.height * l.naturalWidth / l.naturalHeight), u = n.crop.height || g * l.naturalHeight / l.naturalWidth;
+    m = n.crop.width || Math.max(n.width, n.height * i.naturalWidth / i.naturalHeight), p = n.crop.height || m * i.naturalHeight / i.naturalWidth;
   else {
-    const b = Math.min(n.width / l.naturalWidth, n.height / l.naturalHeight);
-    g = l.naturalWidth * b, u = l.naturalHeight * b;
+    const y = Math.min(n.width / i.naturalWidth, n.height / i.naturalHeight);
+    m = i.naturalWidth * y, p = i.naturalHeight * y;
   }
-  return p.drawImage(l, (n.width - g) * (n.crop?.x ?? 50) / 100, (n.height - u) * (n.crop?.y ?? 50) / 100, g, u), c.toDataURL("image/png");
+  return d.drawImage(i, (n.width - m) * (n.crop?.x ?? 50) / 100, (n.height - p) * (n.crop?.y ?? 50) / 100, m, p), l.toDataURL("image/png");
 }
-async function xi(n, l) {
-  const c = await Mo(), i = new c();
-  i.defineLayout({ name: "CLIST", width: St(1280), height: St(720) }), i.layout = "CLIST", i.title = n.title, i.subject = "CList presentation", i.author = "", i.company = "", i.lang = "en-CA";
-  const p = /* @__PURE__ */ new Set();
-  for (const g of n.slides) {
-    const u = i.addSlide();
-    u.background = { color: cn(g.background) }, g.notes && u.addNotes(g.notes);
-    for (const b of g.objects) {
-      const E = { x: St(b.x), y: St(b.y), w: St(b.width), h: St(b.height), rotate: ((b.rotation || 0) % 360 + 360) % 360, objectName: b.id };
-      if (b.kind === "text") {
-        const f = b.format;
-        u.addText(b.runs.length ? b.runs : "", {
-          ...E,
-          ...Ao(b.style),
-          fontFace: mi[f.family],
-          fontSize: pt(f.size),
-          color: cn(f.colour),
-          align: f.align,
+async function Or(n, i) {
+  const l = await Do(), r = new l();
+  r.defineLayout({ name: "CLIST", width: Lt(1280), height: Lt(720) }), r.layout = "CLIST", r.title = n.title, r.subject = "CList presentation", r.author = "", r.company = "", r.lang = "en-CA";
+  const d = /* @__PURE__ */ new Set();
+  for (const m of n.slides) {
+    const p = r.addSlide();
+    p.background = { color: Ot(m.background) }, m.notes && p.addNotes(m.notes);
+    for (const y of m.objects) {
+      const x = { x: Lt(y.x), y: Lt(y.y), w: Lt(y.width), h: Lt(y.height), rotate: ((y.rotation || 0) % 360 + 360) % 360, objectName: y.id };
+      if (y.kind === "text") {
+        const h = y.format;
+        p.addText(y.runs.length ? y.runs : "", {
+          ...x,
+          ...Oo(y.style),
+          fontFace: Ro[h.family],
+          fontSize: at(h.size),
+          color: Ot(h.colour),
+          align: h.align,
           valign: "top",
-          margin: [pt(5), pt(8), pt(5), pt(8)],
+          margin: [at(5), at(8), at(5), at(8)],
           breakLine: !1,
           lineSpacingMultiple: 1.2,
           paraSpaceAfter: 6,
           wrap: !0,
           fit: "none"
         });
-      } else b.kind === "shape" && yi(u, b, E, i) || (b.kind === "shape" && p.add("Custom SVG shapes were exported as images."), u.addImage({ ...E, data: await wi(b), altText: b.alt || b.definition?.label || "" }));
+      } else y.kind === "shape" && Dr(p, y, x, r) || (y.kind === "shape" && d.add("Custom SVG shapes were exported as images."), p.addImage({ ...x, data: await Rr(y), altText: y.alt || y.definition?.label || "" }));
     }
   }
-  return { pptx: i, warnings: [...p] };
+  return { pptx: r, warnings: [...d] };
 }
-async function vi(n) {
-  const { pptx: l, warnings: c } = await xi(n), i = (n.title.replace(/[<>:"/\\|?*\u0000-\u001f]/g, "-").replace(/[. ]+$/, "").slice(0, 120) || "CList presentation") + ".pptx";
-  return await l.writeFile({ fileName: i, compression: !0 }), c;
+async function Br(n) {
+  const { pptx: i, warnings: l } = await Or(n), r = (n.title.replace(/[<>:"/\\|?*\u0000-\u001f]/g, "-").replace(/[. ]+$/, "").slice(0, 120) || "CList presentation") + ".pptx";
+  return await i.writeFile({ fileName: r, compression: !0 }), l;
 }
-const vo = "http://schemas.openxmlformats.org/presentationml/2006/main", An = "http://schemas.openxmlformats.org/officeDocument/2006/relationships", Q = (n, l) => [...n?.children || []].find((c) => c.localName === l), ft = (n, l) => [...n?.getElementsByTagNameNS("*", l) || []], ue = (n, l) => ft(n, l)[0], he = (n, l, c = 0) => n?.hasAttribute(l) ? Number(n.getAttribute(l)) : c, Ct = (n) => n === "1" || n === "true", yt = (n) => ue(n, "ph"), ki = (n, l, c) => ({ x: c[0] * n + c[2] * l + c[4], y: c[1] * n + c[3] * l + c[5] }), Ln = (n, l) => [n[0] * l[0] + n[2] * l[1], n[1] * l[0] + n[3] * l[1], n[0] * l[2] + n[2] * l[3], n[1] * l[2] + n[3] * l[3], n[0] * l[4] + n[2] * l[5] + n[4], n[1] * l[4] + n[3] * l[5] + n[5]], Nn = [1, 0, 0, 1, 0, 0], $e = (n) => n / 9525;
-function an(n, l) {
-  if (!l || /[\\?#]/.test(l) || /^[a-z]+:/i.test(l)) throw new Error("The presentation contains an invalid internal relationship.");
-  const c = l.startsWith("/") ? [] : n.split("/").slice(0, -1);
-  for (const i of decodeURIComponent(l).split("/"))
-    if (!(!i || i === "."))
-      if (i === "..") {
-        if (!c.length) throw new Error("A presentation relationship leaves the package.");
-        c.pop();
-      } else c.push(i);
-  return c.join("/");
+const Mo = "http://schemas.openxmlformats.org/presentationml/2006/main", Tn = "http://schemas.openxmlformats.org/officeDocument/2006/relationships", ne = (n, i) => [...n?.children || []].find((l) => l.localName === i), mt = (n, i) => [...n?.getElementsByTagNameNS("*", i) || []], me = (n, i) => mt(n, i)[0], ye = (n, i, l = 0) => n?.hasAttribute(i) ? Number(n.getAttribute(i)) : l, At = (n) => n === "1" || n === "true", vt = (n) => me(n, "ph"), qr = (n, i, l) => ({ x: l[0] * n + l[2] * i + l[4], y: l[1] * n + l[3] * i + l[5] }), In = (n, i) => [n[0] * i[0] + n[2] * i[1], n[1] * i[0] + n[3] * i[1], n[0] * i[2] + n[2] * i[3], n[1] * i[2] + n[3] * i[3], n[0] * i[4] + n[2] * i[5] + n[4], n[1] * i[4] + n[3] * i[5] + n[5]], Fn = [1, 0, 0, 1, 0, 0], Ye = (n) => n / 9525;
+function pn(n, i) {
+  if (!i || /[\\?#]/.test(i) || /^[a-z]+:/i.test(i)) throw new Error("The presentation contains an invalid internal relationship.");
+  const l = i.startsWith("/") ? [] : n.split("/").slice(0, -1);
+  for (const r of decodeURIComponent(i).split("/"))
+    if (!(!r || r === "."))
+      if (r === "..") {
+        if (!l.length) throw new Error("A presentation relationship leaves the package.");
+        l.pop();
+      } else l.push(r);
+  return l.join("/");
 }
-async function Ei(n, l = "Imported presentation.pptx") {
+async function Hr(n, i = "Imported presentation.pptx") {
   if (!(n instanceof ArrayBuffer || n instanceof Uint8Array) || n.byteLength > 100 * 1024 * 1024) throw new Error("Choose a .pptx file smaller than 100 MB.");
-  await Mo();
-  const c = await window.JSZip.loadAsync(n), i = Object.values(c.files);
-  if (i.length > 1e4 || i.reduce((Z, U) => Z + (U._data?.uncompressedSize || 0), 0) > 300 * 1024 * 1024) throw new Error("This presentation is too large to import in the browser.");
-  const p = /* @__PURE__ */ new Map(), g = /* @__PURE__ */ new Map(), u = /* @__PURE__ */ new Map(), b = /* @__PURE__ */ new Set();
-  let E = 0;
-  const f = (Z) => b.add((E ? "Slide " + E + ": " : "") + Z);
-  async function y(Z, U = !1) {
-    if (p.has(Z)) return p.get(Z);
-    const ee = c.file(Z);
-    if (!ee) {
-      if (U) throw new Error("The presentation is missing " + Z + ".");
+  await Do();
+  const l = await window.JSZip.loadAsync(n), r = Object.values(l.files);
+  if (r.length > 1e4 || r.reduce((oe, L) => oe + (L._data?.uncompressedSize || 0), 0) > 300 * 1024 * 1024) throw new Error("This presentation is too large to import in the browser.");
+  const d = /* @__PURE__ */ new Map(), m = /* @__PURE__ */ new Map(), p = /* @__PURE__ */ new Map(), y = /* @__PURE__ */ new Set();
+  let x = 0;
+  const h = (oe) => y.add((x ? "Slide " + x + ": " : "") + oe);
+  async function g(oe, L = !1) {
+    if (d.has(oe)) return d.get(oe);
+    const U = l.file(oe);
+    if (!U) {
+      if (L) throw new Error("The presentation is missing " + oe + ".");
       return null;
     }
-    if (ee._data?.uncompressedSize > 20 * 1024 * 1024) throw new Error("A presentation XML part is too large: " + Z);
-    const K = await ee.async("string");
-    if (/<!DOCTYPE|<!ENTITY/i.test(K)) throw new Error("XML document declarations are not supported in PowerPoint imports.");
-    const te = new DOMParser().parseFromString(K, "application/xml");
-    if (te.getElementsByTagName("parsererror").length) throw new Error("The presentation contains invalid XML: " + Z);
-    return p.set(Z, te), te;
+    if (U._data?.uncompressedSize > 20 * 1024 * 1024) throw new Error("A presentation XML part is too large: " + oe);
+    const G = await U.async("string");
+    if (/<!DOCTYPE|<!ENTITY/i.test(G)) throw new Error("XML document declarations are not supported in PowerPoint imports.");
+    const J = new DOMParser().parseFromString(G, "application/xml");
+    if (J.getElementsByTagName("parsererror").length) throw new Error("The presentation contains invalid XML: " + oe);
+    return d.set(oe, J), J;
   }
-  async function A(Z) {
-    if (g.has(Z)) return g.get(Z);
-    const U = Z.split("/"), ee = U.pop(), K = await y([...U, "_rels", ee + ".rels"].join("/")), te = new Map(ft(K, "Relationship").map((Y) => [Y.getAttribute("Id"), {
-      type: Y.getAttribute("Type").split("/").pop(),
-      external: Y.getAttribute("TargetMode") === "External",
-      target: Y.getAttribute("Target")
+  async function S(oe) {
+    if (m.has(oe)) return m.get(oe);
+    const L = oe.split("/"), U = L.pop(), G = await g([...L, "_rels", U + ".rels"].join("/")), J = new Map(mt(G, "Relationship").map((K) => [K.getAttribute("Id"), {
+      type: K.getAttribute("Type").split("/").pop(),
+      external: K.getAttribute("TargetMode") === "External",
+      target: K.getAttribute("Target")
     }]));
-    return g.set(Z, te), te;
+    return m.set(oe, J), J;
   }
-  async function w(Z, U) {
-    const ee = [...(await A(Z)).values()].find((te) => te.type === U && !te.external), K = ee && an(Z, ee.target);
-    return K ? { path: K, doc: await y(K, !0) } : null;
+  async function b(oe, L) {
+    const U = [...(await S(oe)).values()].find((J) => J.type === L && !J.external), G = U && pn(oe, U.target);
+    return G ? { path: G, doc: await g(G, !0) } : null;
   }
-  const h = [...(await A("")).values()].find((Z) => Z.type === "officeDocument" && !Z.external), k = h ? an("", h.target) : "ppt/presentation.xml", L = await y(k, !0);
-  if (L.documentElement.namespaceURI !== vo) throw new Error("This PowerPoint XML format is not supported. Save it as a standard .pptx file first.");
-  const a = ue(L, "sldSz"), R = $e(he(a, "cx")), F = $e(he(a, "cy"));
-  if (!(R > 0 && F > 0)) throw new Error("The presentation has invalid slide dimensions.");
-  const P = Math.min(1280 / R, 720 / F), v = (1280 - R * P) / 2, ne = (720 - F * P) / 2;
-  Math.abs(R / F - 16 / 9) > 0.01 && f("Slides were fitted and centred on CList’s 16:9 canvas.");
-  const _ = [...Q(L.documentElement, "sldIdLst")?.children || []];
-  if (!_.length || _.length > 500) throw new Error("Import supports presentations containing 1–500 slides.");
-  ue(L, "custShowLst") && f("Custom slide shows were not imported.");
-  const M = [], q = await A(k);
-  for (const Z of _) {
-    let me = function(N, W = "#000000") {
-      if (!N) return W;
-      const C = N.localName === "srgbClr" || N.localName === "schemeClr" || N.localName === "sysClr" ? N : [...N.children || []].find((G) => ["srgbClr", "schemeClr", "sysClr", "prstClr"].includes(G.localName));
-      if (!C)
-        return f("An unsupported colour was replaced."), W;
-      let T = C.localName === "schemeClr" ? re[O[C.getAttribute("val")] || C.getAttribute("val")] : C.localName === "sysClr" ? C.getAttribute("lastClr") : C.getAttribute("val");
-      if (!/^[a-f0-9]{6}$/i.test(T || ""))
-        return f("An unsupported colour was replaced."), W;
-      let $ = [0, 2, 4].map((G) => parseInt(T.slice(G, G + 2), 16));
-      for (const G of C.children) {
-        const oe = he(G, "val") / 1e5;
-        G.localName === "tint" ? $ = $.map((ye) => ye + (255 - ye) * oe) : ["shade", "lumMod"].includes(G.localName) ? $ = $.map((ye) => ye * oe) : G.localName === "lumOff" ? $ = $.map((ye) => ye + 255 * oe) : G.localName === "alpha" && oe !== 1 && oe !== 0 ? f("Transparency was simplified; image transparency is preserved.") : ["alpha"].includes(G.localName) || f("Some theme colour adjustments were simplified.");
+  const f = [...(await S("")).values()].find((oe) => oe.type === "officeDocument" && !oe.external), E = f ? pn("", f.target) : "ppt/presentation.xml", A = await g(E, !0);
+  if (A.documentElement.namespaceURI !== Mo) throw new Error("This PowerPoint XML format is not supported. Save it as a standard .pptx file first.");
+  const s = me(A, "sldSz"), F = Ye(ye(s, "cx")), T = Ye(ye(s, "cy"));
+  if (!(F > 0 && T > 0)) throw new Error("The presentation has invalid slide dimensions.");
+  const z = Math.min(1280 / F, 720 / T), C = (1280 - F * z) / 2, _ = (720 - T * z) / 2;
+  Math.abs(F / T - 16 / 9) > 0.01 && h("Slides were fitted and centred on CList’s 16:9 canvas.");
+  const q = [...ne(A.documentElement, "sldIdLst")?.children || []];
+  if (!q.length || q.length > 500) throw new Error("Import supports presentations containing 1–500 slides.");
+  me(A, "custShowLst") && h("Custom slide shows were not imported.");
+  const ee = [], se = await S(E);
+  for (const oe of q) {
+    let Ne = function(j, V = "#000000") {
+      if (!j) return V;
+      const W = j.localName === "srgbClr" || j.localName === "schemeClr" || j.localName === "sysClr" ? j : [...j.children || []].find((Y) => ["srgbClr", "schemeClr", "sysClr", "prstClr"].includes(Y.localName));
+      if (!W)
+        return h("An unsupported colour was replaced."), V;
+      let te = W.localName === "schemeClr" ? ue[Le[W.getAttribute("val")] || W.getAttribute("val")] : W.localName === "sysClr" ? W.getAttribute("lastClr") : W.getAttribute("val");
+      if (!/^[a-f0-9]{6}$/i.test(te || ""))
+        return h("An unsupported colour was replaced."), V;
+      let Q = [0, 2, 4].map((Y) => parseInt(te.slice(Y, Y + 2), 16));
+      for (const Y of W.children) {
+        const I = ye(Y, "val") / 1e5;
+        Y.localName === "tint" ? Q = Q.map((B) => B + (255 - B) * I) : ["shade", "lumMod"].includes(Y.localName) ? Q = Q.map((B) => B * I) : Y.localName === "lumOff" ? Q = Q.map((B) => B + 255 * I) : Y.localName === "alpha" && I !== 1 && I !== 0 ? h("Transparency was simplified; image transparency is preserved.") : ["alpha"].includes(Y.localName) || h("Some theme colour adjustments were simplified.");
       }
-      return "#" + $.map((G) => Math.round(Math.max(0, Math.min(255, G))).toString(16).padStart(2, "0")).join("");
-    }, Ce = function(N, W) {
-      const C = yt(N);
-      if (!C || !W) return null;
-      const T = ft(W, "sp").filter(($) => yt($));
-      return T.find(($) => (yt($).getAttribute("idx") || "0") === (C.getAttribute("idx") || "0")) || T.find(($) => (yt($).getAttribute("type") || "obj") === (C.getAttribute("type") || "obj"));
-    }, Ie = function(N) {
-      const W = Ce(N, te?.doc);
-      return [N, W, Ce(W || N, Y?.doc)].filter(Boolean);
-    }, X = function(N) {
-      const W = N.map((ae) => Q(ae, "spPr")).filter(Boolean), C = W.map((ae) => [...ae.children].find((Ee) => ["solidFill", "noFill", "gradFill", "pattFill", "blipFill", "grpFill"].includes(Ee.localName))).find(Boolean);
-      C && !["solidFill", "noFill"].includes(C.localName) && f("A non-solid shape fill was simplified.");
-      const T = N.map((ae) => ue(Q(ae, "style"), "fillRef")).find(Boolean), $ = W.map((ae) => Q(ae, "ln")).find(Boolean), G = N.map((ae) => ue(Q(ae, "style"), "lnRef")).find(Boolean), oe = me(C?.localName === "solidFill" ? C : T, "#51b158"), ye = me(Q($, "solidFill") || G, "#000000"), Ne = $e(he($, "w", 12700)) * P;
-      return Q($, "prstDash")?.getAttribute("val") && Q($, "prstDash").getAttribute("val") !== "solid" && f("Dashed shape borders were imported as solid lines."), (Q($, "headEnd")?.getAttribute("type") !== void 0 && Q($, "headEnd").getAttribute("type") !== "none" || Q($, "tailEnd")?.getAttribute("type") !== void 0 && Q($, "tailEnd").getAttribute("type") !== "none") && f("Line arrowheads were not imported."), {
-        fillEnabled: C ? C.localName !== "noFill" && !ft(C, "alpha").some((ae) => he(ae, "val") === 0) : !!T && he(T, "idx") !== 0,
-        fillColour: oe,
-        borderEnabled: $ ? !Q($, "noFill") && !ft($, "alpha").some((ae) => he(ae, "val") === 0) : !!G && he(G, "idx") !== 0,
-        borderColour: ye,
-        borderWidth: Math.max(1, Math.min(20, Ne))
+      return "#" + Q.map((Y) => Math.round(Math.max(0, Math.min(255, Y))).toString(16).padStart(2, "0")).join("");
+    }, ke = function(j, V) {
+      const W = vt(j);
+      if (!W || !V) return null;
+      const te = mt(V, "sp").filter((Q) => vt(Q));
+      return te.find((Q) => (vt(Q).getAttribute("idx") || "0") === (W.getAttribute("idx") || "0")) || te.find((Q) => (vt(Q).getAttribute("type") || "obj") === (W.getAttribute("type") || "obj"));
+    }, H = function(j) {
+      const V = ke(j, J?.doc);
+      return [j, V, ke(V || j, K?.doc)].filter(Boolean);
+    }, Ce = function(j) {
+      const V = j.map((pe) => ne(pe, "spPr")).filter(Boolean), W = V.map((pe) => [...pe.children].find((fe) => ["solidFill", "noFill", "gradFill", "pattFill", "blipFill", "grpFill"].includes(fe.localName))).find(Boolean);
+      W && !["solidFill", "noFill"].includes(W.localName) && h("A non-solid shape fill was simplified.");
+      const te = j.map((pe) => me(ne(pe, "style"), "fillRef")).find(Boolean), Q = V.map((pe) => ne(pe, "ln")).find(Boolean), Y = j.map((pe) => me(ne(pe, "style"), "lnRef")).find(Boolean), I = Ne(W?.localName === "solidFill" ? W : te, "#51b158"), B = Ne(ne(Q, "solidFill") || Y, "#000000"), Ae = Ye(ye(Q, "w", 12700)) * z;
+      return ne(Q, "prstDash")?.getAttribute("val") && ne(Q, "prstDash").getAttribute("val") !== "solid" && h("Dashed shape borders were imported as solid lines."), (ne(Q, "headEnd")?.getAttribute("type") !== void 0 && ne(Q, "headEnd").getAttribute("type") !== "none" || ne(Q, "tailEnd")?.getAttribute("type") !== void 0 && ne(Q, "tailEnd").getAttribute("type") !== "none") && h("Line arrowheads were not imported."), {
+        fillEnabled: W ? W.localName !== "noFill" && !mt(W, "alpha").some((pe) => ye(pe, "val") === 0) : !!te && ye(te, "idx") !== 0,
+        fillColour: I,
+        borderEnabled: Q ? !ne(Q, "noFill") && !mt(Q, "alpha").some((pe) => ye(pe, "val") === 0) : !!Y && ye(Y, "idx") !== 0,
+        borderColour: B,
+        borderWidth: Math.max(1, Math.min(20, Ae))
       };
-    }, Qe = function(N, W, C = [N]) {
-      const T = C.map((z) => Q(Q(z, "spPr"), "xfrm")).find(Boolean);
-      if (!T)
-        return f("An object without a usable position was skipped."), null;
-      const $ = Q(T, "off"), G = Q(T, "ext"), oe = $e(he($, "x")), ye = $e(he($, "y")), Ne = $e(he(G, "cx")), ae = $e(he(G, "cy"));
-      if (![oe, ye, Ne, ae].every(Number.isFinite) || Ne < 0 || ae < 0) throw new Error("Slide " + E + " contains an invalid object position.");
-      const Ee = he(T, "rot") / 6e4 * Math.PI / 180, de = [Math.cos(Ee), Math.sin(Ee), -Math.sin(Ee), Math.cos(Ee), 0, 0], ge = Ln(W, de), Me = ki(oe + Ne / 2, ye + ae / 2, W), D = Math.max(1, Ne * Math.hypot(ge[0], ge[1]) * P), se = Math.max(1, ae * Math.hypot(ge[2], ge[3]) * P);
-      return Math.abs(ge[0] * ge[2] + ge[1] * ge[3]) > 1e-3 && f("A rotated object in a stretched group was approximated."), {
-        x: Me.x * P + v - D / 2,
-        y: Me.y * P + ne - se / 2,
-        width: D,
-        height: se,
-        rotation: Math.atan2(ge[1], ge[0]) * 180 / Math.PI,
-        flipH: Ct(T.getAttribute("flipH")) !== W[0] * W[3] - W[1] * W[2] < 0,
-        flipV: Ct(T.getAttribute("flipV"))
+    }, ot = function(j, V, W = [j]) {
+      const te = W.map((de) => ne(ne(de, "spPr"), "xfrm")).find(Boolean);
+      if (!te)
+        return h("An object without a usable position was skipped."), null;
+      const Q = ne(te, "off"), Y = ne(te, "ext"), I = Ye(ye(Q, "x")), B = Ye(ye(Q, "y")), Ae = Ye(ye(Y, "cx")), pe = Ye(ye(Y, "cy"));
+      if (![I, B, Ae, pe].every(Number.isFinite) || Ae < 0 || pe < 0) throw new Error("Slide " + x + " contains an invalid object position.");
+      const fe = ye(te, "rot") / 6e4 * Math.PI / 180, je = [Math.cos(fe), Math.sin(fe), -Math.sin(fe), Math.cos(fe), 0, 0], ve = In(V, je), Pe = qr(I + Ae / 2, B + pe / 2, V), ie = Math.max(1, Ae * Math.hypot(ve[0], ve[1]) * z), re = Math.max(1, pe * Math.hypot(ve[2], ve[3]) * z);
+      return Math.abs(ve[0] * ve[2] + ve[1] * ve[3]) > 1e-3 && h("A rotated object in a stretched group was approximated."), {
+        x: Pe.x * z + C - ie / 2,
+        y: Pe.y * z + _ - re / 2,
+        width: ie,
+        height: re,
+        rotation: Math.atan2(ve[1], ve[0]) * 180 / Math.PI,
+        flipH: At(te.getAttribute("flipH")) !== V[0] * V[3] - V[1] * V[2] < 0,
+        flipV: At(te.getAttribute("flipV"))
       };
-    }, Ke = function(N, W, C, T) {
-      const $ = Q(N, "txBody");
-      if (!$) return null;
-      const G = yt(N)?.getAttribute("type") || "body", oe = ue(Y?.doc, "txStyles"), ye = Q(oe, ["title", "ctrTitle"].includes(G) ? "titleStyle" : ["body", "obj"].includes(G) ? "bodyStyle" : "otherStyle"), Ne = (se) => ue(ue(pe?.doc, se === "major" ? "majorFont" : "minorFont"), "latin")?.getAttribute("typeface") || "Arial";
-      let ae = null;
-      const Ee = { arial: "arial", "arial narrow": "arial", calibri: "system", aptos: "system", "aptos display": "system", "times new roman": "times", verdana: "verdana", georgia: "georgia", "courier new": "courier" }, de = [], ge = Q($, "bodyPr");
-      ge?.getAttribute("vert") && ge.getAttribute("vert") !== "horz" && f("Vertical text was imported horizontally."), ge?.getAttribute("anchor") && ge.getAttribute("anchor") !== "t" && f("Vertically aligned text was moved to the top of its text box."), (C.flipH || C.flipV) && f("Mirrored text was imported without mirroring."), ["lIns", "rIns", "tIns", "bIns"].some((se, z) => ge?.hasAttribute(se) && Math.abs($e(he(ge, se)) * P - (z < 2 ? 8 : 5)) > 1) && f("Text box padding was replaced with CList’s standard padding.");
-      for (const se of [...$.children].filter((z) => z.localName === "p")) {
-        const z = Q(se, "pPr"), Ae = Math.max(0, Math.min(8, he(z, "lvl"))), Se = W.map((Pe) => Q(ue(Pe, "lstStyle"), "lvl" + (Ae + 1) + "pPr")).filter(Boolean), Ge = [Q(z, "defRPr"), ...Se.map((Pe) => Q(Pe, "defRPr")), Q(Q(ye, "lvl" + (Ae + 1) + "pPr"), "defRPr")].filter(Boolean), it = [z, ...Se, Q(ye, "lvl" + (Ae + 1) + "pPr")].filter(Boolean), ht = it.map((Pe) => Pe.getAttribute("algn")).find(Boolean) || "l", rt = { l: "left", ctr: "center", r: "right", just: "justify" }[ht] || "left";
-        ["l", "ctr", "r", "just"].includes(ht) || f("An unsupported paragraph alignment was replaced with left alignment."), z && (he(z, "marL") || he(z, "marR") || he(z, "indent") || Q(z, "tabLst") || Q(z, "spcBef") || Q(z, "lnSpc") || Q(z, "spcAft")) && f("Paragraph spacing, indents or tab stops were replaced with CList’s standard text layout.");
-        const at = [];
-        for (const Pe of se.children) {
-          if (Pe.localName === "br") {
-            at.push({ type: "hardBreak" });
+    }, Z = function(j, V, W, te) {
+      const Q = ne(j, "txBody");
+      if (!Q) return null;
+      const Y = vt(j)?.getAttribute("type") || "body", I = me(K?.doc, "txStyles"), B = ne(I, ["title", "ctrTitle"].includes(Y) ? "titleStyle" : ["body", "obj"].includes(Y) ? "bodyStyle" : "otherStyle"), Ae = (re) => me(me(le?.doc, re === "major" ? "majorFont" : "minorFont"), "latin")?.getAttribute("typeface") || "Arial";
+      let pe = null;
+      const fe = { arial: "arial", "arial narrow": "arial", calibri: "system", aptos: "system", "aptos display": "system", "times new roman": "times", verdana: "verdana", georgia: "georgia", "courier new": "courier" }, je = [], ve = ne(Q, "bodyPr");
+      ve?.getAttribute("vert") && ve.getAttribute("vert") !== "horz" && h("Vertical text was imported horizontally."), ve?.getAttribute("anchor") && ve.getAttribute("anchor") !== "t" && h("Vertically aligned text was moved to the top of its text box."), (W.flipH || W.flipV) && h("Mirrored text was imported without mirroring."), ["lIns", "rIns", "tIns", "bIns"].some((re, de) => ve?.hasAttribute(re) && Math.abs(Ye(ye(ve, re)) * z - (de < 2 ? 8 : 5)) > 1) && h("Text box padding was replaced with CList’s standard padding.");
+      for (const re of [...Q.children].filter((de) => de.localName === "p")) {
+        const de = ne(re, "pPr"), Me = Math.max(0, Math.min(8, ye(de, "lvl"))), qe = V.map((Ie) => ne(me(Ie, "lstStyle"), "lvl" + (Me + 1) + "pPr")).filter(Boolean), D = [ne(de, "defRPr"), ...qe.map((Ie) => ne(Ie, "defRPr")), ne(ne(B, "lvl" + (Me + 1) + "pPr"), "defRPr")].filter(Boolean), rt = [de, ...qe, ne(B, "lvl" + (Me + 1) + "pPr")].filter(Boolean), R = rt.map((Ie) => Ie.getAttribute("algn")).find(Boolean) || "l", gt = { l: "left", ctr: "center", r: "right", just: "justify" }[R] || "left";
+        ["l", "ctr", "r", "just"].includes(R) || h("An unsupported paragraph alignment was replaced with left alignment."), de && (ye(de, "marL") || ye(de, "marR") || ye(de, "indent") || ne(de, "tabLst") || ne(de, "spcBef") || ne(de, "lnSpc") || ne(de, "spcAft")) && h("Paragraph spacing, indents or tab stops were replaced with CList’s standard text layout.");
+        const $e = [];
+        for (const Ie of re.children) {
+          if (Ie.localName === "br") {
+            $e.push({ type: "hardBreak" });
             continue;
           }
-          if (!["r", "fld"].includes(Pe.localName)) continue;
-          Pe.localName === "fld" && f("Dynamic text fields were converted to plain text.");
-          const st = Q(Pe, "t")?.textContent || "";
+          if (!["r", "fld"].includes(Ie.localName)) continue;
+          Ie.localName === "fld" && h("Dynamic text fields were converted to plain text.");
+          const st = ne(Ie, "t")?.textContent || "";
           if (!st) continue;
-          const Ye = [Q(Pe, "rPr"), ...Ge].filter(Boolean), Be = (Xe, xt) => Ye.find((lt) => lt.hasAttribute(Xe))?.getAttribute(Xe) ?? xt;
-          let Ue = Ye.map((Xe) => Q(Xe, "latin")?.getAttribute("typeface")).find(Boolean) || "+mn-lt";
-          /^\+mj/.test(Ue) && (Ue = Ne("major")), /^\+mn/.test(Ue) && (Ue = Ne("minor"));
-          const J = Ee[Ue.toLowerCase()] || "arial";
-          (!Ee[Ue.toLowerCase()] || J === "system") && f("Font “" + Ue + "” was replaced with a CList font.");
-          const qe = Number(Be("sz", 2400)) / 100 / 0.75 * P;
-          if (!Number.isFinite(qe) || qe <= 0) throw new Error("Slide " + E + " has an invalid text size.");
-          const gt = { fontSize: Math.max(8, Math.min(200, qe)), fontFamily: J, textColour: me(Ye.map((Xe) => Q(Xe, "solidFill")).find(Boolean), "#000000"), textAlign: rt };
-          ae ? JSON.stringify(ae) !== JSON.stringify(gt) && f("Mixed font sizes, fonts, colours or alignment within a text box were simplified to its first text style.") : ae = gt, (qe < 8 || qe > 200) && f("A text size was adjusted to CList’s 8–200 pixel range.");
-          const We = [];
-          Ct(Be("b", "0")) && We.push({ type: "bold" }), Ct(Be("i", "0")) && We.push({ type: "italic" }), Be("u", "none") !== "none" && We.push({ type: "underline" }), Be("strike", "noStrike") !== "noStrike" && We.push({ type: "strike" }), Number(Be("baseline", 0)) && f("Superscript or subscript text was imported on the baseline.");
-          const Tt = Ye.map((Xe) => Q(Xe, "hlinkClick")).find(Boolean);
-          if (Tt) {
-            const Xe = T.get(Tt.getAttributeNS(An, "id"));
-            Xe?.external && /^(https?:|mailto:|tel:)/i.test(Xe.target) ? We.push({ type: "link", attrs: { href: Xe.target } }) : f("An internal or unsupported hyperlink was removed.");
+          const Ke = [ne(Ie, "rPr"), ...D].filter(Boolean), Ge = (X, kt) => Ke.find((Bt) => Bt.hasAttribute(X))?.getAttribute(X) ?? kt;
+          let Je = Ke.map((X) => ne(X, "latin")?.getAttribute("typeface")).find(Boolean) || "+mn-lt";
+          /^\+mj/.test(Je) && (Je = Ae("major")), /^\+mn/.test(Je) && (Je = Ae("minor"));
+          const ft = fe[Je.toLowerCase()] || "arial";
+          (!fe[Je.toLowerCase()] || ft === "system") && h("Font “" + Je + "” was replaced with a CList font.");
+          const it = Number(Ge("sz", 2400)) / 100 / 0.75 * z;
+          if (!Number.isFinite(it) || it <= 0) throw new Error("Slide " + x + " has an invalid text size.");
+          const lt = { fontSize: Math.max(8, Math.min(200, it)), fontFamily: ft, textColour: Ne(Ke.map((X) => ne(X, "solidFill")).find(Boolean), "#000000"), textAlign: gt };
+          pe ? JSON.stringify(pe) !== JSON.stringify(lt) && h("Mixed font sizes, fonts, colours or alignment within a text box were simplified to its first text style.") : pe = lt, (it < 8 || it > 200) && h("A text size was adjusted to CList’s 8–200 pixel range.");
+          const et = [];
+          At(Ge("b", "0")) && et.push({ type: "bold" }), At(Ge("i", "0")) && et.push({ type: "italic" }), Ge("u", "none") !== "none" && et.push({ type: "underline" }), Ge("strike", "noStrike") !== "noStrike" && et.push({ type: "strike" }), Number(Ge("baseline", 0)) && h("Superscript or subscript text was imported on the baseline.");
+          const jt = Ke.map((X) => ne(X, "hlinkClick")).find(Boolean);
+          if (jt) {
+            const X = te.get(jt.getAttributeNS(Tn, "id"));
+            X?.external && /^(https?:|mailto:|tel:)/i.test(X.target) ? et.push({ type: "link", attrs: { href: X.target } }) : h("An internal or unsupported hyperlink was removed.");
           }
-          at.push({ type: "text", text: st, marks: We });
+          $e.push({ type: "text", text: st, marks: et });
         }
-        const Je = it.map((Pe) => [...Pe.children].find((st) => ["buNone", "buChar", "buAutoNum", "buBlip"].includes(st.localName))).find(Boolean);
-        Je?.localName === "buBlip" && f("Picture bullets were replaced with standard bullets."), Je?.localName === "buAutoNum" && Je.getAttribute("type") !== "arabicPeriod" && f("A numbering style was replaced with decimal numbering."), de.push({ type: "paragraph", content: at, list: Je && Je.localName !== "buNone" ? { type: Je.localName === "buAutoNum" ? "orderedList" : "bulletList", level: Ae, start: he(Je, "startAt", 1) } : null });
+        const _e = rt.map((Ie) => [...Ie.children].find((st) => ["buNone", "buChar", "buAutoNum", "buBlip"].includes(st.localName))).find(Boolean);
+        _e?.localName === "buBlip" && h("Picture bullets were replaced with standard bullets."), _e?.localName === "buAutoNum" && _e.getAttribute("type") !== "arabicPeriod" && h("A numbering style was replaced with decimal numbering."), je.push({ type: "paragraph", content: $e, list: _e && _e.localName !== "buNone" ? { type: _e.localName === "buAutoNum" ? "orderedList" : "bulletList", level: Me, start: ye(_e, "startAt", 1) } : null });
       }
-      const Me = [], D = [];
-      for (const se of de) {
-        const { list: z, ...Ae } = se;
-        if (!z) {
-          D.length = 0, Me.push(Ae);
+      const Pe = [], ie = [];
+      for (const re of je) {
+        const { list: de, ...Me } = re;
+        if (!de) {
+          ie.length = 0, Pe.push(Me);
           continue;
         }
-        const Se = Math.min(z.level, D.length);
-        if (D.length = Math.min(D.length, Se + 1), !D[Se] || D[Se].type !== z.type) {
-          const Ge = { type: z.type, ...z.type === "orderedList" ? { attrs: { start: z.start } } : {}, content: [] };
-          Se && D[Se - 1]?.content.length ? D[Se - 1].content.at(-1).content.push(Ge) : Me.push(Ge), D[Se] = Ge;
+        const qe = Math.min(de.level, ie.length);
+        if (ie.length = Math.min(ie.length, qe + 1), !ie[qe] || ie[qe].type !== de.type) {
+          const D = { type: de.type, ...de.type === "orderedList" ? { attrs: { start: de.start } } : {}, content: [] };
+          qe && ie[qe - 1]?.content.length ? ie[qe - 1].content.at(-1).content.push(D) : Pe.push(D), ie[qe] = D;
         }
-        D[Se].content.push({ type: "listItem", content: [Ae] });
+        ie[qe].content.push({ type: "listItem", content: [Me] });
       }
-      return { kind: "text", ...ae || { fontSize: 32, fontFamily: "arial", textColour: "#000000", textAlign: "left" }, text: Me };
-    }, le = function(N, W) {
-      const C = W.map((oe) => Q(oe, "spPr")).find((oe) => Q(oe, "prstGeom") || Q(oe, "custGeom")) || Q(N, "spPr"), T = Q(C, "prstGeom"), $ = T?.getAttribute("prst") || (N.localName === "cxnSp" ? "line" : "rect");
-      if (Q(C, "custGeom"))
-        return f("A custom vector shape was skipped."), null;
-      ue(T, "gd") && f("Custom adjustments to a preset shape were simplified.");
-      const G = {
+      return { kind: "text", ...pe || { fontSize: 32, fontFamily: "arial", textColour: "#000000", textAlign: "left" }, text: Pe };
+    }, ge = function(j, V) {
+      const W = V.map((I) => ne(I, "spPr")).find((I) => ne(I, "prstGeom") || ne(I, "custGeom")) || ne(j, "spPr"), te = ne(W, "prstGeom"), Q = te?.getAttribute("prst") || (j.localName === "cxnSp" ? "line" : "rect");
+      if (ne(W, "custGeom"))
+        return h("A custom vector shape was skipped."), null;
+      me(te, "gd") && h("Custom adjustments to a preset shape were simplified.");
+      const Y = {
         rect: { tag: "rect", attributes: { x: 0, y: 0, width: 1e3, height: 1e3 } },
         ellipse: { tag: "ellipse", attributes: { cx: 500, cy: 500, rx: 500, ry: 500 } },
         roundRect: { tag: "rect", attributes: { x: 0, y: 0, width: 1e3, height: 1e3, rx: 160, ry: 160 } },
@@ -1214,343 +1453,344 @@ async function Ei(n, l = "Imported presentation.pptx") {
         parallelogram: { tag: "polygon", attributes: { points: "250,0 1000,0 750,1000 0,1000" } },
         hexagon: { tag: "polygon", attributes: { points: "250,0 750,0 1000,500 750,1000 250,1000 0,500" } }
       };
-      return G[$] ? { id: "pptx-" + $.toLowerCase(), label: $, width: 100, height: 100, defaults: {}, viewBox: [0, 0, 1e3, 1e3], elements: [G[$]] } : (f("Unsupported shape “" + $ + "” was skipped; any text was retained."), null);
+      return Y[Q] ? { id: "pptx-" + Q.toLowerCase(), label: Q, width: 100, height: 100, defaults: {}, viewBox: [0, 0, 1e3, 1e3], elements: [Y[Q]] } : (h("Unsupported shape “" + Q + "” was skipped; any text was retained."), null);
     };
-    E++;
-    const U = q.get(Z.getAttributeNS(An, "id"));
-    if (!U || U.external || U.type !== "slide") throw new Error("Slide " + E + " has no valid slide relationship.");
-    const ee = an(k, U.target), K = await y(ee, !0), te = await w(ee, "slideLayout"), Y = te && await w(te.path, "slideMaster"), pe = Y && await w(Y.path, "theme"), re = { dk1: "000000", lt1: "FFFFFF", dk2: "1F497D", lt2: "EEECE1", accent1: "4F81BD", accent2: "C0504D", hlink: "0000FF", folHlink: "800080" };
-    for (const N of ue(pe?.doc, "clrScheme")?.children || []) re[N.localName] = N.firstElementChild?.getAttribute("lastClr") || N.firstElementChild?.getAttribute("val") || re[N.localName];
-    const O = { bg1: "lt1", tx1: "dk1", bg2: "lt2", tx2: "dk2" };
-    for (const N of [ue(Y?.doc, "clrMap"), ue(te?.doc, "overrideClrMapping"), ue(K, "overrideClrMapping")]) for (const W of N?.attributes || []) O[W.name] = W.value;
-    async function Ve(N, W, C) {
-      const T = Q(N, "blip"), $ = (await A(W)).get(T?.getAttributeNS(An, "embed"));
-      if (!$ || $.external || $.type !== "image")
-        return f("A linked or missing picture was skipped; no external images were fetched."), null;
-      const G = an(W, $.target), oe = G.split(".").pop().toLowerCase(), ye = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp" }[oe];
-      if (!ye)
-        return f("A picture in unsupported format ." + oe + " was skipped."), null;
-      if (!u.has(G)) {
-        const se = c.file(G);
-        if (!se) throw new Error("A presentation picture is missing: " + G);
-        u.set(G, "data:" + ye + ";base64," + await se.async("base64"));
+    x++;
+    const L = se.get(oe.getAttributeNS(Tn, "id"));
+    if (!L || L.external || L.type !== "slide") throw new Error("Slide " + x + " has no valid slide relationship.");
+    const U = pn(E, L.target), G = await g(U, !0), J = await b(U, "slideLayout"), K = J && await b(J.path, "slideMaster"), le = K && await b(K.path, "theme"), ue = { dk1: "000000", lt1: "FFFFFF", dk2: "1F497D", lt2: "EEECE1", accent1: "4F81BD", accent2: "C0504D", hlink: "0000FF", folHlink: "800080" };
+    for (const j of me(le?.doc, "clrScheme")?.children || []) ue[j.localName] = j.firstElementChild?.getAttribute("lastClr") || j.firstElementChild?.getAttribute("val") || ue[j.localName];
+    const Le = { bg1: "lt1", tx1: "dk1", bg2: "lt2", tx2: "dk2" };
+    for (const j of [me(K?.doc, "clrMap"), me(J?.doc, "overrideClrMapping"), me(G, "overrideClrMapping")]) for (const V of j?.attributes || []) Le[V.name] = V.value;
+    async function We(j, V, W) {
+      const te = ne(j, "blip"), Q = (await S(V)).get(te?.getAttributeNS(Tn, "embed"));
+      if (!Q || Q.external || Q.type !== "image")
+        return h("A linked or missing picture was skipped; no external images were fetched."), null;
+      const Y = pn(V, Q.target), I = Y.split(".").pop().toLowerCase(), B = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp" }[I];
+      if (!B)
+        return h("A picture in unsupported format ." + I + " was skipped."), null;
+      if (!p.has(Y)) {
+        const re = l.file(Y);
+        if (!re) throw new Error("A presentation picture is missing: " + Y);
+        p.set(Y, "data:" + B + ";base64," + await re.async("base64"));
       }
-      let Ne = u.get(G);
-      const ae = new Image();
-      await new Promise((se, z) => {
-        ae.onload = se, ae.onerror = () => z(new Error("Slide " + E + " contains an image the browser could not read.")), ae.src = Ne;
+      let Ae = p.get(Y);
+      const pe = new Image();
+      await new Promise((re, de) => {
+        pe.onload = re, pe.onerror = () => de(new Error("Slide " + x + " contains an image the browser could not read.")), pe.src = Ae;
       });
-      const Ee = Q(N, "srcRect"), de = he(Ee, "l") / 1e5, ge = he(Ee, "t") / 1e5, Me = he(Ee, "r") / 1e5, D = he(Ee, "b") / 1e5;
-      if (de + Me >= 1 || ge + D >= 1 || ![de, ge, Me, D].every(Number.isFinite)) throw new Error("Slide " + E + " contains invalid image cropping.");
-      if (de || ge || Me || D || C.flipH || C.flipV || Math.abs(ae.naturalWidth / ae.naturalHeight - C.width / C.height) > 1e-3) {
-        const se = document.createElement("canvas"), z = Math.min(2, 4096 / Math.max(C.width, C.height));
-        se.width = Math.max(1, Math.round(C.width * z)), se.height = Math.max(1, Math.round(C.height * z));
-        const Ae = se.getContext("2d");
-        if (!Ae) throw new Error("The browser could not prepare an imported image.");
-        Ae.translate(C.flipH ? se.width : 0, C.flipV ? se.height : 0), Ae.scale(C.flipH ? -1 : 1, C.flipV ? -1 : 1), Ae.drawImage(ae, de * ae.naturalWidth, ge * ae.naturalHeight, (1 - de - Me) * ae.naturalWidth, (1 - ge - D) * ae.naturalHeight, 0, 0, se.width, se.height), Ne = se.toDataURL("image/png");
+      const fe = ne(j, "srcRect"), je = ye(fe, "l") / 1e5, ve = ye(fe, "t") / 1e5, Pe = ye(fe, "r") / 1e5, ie = ye(fe, "b") / 1e5;
+      if (je + Pe >= 1 || ve + ie >= 1 || ![je, ve, Pe, ie].every(Number.isFinite)) throw new Error("Slide " + x + " contains invalid image cropping.");
+      if (je || ve || Pe || ie || W.flipH || W.flipV || Math.abs(pe.naturalWidth / pe.naturalHeight - W.width / W.height) > 1e-3) {
+        const re = document.createElement("canvas"), de = Math.min(2, 4096 / Math.max(W.width, W.height));
+        re.width = Math.max(1, Math.round(W.width * de)), re.height = Math.max(1, Math.round(W.height * de));
+        const Me = re.getContext("2d");
+        if (!Me) throw new Error("The browser could not prepare an imported image.");
+        Me.translate(W.flipH ? re.width : 0, W.flipV ? re.height : 0), Me.scale(W.flipH ? -1 : 1, W.flipV ? -1 : 1), Me.drawImage(pe, je * pe.naturalWidth, ve * pe.naturalHeight, (1 - je - Pe) * pe.naturalWidth, (1 - ve - ie) * pe.naturalHeight, 0, 0, re.width, re.height), Ae = re.toDataURL("image/png");
       }
-      return T?.children.length && f("Picture effects and SVG-specific extensions were not imported; the embedded raster picture was used."), (Q(N, "tile") || [...ue(N, "fillRect")?.attributes || []].some((se) => Number(se.value))) && f("Picture tiling or fill offsets were simplified."), { kind: "image", source: Ne, alt: "", imageFit: "contain", imageRatio: C.width / C.height, keepAspectRatio: !0, aspectRatio: C.width / C.height };
+      return te?.children.length && h("Picture effects and SVG-specific extensions were not imported; the embedded raster picture was used."), (ne(j, "tile") || [...me(j, "fillRect")?.attributes || []].some((re) => Number(re.value))) && h("Picture tiling or fill offsets were simplified."), { kind: "image", source: Ae, alt: "", imageFit: "contain", imageRatio: W.width / W.height, keepAspectRatio: !0, aspectRatio: W.width / W.height };
     }
-    const be = { background: "#ffffff", notes: "", objects: [] };
-    async function ze(N, W, C = Nn, T = !1) {
-      if (!N) return;
-      const $ = await A(W);
-      for (const G of N?.children || []) {
-        if (["nvGrpSpPr", "grpSpPr", "extLst"].includes(G.localName)) continue;
-        if (G.namespaceURI !== vo) {
-          f("An extension object was skipped.");
+    const Ee = { background: "#ffffff", notes: "", objects: [] };
+    async function Be(j, V, W = Fn, te = !1) {
+      if (!j) return;
+      const Q = await S(V);
+      for (const Y of j?.children || []) {
+        if (["nvGrpSpPr", "grpSpPr", "extLst"].includes(Y.localName)) continue;
+        if (Y.namespaceURI !== Mo) {
+          h("An extension object was skipped.");
           continue;
         }
-        if (G.localName === "grpSp") {
-          const D = Q(Q(G, "grpSpPr"), "xfrm"), se = Q(D, "off"), z = Q(D, "ext"), Ae = Q(D, "chOff"), Se = Q(D, "chExt"), Ge = he(z, "cx") / he(Se, "cx"), it = he(z, "cy") / he(Se, "cy");
-          if (!Number.isFinite(Ge) || !Number.isFinite(it)) {
-            f("A group with invalid dimensions was skipped.");
+        if (Y.localName === "grpSp") {
+          const ie = ne(ne(Y, "grpSpPr"), "xfrm"), re = ne(ie, "off"), de = ne(ie, "ext"), Me = ne(ie, "chOff"), qe = ne(ie, "chExt"), D = ye(de, "cx") / ye(qe, "cx"), rt = ye(de, "cy") / ye(qe, "cy");
+          if (!Number.isFinite(D) || !Number.isFinite(rt)) {
+            h("A group with invalid dimensions was skipped.");
             continue;
           }
-          const ht = $e(he(se, "x")), rt = $e(he(se, "y")), at = $e(he(z, "cx")), Je = $e(he(z, "cy")), Pe = ht + at / 2, st = rt + Je / 2, Ye = he(D, "rot") / 6e4 * Math.PI / 180, Be = Math.cos(Ye), Ue = Math.sin(Ye), J = Ct(D.getAttribute("flipH")) ? -1 : 1, qe = Ct(D.getAttribute("flipV")) ? -1 : 1, gt = Ln([Be * J, Ue * J, -Ue * qe, Be * qe, Pe, st], [Ge, 0, 0, it, ht - Pe - $e(he(Ae, "x")) * Ge, rt - st - $e(he(Ae, "y")) * it]);
-          f("Grouped objects were imported as individual editable objects."), await ze(G, W, Ln(C, gt), T);
+          const R = Ye(ye(re, "x")), gt = Ye(ye(re, "y")), $e = Ye(ye(de, "cx")), _e = Ye(ye(de, "cy")), Ie = R + $e / 2, st = gt + _e / 2, Ke = ye(ie, "rot") / 6e4 * Math.PI / 180, Ge = Math.cos(Ke), Je = Math.sin(Ke), ft = At(ie.getAttribute("flipH")) ? -1 : 1, it = At(ie.getAttribute("flipV")) ? -1 : 1, lt = In([Ge * ft, Je * ft, -Je * it, Ge * it, Ie, st], [D, 0, 0, rt, R - Ie - Ye(ye(Me, "x")) * D, gt - st - Ye(ye(Me, "y")) * rt]);
+          h("Grouped objects were imported as individual editable objects."), await Be(Y, V, In(W, lt), te);
           continue;
         }
-        if (!["sp", "pic", "cxnSp"].includes(G.localName)) {
-          f((G.localName === "graphicFrame" ? "A chart, table or SmartArt object" : "Unsupported object “" + G.localName + "”") + " was skipped.");
+        if (!["sp", "pic", "cxnSp"].includes(Y.localName)) {
+          h((Y.localName === "graphicFrame" ? "A chart, table or SmartArt object" : "Unsupported object “" + Y.localName + "”") + " was skipped.");
           continue;
         }
-        if (G.localName === "cxnSp" && (ue(G, "stCxn") || ue(G, "endCxn")) && f("An attached connector was imported as an ordinary line."), T && yt(G)) {
-          ["ftr", "hdr", "dt", "sldNum"].includes(yt(G).getAttribute("type")) && ft(G, "t").some((D) => D.textContent.trim()) && f("Template footer, header, date or slide-number placeholders were not imported.");
+        if (Y.localName === "cxnSp" && (me(Y, "stCxn") || me(Y, "endCxn")) && h("An attached connector was imported as an ordinary line."), te && vt(Y)) {
+          ["ftr", "hdr", "dt", "sldNum"].includes(vt(Y).getAttribute("type")) && mt(Y, "t").some((ie) => ie.textContent.trim()) && h("Template footer, header, date or slide-number placeholders were not imported.");
           continue;
         }
-        if (Ct(ue(G, "cNvPr")?.getAttribute("hidden"))) {
-          f("A hidden object was skipped.");
+        if (At(me(Y, "cNvPr")?.getAttribute("hidden"))) {
+          h("A hidden object was skipped.");
           continue;
         }
-        const oe = T ? [G] : Ie(G), ye = Qe(G, C, oe);
-        if (!ye) continue;
-        const { flipH: Ne, flipV: ae, ...Ee } = ye, de = X(oe);
-        if ((ue(G, "effectLst")?.children.length || ue(G, "effectDag") || ue(G, "scene3d") || ue(G, "sp3d")) && f("Shadows, 3D or other visual effects were not imported."), G.localName === "pic") {
-          const D = await Ve(Q(G, "blipFill"), W, ye);
-          if (D) {
-            D.alt = ue(G, "cNvPr")?.getAttribute("descr") || ue(G, "cNvPr")?.getAttribute("name") || "";
-            const se = ue(Q(G, "spPr"), "prstGeom")?.getAttribute("prst");
-            se && se !== "rect" && f("A picture shape mask was replaced with a rectangular image."), be.objects.push({ ...Ee, ...D });
+        const I = te ? [Y] : H(Y), B = ot(Y, W, I);
+        if (!B) continue;
+        const { flipH: Ae, flipV: pe, ...fe } = B, je = Ce(I);
+        if ((me(Y, "effectLst")?.children.length || me(Y, "effectDag") || me(Y, "scene3d") || me(Y, "sp3d")) && h("Shadows, 3D or other visual effects were not imported."), Y.localName === "pic") {
+          const ie = await We(ne(Y, "blipFill"), V, B);
+          if (ie) {
+            ie.alt = me(Y, "cNvPr")?.getAttribute("descr") || me(Y, "cNvPr")?.getAttribute("name") || "";
+            const re = me(ne(Y, "spPr"), "prstGeom")?.getAttribute("prst");
+            re && re !== "rect" && h("A picture shape mask was replaced with a rectangular image."), Ee.objects.push({ ...fe, ...ie });
           }
           continue;
         }
-        const ge = Ke(G, oe, ye, $), Me = le(G, oe);
-        if (Me && (de.fillEnabled || de.borderEnabled)) {
-          if ((Ne || ae) && !["rect", "ellipse", "roundRect"].includes(Me.label)) {
-            const [D] = Me.elements;
-            D.tag === "line" ? (Ne && ([D.attributes.x1, D.attributes.x2] = [D.attributes.x2, D.attributes.x1]), ae && ([D.attributes.y1, D.attributes.y2] = [D.attributes.y2, D.attributes.y1])) : D.tag === "polygon" && (D.attributes.points = D.attributes.points.split(" ").map((se) => {
-              const [z, Ae] = se.split(",").map(Number);
-              return (Ne ? 1e3 - z : z) + "," + (ae ? 1e3 - Ae : Ae);
+        const ve = Z(Y, I, B, Q), Pe = ge(Y, I);
+        if (Pe && (je.fillEnabled || je.borderEnabled)) {
+          if ((Ae || pe) && !["rect", "ellipse", "roundRect"].includes(Pe.label)) {
+            const [ie] = Pe.elements;
+            ie.tag === "line" ? (Ae && ([ie.attributes.x1, ie.attributes.x2] = [ie.attributes.x2, ie.attributes.x1]), pe && ([ie.attributes.y1, ie.attributes.y2] = [ie.attributes.y2, ie.attributes.y1])) : ie.tag === "polygon" && (ie.attributes.points = ie.attributes.points.split(" ").map((re) => {
+              const [de, Me] = re.split(",").map(Number);
+              return (Ae ? 1e3 - de : de) + "," + (pe ? 1e3 - Me : Me);
             }).join(" "));
           }
-          be.objects.push({ ...Ee, ...de, kind: "shape", shapeDefinition: Me, shapeType: Me.id });
+          Ee.objects.push({ ...fe, ...je, kind: "shape", shapeDefinition: Pe, shapeType: Pe.id });
         }
-        ge && be.objects.push({ ...Ee, ...ge, fillEnabled: !1, borderEnabled: !1 });
+        ve && Ee.objects.push({ ...fe, ...ve, fillEnabled: !1, borderEnabled: !1 });
       }
     }
-    const Fe = [ue(K, "bg"), ue(te?.doc, "bg"), ue(Y?.doc, "bg")].find(Boolean);
-    if (Fe) {
-      const N = Q(Fe, "bgPr"), W = Q(N, "solidFill") || Q(Fe, "bgRef");
-      if (W) be.background = me(W, "#ffffff");
-      else if (Q(N, "blipFill")) {
-        const C = ue(K, "bg") ? ee : ue(te?.doc, "bg") ? te.path : Y.path, T = { x: v, y: ne, width: R * P, height: F * P }, $ = await Ve(Q(N, "blipFill"), C, T);
-        $ && be.objects.push({ ...T, ...$ });
-      } else Q(N, "noFill") || f("An unsupported slide background was replaced with white.");
+    const Te = [me(G, "bg"), me(J?.doc, "bg"), me(K?.doc, "bg")].find(Boolean);
+    if (Te) {
+      const j = ne(Te, "bgPr"), V = ne(j, "solidFill") || ne(Te, "bgRef");
+      if (V) Ee.background = Ne(V, "#ffffff");
+      else if (ne(j, "blipFill")) {
+        const W = me(G, "bg") ? U : me(J?.doc, "bg") ? J.path : K.path, te = { x: C, y: _, width: F * z, height: T * z }, Q = await We(ne(j, "blipFill"), W, te);
+        Q && Ee.objects.push({ ...te, ...Q });
+      } else ne(j, "noFill") || h("An unsupported slide background was replaced with white.");
     }
-    K.documentElement.getAttribute("showMasterSp") !== "0" && te?.doc.documentElement.getAttribute("showMasterSp") !== "0" && await ze(ue(Y?.doc, "spTree"), Y?.path, Nn, !0), await ze(ue(te?.doc, "spTree"), te?.path, Nn, !0), await ze(ue(K, "spTree"), ee);
-    const ot = await w(ee, "notesSlide");
-    ot && (be.notes = ft(ot.doc, "sp").filter((N) => !["sldImg", "sldNum", "hdr", "ftr", "dt"].includes(yt(N)?.getAttribute("type"))).map((N) => ft(Q(N, "txBody"), "p").map((W) => ft(W, "t").map((C) => C.textContent).join("")).join(`
+    G.documentElement.getAttribute("showMasterSp") !== "0" && J?.doc.documentElement.getAttribute("showMasterSp") !== "0" && await Be(me(K?.doc, "spTree"), K?.path, Fn, !0), await Be(me(J?.doc, "spTree"), J?.path, Fn, !0), await Be(me(G, "spTree"), U);
+    const Xe = await b(U, "notesSlide");
+    Xe && (Ee.notes = mt(Xe.doc, "sp").filter((j) => !["sldImg", "sldNum", "hdr", "ftr", "dt"].includes(vt(j)?.getAttribute("type"))).map((j) => mt(ne(j, "txBody"), "p").map((V) => mt(V, "t").map((W) => W.textContent).join("")).join(`
 `)).filter(Boolean).join(`
-`)), ot && (ue(ot.doc, "pic") || ue(ot.doc, "graphicFrame")) && f("Images or other non-text content in speaker notes were not imported."), (ue(K, "timing") || ue(K, "transition")) && f("Animations and slide transitions were not imported."), K.documentElement.getAttribute("show") === "0" && f("This hidden slide was imported as a visible slide.");
-    const wt = await A(ee);
-    for (const N of wt.values()) ["chart", "diagramData", "oleObject", "audio", "video", "media", "comments", "comment"].includes(N.type) && f("Charts, SmartArt, embedded files, media or comments are not supported.");
-    if (be.objects.length > 5e3 || M.reduce((N, W) => N + W.objects.length, 0) + be.objects.length > 2e4) throw new Error("This presentation contains too many objects to import in the browser.");
-    M.push(be);
+`)), Xe && (me(Xe.doc, "pic") || me(Xe.doc, "graphicFrame")) && h("Images or other non-text content in speaker notes were not imported."), (me(G, "timing") || me(G, "transition")) && h("Animations and slide transitions were not imported."), G.documentElement.getAttribute("show") === "0" && h("This hidden slide was imported as a visible slide.");
+    const pt = await S(U);
+    for (const j of pt.values()) ["chart", "diagramData", "oleObject", "audio", "video", "media", "comments", "comment"].includes(j.type) && h("Charts, SmartArt, embedded files, media or comments are not supported.");
+    if (Ee.objects.length > 5e3 || ee.reduce((j, V) => j + V.objects.length, 0) + Ee.objects.length > 2e4) throw new Error("This presentation contains too many objects to import in the browser.");
+    ee.push(Ee);
   }
-  return { title: l.replace(/\.pptx$/i, ""), slides: M, warnings: [...b] };
+  return { title: i.replace(/\.pptx$/i, ""), slides: ee, warnings: [...y] };
 }
-function Ci({ getDocument: n, encode: l, getName: c, onError: i = () => {
-}, createWorker: p = () => new Worker(new URL(
+function Ur({ getDocument: n, encode: i, getName: l, onError: r = () => {
+}, createWorker: d = () => new Worker(new URL(
   /* @vite-ignore */
   "" + new URL("assets/recovery-worker-Dt1l0aQJ.js", import.meta.url).href,
   import.meta.url
 ), { type: "module" }) }) {
-  let g = null, u = null, b = 0, E = !1;
-  const f = /* @__PURE__ */ new Map();
-  function y(S) {
-    const h = !f.size && !E;
-    g?.terminate(), g = null, u = null;
-    for (const k of f.values()) k.reject(S);
-    f.clear(), h && i(S);
+  let m = null, p = null, y = 0, x = !1;
+  const h = /* @__PURE__ */ new Map();
+  function g(v) {
+    const f = !h.size && !x;
+    m?.terminate(), m = null, p = null;
+    for (const E of h.values()) E.reject(v);
+    h.clear(), f && r(v);
   }
-  function A(S) {
-    if (!(!g || u !== n()) && S instanceof Uint8Array)
+  function S(v) {
+    if (!(!m || p !== n()) && v instanceof Uint8Array)
       try {
-        g.postMessage({ type: "update", update: S });
-      } catch (h) {
-        y(h);
+        m.postMessage({ type: "update", update: v });
+      } catch (f) {
+        g(f);
       }
   }
-  function w() {
-    return new Promise((S, h) => {
+  function b() {
+    return new Promise((v, f) => {
       try {
-        if (E) throw new Error("The recovery snapshot worker is closed.");
-        g || (g = p(), g.onmessage = ({ data: a }) => {
-          if (a.error) {
-            y(new Error(a.error));
+        if (x) throw new Error("The recovery snapshot worker is closed.");
+        m || (m = d(), m.onmessage = ({ data: s }) => {
+          if (s.error) {
+            g(new Error(s.error));
             return;
           }
-          const R = f.get(a.id);
-          R && (f.delete(a.id), R.resolve(a.content));
-        }, g.onerror = () => y(new Error("The background recovery worker could not run. Reload CList and use Save to protect your presentation.")), g.onmessageerror = () => y(new Error("The background recovery snapshot could not be read.")));
-        const k = n();
-        u !== k && (g.postMessage({ type: "reset", update: l(k) }), u = k);
-        const L = ++b;
-        f.set(L, { resolve: S, reject: h }), g.postMessage({ type: "snapshot", id: L, name: c() });
-      } catch (k) {
-        y(k), h(k);
+          const F = h.get(s.id);
+          F && (h.delete(s.id), F.resolve(s.content));
+        }, m.onerror = () => g(new Error("The background recovery worker could not run. Reload CList and use Save to protect your presentation.")), m.onmessageerror = () => g(new Error("The background recovery snapshot could not be read.")));
+        const E = n();
+        p !== E && (m.postMessage({ type: "reset", update: i(E) }), p = E);
+        const A = ++y;
+        h.set(A, { resolve: v, reject: f }), m.postMessage({ type: "snapshot", id: A, name: l() });
+      } catch (E) {
+        g(E), f(E);
       }
     });
   }
-  return { changed: A, snapshot: w, destroy() {
-    E = !0, y(new Error("The slide editor closed before recovery finished."));
+  return { changed: S, snapshot: b, destroy() {
+    x = !0, g(new Error("The slide editor closed before recovery finished."));
   } };
 }
-function Si(n, l, c) {
-  const i = [...n], p = new Set(l), g = c < 0 ? i.map((u, b) => b) : i.map((u, b) => b).reverse();
-  for (const u of g) {
-    const b = u + c;
-    b >= 0 && b < i.length && p.has(i[u]) && !p.has(i[b]) && ([i[u], i[b]] = [i[b], i[u]]);
+function Wr(n, i, l) {
+  const r = [...n], d = new Set(i), m = l < 0 ? r.map((p, y) => y) : r.map((p, y) => y).reverse();
+  for (const p of m) {
+    const y = p + l;
+    y >= 0 && y < r.length && d.has(r[p]) && !d.has(r[y]) && ([r[p], r[y]] = [r[y], r[p]]);
   }
-  return i;
+  return r;
 }
-function Mi(n, l, c) {
-  const i = new Set(l);
-  if (c && (!n.includes(c) || i.has(c))) return [...n];
-  const p = n.filter((u) => i.has(u)), g = n.filter((u) => !i.has(u));
-  return g.splice(c ? g.indexOf(c) : g.length, 0, ...p), g;
+function Xr(n, i, l) {
+  const r = new Set(i);
+  if (l && (!n.includes(l) || r.has(l))) return [...n];
+  const d = n.filter((p) => r.has(p)), m = n.filter((p) => !r.has(p));
+  return m.splice(l ? m.indexOf(l) : m.length, 0, ...d), m;
 }
-function Ai(n, l, c, { matchCase: i = !1, wholeWord: p = !1 } = {}) {
-  if (!c) return [];
-  const g = c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), u = new RegExp(p ? "(?<![\\p{L}\\p{N}_])" + g + "(?![\\p{L}\\p{N}_])" : g, i ? "gu" : "giu"), b = [];
-  for (const [E, f] of l.entries()) {
-    let y = function(w, S) {
-      if (w instanceof n.XmlText) {
-        const k = w.toDelta().map((L) => typeof L.insert == "string" ? L.insert : "￼").join("");
-        u.lastIndex = 0;
-        for (const L of k.matchAll(u)) b.push({
-          entry: f,
-          order: E,
-          text: w,
-          start: L.index,
-          length: L[0].length,
-          from: S + L.index,
-          to: S + L.index + L[0].length,
-          snippet: k.slice(Math.max(0, L.index - 25), L.index + L[0].length + 40).replace(/\s+/g, " ")
+function $r(n, i, l, { matchCase: r = !1, wholeWord: d = !1 } = {}) {
+  if (!l) return [];
+  const m = l.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), p = new RegExp(d ? "(?<![\\p{L}\\p{N}_])" + m + "(?![\\p{L}\\p{N}_])" : m, r ? "gu" : "giu"), y = [];
+  for (const [x, h] of i.entries()) {
+    let g = function(b, v) {
+      if (b instanceof n.XmlText) {
+        const E = b.toDelta().map((A) => typeof A.insert == "string" ? A.insert : "￼").join("");
+        p.lastIndex = 0;
+        for (const A of E.matchAll(p)) y.push({
+          entry: h,
+          order: x,
+          text: b,
+          start: A.index,
+          length: A[0].length,
+          from: v + A.index,
+          to: v + A.index + A[0].length,
+          snippet: E.slice(Math.max(0, A.index - 25), A.index + A[0].length + 40).replace(/\s+/g, " ")
         });
-        return w.length;
+        return b.length;
       }
-      if (["hardBreak", "horizontalRule"].includes(w.nodeName)) return 1;
-      let h = 1;
-      for (const k of w.toArray()) h += y(k, S + h);
-      return h + 1;
-    }, A = 0;
-    for (const w of f.fragment.toArray()) A += y(w, A);
+      if (["hardBreak", "horizontalRule"].includes(b.nodeName)) return 1;
+      let f = 1;
+      for (const E of b.toArray()) f += g(E, v + f);
+      return f + 1;
+    }, S = 0;
+    for (const b of h.fragment.toArray()) S += g(b, S);
   }
-  return b;
+  return y;
 }
-function ko(n, l) {
-  const c = /* @__PURE__ */ new Map();
-  for (const i of n)
-    c.has(i.text) || c.set(i.text, []), c.get(i.text).push(i);
-  for (const [i, p] of c)
-    for (const g of p.sort((u, b) => b.start - u.start)) {
-      let u = 0, b = {};
-      for (const E of i.toDelta()) {
-        const f = typeof E.insert == "string" ? E.insert.length : 1;
-        if (g.start < u + f) {
-          b = E.attributes || {};
+function No(n, i) {
+  const l = /* @__PURE__ */ new Map();
+  for (const r of n)
+    l.has(r.text) || l.set(r.text, []), l.get(r.text).push(r);
+  for (const [r, d] of l)
+    for (const m of d.sort((p, y) => y.start - p.start)) {
+      let p = 0, y = {};
+      for (const x of r.toDelta()) {
+        const h = typeof x.insert == "string" ? x.insert.length : 1;
+        if (m.start < p + h) {
+          y = x.attributes || {};
           break;
         }
-        u += f;
+        p += h;
       }
-      i.delete(g.start, g.length), l && i.insert(g.start, l, b);
+      r.delete(m.start, m.length), i && r.insert(m.start, i, y);
     }
 }
-function Li({ root: n, Y: l, getDocument: c, getEntries: i, jump: p, transact: g, canEdit: u, selectedText: b, report: E, onError: f }) {
-  const y = n.ownerDocument, A = n.querySelector(".slide-menu-right") || n.querySelector(".tools"), w = n.querySelectorAll(".slide-menu-bar")[1] || n.querySelector(".tools"), S = y.createElement("button");
-  S.className = "clist-action-btn btn-small", S.type = "button", S.dataset.control = "open-find", S.title = "Find and replace across slides (Ctrl/Cmd+F)", S.setAttribute("aria-label", S.title);
-  const h = y.createElement("span");
-  h.className = "material-icons md-18 md-light", h.textContent = "search", S.append(h), A.append(S);
-  const k = y.createElement("div");
-  k.className = "slide-search-panel", k.dataset.panel = "find", k.setAttribute("role", "search"), k.setAttribute("aria-label", "Find and replace slide text"), k.hidden = !0, k.open = !1;
-  const L = y.createElement("div");
-  L.className = "slide-search-content", k.append(L), w.append(k);
-  function a(N) {
-    k.open = N, k.hidden = !N, w.dataset.searchOpen = String(N), S.setAttribute("aria-expanded", String(N)), N || (clearTimeout(te), te = null);
+function Vr({ root: n, Y: i, getDocument: l, getEntries: r, jump: d, transact: m, canEdit: p, selectedText: y, report: x, onError: h }) {
+  const g = n.ownerDocument, S = n.querySelector(".slide-menu-right") || n.querySelector(".tools"), b = n.querySelectorAll(".slide-menu-bar")[1] || n.querySelector(".tools"), v = g.createElement("button");
+  v.className = "clist-action-btn btn-small", v.type = "button", v.dataset.control = "open-find", v.title = "Find and replace across slides (Ctrl/Cmd+F)", v.setAttribute("aria-label", v.title);
+  const f = g.createElement("span");
+  f.className = "material-icons md-18 md-light", f.textContent = "search", v.append(f), S.append(v);
+  const E = g.createElement("div");
+  E.className = "slide-search-panel", E.dataset.panel = "find", E.setAttribute("role", "search"), E.setAttribute("aria-label", "Find and replace slide text"), E.hidden = !0, E.open = !1;
+  const A = g.createElement("div");
+  A.className = "slide-search-content", E.append(A), b.append(E);
+  function s(j) {
+    E.open = j, E.hidden = !j, b.dataset.searchOpen = String(j), v.setAttribute("aria-expanded", String(j)), j || (clearTimeout(J), J = null);
   }
-  function R(N, W, C) {
-    const T = y.createElement("label"), $ = y.createElement("input");
-    return $.type = W, $.dataset.control = C, $.setAttribute("aria-label", N), W !== "checkbox" ? ($.maxLength = 512, $.autocomplete = "off", $.placeholder = N, T.append($)) : T.append(y.createTextNode(N), $), L.append(T), $;
+  function F(j, V, W) {
+    const te = g.createElement("label"), Q = g.createElement("input");
+    return Q.type = V, Q.dataset.control = W, Q.setAttribute("aria-label", j), V !== "checkbox" ? (Q.maxLength = 512, Q.autocomplete = "off", Q.placeholder = j, te.append(Q)) : te.append(g.createTextNode(j), Q), A.append(te), Q;
   }
-  const F = R("Find in slide text", "search", "find-query"), P = R("Replace with", "text", "find-replacement"), v = R("Match case", "checkbox", "find-case"), ne = R("Whole words", "checkbox", "find-word"), _ = y.createElement("div");
-  _.className = "slide-search-actions", L.append(_);
-  const M = y.createElement("p");
-  M.className = "helper slide-search-feedback", M.setAttribute("role", "status"), L.append(M);
-  const q = y.createElement("div");
-  q.className = "object-list", q.dataset.control = "find-results", q.setAttribute("aria-label", "Matching slide text"), L.append(q);
-  const Z = y.createElement("p");
-  Z.className = "helper", Z.hidden = !0, Z.textContent = "Searches text boxes on all slides. Locked boxes can be found but are not replaced. Enter/F3 finds next; Shift+F3 finds previous.", L.append(Z);
-  let U = [], ee = -1, K = null, te = null, Y = !1;
-  function pe(N) {
+  const T = F("Find in slide text", "search", "find-query"), z = F("Replace with", "text", "find-replacement"), C = F("Match case", "checkbox", "find-case"), _ = F("Whole words", "checkbox", "find-word"), q = g.createElement("div");
+  q.className = "slide-search-actions", A.append(q);
+  const ee = g.createElement("p");
+  ee.className = "helper slide-search-feedback", ee.setAttribute("role", "status"), A.append(ee);
+  const se = g.createElement("div");
+  se.className = "object-list", se.dataset.control = "find-results", se.setAttribute("aria-label", "Matching slide text"), A.append(se);
+  const oe = g.createElement("p");
+  oe.className = "helper", oe.hidden = !0, oe.textContent = "Searches text boxes on all slides. Locked boxes can be found but are not replaced. Enter/F3 finds next; Shift+F3 finds previous.", A.append(oe);
+  let L = [], U = -1, G = null, J = null, K = !1;
+  function le(j) {
     return () => {
-      if (!Y)
+      if (!K)
         try {
-          N();
-        } catch (W) {
-          f(W);
+          j();
+        } catch (V) {
+          h(V);
         }
     };
   }
-  function re(N, W, C) {
-    const T = y.createElement("button");
-    return T.type = "button", T.className = "btn btn-small", T.textContent = N, T.title = N, T.dataset.control = W, T.addEventListener("click", pe(C)), _.append(T), T;
+  function ue(j, V, W) {
+    const te = g.createElement("button");
+    return te.type = "button", te.className = "btn btn-small", te.textContent = j, te.title = j, te.dataset.control = V, te.addEventListener("click", le(W)), q.append(te), te;
   }
-  function O(N) {
-    K = N ? l.createRelativePositionFromTypeIndex(N.text, N.start) : null;
+  function Le(j) {
+    G = j ? i.createRelativePositionFromTypeIndex(j.text, j.start) : null;
   }
-  function me() {
-    M.textContent = F.value ? U.length ? (ee >= 0 ? ee + 1 + " of " : "") + U.length + " matches" + (ee >= 0 ? " · Slide " + U[ee].entry.slideNumber : "") : "No matches." : "Enter text to search.", Ke.disabled = le.disabled = !U.length || !u(), be.disabled = ee < 0 || !U[ee] || U[ee].entry.locked || !u(), ze.disabled = !U.some((N) => !N.entry.locked) || !u(), q.replaceChildren(), q.hidden = !U.length;
-    for (const [N, W] of U.slice(0, 100).entries()) {
-      const C = y.createElement("button");
-      C.type = "button", C.className = "btn btn-small", C.textContent = "Slide " + W.entry.slideNumber + (W.entry.locked ? " (locked)" : "") + ": " + W.snippet, C.title = C.textContent, C.setAttribute("aria-pressed", String(N === ee)), C.addEventListener("click", pe(() => {
-        Ce();
-        const T = U.findIndex(($) => $.text === W.text && $.start === W.start);
-        T >= 0 && Ie(T);
-      })), q.append(C);
+  function Ne() {
+    ee.textContent = T.value ? L.length ? (U >= 0 ? U + 1 + " of " : "") + L.length + " matches" + (U >= 0 ? " · Slide " + L[U].entry.slideNumber : "") : "No matches." : "Enter text to search.", Z.disabled = ge.disabled = !L.length || !p(), Ee.disabled = U < 0 || !L[U] || L[U].entry.locked || !p(), Be.disabled = !L.some((j) => !j.entry.locked) || !p(), se.replaceChildren(), se.hidden = !L.length;
+    for (const [j, V] of L.slice(0, 100).entries()) {
+      const W = g.createElement("button");
+      W.type = "button", W.className = "btn btn-small", W.textContent = "Slide " + V.entry.slideNumber + (V.entry.locked ? " (locked)" : "") + ": " + V.snippet, W.title = W.textContent, W.setAttribute("aria-pressed", String(j === U)), W.addEventListener("click", le(() => {
+        ke();
+        const te = L.findIndex((Q) => Q.text === V.text && Q.start === V.start);
+        te >= 0 && H(te);
+      })), se.append(W);
     }
-    U.length > 100 && (M.textContent += ". First 100 results shown; Next/Previous visit all matches.");
+    L.length > 100 && (ee.textContent += ". First 100 results shown; Next/Previous visit all matches.");
   }
-  function Ce(N = !1) {
-    clearTimeout(te), te = null;
-    const W = !N && K ? l.createAbsolutePositionFromRelativePosition(K, c()) : null;
-    U = Ai(l, i(), F.value, { matchCase: v.checked, wholeWord: ne.checked }), ee = W ? U.findIndex((C) => C.text === W.type && C.start === W.index) : -1, ee < 0 && (K = null), me();
+  function ke(j = !1) {
+    clearTimeout(J), J = null;
+    const V = !j && G ? i.createAbsolutePositionFromRelativePosition(G, l()) : null;
+    L = $r(i, r(), T.value, { matchCase: C.checked, wholeWord: _.checked }), U = V ? L.findIndex((W) => W.text === V.type && W.start === V.index) : -1, U < 0 && (G = null), Ne();
   }
-  function Ie(N) {
-    !u() || !U.length || (ee = (N + U.length) % U.length, O(U[ee]), p(U[ee]), a(!0), me());
+  function H(j) {
+    !p() || !L.length || (U = (j + L.length) % L.length, Le(L[U]), d(L[U]), s(!0), Ne());
   }
-  function X(N) {
-    Ce(), Ie(ee < 0 ? N > 0 ? 0 : U.length - 1 : ee + N);
+  function Ce(j) {
+    ke(), H(U < 0 ? j > 0 ? 0 : L.length - 1 : U + j);
   }
-  function Qe() {
-    if (Ce(), !u() || ee < 0 || U[ee].entry.locked) return;
-    const N = U[ee], W = N.from + P.value.length;
-    g([N], () => ko([N], P.value)), Ce(!0);
-    const C = U.findIndex((T) => T.order > N.order || T.order === N.order && T.from >= W);
-    U.length && Ie(C < 0 ? 0 : C), E("Replaced one match.");
+  function ot() {
+    if (ke(), !p() || U < 0 || L[U].entry.locked) return;
+    const j = L[U], V = j.from + z.value.length;
+    m([j], () => No([j], z.value)), ke(!0);
+    const W = L.findIndex((te) => te.order > j.order || te.order === j.order && te.from >= V);
+    L.length && H(W < 0 ? 0 : W), x("Replaced one match.");
   }
-  function Ve() {
-    if (Ce(), !u()) return;
-    const N = U.filter((C) => !C.entry.locked), W = U.length - N.length;
-    N.length && (g(N, () => ko(N, P.value)), Ce(!0), E("Replaced " + N.length + " matches." + (W ? " Skipped " + W + " matches in locked text boxes." : "")));
+  function We() {
+    if (ke(), !p()) return;
+    const j = L.filter((W) => !W.entry.locked), V = L.length - j.length;
+    j.length && (m(j, () => No(j, z.value)), ke(!0), x("Replaced " + j.length + " matches." + (V ? " Skipped " + V + " matches in locked text boxes." : "")));
   }
-  const Ke = re("Previous", "find-previous", () => X(-1)), le = re("Next", "find-next", () => X(1)), be = re("Replace", "find-replace", Qe), ze = re("Replace all", "find-replace-all", Ve);
-  function Fe(N = !1) {
-    if (!u()) return;
-    const W = b();
-    W && W.length <= 512 && !W.includes(`
-`) && (F.value = W), a(!0), Ce(!0), k.scrollIntoView({ block: "nearest" }), (N ? P : F).focus(), (N ? P : F).select();
+  const Z = ue("Previous", "find-previous", () => Ce(-1)), ge = ue("Next", "find-next", () => Ce(1)), Ee = ue("Replace", "find-replace", ot), Be = ue("Replace all", "find-replace-all", We);
+  function Te(j = !1) {
+    if (!p()) return;
+    const V = y();
+    V && V.length <= 512 && !V.includes(`
+`) && (T.value = V), s(!0), ke(!0), E.scrollIntoView({ block: "nearest" }), (j ? z : T).focus(), (j ? z : T).select();
   }
-  re("Done", "find-done", () => {
-    a(!1), S.focus();
-  }).classList.add("btn-secondary"), S.addEventListener("click", pe(() => Fe())), F.addEventListener("input", pe(() => {
-    K = null, clearTimeout(te), te = setTimeout(pe(() => Ce(!0)), 150);
+  ue("Done", "find-done", () => {
+    s(!1), v.focus();
+  }).classList.add("btn-secondary"), v.addEventListener("click", le(() => Te())), T.addEventListener("input", le(() => {
+    G = null, clearTimeout(J), J = setTimeout(le(() => ke(!0)), 150);
   }));
-  for (const N of [v, ne]) N.addEventListener("change", pe(() => Ce(!0)));
-  function wt(N) {
-    (N.ctrlKey || N.metaKey) && !N.altKey && ["f", "h"].includes(N.key.toLowerCase()) && u() ? (N.preventDefault(), N.stopImmediatePropagation(), pe(() => Fe(N.key.toLowerCase() === "h"))()) : N.key === "F3" && k.open && F.value && u() ? (N.preventDefault(), N.stopImmediatePropagation(), pe(() => X(N.shiftKey ? -1 : 1))()) : k.contains(N.target) && (N.key === "Escape" ? (N.preventDefault(), N.stopImmediatePropagation(), a(!1), S.focus()) : N.key === "Enter" && [F, P].includes(N.target) && (N.preventDefault(), N.stopImmediatePropagation(), pe(() => N.target === F ? X(N.shiftKey ? -1 : 1) : Qe())()));
+  for (const j of [C, _]) j.addEventListener("change", le(() => ke(!0)));
+  function pt(j) {
+    (j.ctrlKey || j.metaKey) && !j.altKey && ["f", "h"].includes(j.key.toLowerCase()) && p() ? (j.preventDefault(), j.stopImmediatePropagation(), le(() => Te(j.key.toLowerCase() === "h"))()) : j.key === "F3" && E.open && T.value && p() ? (j.preventDefault(), j.stopImmediatePropagation(), le(() => Ce(j.shiftKey ? -1 : 1))()) : E.contains(j.target) && (j.key === "Escape" ? (j.preventDefault(), j.stopImmediatePropagation(), s(!1), v.focus()) : j.key === "Enter" && [T, z].includes(j.target) && (j.preventDefault(), j.stopImmediatePropagation(), le(() => j.target === T ? Ce(j.shiftKey ? -1 : 1) : ot())()));
   }
-  return n.addEventListener("keydown", wt, !0), a(!1), me(), {
-    isOpen: () => k.open,
+  return n.addEventListener("keydown", pt, !0), s(!1), Ne(), {
+    isOpen: () => E.open,
     changed() {
-      !Y && k.open && F.value && (clearTimeout(te), te = setTimeout(pe(() => Ce()), 150));
+      !K && E.open && T.value && (clearTimeout(J), J = setTimeout(le(() => ke()), 150));
     },
-    presenting(N) {
-      S.disabled = N, N && a(!1);
+    presenting(j) {
+      v.disabled = j, j && s(!1);
     },
     destroy() {
-      Y = !0, a(!1), clearTimeout(te), n.removeEventListener("keydown", wt, !0), k.remove(), S.remove();
+      K = !0, s(!1), clearTimeout(J), n.removeEventListener("keydown", pt, !0), E.remove(), v.remove();
     }
   };
 }
-const Ni = `
+const Kr = `
 :root { --highlight-color:#2e7d32; --highlight-hover:#1b5e20; --highlight-text-color:#fff; font-family:system-ui,sans-serif; }
 * { box-sizing:border-box; margin:0; padding:0; }
 body { background:#151b23; color:#fff; }
 .stage { display:grid; justify-items:center; gap:16px; padding:16px; }
 .slide { position:relative; width:min(100%,1280px); aspect-ratio:16/9; overflow:hidden; container-type:inline-size; color:#202b3d; background:#fff; font-family:Inter,ui-sans-serif,system-ui,sans-serif; }
 .slide[hidden] { display:none; }
+.slide [data-font-size][data-slide-text-style] { font-size:calc(var(--slide-text-size)*var(--slide-text-unit,.078125cqw)) !important; }
 .slide-object { position:absolute; border:0; min-height:0; overflow:visible; }
 .text-content { height:100%; width:100%; overflow:hidden; padding:5px 8px; }
 .text-content .tiptap { height:100%; line-height:1.2; font-size:var(--slide-font-size,2.6cqw); color:inherit; text-align:inherit; }
@@ -1584,118 +1824,118 @@ button { font:inherit; cursor:pointer; border:0; }
   .controls,.viewer-status { display:none!important; }
 }
 `;
-function ji() {
-  const n = [...document.querySelectorAll(".stage > .slide")], l = document.querySelector('[data-action="previous"]'), c = document.querySelector('[data-action="next"]'), i = document.querySelector('[data-action="fullscreen"]'), p = document.querySelector("output"), g = document.querySelector(".viewer-status");
-  let u = 0, b;
-  function E(y) {
-    u = Math.max(0, Math.min(n.length - 1, y)), n.forEach((A, w) => {
-      A.hidden = w !== u;
-    }), l.disabled = u === 0, c.disabled = u === n.length - 1, p.textContent = u + 1 + " / " + n.length, ["http:", "https:", "file:"].includes(location.protocol) && history.replaceState(null, "", location.href.split("#")[0] + "#slide-" + (u + 1));
+function Gr() {
+  const n = [...document.querySelectorAll(".stage > .slide")], i = document.querySelector('[data-action="previous"]'), l = document.querySelector('[data-action="next"]'), r = document.querySelector('[data-action="fullscreen"]'), d = document.querySelector("output"), m = document.querySelector(".viewer-status");
+  let p = 0, y;
+  function x(g) {
+    p = Math.max(0, Math.min(n.length - 1, g)), n.forEach((S, b) => {
+      S.hidden = b !== p;
+    }), i.disabled = p === 0, l.disabled = p === n.length - 1, d.textContent = p + 1 + " / " + n.length, ["http:", "https:", "file:"].includes(location.protocol) && history.replaceState(null, "", location.href.split("#")[0] + "#slide-" + (p + 1));
   }
-  function f() {
-    const y = location.hash.match(/^#slide-(\d+)$/);
-    return y ? Number(y[1]) - 1 : 0;
+  function h() {
+    const g = location.hash.match(/^#slide-(\d+)$/);
+    return g ? Number(g[1]) - 1 : 0;
   }
-  l.addEventListener("click", () => E(u - 1)), c.addEventListener("click", () => E(u + 1)), i.disabled = !document.documentElement.requestFullscreen, i.addEventListener("click", async () => {
+  i.addEventListener("click", () => x(p - 1)), l.addEventListener("click", () => x(p + 1)), r.disabled = !document.documentElement.requestFullscreen, r.addEventListener("click", async () => {
     try {
       document.fullscreenElement ? await document.exitFullscreen() : await document.documentElement.requestFullscreen();
-    } catch (y) {
-      console.error("Fullscreen failed:", y), g.textContent = "Full screen is unavailable. You can continue viewing in this window.", clearTimeout(b), b = setTimeout(() => {
-        g.textContent = "";
+    } catch (g) {
+      console.error("Fullscreen failed:", g), m.textContent = "Full screen is unavailable. You can continue viewing in this window.", clearTimeout(y), y = setTimeout(() => {
+        m.textContent = "";
       }, 3e3);
     }
   }), document.addEventListener("fullscreenchange", () => {
-    i.textContent = document.fullscreenElement ? "Exit full screen" : "Full screen";
-  }), window.addEventListener("hashchange", () => E(f())), document.addEventListener("keydown", (y) => {
-    y.ctrlKey || y.metaKey || y.altKey || y.isComposing || y.target.closest?.('input,textarea,[contenteditable="true"]') || y.key === " " && y.target.closest?.("button") || ["ArrowRight", "ArrowDown", "PageDown", " ", "ArrowLeft", "ArrowUp", "PageUp", "Home", "End"].includes(y.key) && (y.preventDefault(), y.key === "Home" ? E(0) : y.key === "End" ? E(n.length - 1) : E(u + (["ArrowRight", "ArrowDown", "PageDown", " "].includes(y.key) ? 1 : -1)));
-  }), document.body.classList.add("interactive"), document.querySelector(".controls").hidden = !1, E(f());
+    r.textContent = document.fullscreenElement ? "Exit full screen" : "Full screen";
+  }), window.addEventListener("hashchange", () => x(h())), document.addEventListener("keydown", (g) => {
+    g.ctrlKey || g.metaKey || g.altKey || g.isComposing || g.target.closest?.('input,textarea,[contenteditable="true"]') || g.key === " " && g.target.closest?.("button") || ["ArrowRight", "ArrowDown", "PageDown", " ", "ArrowLeft", "ArrowUp", "PageUp", "Home", "End"].includes(g.key) && (g.preventDefault(), g.key === "Home" ? x(0) : g.key === "End" ? x(n.length - 1) : x(p + (["ArrowRight", "ArrowDown", "PageDown", " "].includes(g.key) ? 1 : -1)));
+  }), document.body.classList.add("interactive"), document.querySelector(".controls").hidden = !1, x(h());
 }
-async function Lo({ slideIds: n, renderSlide: l, title: c = "CList presentation" }) {
+async function Bo({ slideIds: n, renderSlide: i, title: l = "CList presentation" }) {
   if (!n.length) throw new Error("There are no slides to export.");
-  const i = document.implementation.createHTMLDocument(c);
-  i.documentElement.lang = "en";
-  const p = i.createElement("meta");
-  p.setAttribute("charset", "utf-8"), i.head.prepend(p);
-  const g = i.createElement("meta");
-  g.name = "viewport", g.content = "width=device-width, initial-scale=1", i.head.append(g);
-  const u = i.createElement("style");
-  u.textContent = Ni, i.head.append(u);
-  const b = i.createElement("main");
-  b.className = "stage", b.setAttribute("aria-label", c), i.body.append(b);
-  for (const [w, S] of n.entries()) {
-    const h = l(S, i);
-    h.id = "slide-" + (w + 1), h.setAttribute("role", "group"), h.setAttribute("aria-label", "Slide " + (w + 1) + " of " + n.length), b.append(h);
+  const r = document.implementation.createHTMLDocument(l);
+  r.documentElement.lang = "en";
+  const d = r.createElement("meta");
+  d.setAttribute("charset", "utf-8"), r.head.prepend(d);
+  const m = r.createElement("meta");
+  m.name = "viewport", m.content = "width=device-width, initial-scale=1", r.head.append(m);
+  const p = r.createElement("style");
+  p.textContent = Kr, r.head.append(p);
+  const y = r.createElement("main");
+  y.className = "stage", y.setAttribute("aria-label", l), r.body.append(y);
+  for (const [b, v] of n.entries()) {
+    const f = i(v, r);
+    f.id = "slide-" + (b + 1), f.setAttribute("role", "group"), f.setAttribute("aria-label", "Slide " + (b + 1) + " of " + n.length), y.append(f);
   }
-  const E = i.createElement("nav");
-  E.className = "controls", E.hidden = !0, E.setAttribute("aria-label", "Slide navigation");
-  for (const [w, S] of [["Previous", "previous"], ["Next", "next"], ["Full screen", "fullscreen"]]) {
-    const h = i.createElement("button");
-    h.type = "button", h.className = "btn", h.textContent = w, h.title = w, h.dataset.action = S, E.append(h);
+  const x = r.createElement("nav");
+  x.className = "controls", x.hidden = !0, x.setAttribute("aria-label", "Slide navigation");
+  for (const [b, v] of [["Previous", "previous"], ["Next", "next"], ["Full screen", "fullscreen"]]) {
+    const f = r.createElement("button");
+    f.type = "button", f.className = "btn", f.textContent = b, f.title = b, f.dataset.action = v, x.append(f);
   }
-  const f = i.createElement("output");
-  f.setAttribute("aria-live", "polite"), E.insertBefore(f, E.children[1]), i.body.append(E);
-  const y = i.createElement("p");
-  y.className = "viewer-status", y.setAttribute("role", "status"), i.body.append(y);
-  const A = i.createElement("script");
-  return A.textContent = "(" + ji.toString() + ")();", i.body.append(A), await Promise.all([...b.querySelectorAll("img")].map((w) => new Promise((S, h) => {
-    const k = w.getAttribute("src") || "";
-    if (!/^data:image\/(png|jpeg|gif|webp);base64,[a-z0-9+/=\s]+$/i.test(k)) {
-      h(new Error("A slide image is missing or is not embedded."));
+  const h = r.createElement("output");
+  h.setAttribute("aria-live", "polite"), x.insertBefore(h, x.children[1]), r.body.append(x);
+  const g = r.createElement("p");
+  g.className = "viewer-status", g.setAttribute("role", "status"), r.body.append(g);
+  const S = r.createElement("script");
+  return S.textContent = "(" + Gr.toString() + ")();", r.body.append(S), await Promise.all([...y.querySelectorAll("img")].map((b) => new Promise((v, f) => {
+    const E = b.getAttribute("src") || "";
+    if (!/^data:image\/(png|jpeg|gif|webp);base64,[a-z0-9+/=\s]+$/i.test(E)) {
+      f(new Error("A slide image is missing or is not embedded."));
       return;
     }
-    const L = new Image();
-    L.onload = S, L.onerror = () => h(new Error("A slide image could not be read.")), L.src = k;
+    const A = new Image();
+    A.onload = v, A.onerror = () => f(new Error("A slide image could not be read.")), A.src = E;
   }))), `<!doctype html>
-` + i.documentElement.outerHTML;
+` + r.documentElement.outerHTML;
 }
-async function Ii(n) {
-  const l = await Lo(n), c = (n.title.replace(/[<>:"/\\|?*\u0000-\u001f]/g, "-").replace(/[. ]+$/, "").slice(0, 120) || "CList presentation") + ".html", i = URL.createObjectURL(new Blob([l], { type: "text/html;charset=utf-8" })), p = document.createElement("a");
-  p.href = i, p.download = c, document.body.append(p);
+async function Jr(n) {
+  const i = await Bo(n), l = (n.title.replace(/[<>:"/\\|?*\u0000-\u001f]/g, "-").replace(/[. ]+$/, "").slice(0, 120) || "CList presentation") + ".html", r = URL.createObjectURL(new Blob([i], { type: "text/html;charset=utf-8" })), d = document.createElement("a");
+  d.href = r, d.download = l, document.body.append(d);
   try {
-    p.click();
+    d.click();
   } finally {
-    p.remove(), setTimeout(() => URL.revokeObjectURL(i), 6e4);
+    d.remove(), setTimeout(() => URL.revokeObjectURL(r), 6e4);
   }
 }
-async function Pi({ slideIds: n, renderSlide: l }) {
-  const c = document.implementation.createHTMLDocument(""), i = n.map((A) => l(A, c)), p = c.createElement("div"), g = /* @__PURE__ */ new Set(["p", "strong", "em", "s", "u", "code", "pre", "blockquote", "ul", "ol", "li", "hr", "br"]);
-  function u(A) {
-    if (A.nodeType === 3) return c.createTextNode(A.textContent);
-    const w = A.nodeName.toLowerCase();
-    let S;
-    /^h[1-6]$/.test(w) ? S = c.createElement("h3") : w === "a" && /^(https?:|mailto:|tel:)/i.test(A.getAttribute("href") || "") ? (S = c.createElement("a"), S.setAttribute("href", A.getAttribute("href"))) : g.has(w) ? S = c.createElement(w) : S = c.createDocumentFragment(), w === "ol" && /^\d+$/.test(A.getAttribute("start") || "") && S.setAttribute("start", A.getAttribute("start"));
-    for (const h of A.childNodes) S.append(u(h));
-    return S;
+async function Yr({ slideIds: n, renderSlide: i }) {
+  const l = document.implementation.createHTMLDocument(""), r = n.map((S) => i(S, l)), d = l.createElement("div"), m = /* @__PURE__ */ new Set(["p", "strong", "em", "s", "u", "code", "pre", "blockquote", "ul", "ol", "li", "hr", "br"]);
+  function p(S) {
+    if (S.nodeType === 3) return l.createTextNode(S.textContent);
+    const b = S.nodeName.toLowerCase();
+    let v;
+    /^h[1-6]$/.test(b) ? v = l.createElement("h3") : b === "a" && /^(https?:|mailto:|tel:)/i.test(S.getAttribute("href") || "") ? (v = l.createElement("a"), v.setAttribute("href", S.getAttribute("href"))) : m.has(b) ? v = l.createElement(b) : v = l.createDocumentFragment(), b === "ol" && /^\d+$/.test(S.getAttribute("start") || "") && v.setAttribute("start", S.getAttribute("start"));
+    for (const f of S.childNodes) v.append(p(f));
+    return v;
   }
-  async function b(A) {
-    return await new Promise((w, S) => {
-      const h = new Image();
-      h.onload = () => w(h), h.onerror = () => S(new Error("A slide image could not be read.")), h.src = A;
+  async function y(S) {
+    return await new Promise((b, v) => {
+      const f = new Image();
+      f.onload = () => b(f), f.onerror = () => v(new Error("A slide image could not be read.")), f.src = S;
     });
   }
-  function E(A, w) {
-    const S = document.createElement("canvas"), h = Math.min(2, 4096 / Math.max(A, w));
-    S.width = Math.max(1, Math.round(A * h)), S.height = Math.max(1, Math.round(w * h));
-    const k = S.getContext("2d");
-    if (!k) throw new Error("The browser could not prepare a slide image.");
-    return k.scale(S.width / A, S.height / w), { element: S, context: k };
+  function x(S, b) {
+    const v = document.createElement("canvas"), f = Math.min(2, 4096 / Math.max(S, b));
+    v.width = Math.max(1, Math.round(S * f)), v.height = Math.max(1, Math.round(b * f));
+    const E = v.getContext("2d");
+    if (!E) throw new Error("The browser could not prepare a slide image.");
+    return E.scale(v.width / S, v.height / b), { element: v, context: E };
   }
-  function f(A, w, S, h) {
-    const k = c.createElement("p"), L = c.createElement("img"), a = Math.min(1, 720 / S);
-    L.width = Math.max(1, Math.round(S * a)), L.height = Math.max(1, Math.round(h * a)), L.style.maxWidth = "100%", L.style.height = "auto", L.src = A, L.alt = w, k.append(L), p.append(k);
+  function h(S, b, v, f) {
+    const E = l.createElement("p"), A = l.createElement("img"), s = Math.min(1, 720 / v);
+    A.width = Math.max(1, Math.round(v * s)), A.height = Math.max(1, Math.round(f * s)), A.style.maxWidth = "100%", A.style.height = "auto", A.src = S, A.alt = b, E.append(A), d.append(E);
   }
-  async function y(A) {
-    const w = A.cloneNode(!0);
-    w.style.width = "1280px", w.style.height = "720px";
-    for (const F of w.children) {
-      const P = parseFloat(F.style.width) * 12.8;
-      for (const v of [F, ...F.querySelectorAll("[style]")]) {
-        const ne = v.closest(".shape-content") ? P / 100 : 12.8;
-        v.setAttribute("style", v.getAttribute("style").replace(/([\d.]+)cqw/g, (_, M) => Number(M) * ne + "px"));
+  async function g(S) {
+    const b = S.cloneNode(!0);
+    b.style.width = "1280px", b.style.height = "720px";
+    for (const T of b.children) {
+      const z = parseFloat(T.style.width) * 12.8;
+      for (const C of [T, ...T.querySelectorAll("[style]")]) {
+        const _ = C.closest(".shape-content") ? z / 100 : 12.8;
+        C.setAttribute("style", C.getAttribute("style").replace(/([\d.]+)cqw/g, (q, ee) => Number(ee) * _ + "px"));
       }
     }
-    const S = c.createElement("div"), h = c.createElement("style");
-    h.textContent = `
+    const v = l.createElement("div"), f = l.createElement("style");
+    f.textContent = `
       * {box-sizing:border-box;} .slide {position:relative;overflow:hidden;font-family:Arial,sans-serif;color:#202b3d;}
       .slide-object {position:absolute;} .text-content {width:100%;height:100%;overflow:hidden;padding:5px 8px;}
       .tiptap {font-size:var(--slide-font-size,33.28px);line-height:1.2;}
@@ -1704,61 +1944,61 @@ async function Pi({ slideIds: n, renderSlide: l }) {
       .image-content {width:100%;height:100%;overflow:hidden;}
       .image-content img {display:block;width:100%;height:100%;object-fit:contain;}
       .shape-content,.shape-content svg {display:block;width:100%;height:100%;}
-    `, S.append(h, w);
-    const k = new XMLSerializer().serializeToString(S), L = "data:image/svg+xml;charset=utf-8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720"><foreignObject width="1280" height="720">' + k + "</foreignObject></svg>"), a = await b(L), R = E(1280, 720);
-    return R.context.drawImage(a, 0, 0, 1280, 720), R.element.toDataURL("image/png");
+    `, v.append(f, b);
+    const E = new XMLSerializer().serializeToString(v), A = "data:image/svg+xml;charset=utf-8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720"><foreignObject width="1280" height="720">' + E + "</foreignObject></svg>"), s = await y(A), F = x(1280, 720);
+    return F.context.drawImage(s, 0, 0, 1280, 720), F.element.toDataURL("image/png");
   }
-  for (const [A, w] of i.entries()) {
-    const S = c.createElement("h2");
-    S.textContent = "Slide " + (A + 1), p.append(S);
-    const h = [...w.children].sort((L, a) => parseFloat(L.style.top) - parseFloat(a.style.top) || parseFloat(L.style.left) - parseFloat(a.style.left)), k = !!w.querySelector("svg");
-    if (k) {
-      const L = h.map((a) => a.querySelector(".tiptap")?.textContent.trim()).filter(Boolean);
-      f(await y(w), "Slide " + (A + 1) + " diagram" + (L.length ? ": " + L.join("; ") : ""), 1280, 720);
+  for (const [S, b] of r.entries()) {
+    const v = l.createElement("h2");
+    v.textContent = "Slide " + (S + 1), d.append(v);
+    const f = [...b.children].sort((A, s) => parseFloat(A.style.top) - parseFloat(s.style.top) || parseFloat(A.style.left) - parseFloat(s.style.left)), E = !!b.querySelector("svg");
+    if (E) {
+      const A = f.map((s) => s.querySelector(".tiptap")?.textContent.trim()).filter(Boolean);
+      h(await g(b), "Slide " + (S + 1) + " diagram" + (A.length ? ": " + A.join("; ") : ""), 1280, 720);
     }
-    for (const L of h) {
-      const a = L.querySelector(".text-content .tiptap");
-      if (a) {
-        for (const M of a.childNodes) p.append(u(M));
+    for (const A of f) {
+      const s = A.querySelector(".text-content .tiptap");
+      if (s) {
+        for (const ee of s.childNodes) d.append(p(ee));
         continue;
       }
-      if (k) continue;
-      let R, F;
-      const P = L.querySelector("img"), v = L.querySelector("svg");
-      let ne = parseFloat(L.style.width) * 12.8, _ = parseFloat(L.style.height) * 7.2;
-      if (P) {
-        if (R = P.getAttribute("src") || "", F = P.alt, !/^data:image\/(png|jpeg|gif|webp);base64,[a-z0-9+/=\s]+$/i.test(R)) throw new Error("A slide image is missing or is not embedded.");
-        const M = await b(R);
-        if (P.style.position === "absolute") {
-          const q = E(ne, _);
-          q.context.drawImage(M, parseFloat(P.style.left) * 12.8, parseFloat(P.style.top) * 12.8, parseFloat(P.style.width) * 12.8, parseFloat(P.style.height) * 12.8), R = q.element.toDataURL("image/png");
+      if (E) continue;
+      let F, T;
+      const z = A.querySelector("img"), C = A.querySelector("svg");
+      let _ = parseFloat(A.style.width) * 12.8, q = parseFloat(A.style.height) * 7.2;
+      if (z) {
+        if (F = z.getAttribute("src") || "", T = z.alt, !/^data:image\/(png|jpeg|gif|webp);base64,[a-z0-9+/=\s]+$/i.test(F)) throw new Error("A slide image is missing or is not embedded.");
+        const ee = await y(F);
+        if (z.style.position === "absolute") {
+          const se = x(_, q);
+          se.context.drawImage(ee, parseFloat(z.style.left) * 12.8, parseFloat(z.style.top) * 12.8, parseFloat(z.style.width) * 12.8, parseFloat(z.style.height) * 12.8), F = se.element.toDataURL("image/png");
         } else {
-          const q = Math.min(ne / M.width, _ / M.height);
-          ne = M.width * q, _ = M.height * q;
+          const se = Math.min(_ / ee.width, q / ee.height);
+          _ = ee.width * se, q = ee.height * se;
         }
-      } else if (v) {
-        const M = v.cloneNode(!0);
-        M.setAttribute("width", ne), M.setAttribute("height", _);
-        for (const U of M.querySelectorAll("[vector-effect]")) {
-          const ee = parseFloat(U.style.strokeWidth) * ne / 100;
-          U.style.removeProperty("stroke-width"), U.setAttribute("stroke-width", Number.isFinite(ee) ? ee : 0);
+      } else if (C) {
+        const ee = C.cloneNode(!0);
+        ee.setAttribute("width", _), ee.setAttribute("height", q);
+        for (const L of ee.querySelectorAll("[vector-effect]")) {
+          const U = parseFloat(L.style.strokeWidth) * _ / 100;
+          L.style.removeProperty("stroke-width"), L.setAttribute("stroke-width", Number.isFinite(U) ? U : 0);
         }
-        const q = await b("data:image/svg+xml;charset=utf-8," + encodeURIComponent(new XMLSerializer().serializeToString(M))), Z = E(ne, _);
-        Z.context.drawImage(q, 0, 0, ne, _), R = Z.element.toDataURL("image/png"), F = "Diagram on slide " + (A + 1);
+        const se = await y("data:image/svg+xml;charset=utf-8," + encodeURIComponent(new XMLSerializer().serializeToString(ee))), oe = x(_, q);
+        oe.context.drawImage(se, 0, 0, _, q), F = oe.element.toDataURL("image/png"), T = "Diagram on slide " + (S + 1);
       } else continue;
-      f(R, F || "Image on slide " + (A + 1), ne, _);
+      h(F, T || "Image on slide " + (S + 1), _, q);
     }
-    A < i.length - 1 && p.append(c.createElement("hr"));
+    S < r.length - 1 && d.append(l.createElement("hr"));
   }
-  return p.innerHTML;
+  return d.innerHTML;
 }
-const Di = [{ id: "rectangle", label: "Rectangle", width: 320, height: 220, defaults: { fillEnabled: !0, fillColour: "#51b158", borderEnabled: !0, borderColour: "#202b3d", borderWidth: 2 }, viewBox: [0, 0, 1e3, 1e3], elements: [{ tag: "rect", attributes: { x: 0, y: 0, width: 1e3, height: 1e3 } }] }, { id: "circle", label: "Circle", width: 220, height: 220, defaults: { fillEnabled: !0, fillColour: "#51b158", borderEnabled: !0, borderColour: "#202b3d", borderWidth: 2 }, viewBox: [0, 0, 1e3, 1e3], elements: [{ tag: "ellipse", attributes: { cx: 500, cy: 500, rx: 500, ry: 500 } }] }, { id: "line", label: "Line", width: 360, height: 4, defaults: { fillEnabled: !1, borderEnabled: !0, borderColour: "#202b3d", borderWidth: 4 }, viewBox: [0, 0, 1e3, 1e3], elements: [{ tag: "line", attributes: { x1: 0, y1: 0, x2: 1e3, y2: 1e3 } }] }], zi = {
-  shapes: Di
-}, Ti = [{ id: "blank", label: "Blank", objects: [] }, { id: "title", label: "Title", objects: [{ kind: "text", x: 100, y: 260, width: 1080, height: 140, text: "Presentation title", fontSize: 64, textAlign: "center" }] }, { id: "title-body", label: "Title and body", objects: [{ kind: "text", x: 100, y: 70, width: 1080, height: 110, text: "Slide title", fontSize: 52, textAlign: "left" }, { kind: "text", x: 100, y: 220, width: 1080, height: 400, text: "Add your content here.", fontSize: 32, textAlign: "left" }] }, { id: "two-columns", label: "Two columns", objects: [{ kind: "text", x: 100, y: 70, width: 1080, height: 110, text: "Slide title", fontSize: 52, textAlign: "left" }, { kind: "text", x: 100, y: 220, width: 500, height: 400, text: "Left column", fontSize: 32, textAlign: "left" }, { kind: "text", x: 680, y: 220, width: 500, height: 400, text: "Right column", fontSize: 32, textAlign: "left" }] }], Fi = {
-  layouts: Ti
-}, Ri = [{ id: "classic", label: "Classic", fontFamily: "system", fontSize: 33.28, textColour: "#202b3d", background: "#ffffff", fillColour: "#51b158", borderColour: "#202b3d" }, { id: "midnight", label: "Midnight", fontFamily: "arial", fontSize: 33.28, textColour: "#f1f5f9", background: "#142033", fillColour: "#397ab8", borderColour: "#a6caed" }, { id: "paper", label: "Paper", fontFamily: "georgia", fontSize: 33.28, textColour: "#392f28", background: "#fff8e8", fillColour: "#dbb571", borderColour: "#76573a" }, { id: "ocean", label: "Ocean", fontFamily: "verdana", fontSize: 33.28, textColour: "#13354b", background: "#edf8fc", fillColour: "#56b6bd", borderColour: "#216479" }], Oi = {
-  themes: Ri
-}, Eo = {
+const _r = [{ id: "rectangle", label: "Rectangle", width: 320, height: 220, defaults: { fillEnabled: !0, fillColour: "#51b158", borderEnabled: !0, borderColour: "#202b3d", borderWidth: 2 }, viewBox: [0, 0, 1e3, 1e3], elements: [{ tag: "rect", attributes: { x: 0, y: 0, width: 1e3, height: 1e3 } }] }, { id: "circle", label: "Circle", width: 220, height: 220, defaults: { fillEnabled: !0, fillColour: "#51b158", borderEnabled: !0, borderColour: "#202b3d", borderWidth: 2 }, viewBox: [0, 0, 1e3, 1e3], elements: [{ tag: "ellipse", attributes: { cx: 500, cy: 500, rx: 500, ry: 500 } }] }, { id: "line", label: "Line", width: 360, height: 4, defaults: { fillEnabled: !1, borderEnabled: !0, borderColour: "#202b3d", borderWidth: 4 }, viewBox: [0, 0, 1e3, 1e3], elements: [{ tag: "line", attributes: { x1: 0, y1: 0, x2: 1e3, y2: 1e3 } }] }], Zr = {
+  shapes: _r
+}, Qr = [{ id: "blank", label: "Blank", objects: [] }, { id: "title", label: "Title", objects: [{ kind: "text", x: 100, y: 260, width: 1080, height: 140, text: "Presentation title", fontSize: 64, textAlign: "center" }] }, { id: "title-body", label: "Title and body", objects: [{ kind: "text", x: 100, y: 70, width: 1080, height: 110, text: "Slide title", fontSize: 52, textAlign: "left" }, { kind: "text", x: 100, y: 220, width: 1080, height: 400, text: "Add your content here.", fontSize: 32, textAlign: "left" }] }, { id: "two-columns", label: "Two columns", objects: [{ kind: "text", x: 100, y: 70, width: 1080, height: 110, text: "Slide title", fontSize: 52, textAlign: "left" }, { kind: "text", x: 100, y: 220, width: 500, height: 400, text: "Left column", fontSize: 32, textAlign: "left" }, { kind: "text", x: 680, y: 220, width: 500, height: 400, text: "Right column", fontSize: 32, textAlign: "left" }] }], ei = {
+  layouts: Qr
+}, ti = [{ id: "classic", label: "Classic", fontFamily: "system", fontSize: 33.28, textColour: "#202b3d", background: "#ffffff", fillColour: "#51b158", borderColour: "#202b3d" }, { id: "midnight", label: "Midnight", fontFamily: "arial", fontSize: 33.28, textColour: "#f1f5f9", background: "#142033", fillColour: "#397ab8", borderColour: "#a6caed" }, { id: "paper", label: "Paper", fontFamily: "georgia", fontSize: 33.28, textColour: "#392f28", background: "#fff8e8", fillColour: "#dbb571", borderColour: "#76573a" }, { id: "ocean", label: "Ocean", fontFamily: "verdana", fontSize: 33.28, textColour: "#13354b", background: "#edf8fc", fillColour: "#56b6bd", borderColour: "#216479" }], ni = {
+  themes: ti
+}, jo = {
   rect: ["x", "y", "width", "height", "rx", "ry"],
   circle: ["cx", "cy", "r"],
   ellipse: ["cx", "cy", "rx", "ry"],
@@ -1766,1835 +2006,1891 @@ const Di = [{ id: "rectangle", label: "Rectangle", width: 320, height: 220, defa
   polygon: ["points"],
   polyline: ["points"],
   path: ["d"]
-}, Pn = (n) => typeof n == "string" && /^#[0-9a-f]{6}$/i.test(n), Mt = (n) => typeof n == "number" && Number.isFinite(n);
-function fe(n, l) {
-  if (!n) throw new Error("Slide catalog: " + l);
+}, On = (n) => typeof n == "string" && /^#[0-9a-f]{6}$/i.test(n), Nt = (n) => typeof n == "number" && Number.isFinite(n);
+function be(n, i) {
+  if (!n) throw new Error("Slide catalog: " + i);
 }
-function Dn(n) {
-  fe(n && typeof n.id == "string" && /^[a-z][a-z0-9-]{0,79}$/.test(n.id), "invalid entry ID"), fe(typeof n.label == "string" && n.label.trim().length > 0 && n.label.length <= 120, n.id + " needs a label");
+function Bn(n) {
+  be(n && typeof n.id == "string" && /^[a-z][a-z0-9-]{0,79}$/.test(n.id), "invalid entry ID"), be(typeof n.label == "string" && n.label.trim().length > 0 && n.label.length <= 120, n.id + " needs a label");
 }
-function No(n, l) {
-  const c = {};
-  for (const i of ["fillEnabled", "borderEnabled", "keepAspectRatio", "locked"])
-    n[i] !== void 0 && (fe(typeof n[i] == "boolean", l + ": invalid " + i), c[i] = n[i]);
-  for (const i of ["fillColour", "borderColour", "textColour"])
-    n[i] !== void 0 && (fe(Pn(n[i]), l + ": invalid " + i), c[i] = n[i]);
-  for (const [i, p, g] of [["fontSize", 8, 200], ["borderWidth", 1, 20], ["rotation", -180, 180], ["cropX", 0, 100], ["cropY", 0, 100]])
-    n[i] !== void 0 && (fe(Mt(n[i]) && n[i] >= p && n[i] <= g, l + ": invalid " + i), c[i] = n[i]);
-  for (const [i, p] of [["textAlign", ["left", "center", "right", "justify"]], ["fontFamily", ["system", "arial", "verdana", "georgia", "times", "courier"]], ["imageFit", ["contain", "cover"]]])
-    n[i] !== void 0 && (fe(p.includes(n[i]), l + ": invalid " + i), c[i] = n[i]);
-  return c;
-}
-function sn(n) {
-  Dn(n), fe(Mt(n.width) && n.width > 0 && n.width <= 1280 && Mt(n.height) && n.height > 0 && n.height <= 720, n.id + ": invalid default dimensions"), fe(Array.isArray(n.viewBox) && n.viewBox.length === 4 && n.viewBox.every(Mt) && n.viewBox[2] > 0 && n.viewBox[3] > 0, n.id + ": invalid SVG viewBox"), fe(Array.isArray(n.elements) && n.elements.length > 0 && n.elements.length <= 64, n.id + ": needs 1–64 SVG elements");
-  const l = n.elements.map((c) => {
-    fe(c && Object.hasOwn(Eo, c.tag), n.id + ": unsupported SVG element"), fe(c.attributes && typeof c.attributes == "object", n.id + ": missing SVG attributes");
-    const i = {};
-    for (const [p, g] of Object.entries(c.attributes))
-      fe(Eo[c.tag].includes(p), n.id + ": unsupported SVG attribute " + p), p === "d" ? fe(typeof g == "string" && g.length <= 65536 && /^[MmLlHhVvCcSsQqTtAaZz0-9eE+.,\s-]+$/.test(g), n.id + ": invalid path") : p === "points" ? fe(typeof g == "string" && g.length <= 65536 && /^[0-9eE+.,\s-]+$/.test(g), n.id + ": invalid points") : fe(Mt(g), n.id + ": invalid SVG coordinate"), i[p] = g;
-    return { tag: c.tag, attributes: i };
-  });
-  return { id: n.id, label: n.label, width: n.width, height: n.height, defaults: No(n.defaults || {}, n.id), viewBox: [...n.viewBox], elements: l };
-}
-function Bi(n, l) {
-  Dn(n), fe(Array.isArray(n.objects) && n.objects.length <= 100, n.id + ": invalid objects array"), n.background !== void 0 && fe(Pn(n.background), n.id + ": invalid background"), n.notes !== void 0 && fe(typeof n.notes == "string", n.id + ": invalid notes");
-  const c = n.objects.map((i) => {
-    fe(i && ["text", "shape", "image"].includes(i.kind), n.id + ": unsupported object kind"), fe(["x", "y", "width", "height"].every((g) => Mt(i[g])) && i.x >= 0 && i.y >= 0 && i.width > 0 && i.height > 0 && i.x + i.width <= 1280 && i.y + i.height <= 720, n.id + ": object is outside the slide");
-    const p = { kind: i.kind, x: i.x, y: i.y, width: i.width, height: i.height, ...No(i, n.id) };
-    return i.kind === "text" && (fe(typeof i.text == "string", n.id + ": text object needs text"), p.text = i.text), i.kind === "shape" && (fe(l.has(i.shapeId), n.id + ": unknown shape " + i.shapeId), p.shapeId = i.shapeId), i.kind === "image" && (fe(typeof i.source == "string" && /^data:image\/(png|jpeg|gif|webp);base64,[a-z0-9+/=\s]+$/i.test(i.source), n.id + ": image needs embedded image data"), p.source = i.source, p.alt = typeof i.alt == "string" ? i.alt : ""), i.group !== void 0 && (fe(typeof i.group == "string" && i.group.length <= 80, n.id + ": invalid group"), p.group = i.group), p;
-  });
-  return { id: n.id, label: n.label, objects: c, ...n.background !== void 0 ? { background: n.background } : {}, ...n.notes !== void 0 ? { notes: n.notes } : {} };
-}
-function ln(n) {
-  Dn(n), fe(["system", "arial", "verdana", "georgia", "times", "courier"].includes(n.fontFamily), n.id + ": invalid theme font"), fe(Mt(n.fontSize) && n.fontSize >= 8 && n.fontSize <= 200, n.id + ": invalid theme font size");
-  const l = { id: n.id, label: n.label, fontFamily: n.fontFamily, fontSize: n.fontSize };
-  for (const c of ["textColour", "background", "fillColour", "borderColour"])
-    fe(Pn(n[c]), n.id + ": invalid theme " + c), l[c] = n[c];
+function qo(n, i) {
+  const l = {};
+  for (const r of ["fillEnabled", "borderEnabled", "keepAspectRatio", "locked"])
+    n[r] !== void 0 && (be(typeof n[r] == "boolean", i + ": invalid " + r), l[r] = n[r]);
+  for (const r of ["fillColour", "borderColour", "textColour"])
+    n[r] !== void 0 && (be(On(n[r]), i + ": invalid " + r), l[r] = n[r]);
+  for (const [r, d, m] of [["fontSize", 8, 200], ["borderWidth", 1, 20], ["rotation", -180, 180], ["cropX", 0, 100], ["cropY", 0, 100]])
+    n[r] !== void 0 && (be(Nt(n[r]) && n[r] >= d && n[r] <= m, i + ": invalid " + r), l[r] = n[r]);
+  for (const [r, d] of [["textAlign", ["left", "center", "right", "justify"]], ["fontFamily", ["system", "arial", "verdana", "georgia", "times", "courier"]], ["imageFit", ["contain", "cover"]]])
+    n[r] !== void 0 && (be(d.includes(n[r]), i + ": invalid " + r), l[r] = n[r]);
   return l;
 }
-function In(n = {}) {
-  const l = /* @__PURE__ */ new Map(), c = /* @__PURE__ */ new Map(), i = /* @__PURE__ */ new Map(), p = n.shapes === void 0 ? zi.shapes : n.shapes, g = n.layouts === void 0 ? Fi.layouts : n.layouts;
-  fe(Array.isArray(p) && p.length > 0, "shapes must be a nonempty array"), fe(Array.isArray(g) && g.length > 0, "layouts must be a nonempty array");
-  for (const b of p) {
-    const E = sn(b);
-    fe(!l.has(b.id), "duplicate shape ID " + b.id), l.set(b.id, E);
-  }
-  for (const b of g) {
-    const E = Bi(b, l);
-    fe(!c.has(b.id), "duplicate layout ID " + b.id), c.set(b.id, E);
-  }
-  const u = n.themes === void 0 ? Oi.themes : n.themes;
-  fe(Array.isArray(u) && u.length > 0, "themes must be a nonempty array");
-  for (const b of u) {
-    const E = ln(b);
-    fe(!i.has(b.id), "duplicate theme ID " + b.id), i.set(b.id, E);
-  }
-  return { shapes: l, layouts: c, themes: i };
+function fn(n) {
+  Bn(n), be(Nt(n.width) && n.width > 0 && n.width <= 1280 && Nt(n.height) && n.height > 0 && n.height <= 720, n.id + ": invalid default dimensions"), be(Array.isArray(n.viewBox) && n.viewBox.length === 4 && n.viewBox.every(Nt) && n.viewBox[2] > 0 && n.viewBox[3] > 0, n.id + ": invalid SVG viewBox"), be(Array.isArray(n.elements) && n.elements.length > 0 && n.elements.length <= 64, n.id + ": needs 1–64 SVG elements");
+  const i = n.elements.map((l) => {
+    be(l && Object.hasOwn(jo, l.tag), n.id + ": unsupported SVG element"), be(l.attributes && typeof l.attributes == "object", n.id + ": missing SVG attributes");
+    const r = {};
+    for (const [d, m] of Object.entries(l.attributes))
+      be(jo[l.tag].includes(d), n.id + ": unsupported SVG attribute " + d), d === "d" ? be(typeof m == "string" && m.length <= 65536 && /^[MmLlHhVvCcSsQqTtAaZz0-9eE+.,\s-]+$/.test(m), n.id + ": invalid path") : d === "points" ? be(typeof m == "string" && m.length <= 65536 && /^[0-9eE+.,\s-]+$/.test(m), n.id + ": invalid points") : be(Nt(m), n.id + ": invalid SVG coordinate"), r[d] = m;
+    return { tag: l.tag, attributes: r };
+  });
+  return { id: n.id, label: n.label, width: n.width, height: n.height, defaults: qo(n.defaults || {}, n.id), viewBox: [...n.viewBox], elements: i };
 }
-async function Hi(n) {
-  const l = await Promise.all(["shapes", "layouts", "themes"].map(async (i) => {
-    const p = await fetch(new URL(i + ".json", n), { cache: "no-cache" });
-    if (!p.ok) throw new Error("Could not load slide " + i + " catalog (HTTP " + p.status + ").");
-    const g = await p.json();
-    return fe(g && g.version === 1, "unsupported " + i + " catalog version"), fe(Array.isArray(g[i]), i + " catalog needs a " + i + " array"), g[i];
-  })), c = { shapes: l[0], layouts: l[1], themes: l[2] };
-  return In(c), c;
+function oi(n, i) {
+  Bn(n), be(Array.isArray(n.objects) && n.objects.length <= 100, n.id + ": invalid objects array"), n.background !== void 0 && be(On(n.background), n.id + ": invalid background"), n.notes !== void 0 && be(typeof n.notes == "string", n.id + ": invalid notes");
+  const l = n.objects.map((r) => {
+    be(r && ["text", "shape", "image"].includes(r.kind), n.id + ": unsupported object kind"), be(["x", "y", "width", "height"].every((m) => Nt(r[m])) && r.x >= 0 && r.y >= 0 && r.width > 0 && r.height > 0 && r.x + r.width <= 1280 && r.y + r.height <= 720, n.id + ": object is outside the slide");
+    const d = { kind: r.kind, x: r.x, y: r.y, width: r.width, height: r.height, ...qo(r, n.id) };
+    return r.kind === "text" && (be(typeof r.text == "string", n.id + ": text object needs text"), d.text = r.text), r.kind === "shape" && (be(i.has(r.shapeId), n.id + ": unknown shape " + r.shapeId), d.shapeId = r.shapeId), r.kind === "image" && (be(typeof r.source == "string" && /^data:image\/(png|jpeg|gif|webp);base64,[a-z0-9+/=\s]+$/i.test(r.source), n.id + ": image needs embedded image data"), d.source = r.source, d.alt = typeof r.alt == "string" ? r.alt : ""), r.group !== void 0 && (be(typeof r.group == "string" && r.group.length <= 80, n.id + ": invalid group"), d.group = r.group), d;
+  });
+  return { id: n.id, label: n.label, objects: l, ...n.background !== void 0 ? { background: n.background } : {}, ...n.notes !== void 0 ? { notes: n.notes } : {} };
 }
-function Ui(n, l = {}) {
+function hn(n) {
+  Bn(n), be(["system", "arial", "verdana", "georgia", "times", "courier"].includes(n.fontFamily), n.id + ": invalid theme font"), be(Nt(n.fontSize) && n.fontSize >= 8 && n.fontSize <= 200, n.id + ": invalid theme font size");
+  const i = { id: n.id, label: n.label, fontFamily: n.fontFamily, fontSize: n.fontSize };
+  for (const l of ["textColour", "background", "fillColour", "borderColour"])
+    be(On(n[l]), n.id + ": invalid theme " + l), i[l] = n[l];
+  return i;
+}
+function Dn(n = {}) {
+  const i = /* @__PURE__ */ new Map(), l = /* @__PURE__ */ new Map(), r = /* @__PURE__ */ new Map(), d = n.shapes === void 0 ? Zr.shapes : n.shapes, m = n.layouts === void 0 ? ei.layouts : n.layouts;
+  be(Array.isArray(d) && d.length > 0, "shapes must be a nonempty array"), be(Array.isArray(m) && m.length > 0, "layouts must be a nonempty array");
+  for (const y of d) {
+    const x = fn(y);
+    be(!i.has(y.id), "duplicate shape ID " + y.id), i.set(y.id, x);
+  }
+  for (const y of m) {
+    const x = oi(y, i);
+    be(!l.has(y.id), "duplicate layout ID " + y.id), l.set(y.id, x);
+  }
+  const p = n.themes === void 0 ? ni.themes : n.themes;
+  be(Array.isArray(p) && p.length > 0, "themes must be a nonempty array");
+  for (const y of p) {
+    const x = hn(y);
+    be(!r.has(y.id), "duplicate theme ID " + y.id), r.set(y.id, x);
+  }
+  return { shapes: i, layouts: l, themes: r };
+}
+async function ri(n) {
+  const i = await Promise.all(["shapes", "layouts", "themes"].map(async (r) => {
+    const d = await fetch(new URL(r + ".json", n), { cache: "no-cache" });
+    if (!d.ok) throw new Error("Could not load slide " + r + " catalog (HTTP " + d.status + ").");
+    const m = await d.json();
+    return be(m && m.version === 1, "unsupported " + r + " catalog version"), be(Array.isArray(m[r]), r + " catalog needs a " + r + " array"), m[r];
+  })), l = { shapes: i[0], layouts: i[1], themes: i[2] };
+  return Dn(l), l;
+}
+function ii(n, i = {}) {
   if (!(n instanceof HTMLElement)) throw new TypeError("A container element is required");
-  const { Y: c, Editor: i, StarterKit: p, Collaboration: g, HocuspocusProvider: u, Link: b } = l.dependencies, { shapes: E, layouts: f, themes: y } = In(l.catalogs), A = In().shapes.values().next().value, w = /* @__PURE__ */ new WeakMap(), S = /* @__PURE__ */ new Map(), h = document.createElement("div");
-  h.className = "clist-slides app", h.innerHTML = ti, n.append(h);
-  const k = 1280, L = 720, a = (e) => h.querySelector(`[data-control="${e}"]`);
-  for (const e of h.querySelectorAll(".tools button")) wo(e);
-  for (const e of E.values()) {
+  const { Y: l, Editor: r, StarterKit: d, Collaboration: m, HocuspocusProvider: p, Link: y } = i.dependencies, { shapes: x, layouts: h, themes: g } = Dn(i.catalogs), S = Dn().shapes.values().next().value, b = /* @__PURE__ */ new WeakMap(), v = /* @__PURE__ */ new Map(), f = document.createElement("div");
+  f.className = "clist-slides app", f.innerHTML = wr, n.append(f);
+  const E = 1280, A = 720, s = (e) => f.querySelector(`[data-control="${e}"]`);
+  for (const e of f.querySelectorAll(".tools button")) Ao(e);
+  for (const e of x.values()) {
     const t = document.createElement("button");
-    t.className = "btn-small", t.dataset.control = "add-" + e.id, t.title = "Add " + e.label, wo(t, e), t.addEventListener("click", () => Yn(e.id)), a("shape-tools").append(t);
+    t.className = "btn-small", t.dataset.control = "add-" + e.id, t.title = "Add " + e.label, Ao(t, e), t.addEventListener("click", () => oo(e.id)), s("shape-tools").append(t);
   }
-  for (const e of f.values()) {
+  for (const e of h.values()) {
     const t = document.createElement("option");
-    t.value = e.id, t.textContent = e.label, a("slide-layout").append(t);
+    t.value = e.id, t.textContent = e.label, s("slide-layout").append(t);
   }
-  const R = a("slide"), F = document.createElement("div"), P = document.createElement("div");
-  F.className = "alignment-guide vertical", P.className = "alignment-guide horizontal", F.hidden = P.hidden = !0, R.append(F, P);
-  let v = new c.Doc(), ne = null, _ = null, M = v.getMap("slide-objects"), q = v.getMap("slide-pages"), Z = v.getMap("slide-backgrounds"), U = v.getMap("slide-notes"), ee = v.getMap("clist_refs"), K = v.getMap("slide-design"), te = null, Y = null, pe = null, re = null, O = "first", me = /* @__PURE__ */ new Set(["first"]), Ce = "first", Ie = "first";
-  const X = /* @__PURE__ */ new Map(), Qe = /* @__PURE__ */ new Map(), Ve = /* @__PURE__ */ new Map(), Ke = /* @__PURE__ */ new Map(), le = /* @__PURE__ */ new Map(), be = /* @__PURE__ */ new Set();
-  let ze = /* @__PURE__ */ new WeakMap(), Fe = /* @__PURE__ */ new WeakMap(), ot = !0, wt = "", N = null, W = !1;
-  const C = /* @__PURE__ */ new Set();
-  let T = null, $ = null, G = !1, oe = null, ye = 0, Ne = null, ae = !1, Ee = null, de = null, ge = null, Me = null, D = null, se = !1, z = !1, Ae = null, Se = null, Ge = null, it = null, ht = null, rt = !1, at = null, Je = !1;
-  const Pe = Ci({
-    getDocument: () => v,
-    encode: c.encodeStateAsUpdate,
-    getName: () => a("doc-name").value,
+  const F = s("slide"), T = document.createElement("div"), z = document.createElement("div");
+  T.className = "alignment-guide vertical", z.className = "alignment-guide horizontal", T.hidden = z.hidden = !0, F.append(T, z);
+  let C = new l.Doc(), _ = null, q = null, ee = null, se = null, oe = null, L = C.getMap("slide-objects"), U = C.getMap("slide-pages"), G = C.getMap("slide-backgrounds"), J = C.getMap("slide-notes"), K = C.getMap("clist_refs"), le = C.getMap("slide-design"), ue = null, Le = null, Ne = null, ke = null, H = "first", Ce = /* @__PURE__ */ new Set(["first"]), ot = "first", We = "first";
+  const Z = /* @__PURE__ */ new Map(), ge = /* @__PURE__ */ new Map(), Ee = /* @__PURE__ */ new Map(), Be = /* @__PURE__ */ new Map(), Te = /* @__PURE__ */ new Map(), Xe = /* @__PURE__ */ new Set();
+  let pt = /* @__PURE__ */ new WeakMap(), j = /* @__PURE__ */ new WeakMap(), V = !0, W = "", te = null, Q = null, Y = !1;
+  const I = /* @__PURE__ */ new Set();
+  let B = null, Ae = null, pe = !1, fe = null, je = 0, ve = null, Pe = !1, ie = null, re = null, de = null, Me = null, qe = null, D = null, rt = !1, R = !1, gt = null, $e = null, _e = null, Ie = null, st = null, Ke = !1, Ge = null, Je = !1;
+  const ft = Ur({
+    getDocument: () => C,
+    encode: l.encodeStateAsUpdate,
+    getName: () => s("doc-name").value,
     onError: (e) => {
-      console.error("Background recovery failed:", e), J("Background recovery failed: " + e.message, "error");
+      console.error("Background recovery failed:", e), X("Background recovery failed: " + e.message, "error");
     }
-  }), st = ui(h, () => z);
-  let Ye = null, Be = [], Ue = null;
-  a("server-url").value = l.url || "", a("doc-name").value = l.documentName || "clist-slide-demo";
-  function J(e, t = "") {
-    a("connection-status").textContent = e, a("connection-status").className = `status ${t}`;
+  }), it = jr(f, () => R);
+  let lt = null, et = [], jt = null;
+  s("server-url").value = i.url || "", s("doc-name").value = i.documentName || "clist-slide-demo";
+  function X(e, t = "") {
+    s("connection-status").textContent = e, s("connection-status").className = `status ${t}`;
   }
-  function qe(e) {
-    Pe.changed(e), at?.changed(), l.onChange?.();
+  function kt(e) {
+    ft.changed(e), Ge?.changed(), i.onChange?.();
   }
-  function gt(e) {
-    l.onStatus ? l.onStatus(e) : J(e);
+  function Bt(e) {
+    i.onStatus ? i.onStatus(e) : X(e);
   }
-  function We(e, t, o, r, s, d = null, x = "") {
-    const m = new c.Map();
-    m.set("x", t), m.set("y", o), m.set("width", r), m.set("height", s), m.set("rotation", 0), m.set("slide", O), m.set("layer", Math.max(-1, ...De().map((j) => _e(M.get(j)))) + 1), d && (m.set("kind", "image"), m.set("source", d), m.set("alt", x), m.set("imageRatio", r / s), m.set("aspectRatio", r / s), m.set("keepAspectRatio", !0)), M.set(e, m);
+  function St(e, t, o, a, c, u = null, k = "") {
+    const w = new l.Map();
+    w.set("x", t), w.set("y", o), w.set("width", a), w.set("height", c), w.set("rotation", 0), w.set("slide", H), w.set("layer", Math.max(-1, ...De().map((M) => Ze(L.get(M)))) + 1), u && (w.set("kind", "image"), w.set("source", u), w.set("alt", k), w.set("imageRatio", a / c), w.set("aspectRatio", a / c), w.set("keepAspectRatio", !0)), L.set(e, w);
   }
-  function Tt() {
-    M.size || G || (G = !0, v.transact(() => {
-      M.size || (K.has("theme") || K.set("theme", structuredClone(lt())), We("title", 105, 98, 820, 135), We("body", 108, 296, 690, 240));
-    }, "init"), X.get("title")?.editor.commands.setContent("<h1>Collaborative slides</h1>"), X.get("body")?.editor.commands.setContent("<p>Click here to edit together.</p><p>Click and drag over text to select it. Hold on text or drag a box border to move it, or resize it from the lower-right corner.</p>"));
+  function qn() {
+    L.size || pe || (pe = !0, C.transact(() => {
+      L.size || (le.has("theme") || le.set("theme", structuredClone(bt())), St("title", 105, 98, 820, 135), St("body", 108, 296, 690, 240));
+    }, "init"), Z.get("title")?.editor.commands.setContent("<h1>Collaborative slides</h1>"), Z.get("body")?.editor.commands.setContent("<p>Click here to edit together.</p><p>Click and drag over text to select it. Hold on text or drag a box border to move it, or resize it from the lower-right corner.</p>"));
   }
-  function Xe(e, t) {
+  function Ho(e, t) {
     const o = document.createElement("div");
     o.className = t.get("kind") === "shape" ? "slide-object shape-object" : t.get("kind") === "image" ? "slide-object image-object" : "slide-object", o.dataset.id = e, o.tabIndex = 0, o.setAttribute("aria-label", t.get("kind") === "shape" ? "Shape object. Arrow keys move; Delete removes." : t.get("kind") === "image" ? "Image object. Arrow keys move; Delete removes." : "Text object. Arrow keys move; Enter edits.");
-    const r = document.createElement("div");
-    r.className = t.get("kind") === "shape" ? "shape-content" : t.get("kind") === "image" ? "image-content" : "text-content";
-    const s = document.createElement("div");
-    s.className = "resize-handle", o.append(r, s);
-    for (const m of ["left", "right", "top", "bottom"]) {
-      const j = document.createElement("div");
-      j.className = "object-resize-edge object-resize-" + m, j.dataset.resizeEdge = m, j.title = "Resize " + m + " edge", j.addEventListener("pointerdown", (B) => Jt(B, e, "edge-" + m)), o.append(j);
+    const a = document.createElement("div");
+    a.className = t.get("kind") === "shape" ? "shape-content" : t.get("kind") === "image" ? "image-content" : "text-content";
+    const c = document.createElement("div");
+    c.className = "resize-handle", o.append(a, c);
+    for (const w of ["left", "right", "top", "bottom"]) {
+      const M = document.createElement("div");
+      M.className = "object-resize-edge object-resize-" + w, M.dataset.resizeEdge = w, M.title = "Resize " + w + " edge", M.addEventListener("pointerdown", (P) => en(P, e, "edge-" + w)), o.append(M);
     }
     {
-      const m = t.get("kind") === "image" ? "image" : t.get("kind") === "shape" ? "shape" : "text box", j = document.createElement("div");
-      j.className = "rotation-handle", j.title = "Rotate " + m + ": drag right clockwise, left counterclockwise", j.setAttribute("role", "slider"), j.setAttribute("aria-label", "Rotate " + m), j.setAttribute("aria-valuemin", "-180"), j.setAttribute("aria-valuemax", "180"), j.tabIndex = 0, j.addEventListener("pointerdown", (B) => Jt(B, e, "rotate")), j.addEventListener("keydown", (B) => {
-        ["ArrowLeft", "ArrowRight"].includes(B.key) && (B.preventDefault(), B.stopPropagation(), !(z || t.get("locked") === !0) && t.set("rotation", mo(t.get("rotation"), B.key === "ArrowRight" ? 1 : -1)));
-      }), o.append(j);
+      const w = t.get("kind") === "image" ? "image" : t.get("kind") === "shape" ? "shape" : "text box", M = document.createElement("div");
+      M.className = "rotation-handle", M.title = "Rotate " + w + ": drag right clockwise, left counterclockwise", M.setAttribute("role", "slider"), M.setAttribute("aria-label", "Rotate " + w), M.setAttribute("aria-valuemin", "-180"), M.setAttribute("aria-valuemax", "180"), M.tabIndex = 0, M.addEventListener("pointerdown", (P) => en(P, e, "rotate")), M.addEventListener("keydown", (P) => {
+        ["ArrowLeft", "ArrowRight"].includes(P.key) && (P.preventDefault(), P.stopPropagation(), !(R || t.get("locked") === !0) && t.set("rotation", So(t.get("rotation"), P.key === "ArrowRight" ? 1 : -1)));
+      }), o.append(M);
     }
-    R.append(o);
-    let d = null;
+    F.append(o);
+    let u = null;
     if (t.get("kind") === "shape")
-      r.append(document.createElementNS("http://www.w3.org/2000/svg", "svg"));
+      a.append(document.createElementNS("http://www.w3.org/2000/svg", "svg"));
     else if (t.get("kind") === "image") {
-      const m = document.createElement("img");
-      m.src = kt(t.get("source")), m.alt = typeof t.get("alt") == "string" ? t.get("alt") : "", m.draggable = !1, m.addEventListener("load", () => {
-        X.has(e) && fn(e);
-      }), r.append(m);
+      const w = document.createElement("img");
+      w.src = Ct(t.get("source")), w.alt = typeof t.get("alt") == "string" ? t.get("alt") : "", w.draggable = !1, w.addEventListener("load", () => {
+        Z.has(e) && yn(e);
+      }), a.append(w);
     } else {
-      const m = v.getXmlFragment(`slide-text-${e}`);
-      D?.addToScope(m), se = !0;
+      const w = C.getXmlFragment(`slide-text-${e}`);
+      D?.addToScope(w), rt = !0;
       try {
-        d = new i({
-          element: r,
-          editable: !z,
+        u = new r({
+          element: a,
+          editable: !R,
           extensions: [
-            p.configure({ undoRedo: !1, history: !1, link: !1 }),
-            b.configure({ openOnClick: !1, HTMLAttributes: { target: "_blank", rel: "noopener noreferrer" } }),
-            g.configure({ document: v, field: `slide-text-${e}` })
+            d.configure({ undoRedo: !1, history: !1, link: !1 }),
+            ur(y.constructor),
+            y.extend({ addAttributes() {
+              return { ...this.parent?.(), title: { default: null, parseHTML: (M) => M.getAttribute("title") }, ariaLabel: { default: null, parseHTML: (M) => M.getAttribute("aria-label"), renderHTML: (M) => M.ariaLabel ? { "aria-label": M.ariaLabel } : {} } };
+            } }).configure({ openOnClick: !1, HTMLAttributes: { target: "_blank", rel: "noopener noreferrer" } }),
+            m.configure({ document: C, field: `slide-text-${e}` })
           ],
           editorProps: {
             attributes: { "aria-label": `Edit text in ${e}` }
           },
           onFocus: () => {
-            $ = e, Le(e, !1, C.has(e));
+            Ae = e, ze(e, !1, I.has(e));
+          },
+          onSelectionUpdate: () => {
+            Z.get(e)?.editor === u && wt();
+          },
+          onUpdate: () => {
+            Z.get(e)?.editor === u && wt();
           },
           onBlur: () => {
-            $ === e && ($ = null), D?.stopCapturing();
+            Ae === e && (Ae = null), D?.stopCapturing();
           }
         });
       } finally {
-        se = !1;
+        rt = !1;
       }
     }
-    const x = ni(o, s, {
-      current: () => !z && X.get(e)?.node === o,
-      text: () => !!d,
-      select: (m) => Le(e, m, !1, !0),
+    const k = xr(o, c, {
+      current: () => !R && Z.get(e)?.node === o,
+      text: () => !!u,
+      select: (w) => ze(e, w, !1, !0),
       focus: () => {
-        h.tabIndex = -1, h.focus({ preventScroll: !0 });
+        f.tabIndex = -1, f.focus({ preventScroll: !0 });
       },
-      move: (m) => Jt(m, e, "move")
+      move: (w) => en(w, e, "move")
     });
-    o.addEventListener("dblclick", (m) => {
-      t.get("kind") === "image" && !m.target.closest(".rotation-handle") && (m.preventDefault(), m.stopPropagation(), Le(e), Qn());
+    o.addEventListener("dblclick", (w) => {
+      t.get("kind") === "image" && !w.target.closest(".rotation-handle") && (w.preventDefault(), w.stopPropagation(), ze(e), ao());
     }), o.addEventListener("focus", () => {
-      Le(e, !1, C.has(e));
-      const m = document.getSelection();
-      m?.anchorNode && h.contains(m.anchorNode) && m.removeAllRanges();
-    }), s.addEventListener("pointerdown", (m) => Jt(m, e, "resize")), X.set(e, { node: o, editor: d, box: t, content: r, disposePointer: x }), fn(e), T === e && o.classList.add("selected");
+      ze(e, !1, I.has(e)), u && !u.state.selection.empty && u.commands.setTextSelection(u.state.selection.from);
+      const w = document.getSelection();
+      w?.anchorNode && f.contains(w.anchorNode) && w.removeAllRanges();
+    }), c.addEventListener("pointerdown", (w) => en(w, e, "resize")), Z.set(e, { node: o, editor: u, box: t, content: a, disposePointer: k }), yn(e), B === e && o.classList.add("selected");
   }
-  const xt = {
-    system: "system-ui, sans-serif",
-    arial: "Arial, Helvetica, sans-serif",
-    verdana: "Verdana, Geneva, sans-serif",
-    georgia: "Georgia, serif",
-    times: '"Times New Roman", Times, serif',
-    courier: '"Courier New", Courier, monospace'
-  };
-  function lt() {
-    const e = K.get("theme");
+  function bt() {
+    const e = le.get("theme");
     if (e)
       try {
-        return ln(e);
+        return hn(e);
       } catch {
       }
-    return y.values().next().value;
+    return g.values().next().value;
   }
-  function dn() {
-    const e = new Map(y);
-    for (const [o, r] of K.entries())
+  function mn() {
+    const e = new Map(g);
+    for (const [o, a] of le.entries())
       if (o.startsWith("saved-theme:"))
         try {
-          const s = ln(r);
-          e.set(s.id, s);
-        } catch (s) {
-          console.error("Invalid saved theme:", s), J("A saved theme could not be read. Other themes are still available.", "error");
+          const c = hn(a);
+          e.set(c.id, c);
+        } catch (c) {
+          console.error("Invalid saved theme:", c), X("A saved theme could not be read. Other themes are still available.", "error");
         }
-    const t = lt();
+    const t = bt();
     return e.set(t.id, t), e;
   }
-  function zn(e) {
-    const t = dn().get(e);
-    !t || z || (D?.stopCapturing(), K.set("theme", structuredClone(t)), D?.stopCapturing(), J("Theme applied: " + t.label));
+  function Hn(e) {
+    const t = mn().get(e);
+    !t || R || (D?.stopCapturing(), le.set("theme", structuredClone(t)), D?.stopCapturing(), X("Theme applied: " + t.label));
   }
-  a("theme").addEventListener("change", (e) => zn(e.target.value));
-  function jo() {
-    const e = lt(), t = a("theme");
+  s("theme").addEventListener("change", (e) => Hn(e.target.value));
+  function Uo() {
+    const e = bt(), t = s("theme");
     t.replaceChildren();
-    for (const r of dn().values()) {
-      const s = document.createElement("option");
-      s.value = r.id, s.textContent = r.label, t.append(s);
+    for (const a of mn().values()) {
+      const c = document.createElement("option");
+      c.value = a.id, c.textContent = a.label, t.append(c);
     }
     t.value = e.id;
-    const o = a("theme-preview");
+    const o = s("theme-preview");
     if (o) {
       o.replaceChildren();
-      for (const r of [e.background, e.textColour, e.fillColour, e.borderColour]) {
-        const s = document.createElement("span");
-        s.style.backgroundColor = r, o.append(s);
+      for (const a of [e.background, e.textColour, e.fillColour, e.borderColour]) {
+        const c = document.createElement("span");
+        c.style.backgroundColor = a, o.append(c);
       }
     }
   }
-  function vt(e) {
-    const t = lt(), o = (s, d) => /^#[0-9a-f]{6}$/i.test(e.get(s) || "") ? e.get(s) : d, r = Number(e.get("borderWidth"));
+  function Et(e) {
+    const t = bt(), o = (c, u) => /^#[0-9a-f]{6}$/i.test(e.get(c) || "") ? e.get(c) : u, a = Number(e.get("borderWidth"));
     return {
       fill: e.get("fillEnabled") === !0,
       fillColour: o("fillColour", e.get("kind") === "shape" ? t.fillColour : t.background),
       border: e.get("borderEnabled") === !0,
       borderColour: o("borderColour", t.borderColour),
-      width: Number.isFinite(r) && r >= 1 && r <= 20 ? r : 2
+      width: Number.isFinite(a) && a >= 1 && a <= 20 ? a : 2
     };
   }
-  function mt(e) {
-    const t = lt(), o = Number(e.get("fontSize")), r = e.get("textColour"), s = e.get("textAlign");
+  function ht(e) {
+    const t = bt(), o = Number(e.get("fontSize")), a = e.get("textColour"), c = e.get("textAlign");
     return {
       size: Number.isFinite(o) && o >= 8 && o <= 200 ? o : t.fontSize,
-      colour: typeof r == "string" && /^#[0-9a-f]{6}$/i.test(r) ? r : t.textColour,
-      align: ["left", "center", "right", "justify"].includes(s) ? s : "left",
-      family: Object.prototype.hasOwnProperty.call(xt, e.get("fontFamily")) ? e.get("fontFamily") : t.fontFamily
+      colour: typeof a == "string" && /^#[0-9a-f]{6}$/i.test(a) ? a : t.textColour,
+      align: ["left", "center", "right", "justify"].includes(c) ? c : "left",
+      family: Object.prototype.hasOwnProperty.call(Mt, e.get("fontFamily")) ? e.get("fontFamily") : t.fontFamily
     };
   }
-  function _e(e) {
+  function Ze(e) {
     const t = e.get("layer");
     return typeof t == "number" && Number.isFinite(t) ? t : 0;
   }
-  function De(e = O) {
-    return [...M.keys()].filter((t) => {
-      const o = M.get(t);
-      return o instanceof c.Map && (o.get("slide") || "first") === e;
-    }).sort((t, o) => _e(M.get(t)) - _e(M.get(o)) || t.localeCompare(o));
+  function De(e = H) {
+    return [...L.keys()].filter((t) => {
+      const o = L.get(t);
+      return o instanceof l.Map && (o.get("slide") || "first") === e;
+    }).sort((t, o) => Ze(L.get(t)) - Ze(L.get(o)) || t.localeCompare(o));
   }
-  function un(e) {
+  function gn(e) {
     const t = (o) => {
-      const r = e.get(o);
-      return typeof r == "number" && Number.isFinite(r) ? Math.max(0, Math.min(100, r)) : 50;
+      const a = e.get(o);
+      return typeof a == "number" && Number.isFinite(a) ? Math.max(0, Math.min(100, a)) : 50;
     };
     return { fit: e.get("imageFit") === "cover" ? "cover" : "contain", x: t("cropX"), y: t("cropY") };
   }
-  function qt(e, t) {
-    const o = Number(e.get("cropImageWidth")), r = Number(e.get("cropImageHeight"));
-    if (o > 0 && r > 0) return { width: o, height: r };
-    const s = t?.naturalWidth > 0 ? t.naturalWidth / t.naturalHeight : Number(e.get("imageRatio")) || eo(e), d = Math.max(e.get("width"), e.get("height") * s);
-    return { width: d, height: d / s };
+  function Kt(e, t) {
+    const o = Number(e.get("cropImageWidth")), a = Number(e.get("cropImageHeight"));
+    if (o > 0 && a > 0) return { width: o, height: a };
+    const c = t?.naturalWidth > 0 ? t.naturalWidth / t.naturalHeight : Number(e.get("imageRatio")) || so(e), u = Math.max(e.get("width"), e.get("height") * c);
+    return { width: u, height: u / c };
   }
-  function Tn(e) {
+  function Un(e) {
     if (e.get("kind") !== "image" || e.get("imageFit") !== "cover") return;
-    const t = X.get([...M.keys()].find((r) => M.get(r) === e))?.content.querySelector("img"), o = qt(e, t);
+    const t = Z.get([...L.keys()].find((a) => L.get(a) === e))?.content.querySelector("img"), o = Kt(e, t);
     e.set("cropImageWidth", o.width), e.set("cropImageHeight", o.height);
   }
-  function pn(e, t, o = !1) {
-    const r = un(t);
-    if (e.style.objectFit = "contain", e.style.objectPosition = r.x + "% " + r.y + "%", r.fit === "cover") {
+  function bn(e, t, o = !1) {
+    const a = gn(t);
+    if (e.style.objectFit = "contain", e.style.objectPosition = a.x + "% " + a.y + "%", a.fit === "cover") {
       e.style.objectFit = "fill";
-      const s = qt(t, e);
-      e.style.position = "absolute", e.style.width = o ? s.width / 12.8 + "cqw" : 100 * s.width / t.get("width") + "%", e.style.height = o ? s.height / 12.8 + "cqw" : 100 * s.height / t.get("height") + "%", e.style.left = o ? (t.get("width") - s.width) * r.x / 1280 + "cqw" : (t.get("width") - s.width) * r.x / t.get("width") + "%", e.style.top = o ? (t.get("height") - s.height) * r.y / 1280 + "cqw" : (t.get("height") - s.height) * r.y / t.get("height") + "%";
+      const c = Kt(t, e);
+      e.style.position = "absolute", e.style.width = o ? c.width / 12.8 + "cqw" : 100 * c.width / t.get("width") + "%", e.style.height = o ? c.height / 12.8 + "cqw" : 100 * c.height / t.get("height") + "%", e.style.left = o ? (t.get("width") - c.width) * a.x / 1280 + "cqw" : (t.get("width") - c.width) * a.x / t.get("width") + "%", e.style.top = o ? (t.get("height") - c.height) * a.y / 1280 + "cqw" : (t.get("height") - c.height) * a.y / t.get("height") + "%";
     } else
       e.style.position = "static", e.style.width = e.style.height = "100%", e.style.left = e.style.top = "";
   }
-  function Wt(e) {
+  function Gt(e) {
     const t = e.get("shapeDefinition");
     if (t && typeof t == "object") {
-      if (!w.has(t))
+      if (!b.has(t))
         try {
-          w.set(t, sn(t));
+          b.set(t, fn(t));
         } catch (o) {
-          console.error("Invalid saved shape definition:", o), J("A saved shape definition is invalid; showing a fallback shape.", "error"), w.set(t, A);
+          console.error("Invalid saved shape definition:", o), X("A saved shape definition is invalid; showing a fallback shape.", "error"), b.set(t, S);
         }
-      return w.get(t);
+      return b.get(t);
     }
-    return E.get(e.get("shapeType")) || A;
+    return x.get(e.get("shapeType")) || S;
   }
-  function Fn(e) {
-    const { fillColour: t, borderColour: o, ...r } = e.defaults;
-    return { kind: "shape", shapeType: e.id, shapeDefinition: structuredClone(e), ...r };
+  function Wn(e) {
+    const { fillColour: t, borderColour: o, ...a } = e.defaults;
+    return { kind: "shape", shapeType: e.id, shapeDefinition: structuredClone(e), ...a };
   }
-  function Xt(e, t) {
-    const o = "http://www.w3.org/2000/svg", r = Math.max(1, Number(t.get("width")) || 1), s = Math.max(1, Number(t.get("height")) || 1), d = vt(t), x = Wt(t), m = d.border ? Math.min(d.width, r, s) : 0, [j, B, I, H] = x.viewBox;
-    e.setAttribute("viewBox", "0 0 " + r + " " + s), e.setAttribute("preserveAspectRatio", "none");
-    const V = document.createElementNS(o, "g");
-    V.setAttribute("transform", "translate(" + m / 2 + " " + m / 2 + ") scale(" + Math.max(1e-3, r - m) / I + " " + Math.max(1e-3, s - m) / H + ") translate(" + -j + " " + -B + ")");
-    for (const ce of x.elements) {
-      const ke = document.createElementNS(o, ce.tag);
-      for (const [ie, Re] of Object.entries(ce.attributes)) ke.setAttribute(ie, String(Re));
-      ke.setAttribute("fill", d.fill ? d.fillColour : "none"), ke.setAttribute("stroke", d.border ? d.borderColour : "none"), ke.setAttribute("vector-effect", "non-scaling-stroke"), ke.style.strokeWidth = 100 * m / r + "cqw", ke.setAttribute("stroke-linecap", "round"), ke.setAttribute("stroke-linejoin", "round"), V.append(ke);
+  function Jt(e, t) {
+    const o = "http://www.w3.org/2000/svg", a = Math.max(1, Number(t.get("width")) || 1), c = Math.max(1, Number(t.get("height")) || 1), u = Et(t), k = Gt(t), w = u.border ? Math.min(u.width, a, c) : 0, [M, P, N, O] = k.viewBox;
+    e.setAttribute("viewBox", "0 0 " + a + " " + c), e.setAttribute("preserveAspectRatio", "none");
+    const $ = document.createElementNS(o, "g");
+    $.setAttribute("transform", "translate(" + w / 2 + " " + w / 2 + ") scale(" + Math.max(1e-3, a - w) / N + " " + Math.max(1e-3, c - w) / O + ") translate(" + -M + " " + -P + ")");
+    for (const ce of k.elements) {
+      const he = document.createElementNS(o, ce.tag);
+      for (const [ae, Re] of Object.entries(ce.attributes)) he.setAttribute(ae, String(Re));
+      he.setAttribute("fill", u.fill ? u.fillColour : "none"), he.setAttribute("stroke", u.border ? u.borderColour : "none"), he.setAttribute("vector-effect", "non-scaling-stroke"), he.style.strokeWidth = 100 * w / a + "cqw", he.setAttribute("stroke-linecap", "round"), he.setAttribute("stroke-linejoin", "round"), $.append(he);
     }
-    e.replaceChildren(V);
+    e.replaceChildren($);
   }
-  function fn(e) {
-    const t = X.get(e);
+  function yn(e) {
+    const t = Z.get(e);
     if (!t) return;
-    const { node: o, box: r } = t;
-    if (o.style.left = `${100 * Number(r.get("x") || 0) / k}%`, o.style.top = `${100 * Number(r.get("y") || 0) / L}%`, o.style.width = `${100 * Number(r.get("width") || 0) / k}%`, o.style.height = `${100 * Number(r.get("height") || 0) / L}%`, o.style.transform = `rotate(${Number(r.get("rotation") || 0)}deg)`, o.querySelector(".rotation-handle")?.setAttribute("aria-valuenow", String(Number(r.get("rotation")) || 0)), o.classList.toggle("locked", r.get("locked") === !0), o.title = r.get("locked") === !0 ? "Locked object: select it and click Unlock to move, resize or delete." : "", o.style.zIndex = String(De().indexOf(e)), r.get("kind") === "shape") Xt(t.content.querySelector("svg"), r);
+    const { node: o, box: a } = t;
+    if (o.style.left = `${100 * Number(a.get("x") || 0) / E}%`, o.style.top = `${100 * Number(a.get("y") || 0) / A}%`, o.style.width = `${100 * Number(a.get("width") || 0) / E}%`, o.style.height = `${100 * Number(a.get("height") || 0) / A}%`, o.style.transform = `rotate(${Number(a.get("rotation") || 0)}deg)`, o.querySelector(".rotation-handle")?.setAttribute("aria-valuenow", String(Number(a.get("rotation")) || 0)), o.classList.toggle("locked", a.get("locked") === !0), o.title = a.get("locked") === !0 ? "Locked object: select it and click Unlock to move, resize or delete." : "", o.style.zIndex = String(De().indexOf(e)), a.get("kind") === "shape") Jt(t.content.querySelector("svg"), a);
     else if (!t.editor) {
-      const s = t.content.querySelector("img"), d = kt(r.get("source"));
-      s.getAttribute("src") !== d && (s.src = d), s.alt = typeof r.get("alt") == "string" ? r.get("alt") : "", pn(s, r, !0);
+      const c = t.content.querySelector("img"), u = Ct(a.get("source"));
+      c.getAttribute("src") !== u && (c.src = u), c.alt = typeof a.get("alt") == "string" ? a.get("alt") : "", bn(c, a, !0);
     }
     if (t.editor) {
-      const s = mt(r);
-      o.style.setProperty("--slide-font-size", s.size / 12.8 + "cqw"), o.style.fontFamily = xt[s.family], o.style.color = s.colour, o.style.textAlign = s.align;
-      const d = vt(r);
-      t.content.style.backgroundColor = d.fill ? d.fillColour : "transparent", t.content.style.border = d.border ? d.width / 12.8 + "cqw solid " + d.borderColour : "none";
+      const c = ht(a);
+      o.style.setProperty("--slide-font-size", c.size / 12.8 + "cqw"), o.style.fontFamily = Mt[c.family], o.style.color = c.colour, o.style.textAlign = c.align;
+      const u = Et(a);
+      t.content.style.backgroundColor = u.fill ? u.fillColour : "transparent", t.content.style.border = u.border ? u.width / 12.8 + "cqw solid " + u.borderColour : "none";
     }
   }
-  function Ft() {
-    const e = U.get(O), t = typeof e == "string" ? e : "";
-    a("speaker-notes").value !== t && (a("speaker-notes").value = t);
+  function qt() {
+    const e = J.get(H), t = typeof e == "string" ? e : "";
+    s("speaker-notes").value !== t && (s("speaker-notes").value = t);
   }
-  a("speaker-notes").addEventListener("input", (e) => {
-    z || U.set(O, e.target.value);
+  s("speaker-notes").addEventListener("input", (e) => {
+    R || J.set(H, e.target.value);
   });
-  function At(e) {
-    const t = Z.get(e);
-    return typeof t == "string" && /^#[0-9a-f]{6}$/i.test(t) ? t : lt().background;
+  function zt(e) {
+    const t = G.get(e);
+    return typeof t == "string" && /^#[0-9a-f]{6}$/i.test(t) ? t : bt().background;
   }
-  a("slide-background").addEventListener("change", (e) => {
-    if (z) return;
+  s("slide-background").addEventListener("change", (e) => {
+    if (R) return;
     const t = e.target.value;
-    /^#[0-9a-f]{6}$/i.test(t) && Z.set(O, t);
+    /^#[0-9a-f]{6}$/i.test(t) && G.set(H, t);
   });
-  function ve() {
-    return q.size ? [...q.keys()].sort((e, t) => q.get(e) - q.get(t) || e.localeCompare(t)) : ["first"];
+  function Se() {
+    return U.size ? [...U.keys()].sort((e, t) => U.get(e) - U.get(t) || e.localeCompare(t)) : ["first"];
   }
-  function hn(e) {
-    const t = Ke.get(e), o = M.get(e);
-    if (t !== void 0 && (be.add(t), le.get(t)?.delete(e), le.get(t)?.size || le.delete(t), Ke.delete(e)), o instanceof c.Map) {
-      const r = o.get("slide") || "first";
-      Ke.set(e, r), ze.set(o, e), le.has(r) || le.set(r, /* @__PURE__ */ new Set()), le.get(r).add(e), be.add(r);
+  function wn(e) {
+    const t = Be.get(e), o = L.get(e);
+    if (t !== void 0 && (Xe.add(t), Te.get(t)?.delete(e), Te.get(t)?.size || Te.delete(t), Be.delete(e)), o instanceof l.Map) {
+      const a = o.get("slide") || "first";
+      Be.set(e, a), pt.set(o, e), Te.has(a) || Te.set(a, /* @__PURE__ */ new Set()), Te.get(a).add(e), Xe.add(a);
     }
   }
-  function Io() {
-    Ke.clear(), le.clear(), be.clear(), ze = /* @__PURE__ */ new WeakMap(), Fe = /* @__PURE__ */ new WeakMap(), M.forEach((e, t) => hn(t)), ot = !0;
+  function Wo() {
+    Be.clear(), Te.clear(), Xe.clear(), pt = /* @__PURE__ */ new WeakMap(), j = /* @__PURE__ */ new WeakMap(), L.forEach((e, t) => wn(t)), V = !0;
   }
-  function $t(e) {
-    for (const t of e.changed.get(M) || []) t !== null && hn(t);
+  function Yt(e) {
+    for (const t of e.changed.get(L) || []) t !== null && wn(t);
     for (const [t, o] of e.changed)
-      if (t === K) ot = !0;
-      else if (t === Z) for (const r of o) be.add(r);
-      else if (ze.has(t)) hn(ze.get(t));
+      if (t === le) V = !0;
+      else if (t === G) for (const a of o) Xe.add(a);
+      else if (pt.has(t)) wn(pt.get(t));
       else {
-        let r = t;
-        for (; r.parent; ) r = r.parent;
-        if (!(r instanceof c.XmlFragment)) continue;
-        if (!Fe.has(r))
-          for (const [d, x] of v.share) d.startsWith("slide-text-") && Fe.set(x, d.slice(11));
-        const s = Ke.get(Fe.get(r));
-        s !== void 0 && be.add(s);
+        let a = t;
+        for (; a.parent; ) a = a.parent;
+        if (!(a instanceof l.XmlFragment)) continue;
+        if (!j.has(a))
+          for (const [u, k] of C.share) u.startsWith("slide-text-") && j.set(k, u.slice(11));
+        const c = Be.get(j.get(a));
+        c !== void 0 && Xe.add(c);
       }
   }
-  function Vt(e = ve()) {
-    e.includes(O) || (O = e[0]), Ce !== O ? (me = /* @__PURE__ */ new Set([O]), Ie = O) : (me = new Set(e.filter((t) => me.has(t))), me.size || me.add(O)), Ce = O, e.includes(Ie) || (Ie = O);
+  function _t(e = Se()) {
+    e.includes(H) || (H = e[0]), ot !== H ? (Ce = /* @__PURE__ */ new Set([H]), We = H) : (Ce = new Set(e.filter((t) => Ce.has(t))), Ce.size || Ce.add(H)), ot = H, e.includes(We) || (We = H);
   }
-  function Kt() {
-    return Vt(), ve().filter((e) => me.has(e));
+  function Zt() {
+    return _t(), Se().filter((e) => Ce.has(e));
   }
-  function bt(e, t = e[0], o = t) {
-    me = new Set(e), O = t, Ce = t, Ie = o, T = null, C.clear();
+  function yt(e, t = e[0], o = t) {
+    Ce = new Set(e), H = t, ot = t, We = o, B = null, I.clear();
   }
-  function Lt() {
-    if (te?.mode === "outline") {
-      te.focus(O);
+  function Tt() {
+    if (ue?.mode === "outline") {
+      ue.focus(H);
       return;
     }
-    a("slide-list").querySelector(`[data-slide-id="${O}"]`)?.focus({ preventScroll: !0 });
+    s("slide-list").querySelector(`[data-slide-id="${H}"]`)?.focus({ preventScroll: !0 });
   }
-  function Gt(e, t = {}) {
-    const o = ve();
-    if (!(z || !o.includes(e))) {
-      if (xe(), Vt(o), t.shiftKey) {
-        const r = o.indexOf(Ie), s = o.indexOf(e), d = o.slice(Math.min(r, s), Math.max(r, s) + 1);
-        bt(t.ctrlKey || t.metaKey ? [...me, ...d] : d, e, Ie);
+  function Qt(e, t = {}) {
+    const o = Se();
+    if (!(R || !o.includes(e))) {
+      if (xe(), _t(o), t.shiftKey) {
+        const a = o.indexOf(We), c = o.indexOf(e), u = o.slice(Math.min(a, c), Math.max(a, c) + 1);
+        yt(t.ctrlKey || t.metaKey ? [...Ce, ...u] : u, e, We);
       } else if (t.ctrlKey || t.metaKey) {
-        const r = new Set(me);
-        r.has(e) && r.size > 1 ? r.delete(e) : r.add(e), bt([...r], r.has(e) ? e : r.has(O) ? O : [...r][0], e);
-      } else bt([e], e);
-      we(), Lt();
+        const a = new Set(Ce);
+        a.has(e) && a.size > 1 ? a.delete(e) : a.add(e), yt([...a], a.has(e) ? e : a.has(H) ? H : [...a][0], e);
+      } else yt([e], e);
+      we(), Tt();
     }
   }
-  function Rn() {
-    const e = a("object-list");
+  function Xn() {
+    const e = s("object-list");
     if (!e) return;
     const t = De().reverse();
-    for (const [o, r] of Qe)
-      t.includes(o) || (r.remove(), Qe.delete(o));
-    t.forEach((o, r) => {
-      const s = M.get(o), d = s.get("kind") === "image", x = s.get("kind") === "shape", m = d ? s.get("alt") : X.get(o)?.editor?.getText(), j = (typeof m == "string" ? m : "").replace(/\s+/g, " ").trim().slice(0, 60), B = x ? "Shape: " + Wt(s).label : (d ? "Image: " : "Text: ") + (j || (d ? "Untitled image" : "Empty text box"));
-      let I = Qe.get(o);
-      I || (I = document.createElement("button"), I.className = "btn-small", I.dataset.objectId = o, I.addEventListener("click", (H) => {
-        z || (xe(), Le(o, H.shiftKey, !1, !0), h.tabIndex = -1, h.focus({ preventScroll: !0 }));
-      }), Qe.set(o, I)), I.textContent = B + (s.get("groupId") ? " (Grouped)" : "") + (s.get("locked") === !0 ? " (Locked)" : ""), I.title = "Select " + B + ". Shift-click to add or remove from selection.", I.setAttribute("aria-pressed", String(C.has(o))), e.children[r] !== I && e.insertBefore(I, e.children[r] || null);
+    for (const [o, a] of ge)
+      t.includes(o) || (a.remove(), ge.delete(o));
+    t.forEach((o, a) => {
+      const c = L.get(o), u = c.get("kind") === "image", k = c.get("kind") === "shape", w = u ? c.get("alt") : Z.get(o)?.editor?.getText(), M = (typeof w == "string" ? w : "").replace(/\s+/g, " ").trim().slice(0, 60), P = k ? "Shape: " + Gt(c).label : (u ? "Image: " : "Text: ") + (M || (u ? "Untitled image" : "Empty text box"));
+      let N = ge.get(o);
+      N || (N = document.createElement("button"), N.className = "btn-small", N.dataset.objectId = o, N.addEventListener("click", (O) => {
+        R || (xe(), ze(o, O.shiftKey, !1, !0), f.tabIndex = -1, f.focus({ preventScroll: !0 }));
+      }), ge.set(o, N)), N.textContent = P + (c.get("groupId") ? " (Grouped)" : "") + (c.get("locked") === !0 ? " (Locked)" : ""), N.title = "Select " + P + ". Shift-click to add or remove from selection.", N.setAttribute("aria-pressed", String(I.has(o))), e.children[a] !== N && e.insertBefore(N, e.children[a] || null);
     });
   }
-  function gn() {
-    for (const e of h.querySelectorAll(".slide-drop-before, .slide-drop-after, .slide-dragging")) e.classList.remove("slide-drop-before", "slide-drop-after", "slide-dragging");
+  function xn() {
+    for (const e of f.querySelectorAll(".slide-drop-before, .slide-drop-after, .slide-dragging")) e.classList.remove("slide-drop-before", "slide-drop-after", "slide-dragging");
   }
-  function mn() {
-    gn(), Ye = null, Be = [], Ue = null;
+  function vn() {
+    xn(), lt = null, et = [], jt = null;
   }
-  const ct = h.querySelector(".rail");
+  const ct = f.querySelector(".rail");
   ct.addEventListener("dragstart", (e) => {
     const t = e.target.closest("[data-slide-id]");
-    if (!t || z || ve().length < 2 || !e.dataTransfer) {
+    if (!t || R || Se().length < 2 || !e.dataTransfer) {
       e.preventDefault();
       return;
     }
     xe();
     const o = t.dataset.slideId;
-    Vt(), me.has(o) || bt([o]), Ye = o, Be = Kt(), e.dataTransfer.effectAllowed = "move", e.dataTransfer.setData("text/plain", "CList slide");
-    for (const r of a("slide-list").querySelectorAll("[data-slide-id]")) Be.includes(r.dataset.slideId) && r.classList.add("slide-dragging");
+    _t(), Ce.has(o) || yt([o]), lt = o, et = Zt(), e.dataTransfer.effectAllowed = "move", e.dataTransfer.setData("text/plain", "CList slide");
+    for (const a of s("slide-list").querySelectorAll("[data-slide-id]")) et.includes(a.dataset.slideId) && a.classList.add("slide-dragging");
   }), ct.addEventListener("dragover", (e) => {
-    if (!Ye || z) return;
-    e.preventDefault(), e.dataTransfer.dropEffect = "move", gn();
-    const t = [...a("slide-list").querySelectorAll(":scope > [data-slide-id]")], o = t[si(t.map((d) => d.getBoundingClientRect()), e.clientX, e.clientY, te?.mode === "sorter")];
-    Ue = o?.dataset.slideId || null, (o || t.at(-1))?.classList.add(o ? "slide-drop-before" : "slide-drop-after");
-    for (const d of t) Be.includes(d.dataset.slideId) && d.classList.add("slide-dragging");
-    const s = ct.getBoundingClientRect();
-    e.clientY < s.top + 35 ? ct.scrollTop -= 18 : e.clientY > s.bottom - 35 && (ct.scrollTop += 18);
+    if (!lt || R) return;
+    e.preventDefault(), e.dataTransfer.dropEffect = "move", xn();
+    const t = [...s("slide-list").querySelectorAll(":scope > [data-slide-id]")], o = t[Cr(t.map((u) => u.getBoundingClientRect()), e.clientX, e.clientY, ue?.mode === "sorter")];
+    jt = o?.dataset.slideId || null, (o || t.at(-1))?.classList.add(o ? "slide-drop-before" : "slide-drop-after");
+    for (const u of t) et.includes(u.dataset.slideId) && u.classList.add("slide-dragging");
+    const c = ct.getBoundingClientRect();
+    e.clientY < c.top + 35 ? ct.scrollTop -= 18 : e.clientY > c.bottom - 35 && (ct.scrollTop += 18);
   }), ct.addEventListener("dragleave", (e) => {
-    ct.contains(e.relatedTarget) || gn();
+    ct.contains(e.relatedTarget) || xn();
   }), ct.addEventListener("dragend", () => {
-    mn(), we();
+    vn(), we();
   }), ct.addEventListener("drop", (e) => {
-    if (!Ye || z) return;
+    if (!lt || R) return;
     e.preventDefault();
-    const t = [...Be], o = Ue;
-    mn();
-    const r = ve(), s = Mi(r, t, o);
-    s.every((d, x) => d === r[x]) || (T = null, C.clear(), D?.stopCapturing(), v.transact(() => s.forEach((d, x) => q.set(d, x))), D?.stopCapturing(), Lt(), gt(t.length === 1 ? "Slide moved to position " + (s.indexOf(t[0]) + 1) : t.length + " slides moved"));
+    const t = [...et], o = jt;
+    vn();
+    const a = Se(), c = Xr(a, t, o);
+    c.every((u, k) => u === a[k]) || (B = null, I.clear(), D?.stopCapturing(), C.transact(() => c.forEach((u, k) => U.set(u, k))), D?.stopCapturing(), Tt(), Bt(t.length === 1 ? "Slide moved to position " + (c.indexOf(t[0]) + 1) : t.length + " slides moved"));
   }), ct.addEventListener("keydown", (e) => {
-    if (z || e.isComposing) return;
-    const t = ve(), o = t.indexOf(O);
+    if (R || e.isComposing) return;
+    const t = Se(), o = t.indexOf(H);
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a")
-      e.preventDefault(), e.stopPropagation(), bt(t, O, Ie), we(), Lt();
+      e.preventDefault(), e.stopPropagation(), yt(t, H, We), we(), Tt();
     else if (e.key === "Escape")
-      e.preventDefault(), e.stopPropagation(), Gt(O);
+      e.preventDefault(), e.stopPropagation(), Qt(H);
     else if (e.key === "Delete" || e.key === "Backspace")
-      e.preventDefault(), e.stopPropagation(), a("delete-slide").disabled || a("delete-slide").click();
+      e.preventDefault(), e.stopPropagation(), s("delete-slide").disabled || s("delete-slide").click();
     else if (["ArrowUp", "ArrowDown"].includes(e.key)) {
       e.preventDefault(), e.stopPropagation();
-      const r = e.key === "ArrowUp" ? -1 : 1;
-      e.altKey ? To(r) : t[o + r] && Gt(t[o + r], e);
+      const a = e.key === "ArrowUp" ? -1 : 1;
+      e.altKey ? Ko(a) : t[o + a] && Qt(t[o + a], e);
     }
   });
-  function Nt() {
-    Cn(), Rn();
-    const e = ve(), t = JSON.stringify(e);
-    Ye && t !== wt && mn(), wt = t, Vt(e);
-    const o = a("slide-list"), r = new Set(e);
-    for (const [m, j] of Ve) r.has(m) || (j.button.remove(), Ve.delete(m), be.delete(m));
-    let s = o.firstElementChild;
-    e.forEach((m, j) => {
-      let B = Ve.get(m);
-      if (!B) {
-        const nt = document.createElement("button"), Oe = document.createElement("div"), dt = document.createElement("div"), Te = document.createElement("span");
-        nt.className = "clist-action-btn btn-small", nt.dataset.slideId = m, dt.className = "mini-slide", Te.className = "slide-number", Oe.append(Te, dt), nt.append(Oe), nt.addEventListener("click", (je) => Gt(m, je)), B = { button: nt, thumb: Oe, preview: dt, label: Te }, Ve.set(m, B), be.add(m);
+  function It() {
+    Nn(), Xn();
+    const e = Se(), t = JSON.stringify(e);
+    lt && t !== W && vn(), W = t, _t(e);
+    const o = s("slide-list"), a = new Set(e);
+    for (const [w, M] of Ee) a.has(w) || (M.button.remove(), Ee.delete(w), Xe.delete(w));
+    let c = o.firstElementChild;
+    e.forEach((w, M) => {
+      let P = Ee.get(w);
+      if (!P) {
+        const Ve = document.createElement("button"), Oe = document.createElement("div"), dt = document.createElement("div"), Ue = document.createElement("span");
+        Ve.className = "clist-action-btn btn-small", Ve.dataset.slideId = w, dt.className = "mini-slide", Ue.className = "slide-number", Oe.append(Ue, dt), Ve.append(Oe), Ve.addEventListener("click", (Fe) => Qt(w, Fe)), P = { button: Ve, thumb: Oe, preview: dt, label: Ue }, Ee.set(w, P), Xe.add(w);
       }
-      const { button: I, thumb: H, preview: V, label: ce } = B, ke = "Slide " + (j + 1) + ". Ctrl/Cmd-click to toggle; Shift-click for a range. Drag to move selected slides.";
-      I.title !== ke && (I.title = ke);
-      const ie = e.length > 1 && !z;
-      I.draggable !== ie && (I.draggable = ie);
-      const Re = String(me.has(m));
-      I.getAttribute("aria-pressed") !== Re && I.setAttribute("aria-pressed", Re), m === O ? I.hasAttribute("aria-current") || I.setAttribute("aria-current", "true") : I.hasAttribute("aria-current") && I.removeAttribute("aria-current");
-      const He = "slide-thumb" + (me.has(m) ? " selected" : "") + (m === O ? " active-slide" : "");
-      H.className !== He && (H.className = He), (ot || be.has(m)) && (V.style.backgroundColor = At(m), V.replaceChildren(), [...le.get(m) || []].sort((Oe, dt) => _e(M.get(Oe)) - _e(M.get(dt)) || Oe.localeCompare(dt)).forEach((Oe, dt) => {
-        const Te = M.get(Oe), je = document.createElement("div");
-        if (je.className = "mini-object", je.style.zIndex = String(dt), je.style.transform = `rotate(${Number(Te.get("rotation")) || 0}deg)`, je.style.left = 100 * Te.get("x") / k + "%", je.style.top = 100 * Te.get("y") / L + "%", je.style.width = 100 * Te.get("width") / k + "%", je.style.height = 100 * Te.get("height") / L + "%", Te.get("kind") === "shape") {
-          const Ze = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-          Xt(Ze, Te), je.append(Ze);
-        } else if (Te.get("kind") === "image") {
-          const Ze = document.createElement("img");
-          Ze.src = kt(Te.get("source")), Ze.alt = "", Ze.draggable = !1, pn(Ze, Te), je.append(Ze);
+      const { button: N, thumb: O, preview: $, label: ce } = P, he = "Slide " + (M + 1) + ". Ctrl/Cmd-click to toggle; Shift-click for a range. Drag to move selected slides.";
+      N.title !== he && (N.title = he);
+      const ae = e.length > 1 && !R;
+      N.draggable !== ae && (N.draggable = ae);
+      const Re = String(Ce.has(w));
+      N.getAttribute("aria-pressed") !== Re && N.setAttribute("aria-pressed", Re), w === H ? N.hasAttribute("aria-current") || N.setAttribute("aria-current", "true") : N.hasAttribute("aria-current") && N.removeAttribute("aria-current");
+      const He = "slide-thumb" + (Ce.has(w) ? " selected" : "") + (w === H ? " active-slide" : "");
+      O.className !== He && (O.className = He), (V || Xe.has(w)) && ($.style.backgroundColor = zt(w), $.replaceChildren(), [...Te.get(w) || []].sort((Oe, dt) => Ze(L.get(Oe)) - Ze(L.get(dt)) || Oe.localeCompare(dt)).forEach((Oe, dt) => {
+        const Ue = L.get(Oe), Fe = document.createElement("div");
+        if (Fe.className = "mini-object", Fe.style.zIndex = String(dt), Fe.style.transform = `rotate(${Number(Ue.get("rotation")) || 0}deg)`, Fe.style.left = 100 * Ue.get("x") / E + "%", Fe.style.top = 100 * Ue.get("y") / A + "%", Fe.style.width = 100 * Ue.get("width") / E + "%", Fe.style.height = 100 * Ue.get("height") / A + "%", Ue.get("kind") === "shape") {
+          const Qe = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+          Jt(Qe, Ue), Fe.append(Qe);
+        } else if (Ue.get("kind") === "image") {
+          const Qe = document.createElement("img");
+          Qe.src = Ct(Ue.get("source")), Qe.alt = "", Qe.draggable = !1, bn(Qe, Ue), Fe.append(Qe);
         } else {
-          const Ze = mt(Te);
-          je.style.color = Ze.colour, je.style.fontFamily = xt[Ze.family], je.style.background = "transparent", je.textContent = v.getXmlFragment("slide-text-" + Oe).toString().replace(/<[^>]*>/g, " ");
+          const Qe = ht(Ue);
+          Fe.style.color = Qe.colour, Fe.style.fontFamily = Mt[Qe.family], Fe.style.background = "transparent", Fe.textContent = C.getXmlFragment("slide-text-" + Oe).toString().replace(/<[^>]*>/g, " ");
         }
-        V.append(je);
-      })), ce.textContent !== String(j + 1) && (ce.textContent = String(j + 1)), s === I ? s = s.nextElementSibling : o.insertBefore(I, s);
-    }), be.clear(), ot = !1;
-    const d = e.indexOf(O), x = me.size;
-    a("slide-label").textContent = "Slide " + (d + 1) + " of " + e.length + (x > 1 ? " · " + x + " selected" : ""), a("duplicate-slide").disabled = z, a("duplicate-slide").title = x > 1 ? "Duplicate " + x + " selected slides" : "Duplicate the selected slide", a("delete-slide").disabled = z || x >= e.length, a("delete-slide").title = x >= e.length ? "At least one slide must remain" : x > 1 ? "Delete " + x + " selected slides" : "Delete selected slide", a("presentation-position").textContent = d + 1 + " / " + e.length, a("previous-slide").disabled = d <= 0, a("next-slide").disabled = d >= e.length - 1, te?.refresh();
+        $.append(Fe);
+      })), ce.textContent !== String(M + 1) && (ce.textContent = String(M + 1)), c === N ? c = c.nextElementSibling : o.insertBefore(N, c);
+    }), Xe.clear(), V = !1;
+    const u = e.indexOf(H), k = Ce.size;
+    s("slide-label").textContent = "Slide " + (u + 1) + " of " + e.length + (k > 1 ? " · " + k + " selected" : ""), s("duplicate-slide").disabled = R, s("duplicate-slide").title = k > 1 ? "Duplicate " + k + " selected slides" : "Duplicate the selected slide", s("delete-slide").disabled = R || k >= e.length, s("delete-slide").title = k >= e.length ? "At least one slide must remain" : k > 1 ? "Delete " + k + " selected slides" : "Delete selected slide", s("presentation-position").textContent = u + 1 + " / " + e.length, s("previous-slide").disabled = u <= 0, s("next-slide").disabled = u >= e.length - 1, ue?.refresh();
   }
   function we() {
-    jo();
-    const e = ve();
-    e.includes(O) || (xe(), T = null, C.clear(), O = e[0]), Ft(), R.style.backgroundColor = At(O), a("slide-background").value = At(O);
-    for (const [t, o] of X)
-      (!M.has(t) || (M.get(t).get("slide") || "first") !== O) && (o.disposePointer?.(), o.editor?.destroy(), o.node.remove(), X.delete(t), C.delete(t), T === t && (T = [...C].at(-1) || null));
-    M.forEach((t, o) => {
-      !(t instanceof c.Map) || (t.get("slide") || "first") !== O || (X.has(o) ? (X.get(o).box = t, fn(o)) : Xe(o, t));
-    }), Le(T, !1, !0), Nt();
+    Uo();
+    const e = Se();
+    e.includes(H) || (xe(), B = null, I.clear(), H = e[0]), qt(), F.style.backgroundColor = zt(H), s("slide-background").value = zt(H);
+    for (const [t, o] of Z)
+      (!L.has(t) || (L.get(t).get("slide") || "first") !== H) && (o.disposePointer?.(), o.editor?.destroy(), o.node.remove(), Z.delete(t), I.delete(t), B === t && (B = [...I].at(-1) || null));
+    L.forEach((t, o) => {
+      !(t instanceof l.Map) || (t.get("slide") || "first") !== H || (Z.has(o) ? (Z.get(o).box = t, yn(o)) : Ho(o, t));
+    }), ze(B, !1, !0), It();
   }
-  function bn(e) {
-    if (!X.has(e)) return [];
-    const t = M.get(e)?.get("groupId");
-    return typeof t == "string" && t ? De().filter((o) => M.get(o).get("groupId") === t) : [e];
+  function kn(e) {
+    if (!Z.has(e)) return [];
+    const t = L.get(e)?.get("groupId");
+    return typeof t == "string" && t ? De().filter((o) => L.get(o).get("groupId") === t) : [e];
   }
-  function On(e = !1) {
-    if (z || et() || !C.size || !e && C.size < 2) return;
+  function $n(e = !1) {
+    if (R || tt() || !I.size || !e && I.size < 2) return;
     xe();
     const t = "group-" + crypto.randomUUID();
-    D?.stopCapturing(), v.transact(() => {
-      for (const o of C)
-        e ? M.get(o).delete("groupId") : M.get(o).set("groupId", t);
-    }), D?.stopCapturing(), J(e ? "Selected objects ungrouped." : "Selected objects grouped.");
+    D?.stopCapturing(), C.transact(() => {
+      for (const o of I)
+        e ? L.get(o).delete("groupId") : L.get(o).set("groupId", t);
+    }), D?.stopCapturing(), X(e ? "Selected objects ungrouped." : "Selected objects grouped.");
   }
-  a("group-objects").addEventListener("click", () => On()), a("ungroup-objects").addEventListener("click", () => On(!0));
-  function yn(e, t) {
+  s("group-objects").addEventListener("click", () => $n()), s("ungroup-objects").addEventListener("click", () => $n(!0));
+  function Sn(e, t) {
     const o = { ...e };
     return typeof o.groupId == "string" && o.groupId && (t.has(o.groupId) || t.set(o.groupId, "group-" + crypto.randomUUID()), o.groupId = t.get(o.groupId)), o;
   }
-  function Po(e = !1) {
-    if (Je || z) return;
-    const t = [...C].sort().map((x) => x + ":" + (M.get(x)?.get("kind") || "text")).join("|");
-    if (!e && t === ht) return;
-    ht = t;
-    const o = M.get(T), r = C.size > 1 ? "arrange" : o ? o.get("kind") === "image" ? "images" : o.get("kind") === "shape" ? "appearance" : "text" : "slide", s = h.querySelector(".inspector"), d = s.querySelector('[data-panel="' + r + '"]');
-    for (const x of s.querySelectorAll(":scope > .control-section")) x.open = x === d;
-    d && (s.scrollTop += d.getBoundingClientRect().top - s.getBoundingClientRect().top - s.clientTop);
+  function Xo(e = !1) {
+    if (Je || R) return;
+    const t = [...I].sort().map((k) => k + ":" + (L.get(k)?.get("kind") || "text")).join("|");
+    if (!e && t === st) return;
+    st = t;
+    const o = L.get(B), a = I.size > 1 ? "arrange" : o ? o.get("kind") === "image" ? "images" : o.get("kind") === "shape" ? "appearance" : "text" : "slide", c = f.querySelector(".inspector"), u = c.querySelector('[data-panel="' + a + '"]');
+    for (const k of c.querySelectorAll(":scope > .control-section")) k.open = k === u;
+    u && (c.scrollTop += u.getBoundingClientRect().top - c.getBoundingClientRect().top - c.clientTop);
   }
-  function Le(e, t = !1, o = !1, r = !1) {
-    for (const ie of C) X.has(ie) || C.delete(ie);
-    if (t && e && X.has(e)) {
-      const ie = bn(e), Re = ie.every((He) => C.has(He));
-      for (const He of ie)
-        Re ? C.delete(He) : C.add(He);
+  function ze(e, t = !1, o = !1, a = !1) {
+    for (const ae of I) Z.has(ae) || I.delete(ae);
+    if (t && e && Z.has(e)) {
+      const ae = kn(e), Re = ae.every((He) => I.has(He));
+      for (const He of ae)
+        Re ? I.delete(He) : I.add(He);
     } else if (!o) {
-      C.clear();
-      for (const ie of bn(e)) C.add(ie);
+      I.clear();
+      for (const ae of kn(e)) I.add(ae);
     }
-    if (o) for (const ie of [...C]) for (const Re of bn(ie)) C.add(Re);
-    T = C.has(e) ? e : [...C].at(-1) || null;
-    for (const [ie, Re] of X) Re.node.classList.toggle("selected", C.has(ie));
-    re && !re.current() && re.destroy();
-    const s = C.size > 1, d = et();
-    h.classList.toggle("multi-selection", s);
-    const x = [...C].map((ie) => M.get(ie)?.get("groupId")), m = x.length > 1 && !!x[0] && x.every((ie) => ie === x[0]);
-    a("group-objects").disabled = d || !s || m, a("ungroup-objects").disabled = d || !x.some(Boolean), a("lock-objects").disabled = !C.size || [...C].every((ie) => M.get(ie)?.get("locked") === !0), a("unlock-objects").disabled = !d, a("distribute-horizontal").disabled = a("distribute-vertical").disabled = d || C.size < 3;
-    for (const ie of ["left", "center", "right", "top", "middle", "bottom"]) a("align-" + ie).disabled = d || !s;
-    const j = T ? M.get(T) : null;
-    _?.update(j?.get("kind") === "image" && !s, !d && !z), a("selection-details") && (a("selection-details").textContent = s ? C.size + " objects selected. Drag an object or use arrow keys to move together." : j ? `${T}
-Position: ${Math.round(j.get("x"))}, ${Math.round(j.get("y"))}
-Size: ${Math.round(j.get("width"))} × ${Math.round(j.get("height"))}` : "Select an object"), a("keep-aspect-ratio").disabled = d || s || j?.get("kind") !== "image", a("keep-aspect-ratio").checked = j?.get("kind") === "image" && j.get("keepAspectRatio") !== !1;
-    const B = j ? un(j) : { fit: "contain" }, I = d || s || j?.get("kind") !== "image";
-    a("image-description").disabled = I;
-    const H = !s && j?.get("kind") === "image" && typeof j.get("alt") == "string" ? j.get("alt") : "";
-    a("image-description").value !== H && (a("image-description").value = H), a("replace-image").disabled = I, a("crop-image").disabled = I, a("image-fit").disabled = I, a("image-fit").value = B.fit, a("cut-objects").disabled = !C.size || d, a("copy-objects").disabled = !C.size, to(), a("paste-objects").disabled = !de?.items.length, a("duplicate").disabled = !T || s, a("delete").disabled = d || !T;
-    const V = De(), ce = V.indexOf(T);
-    a("bring-forward").disabled = d || s || ce < 0 || ce === V.length - 1, a("send-backward").disabled = d || s || ce <= 0, a("bold").disabled = s || !X.get(T)?.editor, a("italic").disabled = s || !X.get(T)?.editor, a("edit-link").disabled = s || !X.get(T)?.editor, a("remove-link").disabled = s || !X.get(T)?.editor, Me && T !== Me && jt(), a("bullet-list").disabled = s || !X.get(T)?.editor, a("ordered-list").disabled = s || !X.get(T)?.editor;
-    for (const ie of ["font-family", "font-size", "text-colour", "text-align"]) a(ie).disabled = s || !X.get(T)?.editor;
-    const ke = j && !s && (!!X.get(T)?.editor || j.get("kind") === "shape");
-    for (const ie of ["fill-enabled", "fill-colour", "border-enabled", "border-colour", "border-width"]) a(ie).disabled = !ke;
-    if (ke) {
-      const ie = vt(j);
-      a("fill-enabled").checked = ie.fill, a("fill-colour").value = ie.fillColour, a("fill-colour").disabled = !ie.fill, a("border-enabled").checked = ie.border, a("border-colour").value = ie.borderColour, a("border-width").value = String(ie.width), a("border-colour").disabled = a("border-width").disabled = !ie.border;
+    if (o) for (const ae of [...I]) for (const Re of kn(ae)) I.add(Re);
+    B = I.has(e) ? e : [...I].at(-1) || null;
+    for (const [ae, Re] of Z) Re.node.classList.toggle("selected", I.has(ae));
+    ke && !ke.current() && ke.destroy();
+    const c = I.size > 1, u = tt();
+    f.classList.toggle("multi-selection", c);
+    const k = [...I].map((ae) => L.get(ae)?.get("groupId")), w = k.length > 1 && !!k[0] && k.every((ae) => ae === k[0]);
+    s("group-objects").disabled = u || !c || w, s("ungroup-objects").disabled = u || !k.some(Boolean), s("lock-objects").disabled = !I.size || [...I].every((ae) => L.get(ae)?.get("locked") === !0), s("unlock-objects").disabled = !u, s("distribute-horizontal").disabled = s("distribute-vertical").disabled = u || I.size < 3;
+    for (const ae of ["left", "center", "right", "top", "middle", "bottom"]) s("align-" + ae).disabled = u || !c;
+    const M = B ? L.get(B) : null;
+    oe?.update(M?.get("kind") === "image" && !c, !u && !R), s("selection-details") && (s("selection-details").textContent = c ? I.size + " objects selected. Drag an object or use arrow keys to move together." : M ? `${B}
+Position: ${Math.round(M.get("x"))}, ${Math.round(M.get("y"))}
+Size: ${Math.round(M.get("width"))} × ${Math.round(M.get("height"))}` : "Select an object"), s("keep-aspect-ratio").disabled = u || c || M?.get("kind") !== "image", s("keep-aspect-ratio").checked = M?.get("kind") === "image" && M.get("keepAspectRatio") !== !1;
+    const P = M ? gn(M) : { fit: "contain" }, N = u || c || M?.get("kind") !== "image";
+    s("image-description").disabled = N;
+    const O = !c && M?.get("kind") === "image" && typeof M.get("alt") == "string" ? M.get("alt") : "";
+    s("image-description").value !== O && (s("image-description").value = O), s("replace-image").disabled = N, s("crop-image").disabled = N, s("image-fit").disabled = N, s("image-fit").value = P.fit, s("cut-objects").disabled = !I.size || u, s("copy-objects").disabled = !I.size, lo(), s("paste-objects").disabled = !re?.items.length, s("duplicate").disabled = !B || c, s("delete").disabled = u || !B;
+    const $ = De(), ce = $.indexOf(B);
+    s("bring-forward").disabled = u || c || ce < 0 || ce === $.length - 1, s("send-backward").disabled = u || c || ce <= 0, s("bold").disabled = c || !Z.get(B)?.editor, s("italic").disabled = c || !Z.get(B)?.editor, s("edit-link").disabled = c || !Z.get(B)?.editor, s("remove-link").disabled = c || !Z.get(B)?.editor, Me && B !== Me && ro(), s("bullet-list").disabled = c || !Z.get(B)?.editor, s("ordered-list").disabled = c || !Z.get(B)?.editor;
+    for (const ae of ["font-family", "font-size", "text-colour", "text-align"]) s(ae) && (s(ae).disabled = c || !Z.get(B)?.editor);
+    const he = M && !c && (!!Z.get(B)?.editor || M.get("kind") === "shape");
+    for (const ae of ["fill-enabled", "fill-colour", "border-enabled", "border-colour", "border-width"]) s(ae).disabled = !he;
+    if (he) {
+      const ae = Et(M);
+      s("fill-enabled").checked = ae.fill, s("fill-colour").value = ae.fillColour, s("fill-colour").disabled = !ae.fill, s("border-enabled").checked = ae.border, s("border-colour").value = ae.borderColour, s("border-width").value = String(ae.width), s("border-colour").disabled = s("border-width").disabled = !ae.border;
     }
-    if (j && !s && X.get(T)?.editor) {
-      const ie = mt(j);
-      a("font-family").value = ie.family, a("font-size").value = String(Math.round(ie.size)), a("text-colour").value = ie.colour, a("text-align").value = ie.align;
+    if (M && !c && Z.get(B)?.editor) {
+      const ae = ht(M);
+      s("font-family").value = ae.family, s("font-size").value = String(Math.round(ae.size)), s("text-colour").value = ae.colour, s("text-align") && (s("text-align").value = ae.align);
     }
-    Rn(), Po(r), Ge?.schedule();
+    Xn(), Xo(a), _e?.schedule(), wt();
   }
-  function Jt(e, t, o) {
-    if (z || e.button !== 0) return;
-    if (e.preventDefault(), e.stopPropagation(), D?.stopCapturing(), D && (D.captureTimeout = 1 / 0), Le(t, !1, o === "move" && C.has(t), !0), et()) {
-      xe(), J("Unlock selected objects before moving or resizing.", "error");
+  function wt() {
+    const e = I.size === 1 ? Z.get(B) : null;
+    _?.update(I.size === 0 && !R), q?.update(R ? [] : [...I].map((u) => L.get(u)).filter(Boolean), !!e && e.box.get("kind") !== "image");
+    const t = e?.editor, o = !!t && !t.isDestroyed && !R, a = e ? ht(e.box) : {}, c = o ? t.getAttributes("slideTextStyle") : {};
+    ee?.update(o, { family: c.fontFamily || a.family, size: c.fontSize || a.size, colour: c.textColour || a.colour, highlight: c.highlightColour }, !!t && t.isEditable && e.box.get("locked") !== !0);
+  }
+  function en(e, t, o) {
+    if (R || e.button !== 0) return;
+    if (e.preventDefault(), e.stopPropagation(), D?.stopCapturing(), D && (D.captureTimeout = 1 / 0), ze(t, !1, o === "move" && I.has(t), !0), tt()) {
+      xe(), X("Unlock selected objects before moving or resizing.", "error");
       return;
     }
-    X.get(t)?.node.focus({ preventScroll: !0 });
-    const r = M.get(t);
-    if (!r) return;
-    (o === "resize" || o.startsWith("edge-")) && Tn(r);
-    const s = k / R.getBoundingClientRect().width, d = [...C].map((m) => ({ id: m, ...M.get(m).toJSON() })), x = Yt(d);
-    oe = {
-      imageMode: _?.mode || "resize",
-      imageCrop: qt(r),
-      rotation: Number(r.get("rotation")) || 0,
-      members: d,
+    Z.get(t)?.node.focus({ preventScroll: !0 });
+    const a = L.get(t);
+    if (!a) return;
+    (o === "resize" || o.startsWith("edge-")) && Un(a);
+    const c = E / F.getBoundingClientRect().width, u = [...I].map((w) => ({ id: w, ...L.get(w).toJSON() })), k = tn(u);
+    fe = {
+      imageMode: oe?.mode || "resize",
+      imageCrop: Kt(a),
+      rotation: Number(a.get("rotation")) || 0,
+      members: u,
       id: t,
       action: o,
       startX: e.clientX,
       startY: e.clientY,
-      scale: s,
-      original: o === "move" ? x : {
-        x: r.get("x"),
-        y: r.get("y"),
-        width: r.get("width"),
-        height: r.get("height")
+      scale: c,
+      original: o === "move" ? k : {
+        x: a.get("x"),
+        y: a.get("y"),
+        width: a.get("width"),
+        height: a.get("height")
       }
-    }, oe.target = e.currentTarget, oe.pointerId = e.pointerId, e.currentTarget.setPointerCapture(e.pointerId), e.currentTarget.addEventListener("pointermove", qn), e.currentTarget.addEventListener("pointerup", xe, { once: !0 }), e.currentTarget.addEventListener("pointercancel", xe, { once: !0 });
+    }, fe.target = e.currentTarget, fe.pointerId = e.pointerId, e.currentTarget.setPointerCapture(e.pointerId), e.currentTarget.addEventListener("pointermove", Jn), e.currentTarget.addEventListener("pointerup", xe, { once: !0 }), e.currentTarget.addEventListener("pointercancel", xe, { once: !0 });
   }
-  function Yt(e) {
-    const t = Math.min(...e.map((r) => r.x)), o = Math.min(...e.map((r) => r.y));
-    return { x: t, y: o, width: Math.max(...e.map((r) => r.x + r.width)) - t, height: Math.max(...e.map((r) => r.y + r.height)) - o };
+  function tn(e) {
+    const t = Math.min(...e.map((a) => a.x)), o = Math.min(...e.map((a) => a.y));
+    return { x: t, y: o, width: Math.max(...e.map((a) => a.x + a.width)) - t, height: Math.max(...e.map((a) => a.y + a.height)) - o };
   }
-  function et() {
-    return [...C].some((e) => M.get(e)?.get("locked") === !0);
+  function tt() {
+    return [...I].some((e) => L.get(e)?.get("locked") === !0);
   }
-  function Bn(e) {
-    z || !C.size || (xe(), v.transact(() => {
-      for (const t of C) M.get(t)?.set("locked", e);
-    }), J(e ? "Selected objects locked." : "Selected objects unlocked."));
+  function Vn(e) {
+    R || !I.size || (xe(), C.transact(() => {
+      for (const t of I) L.get(t)?.set("locked", e);
+    }), X(e ? "Selected objects locked." : "Selected objects unlocked."));
   }
-  a("lock-objects").addEventListener("click", () => Bn(!0)), a("unlock-objects").addEventListener("click", () => Bn(!1));
-  function _t(e) {
-    const t = (Number(e.rotation) || 0) * Math.PI / 180, o = Math.abs(e.width * Math.cos(t)) + Math.abs(e.height * Math.sin(t)), r = Math.abs(e.width * Math.sin(t)) + Math.abs(e.height * Math.cos(t));
-    return { x: e.x + (e.width - o) / 2, y: e.y + (e.height - r) / 2, width: o, height: r };
+  s("lock-objects").addEventListener("click", () => Vn(!0)), s("unlock-objects").addEventListener("click", () => Vn(!1));
+  function nn(e) {
+    const t = (Number(e.rotation) || 0) * Math.PI / 180, o = Math.abs(e.width * Math.cos(t)) + Math.abs(e.height * Math.sin(t)), a = Math.abs(e.width * Math.sin(t)) + Math.abs(e.height * Math.cos(t));
+    return { x: e.x + (e.width - o) / 2, y: e.y + (e.height - a) / 2, width: o, height: a };
   }
-  function Do(e) {
-    if (z || et() || C.size < 2) return;
+  function $o(e) {
+    if (R || tt() || I.size < 2) return;
     xe();
-    const t = [...C].map((r) => ({ id: r, ...M.get(r).toJSON() })), o = Yt(t.map(_t));
-    D?.stopCapturing(), v.transact(() => {
-      for (const r of t) {
-        const s = M.get(r.id), d = _t(r);
-        let x = 0, m = 0;
-        e === "left" && (x = o.x - d.x), e === "center" && (x = o.x + o.width / 2 - d.x - d.width / 2), e === "right" && (x = o.x + o.width - d.x - d.width), e === "top" && (m = o.y - d.y), e === "middle" && (m = o.y + o.height / 2 - d.y - d.height / 2), e === "bottom" && (m = o.y + o.height - d.y - d.height), ["left", "center", "right"].includes(e) ? s.set("x", r.x + x) : s.set("y", r.y + m);
+    const t = [...I].map((a) => ({ id: a, ...L.get(a).toJSON() })), o = tn(t.map(nn));
+    D?.stopCapturing(), C.transact(() => {
+      for (const a of t) {
+        const c = L.get(a.id), u = nn(a);
+        let k = 0, w = 0;
+        e === "left" && (k = o.x - u.x), e === "center" && (k = o.x + o.width / 2 - u.x - u.width / 2), e === "right" && (k = o.x + o.width - u.x - u.width), e === "top" && (w = o.y - u.y), e === "middle" && (w = o.y + o.height / 2 - u.y - u.height / 2), e === "bottom" && (w = o.y + o.height - u.y - u.height), ["left", "center", "right"].includes(e) ? c.set("x", a.x + k) : c.set("y", a.y + w);
       }
     }, "geometry"), D?.stopCapturing();
   }
   for (const e of ["left", "center", "right", "top", "middle", "bottom"])
-    a("align-" + e).addEventListener("click", () => Do(e));
-  function Hn(e) {
-    if (z || et() || C.size < 3) return;
+    s("align-" + e).addEventListener("click", () => $o(e));
+  function Kn(e) {
+    if (R || tt() || I.size < 3) return;
     xe();
-    const t = e ? "y" : "x", o = e ? "height" : "width", r = [...C].map((I) => {
-      const H = M.get(I).toJSON();
-      return { id: I, box: H, bounds: _t(H) };
-    }).sort((I, H) => I.bounds[t] - H.bounds[t] || I.id.localeCompare(H.id)), s = r[0], d = r[r.length - 1], x = s.bounds[t], m = d.bounds[t] + d.bounds[o], j = r.reduce((I, H) => I + H.bounds[o], 0), B = (m - x - j) / (r.length - 1);
-    if (B < -1e-6) {
-      const H = "Not enough room " + (e ? "vertically" : "horizontally") + ": the objects need " + Math.ceil(j) + " px, but their outer edges span only " + Math.floor(m - x) + " px. Move the outermost objects farther apart or make the objects smaller.";
-      a("distribution-status").textContent = H, J(H, "error");
+    const t = e ? "y" : "x", o = e ? "height" : "width", a = [...I].map((N) => {
+      const O = L.get(N).toJSON();
+      return { id: N, box: O, bounds: nn(O) };
+    }).sort((N, O) => N.bounds[t] - O.bounds[t] || N.id.localeCompare(O.id)), c = a[0], u = a[a.length - 1], k = c.bounds[t], w = u.bounds[t] + u.bounds[o], M = a.reduce((N, O) => N + O.bounds[o], 0), P = (w - k - M) / (a.length - 1);
+    if (P < -1e-6) {
+      const O = "Not enough room " + (e ? "vertically" : "horizontally") + ": the objects need " + Math.ceil(M) + " px, but their outer edges span only " + Math.floor(w - k) + " px. Move the outermost objects farther apart or make the objects smaller.";
+      s("distribution-status").textContent = O, X(O, "error");
       return;
     }
-    D?.stopCapturing(), v.transact(() => {
-      let I = x + s.bounds[o] + Math.max(0, B);
-      for (let H = 1; H < r.length - 1; H++) {
-        const V = r[H];
-        M.get(V.id).set(t, V.box[t] + I - V.bounds[t]), I += V.bounds[o] + Math.max(0, B);
+    D?.stopCapturing(), C.transact(() => {
+      let N = k + c.bounds[o] + Math.max(0, P);
+      for (let O = 1; O < a.length - 1; O++) {
+        const $ = a[O];
+        L.get($.id).set(t, $.box[t] + N - $.bounds[t]), N += $.bounds[o] + Math.max(0, P);
       }
-    }, "geometry"), D?.stopCapturing(), a("distribution-status").textContent = "Distributed " + r.length + " objects " + (e ? "vertically" : "horizontally") + " with " + Math.round(Math.max(0, B)) + " px gaps.";
+    }, "geometry"), D?.stopCapturing(), s("distribution-status").textContent = "Distributed " + a.length + " objects " + (e ? "vertically" : "horizontally") + " with " + Math.round(Math.max(0, P)) + " px gaps.";
   }
-  a("distribute-horizontal").addEventListener("click", () => Hn(!1)), a("distribute-vertical").addEventListener("click", () => Hn(!0));
-  function wn() {
-    if (z) return;
-    if (et()) {
-      J("Unlock selected objects before deleting.", "error");
+  s("distribute-horizontal").addEventListener("click", () => Kn(!1)), s("distribute-vertical").addEventListener("click", () => Kn(!0));
+  function En() {
+    if (R) return;
+    if (tt()) {
+      X("Unlock selected objects before deleting.", "error");
       return;
     }
-    const e = [...C];
-    v.transact(() => e.forEach((t) => M.delete(t)));
+    const e = [...I];
+    C.transact(() => e.forEach((t) => L.delete(t)));
   }
-  function Un(e, t, o, r, s) {
-    let d = { position: e, guide: null }, x = r + 1e-6;
-    for (const m of o)
-      for (const j of [0, t / 2, t]) {
-        const B = m - j, I = Math.abs(B - e);
-        B >= 0 && B <= s - t && I < x && (x = I, d = { position: B, guide: m });
+  function Gn(e, t, o, a, c) {
+    let u = { position: e, guide: null }, k = a + 1e-6;
+    for (const w of o)
+      for (const M of [0, t / 2, t]) {
+        const P = w - M, N = Math.abs(P - e);
+        P >= 0 && P <= c - t && N < k && (k = N, u = { position: P, guide: w });
       }
-    return d;
+    return u;
   }
-  function zo(e, t, o, r, s, d) {
-    const x = [0, k / 2, k], m = [0, L / 2, L];
-    for (const j of De()) {
-      if (j === e || C.has(j)) continue;
-      const B = M.get(j), I = Number(B.get("x")), H = Number(B.get("y")), V = Number(B.get("width")), ce = Number(B.get("height"));
-      [I, H, V, ce].every(Number.isFinite) && (x.push(I, I + V / 2, I + V), m.push(H, H + ce / 2, H + ce));
+  function Vo(e, t, o, a, c, u) {
+    const k = [0, E / 2, E], w = [0, A / 2, A];
+    for (const M of De()) {
+      if (M === e || I.has(M)) continue;
+      const P = L.get(M), N = Number(P.get("x")), O = Number(P.get("y")), $ = Number(P.get("width")), ce = Number(P.get("height"));
+      [N, O, $, ce].every(Number.isFinite) && (k.push(N, N + $ / 2, N + $), w.push(O, O + ce / 2, O + ce));
     }
-    return { x: Un(t, r, x, d, k), y: Un(o, s, m, d, L) };
+    return { x: Gn(t, a, k, u, E), y: Gn(o, c, w, u, A) };
   }
-  function qn(e) {
-    if (!oe) return;
-    if (et()) {
-      xe(), J("Movement stopped because an object was locked.", "error");
+  function Jn(e) {
+    if (!fe) return;
+    if (tt()) {
+      xe(), X("Movement stopped because an object was locked.", "error");
       return;
     }
-    const { id: t, action: o, startX: r, startY: s, scale: d, original: x } = oe, m = M.get(t);
-    if (!m) return;
-    const j = (e.clientX - r) * d, B = (e.clientY - s) * d;
-    v.transact(() => {
+    const { id: t, action: o, startX: a, startY: c, scale: u, original: k } = fe, w = L.get(t);
+    if (!w) return;
+    const M = (e.clientX - a) * u, P = (e.clientY - c) * u;
+    C.transact(() => {
       if (o.startsWith("edge-")) {
-        const I = m.get("kind") === "image" && oe.imageMode === "crop" ? oe.imageCrop : { width: k, height: L }, H = ei(x, o.slice(5), j, B, oe.rotation, {
-          minWidth: X.get(t)?.editor ? 100 : 1,
-          minHeight: X.get(t)?.editor ? 55 : 1,
-          maxWidth: Math.max(x.width, I.width),
-          maxHeight: Math.max(x.height, I.height)
+        const N = w.get("kind") === "image" && fe.imageMode === "crop" ? fe.imageCrop : { width: E, height: A }, O = yr(k, o.slice(5), M, P, fe.rotation, {
+          minWidth: Z.get(t)?.editor ? 100 : 1,
+          minHeight: Z.get(t)?.editor ? 55 : 1,
+          maxWidth: Math.max(k.width, N.width),
+          maxHeight: Math.max(k.height, N.height)
         });
-        for (const [V, ce] of Object.entries(H)) m.set(V, ce);
+        for (const [$, ce] of Object.entries(O)) w.set($, ce);
       } else if (o === "rotate")
-        m.set("rotation", mo(oe.rotation, e.clientX - r));
+        w.set("rotation", So(fe.rotation, e.clientX - a));
       else if (o === "move") {
-        let I = Math.max(0, Math.min(k - x.width, x.x + j)), H = Math.max(0, Math.min(L - x.height, x.y + B));
-        if (F.hidden = P.hidden = !0, !e.altKey) {
-          const V = zo(t, I, H, x.width, x.height, 6 * d);
-          I = V.x.position, H = V.y.position, V.x.guide !== null && (F.hidden = !1, F.style.left = 100 * V.x.guide / k + "%"), V.y.guide !== null && (P.hidden = !1, P.style.top = 100 * V.y.guide / L + "%");
+        let N = Math.max(0, Math.min(E - k.width, k.x + M)), O = Math.max(0, Math.min(A - k.height, k.y + P));
+        if (T.hidden = z.hidden = !0, !e.altKey) {
+          const $ = Vo(t, N, O, k.width, k.height, 6 * u);
+          N = $.x.position, O = $.y.position, $.x.guide !== null && (T.hidden = !1, T.style.left = 100 * $.x.guide / E + "%"), $.y.guide !== null && (z.hidden = !1, z.style.top = 100 * $.y.guide / A + "%");
         }
-        for (const V of oe.members) {
-          const ce = M.get(V.id);
-          ce && (ce.set("x", Math.round(V.x + I - x.x)), ce.set("y", Math.round(V.y + H - x.y)));
+        for (const $ of fe.members) {
+          const ce = L.get($.id);
+          ce && (ce.set("x", Math.round($.x + N - k.x)), ce.set("y", Math.round($.y + O - k.y)));
         }
-      } else if (m.get("kind") === "image" && (oe.imageMode === "resize" || m.get("keepAspectRatio") !== !1)) {
-        const I = oe.imageMode === "resize" ? x.width / x.height : eo(m), H = Math.abs(j / x.width) >= Math.abs(B / x.height) ? x.width + j : (x.height + B) * I, V = m.get("kind") === "image" && oe.imageMode === "crop" ? oe.imageCrop : { width: k, height: L }, ce = Bo(H, I, Math.min(k - x.x, V.width), Math.min(L - x.y, V.height));
-        m.set("width", ce.width), m.set("height", ce.height);
+      } else if (w.get("kind") === "image" && (fe.imageMode === "resize" || w.get("keepAspectRatio") !== !1)) {
+        const N = fe.imageMode === "resize" ? k.width / k.height : so(w), O = Math.abs(M / k.width) >= Math.abs(P / k.height) ? k.width + M : (k.height + P) * N, $ = w.get("kind") === "image" && fe.imageMode === "crop" ? fe.imageCrop : { width: E, height: A }, ce = _o(O, N, Math.min(E - k.x, $.width), Math.min(A - k.y, $.height));
+        w.set("width", ce.width), w.set("height", ce.height);
       } else {
-        const I = X.get(t)?.editor ? 100 : 1, H = X.get(t)?.editor ? 55 : 1, V = m.get("kind") === "image" && oe.imageMode === "crop" ? oe.imageCrop : { width: k, height: L };
-        m.set("width", Math.max(I, Math.min(k - x.x, V.width, x.width + j))), m.set("height", Math.max(H, Math.min(L - x.y, V.height, x.height + B)));
+        const N = Z.get(t)?.editor ? 100 : 1, O = Z.get(t)?.editor ? 55 : 1, $ = w.get("kind") === "image" && fe.imageMode === "crop" ? fe.imageCrop : { width: E, height: A };
+        w.set("width", Math.max(N, Math.min(E - k.x, $.width, k.width + M))), w.set("height", Math.max(O, Math.min(A - k.y, $.height, k.height + P)));
       }
-      if (m.get("kind") === "image" && (o === "resize" || o.startsWith("edge-"))) {
-        const I = { width: m.get("width"), height: m.get("height") };
-        for (const [H, V] of Object.entries(Zo(x, I, oe.imageMode, oe.imageCrop))) m.set(H, V);
+      if (w.get("kind") === "image" && (o === "resize" || o.startsWith("edge-"))) {
+        const N = { width: w.get("width"), height: w.get("height") };
+        for (const [O, $] of Object.entries(gr(k, N, fe.imageMode, fe.imageCrop))) w.set(O, $);
       }
     }, "geometry");
   }
   function xe(e) {
-    it?.cancel(), F.hidden = P.hidden = !0;
-    const t = oe?.target || e?.currentTarget;
-    t?.removeEventListener("pointermove", qn), t?.removeEventListener("pointerup", xe), t?.removeEventListener("pointercancel", xe), oe && t?.hasPointerCapture(oe.pointerId) && t.releasePointerCapture(oe.pointerId), oe = null, D && (D.captureTimeout = 500, D.stopCapturing());
+    Ie?.cancel(), T.hidden = z.hidden = !0;
+    const t = fe?.target || e?.currentTarget;
+    t?.removeEventListener("pointermove", Jn), t?.removeEventListener("pointerup", xe), t?.removeEventListener("pointercancel", xe), fe && t?.hasPointerCapture(fe.pointerId) && t.releasePointerCapture(fe.pointerId), fe = null, D && (D.captureTimeout = 500, D.stopCapturing());
   }
-  v.on("beforeObserverCalls", $t), M.observeDeep(we), q.observe(we), K.observe(we), Z.observe(we), ee.observe(Rt), U.observe(Ft), v.on("update", Nt), v.on("update", qe), a("add-slide").addEventListener("click", () => {
-    if (!z) {
+  C.on("beforeObserverCalls", Yt), L.observeDeep(we), U.observe(we), le.observe(we), G.observe(we), K.observe(Ut), J.observe(qt), C.on("update", It), C.on("update", kt), s("add-slide").addEventListener("click", () => {
+    if (!R) {
       xe();
       try {
-        if (S.has(a("slide-layout").value)) {
-          Uo(S.get(a("slide-layout").value));
+        if (v.has(s("slide-layout").value)) {
+          Qo(v.get(s("slide-layout").value));
           return;
         }
-        const e = ve(), t = "slide-" + crypto.randomUUID(), o = f.get(a("slide-layout").value) || f.values().next().value, r = o.objects.map((d) => ({ ...d, id: tt() })), s = /* @__PURE__ */ new Map();
-        O = t, T = null, C.clear(), D?.stopCapturing(), v.transact(() => {
-          q.size || q.set("first", 0), q.set(t, Math.max(...e.map((d) => q.get(d) || 0)) + 1), o.background !== void 0 && Z.set(t, o.background), o.notes !== void 0 && U.set(t, o.notes);
-          for (const d of r) {
-            const { id: x, text: m, shapeId: j, group: B, ...I } = d, V = { ...d.kind === "shape" ? Fn(E.get(j)) : {}, rotation: 0, ...I, slide: t, layer: Math.max(-1, ...De().map((ce) => _e(M.get(ce)))) + 1 };
-            B && (s.has(B) || s.set(B, "group-" + crypto.randomUUID()), V.groupId = s.get(B)), d.kind === "image" && (V.aspectRatio = d.width / d.height), M.set(x, new c.Map(Object.entries(V)));
+        const e = Se(), t = "slide-" + crypto.randomUUID(), o = h.get(s("slide-layout").value) || h.values().next().value, a = o.objects.map((u) => ({ ...u, id: nt() })), c = /* @__PURE__ */ new Map();
+        H = t, B = null, I.clear(), D?.stopCapturing(), C.transact(() => {
+          U.size || U.set("first", 0), U.set(t, Math.max(...e.map((u) => U.get(u) || 0)) + 1), o.background !== void 0 && G.set(t, o.background), o.notes !== void 0 && J.set(t, o.notes);
+          for (const u of a) {
+            const { id: k, text: w, shapeId: M, group: P, ...N } = u, $ = { ...u.kind === "shape" ? Wn(x.get(M)) : {}, rotation: 0, ...N, slide: t, layer: Math.max(-1, ...De().map((ce) => Ze(L.get(ce)))) + 1 };
+            P && (c.has(P) || c.set(P, "group-" + crypto.randomUUID()), $.groupId = c.get(P)), u.kind === "image" && ($.aspectRatio = u.width / u.height), L.set(k, new l.Map(Object.entries($)));
           }
         });
-        for (const d of r) {
-          if (d.kind !== "text") continue;
-          const x = d.text.split(`
-`).map((m) => ({ type: "paragraph", content: m ? [{ type: "text", text: m }] : [] }));
-          X.get(d.id).editor.commands.setContent({ type: "doc", content: x });
+        for (const u of a) {
+          if (u.kind !== "text") continue;
+          const k = u.text.split(`
+`).map((w) => ({ type: "paragraph", content: w ? [{ type: "text", text: w }] : [] }));
+          Z.get(u.id).editor.commands.setContent({ type: "doc", content: k });
         }
         D?.stopCapturing(), we();
       } catch (e) {
-        console.error("Slides layout failed:", e), J("Could not create slide: " + e.message, "error");
+        console.error("Slides layout failed:", e), X("Could not create slide: " + e.message, "error");
       }
     }
-  }), a("duplicate-slide").addEventListener("click", () => {
-    if (!z) {
+  }), s("duplicate-slide").addEventListener("click", () => {
+    if (!R) {
       xe();
       try {
-        const e = Kt(), t = ve(), o = e.map((s) => {
-          const d = "slide-" + crypto.randomUUID(), x = /* @__PURE__ */ new Map(), m = De(s).map((j) => {
-            const B = new c.Map(Object.entries(yn(M.get(j).toJSON(), x)));
-            B.set("slide", d);
-            const I = tt(), H = v.getXmlFragment("slide-text-" + I), V = v.getXmlFragment("slide-text-" + j).toArray().map((ce) => ce.clone());
-            return D?.addToScope(H), { id: I, box: B, fragment: H, text: V };
+        const e = Zt(), t = Se(), o = e.map((c) => {
+          const u = "slide-" + crypto.randomUUID(), k = /* @__PURE__ */ new Map(), w = De(c).map((M) => {
+            const P = new l.Map(Object.entries(Sn(L.get(M).toJSON(), k)));
+            P.set("slide", u);
+            const N = nt(), O = C.getXmlFragment("slide-text-" + N), $ = C.getXmlFragment("slide-text-" + M).toArray().map((ce) => ce.clone());
+            return D?.addToScope(O), { id: N, box: P, fragment: O, text: $ };
           });
-          return { source: s, id: d, copies: m };
-        }), r = o.map((s) => s.id);
-        t.splice(t.indexOf(e.at(-1)) + 1, 0, ...r), bt(r), D?.stopCapturing(), v.transact(() => {
-          t.forEach((s, d) => q.set(s, d));
-          for (const s of o) {
-            Z.has(s.source) && Z.set(s.id, Z.get(s.source)), typeof U.get(s.source) == "string" && U.set(s.id, U.get(s.source));
-            for (const d of s.copies)
-              M.set(d.id, d.box), d.text.length && d.fragment.insert(0, d.text);
+          return { source: c, id: u, copies: w };
+        }), a = o.map((c) => c.id);
+        t.splice(t.indexOf(e.at(-1)) + 1, 0, ...a), yt(a), D?.stopCapturing(), C.transact(() => {
+          t.forEach((c, u) => U.set(c, u));
+          for (const c of o) {
+            G.has(c.source) && G.set(c.id, G.get(c.source)), typeof J.get(c.source) == "string" && J.set(c.id, J.get(c.source));
+            for (const u of c.copies)
+              L.set(u.id, u.box), u.text.length && u.fragment.insert(0, u.text);
           }
-        }), D?.stopCapturing(), we(), gt(o.length === 1 ? "Slide duplicated" : o.length + " slides duplicated"), Lt();
+        }), D?.stopCapturing(), we(), Bt(o.length === 1 ? "Slide duplicated" : o.length + " slides duplicated"), Tt();
       } catch (e) {
-        console.error("Slides duplication failed:", e), J("Could not duplicate slide: " + e.message, "error");
+        console.error("Slides duplication failed:", e), X("Could not duplicate slide: " + e.message, "error");
       }
     }
   });
-  function To(e) {
-    if (z) return;
+  function Ko(e) {
+    if (R) return;
     xe();
-    const t = ve(), o = Si(t, Kt(), e);
-    o.every((r, s) => r === t[s]) || (D?.stopCapturing(), v.transact(() => o.forEach((r, s) => q.set(r, s))), D?.stopCapturing(), Lt());
+    const t = Se(), o = Wr(t, Zt(), e);
+    o.every((a, c) => a === t[c]) || (D?.stopCapturing(), C.transact(() => o.forEach((a, c) => U.set(a, c))), D?.stopCapturing(), Tt());
   }
-  a("delete-slide").addEventListener("click", () => {
-    const e = Kt(), t = ve();
-    if (e.length >= t.length || z) return;
-    const o = () => Fo(e);
+  s("delete-slide").addEventListener("click", () => {
+    const e = Zt(), t = Se();
+    if (e.length >= t.length || R) return;
+    const o = () => Go(e);
     if (typeof window.buildDialogModal == "function") {
-      const r = document.createElement("p");
-      r.textContent = e.length === 1 ? "Delete slide " + (t.indexOf(e[0]) + 1) + "? Its objects and speaker notes will be removed." : "Delete " + e.length + " selected slides? Their objects and speaker notes will be removed.", window.buildDialogModal(e.length === 1 ? "Delete slide" : "Delete slides", r, [
-        { label: "Cancel", secondary: !0, onClick: (s) => s() },
-        { label: e.length === 1 ? "Delete slide" : "Delete slides", onClick: (s) => {
-          s(), o();
+      const a = document.createElement("p");
+      a.textContent = e.length === 1 ? "Delete slide " + (t.indexOf(e[0]) + 1) + "? Its objects and speaker notes will be removed." : "Delete " + e.length + " selected slides? Their objects and speaker notes will be removed.", window.buildDialogModal(e.length === 1 ? "Delete slide" : "Delete slides", a, [
+        { label: "Cancel", secondary: !0, onClick: (c) => c() },
+        { label: e.length === 1 ? "Delete slide" : "Delete slides", onClick: (c) => {
+          c(), o();
         } }
       ]);
     } else {
-      const r = document.createElement("dialog"), s = document.createElement("p");
-      s.textContent = "Delete " + e.length + " selected slide(s)?", r.append(s);
-      for (const [d, x, m] of [["Cancel", !0, () => {
+      const a = document.createElement("dialog"), c = document.createElement("p");
+      c.textContent = "Delete " + e.length + " selected slide(s)?", a.append(c);
+      for (const [u, k, w] of [["Cancel", !0, () => {
       }], ["Delete slides", !1, o]]) {
-        const j = document.createElement("button");
-        j.className = x ? "btn-small btn-secondary" : "btn-small", j.textContent = d, j.addEventListener("click", () => {
-          r.close(), r.remove(), m();
-        }), r.append(j);
+        const M = document.createElement("button");
+        M.className = k ? "btn-small btn-secondary" : "btn-small", M.textContent = u, M.addEventListener("click", () => {
+          a.close(), a.remove(), w();
+        }), a.append(M);
       }
-      r.addEventListener("cancel", () => r.remove(), { once: !0 }), document.body.append(r), r.showModal();
+      a.addEventListener("cancel", () => a.remove(), { once: !0 }), document.body.append(a), a.showModal();
     }
   });
-  function Fo(e) {
-    const t = ve(), o = new Set(t.filter((x) => e.includes(x)));
-    if (z || !o.size || o.size >= t.length) return;
+  function Go(e) {
+    const t = Se(), o = new Set(t.filter((k) => e.includes(k)));
+    if (R || !o.size || o.size >= t.length) return;
     xe();
-    const r = t.filter((x) => !o.has(x)), s = r[Math.min(t.indexOf(O), r.length - 1)], d = [...M].filter(([, x]) => o.has(x.get("slide") || "first") && (!x.get("kind") || x.get("kind") === "text")).map(([x]) => v.getXmlFragment("slide-text-" + x));
-    for (const x of d) D?.addToScope(x);
-    bt([s]), D?.stopCapturing(), v.transact(() => {
-      M.forEach((x, m) => {
-        o.has(x.get("slide") || "first") && M.delete(m);
+    const a = t.filter((k) => !o.has(k)), c = a[Math.min(t.indexOf(H), a.length - 1)], u = [...L].filter(([, k]) => o.has(k.get("slide") || "first") && (!k.get("kind") || k.get("kind") === "text")).map(([k]) => C.getXmlFragment("slide-text-" + k));
+    for (const k of u) D?.addToScope(k);
+    yt([c]), D?.stopCapturing(), C.transact(() => {
+      L.forEach((k, w) => {
+        o.has(k.get("slide") || "first") && L.delete(w);
       });
-      for (const x of d) x.length && x.delete(0, x.length);
-      q.size || t.forEach((x, m) => q.set(x, m));
-      for (const x of o)
-        q.delete(x), Z.delete(x), U.delete(x);
-    }), D?.stopCapturing(), we(), Lt();
+      for (const k of u) k.length && k.delete(0, k.length);
+      U.size || t.forEach((k, w) => U.set(k, w));
+      for (const k of o)
+        U.delete(k), G.delete(k), J.delete(k);
+    }), D?.stopCapturing(), we(), Tt();
   }
-  a("save-layout").disabled = typeof l.onSaveLayout != "function", a("save-layout").addEventListener("click", () => l.onSaveLayout?.());
-  function kt(e) {
+  s("save-layout").disabled = typeof i.onSaveLayout != "function", s("save-layout").addEventListener("click", () => i.onSaveLayout?.());
+  function Ct(e) {
     return typeof e == "string" && /^data:image\/(png|jpeg|gif|webp);base64,[a-z0-9+/=\s]+$/i.test(e) ? e : "";
   }
-  async function xn(e) {
+  async function Cn(e) {
     if (!/^image\/(png|jpeg|gif|webp)$/.test(e.type)) throw new Error("Choose a PNG, JPEG, GIF, or WebP image.");
-    const t = await new Promise((r, s) => {
-      const d = new FileReader();
-      d.onload = () => r(d.result), d.onerror = () => s(d.error || new Error("Could not read the image.")), d.onabort = () => s(new Error("Image reading was cancelled.")), d.readAsDataURL(e);
+    const t = await new Promise((a, c) => {
+      const u = new FileReader();
+      u.onload = () => a(u.result), u.onerror = () => c(u.error || new Error("Could not read the image.")), u.onabort = () => c(new Error("Image reading was cancelled.")), u.readAsDataURL(e);
     });
-    if (!kt(t)) throw new Error("Unsupported image data.");
+    if (!Ct(t)) throw new Error("Unsupported image data.");
     const o = new Image();
     return o.src = t, await o.decode(), { source: t, image: o };
   }
-  a("image-description").addEventListener("input", (e) => {
-    const t = M.get(T);
-    z || C.size !== 1 || t?.get("kind") !== "image" || t.get("locked") === !0 || t.set("alt", e.target.value.slice(0, 2e3));
-  }), a("replace-image").addEventListener("click", () => {
-    const e = M.get(T);
-    z || C.size !== 1 || e?.get("kind") !== "image" || e.get("locked") === !0 || (Ne = { document: v, id: T }, a("replace-image-file").click());
-  }), a("replace-image-file").addEventListener("change", async (e) => {
-    const t = e.target.files[0], o = Ne;
-    if (Ne = null, !(!t || !o))
+  s("image-description").addEventListener("input", (e) => {
+    const t = L.get(B);
+    R || I.size !== 1 || t?.get("kind") !== "image" || t.get("locked") === !0 || t.set("alt", e.target.value.slice(0, 2e3));
+  }), s("replace-image").addEventListener("click", () => {
+    const e = L.get(B);
+    R || I.size !== 1 || e?.get("kind") !== "image" || e.get("locked") === !0 || (ve = { document: C, id: B }, s("replace-image-file").click());
+  }), s("replace-image-file").addEventListener("change", async (e) => {
+    const t = e.target.files[0], o = ve;
+    if (ve = null, !(!t || !o))
       try {
-        const { source: r, image: s } = await xn(t), d = M.get(o.id);
-        if (v !== o.document || d?.get("kind") !== "image") throw new Error("The original image is no longer available.");
-        if (z || d.get("locked") === !0) throw new Error("Return to editing and unlock the image before replacing it.");
-        D?.stopCapturing(), v.transact(() => {
-          if (d.set("source", r), d.set("imageRatio", s.naturalWidth / s.naturalHeight), d.set("aspectRatio", d.get("width") / d.get("height")), d.delete("cropImageWidth"), d.delete("cropImageHeight"), d.get("imageFit") === "cover") {
-            const x = Math.max(d.get("width"), d.get("height") * s.naturalWidth / s.naturalHeight);
-            d.set("cropImageWidth", x), d.set("cropImageHeight", x * s.naturalHeight / s.naturalWidth);
+        const { source: a, image: c } = await Cn(t), u = L.get(o.id);
+        if (C !== o.document || u?.get("kind") !== "image") throw new Error("The original image is no longer available.");
+        if (R || u.get("locked") === !0) throw new Error("Return to editing and unlock the image before replacing it.");
+        D?.stopCapturing(), C.transact(() => {
+          if (u.set("source", a), u.set("imageRatio", c.naturalWidth / c.naturalHeight), u.set("aspectRatio", u.get("width") / u.get("height")), u.delete("cropImageWidth"), u.delete("cropImageHeight"), u.get("imageFit") === "cover") {
+            const k = Math.max(u.get("width"), u.get("height") * c.naturalWidth / c.naturalHeight);
+            u.set("cropImageWidth", k), u.set("cropImageHeight", k * c.naturalHeight / c.naturalWidth);
           }
-        }), D?.stopCapturing(), J("Image replaced.");
-      } catch (r) {
-        console.error("Slides image replacement failed:", r), J("Could not replace image: " + r.message, "error");
+        }), D?.stopCapturing(), X("Image replaced.");
+      } catch (a) {
+        console.error("Slides image replacement failed:", a), X("Could not replace image: " + a.message, "error");
       } finally {
         e.target.value = "";
       }
-  }), a("add-image").addEventListener("click", () => {
+  }), s("add-image").addEventListener("click", () => {
     try {
-      pe.image();
+      Ne.image();
     } catch (e) {
-      J("Could not open image picker: " + e.message, "error");
+      X("Could not open image picker: " + e.message, "error");
     }
-  }), a("image-file").addEventListener("change", async (e) => {
+  }), s("image-file").addEventListener("change", async (e) => {
     const t = e.target.files[0];
     if (!t) return;
-    const o = v, r = O;
+    const o = C, a = H;
     try {
-      const { source: s, image: d } = await xn(t);
-      if (v !== o || !ve().includes(r)) throw new Error("The destination slide is no longer open.");
-      if (z) throw new Error("Return to editing before adding an image.");
-      O = r;
-      const x = Math.min(1, 800 / d.naturalWidth, 500 / d.naturalHeight), m = Math.max(1, Math.round(d.naturalWidth * x)), j = Math.max(1, Math.round(d.naturalHeight * x)), B = tt();
-      We(B, (k - m) / 2, (L - j) / 2, m, j, s, t.name), Le(B), J("Image added");
-    } catch (s) {
-      console.error("Slides image could not load:", s), J("Image could not load: " + s.message, "error");
+      const { source: c, image: u } = await Cn(t);
+      if (C !== o || !Se().includes(a)) throw new Error("The destination slide is no longer open.");
+      if (R) throw new Error("Return to editing before adding an image.");
+      H = a;
+      const k = Math.min(1, 800 / u.naturalWidth, 500 / u.naturalHeight), w = Math.max(1, Math.round(u.naturalWidth * k)), M = Math.max(1, Math.round(u.naturalHeight * k)), P = nt();
+      St(P, (E - w) / 2, (A - M) / 2, w, M, c, t.name), ze(P), X("Image added");
+    } catch (c) {
+      console.error("Slides image could not load:", c), X("Image could not load: " + c.message, "error");
     } finally {
       e.target.value = "";
     }
   });
-  function vn() {
-    if (!(z || !C.size))
+  function An() {
+    if (!(R || !I.size))
       try {
-        const e = new c.Doc(), t = De().filter((r) => C.has(r)).map((r, s) => {
-          const d = v.getXmlFragment("slide-text-" + r).toArray().map((x) => x.clone());
-          return d.length && e.getXmlFragment("text-" + s).insert(0, d), { data: M.get(r).toJSON(), index: s };
-        }), o = new Set(t.flatMap((r) => r.data.referenceUrls || []));
-        for (const r of Qt()) o.has(r.url) && e.getMap("clist_refs").set(r.url, JSON.stringify(r));
-        return de?.document.destroy(), de = { document: e, items: t, sourceDocument: v, sourceSlide: O, pastes: 0, token: crypto.randomUUID() }, a("paste-objects").disabled = !1, J("Copied " + t.length + " object" + (t.length === 1 ? "." : "s.")), !0;
+        const e = new l.Doc(), t = De().filter((a) => I.has(a)).map((a, c) => {
+          const u = C.getXmlFragment("slide-text-" + a).toArray().map((k) => k.clone());
+          return u.length && e.getXmlFragment("text-" + c).insert(0, u), { data: L.get(a).toJSON(), index: c };
+        }), o = new Set(t.flatMap((a) => a.data.referenceUrls || []));
+        for (const a of an()) o.has(a.url) && e.getMap("clist_refs").set(a.url, JSON.stringify(a));
+        return re?.document.destroy(), re = { document: e, items: t, sourceDocument: C, sourceSlide: H, pastes: 0, token: crypto.randomUUID() }, s("paste-objects").disabled = !1, X("Copied " + t.length + " object" + (t.length === 1 ? "." : "s.")), !0;
       } catch (e) {
-        return console.error("Slides object copy failed:", e), J("Could not copy objects: " + e.message, "error"), !1;
+        return console.error("Slides object copy failed:", e), X("Could not copy objects: " + e.message, "error"), !1;
       }
   }
-  function Wn() {
-    if (!(z || !de?.items.length)) {
+  function Yn() {
+    if (!(R || !re?.items.length)) {
       xe();
       try {
-        const e = Yt(de.items.map((j) => j.data)), t = de.cut && de.pastes === 0 ? 0 : de.sourceDocument === v && de.sourceSlide === O ? 28 * (de.pastes + 1) : 28 * de.pastes, o = Ee?.document === v && Ee.slide === O ? Ee : null, { x: r, y: s } = Jo(e, o, k, L, t), d = Math.max(-1, ...De().map((j) => _e(M.get(j)))), x = /* @__PURE__ */ new Map(), m = de.items.map((j, B) => {
-          const I = tt(), H = new c.Map(Object.entries({ ...yn(j.data, x), slide: O, x: j.data.x + r, y: j.data.y + s, layer: d + B + 1 })), V = v.getXmlFragment("slide-text-" + I);
-          D?.addToScope(V);
-          const ce = de.document.getXmlFragment("text-" + j.index).toArray().map((ke) => ke.clone());
-          return { id: I, box: H, fragment: V, text: ce };
+        const e = tn(re.items.map((M) => M.data)), t = re.cut && re.pastes === 0 ? 0 : re.sourceDocument === C && re.sourceSlide === H ? 28 * (re.pastes + 1) : 28 * re.pastes, o = ie?.document === C && ie.slide === H ? ie : null, { x: a, y: c } = fr(e, o, E, A, t), u = Math.max(-1, ...De().map((M) => Ze(L.get(M)))), k = /* @__PURE__ */ new Map(), w = re.items.map((M, P) => {
+          const N = nt(), O = new l.Map(Object.entries({ ...Sn(M.data, k), slide: H, x: M.data.x + a, y: M.data.y + c, layer: u + P + 1 })), $ = C.getXmlFragment("slide-text-" + N);
+          D?.addToScope($);
+          const ce = re.document.getXmlFragment("text-" + M.index).toArray().map((he) => he.clone());
+          return { id: N, box: O, fragment: $, text: ce };
         });
-        D?.stopCapturing(), v.transact(() => {
-          de.document.getMap("clist_refs").forEach((j) => {
+        D?.stopCapturing(), C.transact(() => {
+          re.document.getMap("clist_refs").forEach((M) => {
             try {
-              en([JSON.parse(j)]);
+              sn([JSON.parse(M)]);
             } catch {
             }
           });
-          for (const j of m)
-            M.set(j.id, j.box), j.text.length && j.fragment.insert(0, j.text);
-        }), D?.stopCapturing(), de.pastes++, C.clear();
-        for (const j of m) C.add(j.id);
-        T = m[m.length - 1].id, Le(T, !1, !0), h.tabIndex = -1, h.focus({ preventScroll: !0 }), J("Pasted " + m.length + " object" + (m.length === 1 ? "." : "s."));
+          for (const M of w)
+            L.set(M.id, M.box), M.text.length && M.fragment.insert(0, M.text);
+        }), D?.stopCapturing(), re.pastes++, I.clear();
+        for (const M of w) I.add(M.id);
+        B = w[w.length - 1].id, ze(B, !1, !0), f.tabIndex = -1, f.focus({ preventScroll: !0 }), X("Pasted " + w.length + " object" + (w.length === 1 ? "." : "s."));
       } catch (e) {
-        console.error("Slides object paste failed:", e), J("Could not paste objects: " + e.message, "error");
+        console.error("Slides object paste failed:", e), X("Could not paste objects: " + e.message, "error");
       }
     }
   }
-  function Xn(e = null) {
-    if (!(z || !C.size)) {
-      if (et()) {
-        J("Unlock selected objects before cutting.", "error");
+  function _n(e = null) {
+    if (!(R || !I.size)) {
+      if (tt()) {
+        X("Unlock selected objects before cutting.", "error");
         return;
       }
-      if (vn())
+      if (An())
         try {
-          e && $n(e), de.cut = !0;
-          const t = C.size;
-          D?.stopCapturing(), wn(), D?.stopCapturing(), h.tabIndex = -1, h.focus({ preventScroll: !0 }), J("Cut " + t + " object" + (t === 1 ? "." : "s."));
+          e && Zn(e), re.cut = !0;
+          const t = I.size;
+          D?.stopCapturing(), En(), D?.stopCapturing(), f.tabIndex = -1, f.focus({ preventScroll: !0 }), X("Cut " + t + " object" + (t === 1 ? "." : "s."));
         } catch (t) {
-          console.error("Slides object cut failed:", t), J("Could not cut objects: " + t.message, "error");
+          console.error("Slides object cut failed:", t), X("Could not cut objects: " + t.message, "error");
         }
     }
   }
-  a("cut-objects").addEventListener("click", () => Xn()), a("copy-objects").addEventListener("click", vn), a("paste-objects").addEventListener("click", Wn);
-  function Ro(e) {
+  s("cut-objects").addEventListener("click", () => _n()), s("copy-objects").addEventListener("click", An), s("paste-objects").addEventListener("click", Yn);
+  function Jo(e) {
     return e.isContentEditable || !!e.closest?.('input, textarea, select, [contenteditable="true"]');
   }
-  function $n(e) {
-    e.clipboardData.setData("application/x-clist-slide-objects", de.token), e.clipboardData.setData("text/plain", de.items.map((t) => de.document.getXmlFragment("text-" + t.index).toString().replace(/<[^>]*>/g, " ") || t.data.alt || "Slide object").join(`
+  function Zn(e) {
+    e.clipboardData.setData("application/x-clist-slide-objects", re.token), e.clipboardData.setData("text/plain", re.items.map((t) => re.document.getXmlFragment("text-" + t.index).toString().replace(/<[^>]*>/g, " ") || t.data.alt || "Slide object").join(`
 `)), e.preventDefault(), e.stopImmediatePropagation();
   }
-  function Vn(e) {
-    if (!(z || !C.size || !e.clipboardData || !h.getClientRects().length) && go(h, e.target, document.activeElement, document) && vn())
+  function Qn(e) {
+    if (!(R || !I.size || !e.clipboardData || !f.getClientRects().length) && ko(f, e.target, document.activeElement, document) && An())
       try {
-        $n(e);
+        Zn(e);
       } catch (t) {
-        console.error("Slides clipboard write failed:", t), J("Could not write objects to clipboard: " + t.message, "error");
+        console.error("Slides clipboard write failed:", t), X("Could not write objects to clipboard: " + t.message, "error");
       }
   }
-  document.addEventListener("copy", Vn, !0);
-  function Kn(e) {
-    z || !C.size || !e.clipboardData || !h.getClientRects().length || go(h, e.target, document.activeElement, document) && (e.preventDefault(), e.stopImmediatePropagation(), Xn(e));
+  document.addEventListener("copy", Qn, !0);
+  function eo(e) {
+    R || !I.size || !e.clipboardData || !f.getClientRects().length || ko(f, e.target, document.activeElement, document) && (e.preventDefault(), e.stopImmediatePropagation(), _n(e));
   }
-  document.addEventListener("cut", Kn, !0);
-  function Gn(e) {
-    if (z || !e.clipboardData || !h.getClientRects().length) return;
-    const t = h.contains(e.target), o = e.target === document.body || e.target === document.documentElement || e.target === document;
-    if (!t && !(o && (h.contains(document.activeElement) || ae)) || !t && document.activeElement?.closest?.('input, textarea, select, [contenteditable="true"]') || e.target.closest?.("input, textarea, select")) return;
-    const r = e.target.closest?.(".slide-object");
-    if (Ro(e.target) && r && C.has(r.dataset.id) && $ === r.dataset.id) return;
-    const d = e.clipboardData.getData("application/x-clist-slide-objects");
-    if (d && d === de?.token) {
-      e.preventDefault(), e.stopImmediatePropagation(), Wn();
+  document.addEventListener("cut", eo, !0);
+  function to(e) {
+    if (R || !e.clipboardData || !f.getClientRects().length) return;
+    const t = f.contains(e.target), o = e.target === document.body || e.target === document.documentElement || e.target === document;
+    if (!t && !(o && (f.contains(document.activeElement) || Pe)) || !t && document.activeElement?.closest?.('input, textarea, select, [contenteditable="true"]') || e.target.closest?.("input, textarea, select")) return;
+    const a = e.target.closest?.(".slide-object");
+    if (Jo(e.target) && a && I.has(a.dataset.id) && Ae === a.dataset.id) return;
+    const u = e.clipboardData.getData("application/x-clist-slide-objects");
+    if (u && u === re?.token) {
+      e.preventDefault(), e.stopImmediatePropagation(), Yn();
       return;
     }
-    const x = e.clipboardData.getData("text/plain");
-    if (x) {
+    const k = e.clipboardData.getData("text/plain");
+    if (k) {
       e.preventDefault(), e.stopImmediatePropagation();
       try {
         xe(), D?.stopCapturing();
-        const m = tt(), j = x.replace(/\r\n?/g, `
+        const w = nt(), M = k.replace(/\r\n?/g, `
 `).split(`
 `).map((ce) => ({
           type: "paragraph",
           content: ce ? [{ type: "text", text: ce }] : []
-        })), B = j.reduce((ce, ke) => ce + Math.max(1, Math.ceil((ke.content[0]?.text.length || 0) / 45)), 0), I = 690, H = Math.min(500, Math.max(100, B * 42)), V = Ee?.document === v && Ee.slide === O ? Ee : { x: 160, y: 160 };
-        We(m, Math.max(0, Math.min(k - I, V.x)), Math.max(0, Math.min(L - H, V.y)), I, H), X.get(m).editor.commands.setContent({ type: "doc", content: j }), D?.stopCapturing(), Le(m), X.get(m).editor.commands.focus("end"), J("Pasted text into a new text box.");
-      } catch (m) {
-        console.error("Slides text paste failed:", m), J("Could not paste text: " + m.message, "error");
+        })), P = M.reduce((ce, he) => ce + Math.max(1, Math.ceil((he.content[0]?.text.length || 0) / 45)), 0), N = 690, O = Math.min(500, Math.max(100, P * 42)), $ = ie?.document === C && ie.slide === H ? ie : { x: 160, y: 160 };
+        St(w, Math.max(0, Math.min(E - N, $.x)), Math.max(0, Math.min(A - O, $.y)), N, O), Z.get(w).editor.commands.setContent({ type: "doc", content: M }), D?.stopCapturing(), ze(w), Z.get(w).editor.commands.focus("end"), X("Pasted text into a new text box.");
+      } catch (w) {
+        console.error("Slides text paste failed:", w), X("Could not paste text: " + w.message, "error");
       }
     }
   }
-  document.addEventListener("paste", Gn, !0);
-  function Jn(e) {
-    const t = R.getBoundingClientRect();
-    t.width <= 0 || t.height <= 0 || e.clientX < t.left || e.clientX > t.right || e.clientY < t.top || e.clientY > t.bottom || (Ee = { document: v, slide: O, x: Math.round((e.clientX - t.left) * k / t.width), y: Math.round((e.clientY - t.top) * L / t.height) });
+  document.addEventListener("paste", to, !0);
+  function no(e) {
+    const t = F.getBoundingClientRect();
+    t.width <= 0 || t.height <= 0 || e.clientX < t.left || e.clientX > t.right || e.clientY < t.top || e.clientY > t.bottom || (ie = { document: C, slide: H, x: Math.round((e.clientX - t.left) * E / t.width), y: Math.round((e.clientY - t.top) * A / t.height) });
   }
-  h.addEventListener("pointermove", Jn), Ge = ci(h, R, {
-    views: () => [...X.values()],
-    selected: () => [...C].map((e) => X.get(e)).filter(Boolean),
-    presenting: () => z,
-    size: (e) => mt(e).size,
+  f.addEventListener("pointermove", no), _e = Mr(f, F, {
+    views: () => [...Z.values()],
+    selected: () => [...I].map((e) => Z.get(e)).filter(Boolean),
+    presenting: () => R,
+    size: (e) => ht(e).size,
+    error: (e) => X("Could not fit text: " + e.message, "error"),
     apply: (e) => {
-      e.length && (D?.stopCapturing(), v.transact(() => {
-        for (const { box: t, size: o } of e) t.set("fontSize", o);
-      }), D?.stopCapturing());
+      e.length && (D?.stopCapturing(), C.transact(() => {
+        for (const { box: t, view: o, size: a, scale: c } of e) {
+          t.set("fontSize", a);
+          const u = o.editor, k = u.schema.marks.slideTextStyle, w = u.state.tr;
+          u.state.doc.descendants((M, P) => {
+            if (!M.isText) return;
+            const N = M.marks.find((O) => O.type === k);
+            N?.attrs.fontSize && w.addMark(P, P + M.nodeSize, k.create({ ...N.attrs, fontSize: Po(N.attrs.fontSize, c) }));
+          }), w.docChanged && u.view.dispatch(w);
+        }
+      }), D?.stopCapturing(), wt());
     }
-  }), it = di(h, R, {
-    selected: () => [...C],
-    slideId: () => O,
-    objects: () => De().map((e) => ({ id: e, ..._t(M.get(e).toJSON()) })),
+  }), Ie = Nr(f, F, {
+    selected: () => [...I],
+    slideId: () => H,
+    objects: () => De().map((e) => ({ id: e, ...nn(L.get(e).toJSON()) })),
     select: (e) => {
-      C.clear();
-      for (const t of e) X.has(t) && C.add(t);
-      Le(e.at(-1) || null, !1, !0);
+      I.clear();
+      for (const t of e) Z.has(t) && I.add(t);
+      ze(e.at(-1) || null, !1, !0);
     }
-  }), h.addEventListener("pointerdown", (e) => {
+  }), f.addEventListener("pointerdown", (e) => {
     const t = e.target;
-    e.button !== 0 || z || !t.closest?.(".canvas-space") || t.closest(".slide-crop-stage, .slide-object, input, textarea, select, button, a") || (e.preventDefault(), ae = !0, Jn(e), xe(), t === R && it.begin(e), e.shiftKey || Le(null), $ = null, h.contains(document.activeElement) && document.activeElement.blur?.(), window.getSelection()?.removeAllRanges(), h.tabIndex = -1, h.focus({ preventScroll: !0 }));
+    e.button !== 0 || R || !t.closest?.(".canvas-space") || t.closest(".slide-crop-stage, .slide-object, input, textarea, select, button, a") || (e.preventDefault(), Pe = !0, no(e), xe(), t === F && Ie.begin(e), e.shiftKey || ze(null), Ae = null, f.contains(document.activeElement) && document.activeElement.blur?.(), window.getSelection()?.removeAllRanges(), f.tabIndex = -1, f.focus({ preventScroll: !0 }));
   }, !0);
-  function Yn(e) {
-    if (z) return;
-    const t = E.get(e);
+  function oo(e) {
+    if (R) return;
+    const t = x.get(e);
     if (!t) {
-      J("This shape is not available in the catalog.", "error");
+      X("This shape is not available in the catalog.", "error");
       return;
     }
-    const o = tt(), { width: r, height: s } = t, d = new c.Map(Object.entries({ ...Fn(t), slide: O, x: Math.min(160, k - r), y: Math.min(180, L - s), width: r, height: s, rotation: 0, layer: Math.max(-1, ...De().map((x) => _e(M.get(x)))) + 1 }));
-    M.set(o, d), Le(o), X.get(o).node.focus({ preventScroll: !0 });
+    const o = nt(), { width: a, height: c } = t, u = new l.Map(Object.entries({ ...Wn(t), slide: H, x: Math.min(160, E - a), y: Math.min(180, A - c), width: a, height: c, rotation: 0, layer: Math.max(-1, ...De().map((k) => Ze(L.get(k)))) + 1 }));
+    L.set(o, u), ze(o), Z.get(o).node.focus({ preventScroll: !0 });
   }
-  function tt() {
+  function nt() {
     return `box-${crypto.randomUUID()}`;
   }
-  a("add-text").addEventListener("click", () => {
-    const e = tt();
-    We(e, 160, 220, 430, 130), Le(e), X.get(e)?.editor.commands.focus();
-  }), a("duplicate").addEventListener("click", () => {
-    if (z || !T) return;
-    const e = T, t = M.get(e), o = tt(), r = new c.Map(Object.entries({ ...t.toJSON(), locked: !1, x: Math.min(k - t.get("width"), t.get("x") + 28), y: Math.min(L - t.get("height"), t.get("y") + 28), layer: Math.max(...De().map((x) => _e(M.get(x)))) + 1 }));
-    r.delete("groupId");
-    const s = v.getXmlFragment("slide-text-" + o);
-    D?.addToScope(s);
-    const d = v.getXmlFragment("slide-text-" + e).toArray().map((x) => x.clone());
-    v.transact(() => {
-      M.set(o, r), d.length && s.insert(0, d);
-    }), Le(o);
-  }), a("delete").addEventListener("click", wn), a("bold").addEventListener("click", () => {
-    T && X.get(T)?.editor?.chain().focus().toggleBold().run();
-  }), a("italic").addEventListener("click", () => {
-    T && X.get(T)?.editor?.chain().focus().toggleItalic().run();
-  }), a("bullet-list").addEventListener("click", () => {
-    !z && T && X.get(T)?.editor?.chain().focus().toggleBulletList().run();
-  }), a("ordered-list").addEventListener("click", () => {
-    !z && T && X.get(T)?.editor?.chain().focus().toggleOrderedList().run();
-  });
-  function _n(e) {
+  s("add-text").addEventListener("click", () => {
+    const e = nt();
+    St(e, 160, 220, 430, 130), ze(e), Z.get(e)?.editor.commands.focus();
+  }), s("duplicate").addEventListener("click", () => {
+    if (R || !B) return;
+    const e = B, t = L.get(e), o = nt(), a = new l.Map(Object.entries({ ...t.toJSON(), locked: !1, x: Math.min(E - t.get("width"), t.get("x") + 28), y: Math.min(A - t.get("height"), t.get("y") + 28), layer: Math.max(...De().map((k) => Ze(L.get(k)))) + 1 }));
+    a.delete("groupId");
+    const c = C.getXmlFragment("slide-text-" + o);
+    D?.addToScope(c);
+    const u = C.getXmlFragment("slide-text-" + e).toArray().map((k) => k.clone());
+    C.transact(() => {
+      L.set(o, a), u.length && c.insert(0, u);
+    }), ze(o);
+  }), s("delete").addEventListener("click", En);
+  function Ht(e) {
+    const t = Z.get(B), o = t?.editor;
+    if (R || !o || I.size !== 1 || t.box.get("locked") === !0) return;
+    const a = o.state.selection.empty;
     try {
-      const t = new URL(e);
-      return ["http:", "https:", "mailto:", "tel:"].includes(t.protocol);
-    } catch {
-      return !1;
+      D?.stopCapturing(), e(a ? o.chain().selectAll() : o.chain()).run(), a && o.commands.setTextSelection(o.state.selection.from), D?.stopCapturing(), on(o), wt();
+    } catch (c) {
+      console.error("Slides text formatting:", c), X("Could not format selected text: " + c.message, "error");
     }
   }
-  function jt() {
-    a("link-controls").hidden = !0, Me = null;
+  function on(e) {
+    if (e.isDestroyed) return;
+    const { from: t, to: o } = e.state.selection;
+    e.commands.setTextSelection({ from: t, to: o }), e.view.focus();
   }
-  a("edit-link").addEventListener("click", () => {
-    const e = X.get(T)?.editor;
-    if (!(z || !e)) {
-      if (e.state.selection.empty && !e.isActive("link")) {
-        J("Select the text to link first.", "error");
-        return;
-      }
-      Me = T, a("link-url").value = e.getAttributes("link").href || "", a("link-controls").hidden = !1, a("link-url").focus();
-    }
-  }), a("cancel-link").addEventListener("click", jt), a("apply-link").addEventListener("click", () => {
-    const e = X.get(Me)?.editor;
-    if (z || !e) {
-      jt();
-      return;
-    }
-    const t = a("link-url").value.trim();
-    if (!_n(t)) {
-      J("Enter an http, https, mailto, or tel URL.", "error");
-      return;
-    }
-    try {
-      D?.stopCapturing(), e.chain().focus().extendMarkRange("link").setLink({ href: t }).run(), D?.stopCapturing(), jt();
-    } catch (o) {
-      console.error("Slides link failed:", o), J("Could not apply link: " + o.message, "error");
-    }
-  }), a("remove-link").addEventListener("click", () => {
-    const e = X.get(T)?.editor;
-    if (!(z || !e))
-      try {
-        e.chain().focus().extendMarkRange("link").unsetLink().run(), jt();
-      } catch (t) {
-        console.error("Slides unlink failed:", t), J("Could not remove link: " + t.message, "error");
-      }
-  }), h.addEventListener("click", (e) => {
+  s("bold").addEventListener("click", () => Ht((e) => e.toggleBold())), s("italic").addEventListener("click", () => Ht((e) => e.toggleItalic())), s("bullet-list").addEventListener("click", () => Ht((e) => e.toggleBulletList())), s("ordered-list").addEventListener("click", () => Ht((e) => e.toggleOrderedList()));
+  function ro() {
+    qe?.close(), Me = null;
+  }
+  s("edit-link").addEventListener("click", () => qe?.open()), s("remove-link").addEventListener("click", () => Ht((e) => e.unsetLink())), f.addEventListener("click", (e) => {
     const t = e.target.closest?.(".text-content a");
-    if (!z || !t) return;
+    if (!R || !t) return;
     e.preventDefault(), e.stopImmediatePropagation();
     const o = t.getAttribute("href") || "";
-    _n(o) ? window.open(o, "_blank", "noopener,noreferrer") : (console.error("Slides blocked unsupported link:", o), a("presentation-status").textContent = "This link has an unsupported URL.");
+    zo(o) ? window.open(o, "_blank", "noopener,noreferrer") : (console.error("Slides blocked unsupported link:", o), s("presentation-status").textContent = "This link has an unsupported URL.");
   }, !0);
-  function Zn(e) {
-    if (z || et() || !T) return;
-    const t = De(), o = t.indexOf(T);
-    o < 0 || !t[o + e] || ([t[o], t[o + e]] = [t[o + e], t[o]], v.transact(() => t.forEach((r, s) => M.get(r).set("layer", s)), "layer"));
+  function io(e) {
+    if (R || tt() || !B) return;
+    const t = De(), o = t.indexOf(B);
+    o < 0 || !t[o + e] || ([t[o], t[o + e]] = [t[o + e], t[o]], C.transact(() => t.forEach((a, c) => L.get(a).set("layer", c)), "layer"));
   }
-  a("bring-forward").addEventListener("click", () => Zn(1)), a("send-backward").addEventListener("click", () => Zn(-1));
-  function Oo(e, t) {
-    const o = M.get(T);
-    z || C.size !== 1 || o?.get("kind") !== "image" || o.get("locked") === !0 || v.transact(() => {
-      t === "cover" && o.get("imageFit") !== "cover" ? (o.delete("cropImageWidth"), o.delete("cropImageHeight"), o.set(e, t), Tn(o)) : o.set(e, t);
+  s("bring-forward").addEventListener("click", () => io(1)), s("send-backward").addEventListener("click", () => io(-1));
+  function Yo(e, t) {
+    const o = L.get(B);
+    R || I.size !== 1 || o?.get("kind") !== "image" || o.get("locked") === !0 || C.transact(() => {
+      t === "cover" && o.get("imageFit") !== "cover" ? (o.delete("cropImageWidth"), o.delete("cropImageHeight"), o.set(e, t), Un(o)) : o.set(e, t);
     });
   }
-  a("image-fit").addEventListener("change", (e) => {
-    ["contain", "cover"].includes(e.target.value) && Oo("imageFit", e.target.value);
+  s("image-fit").addEventListener("change", (e) => {
+    ["contain", "cover"].includes(e.target.value) && Yo("imageFit", e.target.value);
   });
-  function Qn() {
-    const e = T, t = M.get(e), o = X.get(e);
-    if (z || C.size !== 1 || t?.get("kind") !== "image" || t.get("locked") || !o) return;
-    re?.destroy(), xe();
-    const r = kt(t.get("source"));
-    if (!r) return;
-    const s = v, d = O, x = l.captureSession?.(), m = JSON.stringify(t.toJSON()), j = Number(t.get("imageRatio")) || t.get("width") / t.get("height"), B = oi(t, j), I = Math.min(k, L * j, t.get("width") / B.width), H = I / j, V = Math.max(0, Math.min(k - I, t.get("x") - I * B.x)), ce = Math.max(0, Math.min(L - H, t.get("y") - H * B.y)), ke = document.createElement("div");
-    ke.className = "slide-direct-crop", ke.style.left = 100 * V / k + "%", ke.style.top = 100 * ce / L + "%", ke.style.width = 100 * I / k + "%", ke.addEventListener("pointerdown", (Oe) => Oe.stopPropagation()), R.append(ke), o.content.style.visibility = "hidden", h.classList.add("cropping-image");
-    const ie = () => h.isConnected && !z && v === s && O === d && T === e && C.size === 1 && M.get(e) === t && JSON.stringify(t.toJSON()) === m && (!l.sessionCurrent || l.sessionCurrent(x));
+  function ao() {
+    const e = B, t = L.get(e), o = Z.get(e);
+    if (R || I.size !== 1 || t?.get("kind") !== "image" || t.get("locked") || !o) return;
+    ke?.destroy(), xe();
+    const a = Ct(t.get("source"));
+    if (!a) return;
+    const c = C, u = H, k = i.captureSession?.(), w = JSON.stringify(t.toJSON()), M = Number(t.get("imageRatio")) || t.get("width") / t.get("height"), P = vr(t, M), N = Math.min(E, A * M, t.get("width") / P.width), O = N / M, $ = Math.max(0, Math.min(E - N, t.get("x") - N * P.x)), ce = Math.max(0, Math.min(A - O, t.get("y") - O * P.y)), he = document.createElement("div");
+    he.className = "slide-direct-crop", he.style.left = 100 * $ / E + "%", he.style.top = 100 * ce / A + "%", he.style.width = 100 * N / E + "%", he.addEventListener("pointerdown", (Oe) => Oe.stopPropagation()), F.append(he), o.content.style.visibility = "hidden", f.classList.add("cropping-image");
+    const ae = () => f.isConnected && !R && C === c && H === u && B === e && I.size === 1 && L.get(e) === t && JSON.stringify(t.toJSON()) === w && (!i.sessionCurrent || i.sessionCurrent(k));
     let Re = null, He = !1;
-    const nt = () => {
-      He || (He = !0, Re?.destroy(), ke.remove(), o.content.style.visibility = "", h.classList.remove("cropping-image"), re = null);
+    const Ve = () => {
+      He || (He = !0, Re?.destroy(), he.remove(), o.content.style.visibility = "", f.classList.remove("cropping-image"), ke = null);
     };
-    re = { current: ie, destroy: nt }, Re = Co({ container: ke, actionsContainer: h.querySelectorAll(".slide-menu-bar")[1], source: r, ratio: j, initial: B, current: ie, onCancel: nt, onDone: (Oe) => {
-      if (!ie()) {
-        nt();
+    ke = { current: ae, destroy: Ve }, Re = Io({ container: he, actionsContainer: f.querySelectorAll(".slide-menu-bar")[1], source: a, ratio: M, initial: P, current: ae, onCancel: Ve, onDone: (Oe) => {
+      if (!ae()) {
+        Ve();
         return;
       }
-      const dt = ["x", "y", "width", "height"].every((je) => Math.abs(Oe[je] - B[je]) < 1e-8);
-      if (nt(), dt) return;
-      const Te = jn(Oe, I, H);
-      D?.stopCapturing(), v.transact(() => {
-        for (const [je, Ze] of Object.entries(Te)) t.set(je, Ze);
-        t.set("x", V + I * Oe.x), t.set("y", ce + H * Oe.y);
-      }), D?.stopCapturing(), Le(e), J("Image cropped.");
+      const dt = ["x", "y", "width", "height"].every((Fe) => Math.abs(Oe[Fe] - P[Fe]) < 1e-8);
+      if (Ve(), dt) return;
+      const Ue = Pn(Oe, N, O);
+      D?.stopCapturing(), C.transact(() => {
+        for (const [Fe, Qe] of Object.entries(Ue)) t.set(Fe, Qe);
+        t.set("x", $ + N * Oe.x), t.set("y", ce + O * Oe.y);
+      }), D?.stopCapturing(), ze(e), X("Image cropped.");
     } });
   }
-  a("crop-image").addEventListener("click", Qn);
-  function eo(e) {
+  s("crop-image").addEventListener("click", ao);
+  function so(e) {
     const t = Number(e.get("aspectRatio"));
     return Number.isFinite(t) && t > 0 ? t : Number(e.get("width")) / Number(e.get("height")) || 1;
   }
-  function Bo(e, t, o, r) {
-    const s = Math.min(o, r * t), d = Math.max(Math.min(s, Math.max(1, t)), Math.min(s, e));
-    return { width: d, height: d / t };
+  function _o(e, t, o, a) {
+    const c = Math.min(o, a * t), u = Math.max(Math.min(c, Math.max(1, t)), Math.min(c, e));
+    return { width: u, height: u / t };
   }
-  a("keep-aspect-ratio").addEventListener("change", (e) => {
-    const t = M.get(T);
-    z || C.size !== 1 || t?.get("kind") !== "image" || t.get("locked") === !0 || v.transact(() => {
+  s("keep-aspect-ratio").addEventListener("change", (e) => {
+    const t = L.get(B);
+    R || I.size !== 1 || t?.get("kind") !== "image" || t.get("locked") === !0 || C.transact(() => {
       e.target.checked && t.set("aspectRatio", t.get("width") / t.get("height")), t.set("keepAspectRatio", e.target.checked);
     });
   });
-  function Zt(e) {
-    return e instanceof c.Map && e.get("kind") !== "image";
+  function rn(e) {
+    return e instanceof l.Map && e.get("kind") !== "image";
   }
-  function to() {
-    a("copy-format").disabled = z || C.size !== 1 || !Zt(M.get(T));
-    const e = [...C].map((t) => M.get(t));
-    a("paste-format").disabled = z || !ge || !e.length || et() || !e.some(Zt);
+  function lo() {
+    s("copy-format").disabled = R || I.size !== 1 || !rn(L.get(B));
+    const e = [...I].map((t) => L.get(t));
+    s("paste-format").disabled = R || !de || !e.length || tt() || !e.some(rn);
   }
-  a("copy-format").addEventListener("click", () => {
-    const e = M.get(T);
-    if (z || C.size !== 1 || !Zt(e)) return;
-    const t = vt(e), o = mt(e);
-    ge = {
+  s("copy-format").addEventListener("click", () => {
+    const e = L.get(B);
+    if (R || I.size !== 1 || !rn(e)) return;
+    const t = Et(e), o = ht(e);
+    de = {
       appearance: { fillEnabled: t.fill, fillColour: t.fillColour, borderEnabled: t.border, borderColour: t.borderColour, borderWidth: t.width },
       text: e.get("kind") === "shape" ? null : { fontFamily: o.family, fontSize: o.size, textColour: o.colour, textAlign: o.align }
-    }, to(), J("Formatting copied. Select targets, then use Apply formatting.");
-  }), a("paste-format").addEventListener("click", () => {
-    if (z || !ge || et()) return;
-    const e = [...C].map((t) => M.get(t)).filter(Zt);
-    e.length && (D?.stopCapturing(), v.transact(() => {
+    }, lo(), X("Formatting copied. Select targets, then use Apply formatting.");
+  }), s("paste-format").addEventListener("click", () => {
+    if (R || !de || tt()) return;
+    const e = [...I].map((t) => L.get(t)).filter(rn);
+    e.length && (D?.stopCapturing(), C.transact(() => {
       for (const t of e) {
-        const o = { ...ge.appearance, ...t.get("kind") === "shape" ? {} : ge.text || {} };
-        for (const [r, s] of Object.entries(o)) t.set(r, s);
+        const o = { ...de.appearance, ...t.get("kind") === "shape" ? {} : de.text || {} };
+        for (const [a, c] of Object.entries(o)) t.set(a, c);
       }
-    }), D?.stopCapturing(), J("Formatting applied to " + e.length + " object" + (e.length === 1 ? "." : "s.")));
+    }), D?.stopCapturing(), X("Formatting applied to " + e.length + " object" + (e.length === 1 ? "." : "s.")));
   });
-  function Et(e, t) {
-    const r = M.get(T)?.get("kind") === "shape" && ["fillEnabled", "fillColour", "borderEnabled", "borderColour", "borderWidth"].includes(e);
-    z || C.size !== 1 || !X.get(T)?.editor && !r || M.get(T).set(e, t);
+  function xt(e, t) {
+    const o = L.get(B), a = o?.get("kind") === "shape" && ["fillEnabled", "fillColour", "borderEnabled", "borderColour", "borderWidth"].includes(e);
+    if (R || I.size !== 1 || !Z.get(B)?.editor && !a || o.get("locked") === !0) return;
+    const c = Z.get(B)?.editor;
+    if (c && ["fontFamily", "fontSize", "textColour", "highlightColour"].includes(e)) {
+      const u = c.state.selection.empty;
+      D?.stopCapturing();
+      try {
+        (u ? c.chain().selectAll() : c.chain()).setMark("slideTextStyle", { [e]: t }).run(), u && (e !== "highlightColour" && o.set(e, t), c.commands.setTextSelection(c.state.selection.from)), on(c);
+      } catch (k) {
+        console.error("Slides text formatting:", k), X("Could not format selected text: " + k.message, "error");
+      }
+      D?.stopCapturing(), wt();
+      return;
+    }
+    L.get(B).set(e, t);
   }
   for (const [e, t] of [["fill-enabled", "fillEnabled"], ["border-enabled", "borderEnabled"]])
-    a(e).addEventListener("change", (o) => Et(t, o.target.checked));
+    s(e).addEventListener("change", (o) => xt(t, o.target.checked));
   for (const [e, t] of [["fill-colour", "fillColour"], ["border-colour", "borderColour"]])
-    a(e).addEventListener("change", (o) => {
-      /^#[0-9a-f]{6}$/i.test(o.target.value) && Et(t, o.target.value);
+    s(e).addEventListener("change", (o) => {
+      /^#[0-9a-f]{6}$/i.test(o.target.value) && xt(t, o.target.value);
     });
-  a("border-width").addEventListener("change", (e) => {
+  s("border-width").addEventListener("change", (e) => {
     const t = Number(e.target.value);
     if (!Number.isInteger(t) || t < 1 || t > 20) {
-      J("Border width must be a whole number between 1 and 20 pixels.", "error"), Le(T);
+      X("Border width must be a whole number between 1 and 20 pixels.", "error"), ze(B);
       return;
     }
-    Et("borderWidth", t);
-  }), a("font-family").addEventListener("change", (e) => {
-    Object.prototype.hasOwnProperty.call(xt, e.target.value) && Et("fontFamily", e.target.value);
-  }), a("font-size").addEventListener("change", (e) => {
+    xt("borderWidth", t);
+  }), s("font-family").addEventListener("change", (e) => {
+    Object.prototype.hasOwnProperty.call(Mt, e.target.value) && xt("fontFamily", e.target.value);
+  }), s("font-size").addEventListener("change", (e) => {
     const t = Number(e.target.value);
     if (!Number.isFinite(t) || t < 8 || t > 200) {
-      J("Font size must be between 8 and 200 pixels.", "error"), Le(T);
+      X("Font size must be between 8 and 200 pixels.", "error"), ze(B);
       return;
     }
-    Et("fontSize", t);
-  }), a("text-colour").addEventListener("input", (e) => {
-    /^#[0-9a-f]{6}$/i.test(e.target.value) && Et("textColour", e.target.value);
-  }), a("text-align").addEventListener("change", (e) => {
-    ["left", "center", "right", "justify"].includes(e.target.value) && Et("textAlign", e.target.value);
+    xt("fontSize", t);
+  }), s("text-colour").addEventListener("input", (e) => {
+    /^#[0-9a-f]{6}$/i.test(e.target.value) && xt("textColour", e.target.value);
+  }), s("text-align")?.addEventListener("change", (e) => {
+    ["left", "center", "right", "justify"].includes(e.target.value) && xt("textAlign", e.target.value);
   });
-  function It() {
-    const e = S.has(a("slide-layout").value), t = S.get(a("slide-layout").value), o = typeof l.onRenameSavedLayout == "function" && typeof l.onDeleteSavedLayout == "function";
-    a("saved-layout-hint").textContent = rt ? "Layout dialog is open." : S.size ? e ? o ? "Selected saved layout: " + t.label : "Layout management is available inside CList." : "Select an entry under Saved layouts to rename or delete it." : "Use CList’s Save menu to save the current slide as a layout.", a("rename-layout").disabled = rt || !e || typeof l.onRenameSavedLayout != "function", a("delete-layout").disabled = rt || !e || typeof l.onDeleteSavedLayout != "function";
+  function Ft() {
+    if (!s("saved-layout-hint")) return;
+    const e = v.has(s("slide-layout").value), t = v.get(s("slide-layout").value), o = typeof i.onRenameSavedLayout == "function" && typeof i.onDeleteSavedLayout == "function";
+    s("saved-layout-hint").textContent = Ke ? "Layout dialog is open." : v.size ? e ? o ? "Selected saved layout: " + t.label : "Layout management is available inside CList." : "Select an entry under Saved layouts to rename or delete it." : "Use CList’s Save menu to save the current slide as a layout.", s("rename-layout").disabled = Ke || !e || typeof i.onRenameSavedLayout != "function", s("delete-layout").disabled = Ke || !e || typeof i.onDeleteSavedLayout != "function";
   }
-  function no(e) {
+  function co(e) {
     const t = "user:" + e;
-    S.delete(t);
-    const o = a("slide-layout").querySelector("optgroup[data-saved-layouts]");
-    (o && [...o.children].find((s) => s.value === t))?.remove(), o && !o.children.length && o.remove(), a("slide-layout").value || (a("slide-layout").value = f.keys().next().value), It();
+    v.delete(t);
+    const o = s("slide-layout").querySelector("optgroup[data-saved-layouts]");
+    (o && [...o.children].find((c) => c.value === t))?.remove(), o && !o.children.length && o.remove(), s("slide-layout").value || (s("slide-layout").value = h.keys().next().value), Ft();
   }
-  async function oo(e) {
-    const t = S.get(a("slide-layout").value), o = e ? l.onDeleteSavedLayout : l.onRenameSavedLayout;
-    if (!(z || rt || !t || typeof o != "function")) {
-      rt = !0, It();
+  async function uo(e) {
+    const t = v.get(s("slide-layout").value), o = e ? i.onDeleteSavedLayout : i.onRenameSavedLayout;
+    if (!(R || Ke || !t || typeof o != "function")) {
+      Ke = !0, Ft();
       try {
-        const r = await o({ ...t });
-        e && r === !0 ? no(t.id) : !e && r && ro(r);
-      } catch (r) {
-        console.error("Saved layout management failed:", r), J("Could not " + (e ? "delete" : "rename") + " layout: " + r.message, "error");
+        const a = await o({ ...t });
+        e && a === !0 ? co(t.id) : !e && a && fo(a);
+      } catch (a) {
+        console.error("Saved layout management failed:", a), X("Could not " + (e ? "delete" : "rename") + " layout: " + a.message, "error");
       } finally {
-        rt = !1, It();
+        Ke = !1, Ft();
       }
     }
   }
-  a("slide-layout").addEventListener("change", It), a("rename-layout").addEventListener("click", () => oo(!1).catch((e) => {
-    console.error("Layout rename failed:", e), J(e.message, "error");
-  })), a("delete-layout").addEventListener("click", () => oo(!0).catch((e) => {
-    console.error("Layout deletion failed:", e), J(e.message, "error");
+  s("slide-layout").addEventListener("change", Ft), s("rename-layout").addEventListener("click", () => uo(!1).catch((e) => {
+    console.error("Layout rename failed:", e), X(e.message, "error");
+  })), s("delete-layout").addEventListener("click", () => uo(!0).catch((e) => {
+    console.error("Layout deletion failed:", e), X(e.message, "error");
   }));
-  function Ho(e) {
+  function Zo(e) {
     if (typeof e != "string" || !e.trim() || e.trim().length > 120) throw new Error("Enter a layout name of 1–120 characters.");
-    const t = new c.Doc();
+    const t = new l.Doc();
     try {
-      t.getMap("slide-pages").set("first", 0), t.getMap("slide-backgrounds").set("first", At(O)), typeof U.get(O) == "string" && t.getMap("slide-notes").set("first", U.get(O));
-      for (const d of De()) {
-        const x = M.get(d), m = mt(x), j = vt(x), B = { ...x.toJSON(), slide: "first", fontFamily: m.family, fontSize: m.size, textColour: m.colour, fillColour: j.fillColour, borderColour: j.borderColour };
-        B.kind === "shape" && (B.shapeDefinition = structuredClone(Wt(M.get(d)))), t.getMap("slide-objects").set(d, new c.Map(Object.entries(B)));
-        const I = v.getXmlFragment("slide-text-" + d).toArray().map((H) => H.clone());
-        I.length && t.getXmlFragment("slide-text-" + d).insert(0, I);
+      t.getMap("slide-pages").set("first", 0), t.getMap("slide-backgrounds").set("first", zt(H)), typeof J.get(H) == "string" && t.getMap("slide-notes").set("first", J.get(H));
+      for (const u of De()) {
+        const k = L.get(u), w = ht(k), M = Et(k), P = { ...k.toJSON(), slide: "first", fontFamily: w.family, fontSize: w.size, textColour: w.colour, fillColour: M.fillColour, borderColour: M.borderColour };
+        P.kind === "shape" && (P.shapeDefinition = structuredClone(Gt(L.get(u)))), t.getMap("slide-objects").set(u, new l.Map(Object.entries(P)));
+        const N = C.getXmlFragment("slide-text-" + u).toArray().map((O) => O.clone());
+        N.length && t.getXmlFragment("slide-text-" + u).insert(0, N);
       }
-      const o = new Set(De().flatMap((d) => M.get(d).get("referenceUrls") || []));
-      for (const d of Qt()) o.has(d.url) && t.getMap("clist_refs").set(d.url, JSON.stringify(d));
-      const r = c.encodeStateAsUpdate(t);
-      let s = "";
-      for (const d of r) s += String.fromCharCode(d);
-      return { format: "clist-slide-layout-v1", id: "saved-" + crypto.randomUUID(), label: e.trim(), update: btoa(s) };
+      const o = new Set(De().flatMap((u) => L.get(u).get("referenceUrls") || []));
+      for (const u of an()) o.has(u.url) && t.getMap("clist_refs").set(u.url, JSON.stringify(u));
+      const a = l.encodeStateAsUpdate(t);
+      let c = "";
+      for (const u of a) c += String.fromCharCode(u);
+      return { format: "clist-slide-layout-v1", id: "saved-" + crypto.randomUUID(), label: e.trim(), update: btoa(c) };
     } finally {
       t.destroy();
     }
   }
-  function io(e) {
+  function po(e) {
     if (!e || e.format !== "clist-slide-layout-v1" || typeof e.id != "string" || !/^saved-[a-z0-9-]+$/.test(e.id) || typeof e.label != "string" || !e.label.trim() || e.label.length > 120 || typeof e.update != "string") throw new Error("Invalid saved slide layout.");
-    const t = new c.Doc();
+    const t = new l.Doc();
     try {
-      c.applyUpdate(t, Uint8Array.from(atob(e.update), (r) => r.charCodeAt(0)));
+      l.applyUpdate(t, Uint8Array.from(atob(e.update), (a) => a.charCodeAt(0)));
       const o = t.getMap("slide-pages");
       if (o.size !== 1 || !o.has("first")) throw new Error("A saved layout must contain one slide.");
-      return t.getMap("slide-objects").forEach((r) => {
-        if (!(r instanceof c.Map) || (r.get("slide") || "first") !== "first" || !["x", "y", "width", "height"].every((s) => typeof r.get(s) == "number" && Number.isFinite(r.get(s))) || r.get("width") <= 0 || r.get("height") <= 0) throw new Error("Invalid object in saved slide layout.");
-        r.get("kind") === "shape" && r.get("shapeDefinition") && sn(r.get("shapeDefinition"));
+      return t.getMap("slide-objects").forEach((a) => {
+        if (!(a instanceof l.Map) || (a.get("slide") || "first") !== "first" || !["x", "y", "width", "height"].every((c) => typeof a.get(c) == "number" && Number.isFinite(a.get(c))) || a.get("width") <= 0 || a.get("height") <= 0) throw new Error("Invalid object in saved slide layout.");
+        a.get("kind") === "shape" && a.get("shapeDefinition") && fn(a.get("shapeDefinition"));
       }), t;
     } catch (o) {
       throw t.destroy(), o;
     }
   }
-  function ro(e, { select: t = !1 } = {}) {
-    io(e).destroy();
-    const r = { format: e.format, id: e.id, label: e.label.trim(), update: e.update };
-    S.set("user:" + r.id, r);
-    let s = a("slide-layout").querySelector("optgroup[data-saved-layouts]");
-    s || (s = document.createElement("optgroup"), s.label = "Saved layouts", s.dataset.savedLayouts = "", a("slide-layout").append(s));
-    let d = [...s.children].find((x) => x.value === "user:" + r.id);
-    return d || (d = document.createElement("option"), s.append(d)), d.value = "user:" + r.id, d.textContent = r.label, t && (a("slide-layout").value = d.value), It(), r;
+  function fo(e, { select: t = !1 } = {}) {
+    po(e).destroy();
+    const a = { format: e.format, id: e.id, label: e.label.trim(), update: e.update };
+    v.set("user:" + a.id, a);
+    let c = s("slide-layout").querySelector("optgroup[data-saved-layouts]");
+    c || (c = document.createElement("optgroup"), c.label = "Saved layouts", c.dataset.savedLayouts = "", s("slide-layout").append(c));
+    let u = [...c.children].find((k) => k.value === "user:" + a.id);
+    return u || (u = document.createElement("option"), c.append(u)), u.value = "user:" + a.id, u.textContent = a.label, t && (s("slide-layout").value = u.value), Ft(), a;
   }
-  function Uo(e) {
-    const t = io(e);
+  function Qo(e) {
+    const t = po(e);
     try {
-      const o = t.getMap("slide-objects"), r = /* @__PURE__ */ new Map(), s = [...o.entries()].sort(([m, j], [B, I]) => _e(j) - _e(I) || m.localeCompare(B)).map(([m, j]) => {
-        const B = tt(), I = yn(j.toJSON(), r), H = v.getXmlFragment("slide-text-" + B);
-        return D?.addToScope(H), { id: B, data: I, fragment: H, text: t.getXmlFragment("slide-text-" + m).toArray().map((V) => V.clone()) };
-      }), d = ve(), x = "slide-" + crypto.randomUUID();
-      O = x, T = null, C.clear(), D?.stopCapturing(), v.transact(() => {
-        q.size || q.set("first", 0), q.set(x, Math.max(...d.map((m) => q.get(m) || 0)) + 1), Z.set(x, t.getMap("slide-backgrounds").get("first") || "#ffffff"), U.set(x, t.getMap("slide-notes").get("first") || ""), t.getMap("clist_refs").forEach((m) => {
+      const o = t.getMap("slide-objects"), a = /* @__PURE__ */ new Map(), c = [...o.entries()].sort(([w, M], [P, N]) => Ze(M) - Ze(N) || w.localeCompare(P)).map(([w, M]) => {
+        const P = nt(), N = Sn(M.toJSON(), a), O = C.getXmlFragment("slide-text-" + P);
+        return D?.addToScope(O), { id: P, data: N, fragment: O, text: t.getXmlFragment("slide-text-" + w).toArray().map(($) => $.clone()) };
+      }), u = Se(), k = "slide-" + crypto.randomUUID();
+      H = k, B = null, I.clear(), D?.stopCapturing(), C.transact(() => {
+        U.size || U.set("first", 0), U.set(k, Math.max(...u.map((w) => U.get(w) || 0)) + 1), G.set(k, t.getMap("slide-backgrounds").get("first") || "#ffffff"), J.set(k, t.getMap("slide-notes").get("first") || ""), t.getMap("clist_refs").forEach((w) => {
           try {
-            en([JSON.parse(m)]);
+            sn([JSON.parse(w)]);
           } catch {
           }
         });
-        for (const m of s)
-          M.set(m.id, new c.Map(Object.entries({ ...m.data, slide: x }))), m.text.length && m.fragment.insert(0, m.text);
+        for (const w of c)
+          L.set(w.id, new l.Map(Object.entries({ ...w.data, slide: k }))), w.text.length && w.fragment.insert(0, w.text);
       }), D?.stopCapturing(), we();
     } finally {
       t.destroy();
     }
   }
-  function Qt() {
+  function an() {
     const e = [];
-    return ee.forEach((t) => {
+    return K.forEach((t) => {
       try {
-        const o = Mn(JSON.parse(t));
+        const o = zn(JSON.parse(t));
         o && e.push(o);
       } catch {
       }
     }), e;
   }
-  function Rt() {
-    l.onReferencesChange?.(Qt());
+  function Ut() {
+    i.onReferencesChange?.(an());
   }
-  function en(e) {
+  function sn(e) {
     for (const t of e || []) {
-      const o = Mn(t);
-      o && !ee.has(o.url) && ee.set(o.url, JSON.stringify(o));
+      const o = zn(t);
+      o && !K.has(o.url) && K.set(o.url, JSON.stringify(o));
     }
   }
-  function qo(e, t = []) {
-    if (z) throw new Error("Return to editing before importing content.");
-    const o = [...new Map(t.map(Mn).filter(Boolean).map((d) => [d.url, d])).values()], r = li(e, o);
+  function er(e, t = []) {
+    if (R) throw new Error("Return to editing before importing content.");
+    const o = [...new Map(t.map(zn).filter(Boolean).map((u) => [u.url, u])).values()], a = Ar(e, o);
     xe();
-    const s = tt();
-    return D?.stopCapturing(), v.transact(() => {
-      We(s, 100, 120, 1e3, 460), M.get(s).set("referenceUrls", o.map((d) => d.url)), en(o);
-    }), X.get(s).editor.commands.setContent(r), D?.stopCapturing(), Le(s), h.tabIndex = -1, h.focus({ preventScroll: !0 }), J("Content imported into a new text box" + (o.length ? " with source references." : ".")), s;
+    const c = nt();
+    return D?.stopCapturing(), C.transact(() => {
+      St(c, 100, 120, 1e3, 460), L.get(c).set("referenceUrls", o.map((u) => u.url)), sn(o);
+    }), Z.get(c).editor.commands.setContent(a), D?.stopCapturing(), ze(c), f.tabIndex = -1, f.focus({ preventScroll: !0 }), X("Content imported into a new text box" + (o.length ? " with source references." : ".")), c;
   }
-  function Wo() {
-    K.has("theme") || v.transact(() => K.set("theme", structuredClone(lt())), "init");
-    const e = c.encodeStateAsUpdate(v), t = [];
+  function tr() {
+    le.has("theme") || C.transact(() => le.set("theme", structuredClone(bt())), "init");
+    const e = l.encodeStateAsUpdate(C), t = [];
     for (let o = 0; o < e.length; o += 32768) t.push(String.fromCharCode(...e.subarray(o, o + 32768)));
-    return { format: "clist-slides-yjs-v1", document: a("doc-name").value, update: btoa(t.join("")) };
+    return { format: "clist-slides-yjs-v1", document: s("doc-name").value, update: btoa(t.join("")) };
   }
-  async function Xo(e, t) {
-    if (N) throw new Error("Disconnect from collaboration before importing a PowerPoint file.");
-    if (z) throw new Error("Return to editing before importing a PowerPoint file.");
-    const o = await Ei(e, t);
-    if (N || z) throw new Error("Return to local editing before completing the import.");
-    const r = new c.Doc();
-    function s(d) {
-      const x = new c.XmlElement(d.type);
-      for (const [I, H] of Object.entries(d.attrs || {})) x.setAttribute(I, H);
-      const m = [];
-      let j = [];
-      const B = () => {
-        if (j.length) {
-          const I = new c.XmlText();
-          I.applyDelta(j), m.push(I), j = [];
+  async function nr(e, t) {
+    if (te) throw new Error("Disconnect from collaboration before importing a PowerPoint file.");
+    if (R) throw new Error("Return to editing before importing a PowerPoint file.");
+    const o = await Hr(e, t);
+    if (te || R) throw new Error("Return to local editing before completing the import.");
+    const a = new l.Doc();
+    function c(u) {
+      const k = new l.XmlElement(u.type);
+      for (const [N, O] of Object.entries(u.attrs || {})) k.setAttribute(N, O);
+      const w = [];
+      let M = [];
+      const P = () => {
+        if (M.length) {
+          const N = new l.XmlText();
+          N.applyDelta(M), w.push(N), M = [];
         }
       };
-      for (const I of d.content || [])
-        if (I.type === "text") {
-          const H = Object.fromEntries((I.marks || []).map((V) => [V.type, V.attrs || {}]));
-          j.push({ insert: I.text, attributes: H });
+      for (const N of u.content || [])
+        if (N.type === "text") {
+          const O = Object.fromEntries((N.marks || []).map(($) => [$.type, $.attrs || {}]));
+          M.push({ insert: N.text, attributes: O });
         } else
-          B(), m.push(s(I));
-      return B(), m.length && x.insert(0, m), x;
+          P(), w.push(c(N));
+      return P(), w.length && k.insert(0, w), k;
     }
     try {
-      const d = ve(), x = r.getMap("pages"), m = r.getMap("objects"), j = Math.max(...d.map((I) => q.get(I) || 0)) + 1;
-      for (const [I, H] of o.slides.entries()) {
-        const V = "slide-" + crypto.randomUUID();
-        x.set(V, { order: j + I, background: H.background, notes: H.notes }), H.objects.forEach((ce, ke) => {
-          const ie = tt(), { text: Re, ...He } = ce;
-          He.shapeDefinition && (He.shapeDefinition = sn(He.shapeDefinition)), m.set(ie, { ...He, slide: V, layer: ke }), Re && r.getXmlFragment("slide-text-" + ie).insert(0, Re.map(s));
+      const u = Se(), k = a.getMap("pages"), w = a.getMap("objects"), M = Math.max(...u.map((N) => U.get(N) || 0)) + 1;
+      for (const [N, O] of o.slides.entries()) {
+        const $ = "slide-" + crypto.randomUUID();
+        k.set($, { order: M + N, background: O.background, notes: O.notes }), O.objects.forEach((ce, he) => {
+          const ae = nt(), { text: Re, ...He } = ce;
+          He.shapeDefinition && (He.shapeDefinition = fn(He.shapeDefinition)), w.set(ae, { ...He, slide: $, layer: he }), Re && a.getXmlFragment("slide-text-" + ae).insert(0, Re.map(c));
         });
       }
-      const B = [...m].map(([I, H]) => {
-        const V = H.kind === "text" ? v.getXmlFragment("slide-text-" + I) : null;
-        return V && D?.addToScope(V), { id: I, box: new c.Map(Object.entries(H)), fragment: V, text: V ? r.getXmlFragment("slide-text-" + I).toArray().map((ce) => ce.clone()) : [] };
+      const P = [...w].map(([N, O]) => {
+        const $ = O.kind === "text" ? C.getXmlFragment("slide-text-" + N) : null;
+        return $ && D?.addToScope($), { id: N, box: new l.Map(Object.entries(O)), fragment: $, text: $ ? a.getXmlFragment("slide-text-" + N).toArray().map((ce) => ce.clone()) : [] };
       });
-      return xe(), D?.stopCapturing(), O = x.keys().next().value, T = null, C.clear(), v.transact(() => {
-        q.size || q.set("first", 0);
-        for (const [I, H] of x)
-          q.set(I, H.order), Z.set(I, H.background), H.notes && U.set(I, H.notes);
-        for (const I of B)
-          M.set(I.id, I.box), I.fragment && I.text.length && I.fragment.insert(0, I.text);
-      }), D?.stopCapturing(), we(), J(o.slides.length + " PowerPoint slides imported. Use Undo to remove the import."), { count: o.slides.length, warnings: o.warnings };
+      return xe(), D?.stopCapturing(), H = k.keys().next().value, B = null, I.clear(), C.transact(() => {
+        U.size || U.set("first", 0);
+        for (const [N, O] of k)
+          U.set(N, O.order), G.set(N, O.background), O.notes && J.set(N, O.notes);
+        for (const N of P)
+          L.set(N.id, N.box), N.fragment && N.text.length && N.fragment.insert(0, N.text);
+      }), D?.stopCapturing(), we(), X(o.slides.length + " PowerPoint slides imported. Use Undo to remove the import."), { count: o.slides.length, warnings: o.warnings };
     } finally {
-      r.destroy();
+      a.destroy();
     }
   }
-  function $o(e) {
-    if (N) throw new Error("Disconnect from Hocuspocus before replacing the document");
+  function or(e) {
+    if (te) throw new Error("Disconnect from Hocuspocus before replacing the document");
     if (!e || e.format !== "clist-slides-yjs-v1" || typeof e.update != "string")
       throw new Error("Unsupported document format");
-    const t = atob(e.update), o = Uint8Array.from(t, (s) => s.charCodeAt(0)), r = new c.Doc();
+    const t = atob(e.update), o = Uint8Array.from(t, (c) => c.charCodeAt(0)), a = new l.Doc();
     try {
-      c.applyUpdate(r, o);
-    } catch (s) {
-      throw r.destroy(), s;
+      l.applyUpdate(a, o);
+    } catch (c) {
+      throw a.destroy(), c;
     }
-    v.off("beforeObserverCalls", $t), M.unobserveDeep(we), q.unobserve(we), K.unobserve(we), Z.unobserve(we), ee.unobserve(Rt), U.unobserve(Ft), v.off("update", Nt), v.off("update", qe);
-    for (const s of X.values())
-      s.disposePointer?.(), s.editor?.destroy(), s.node.remove();
-    X.clear(), T = null, C.clear(), $ = null, Ee = null, xe(), lo(), v.destroy(), v = r, M = v.getMap("slide-objects"), q = v.getMap("slide-pages"), Z = v.getMap("slide-backgrounds"), U = v.getMap("slide-notes"), ee = v.getMap("clist_refs"), K = v.getMap("slide-design"), O = ve()[0], Io(), v.on("beforeObserverCalls", $t), M.observeDeep(we), q.observe(we), K.observe(we), Z.observe(we), ee.observe(Rt), U.observe(Ft), v.on("update", Nt), v.on("update", qe), G = !0, e.document && (a("doc-name").value = e.document), we(), so(), Rt(), qe();
+    C.off("beforeObserverCalls", Yt), L.unobserveDeep(we), U.unobserve(we), le.unobserve(we), G.unobserve(we), K.unobserve(Ut), J.unobserve(qt), C.off("update", It), C.off("update", kt);
+    for (const c of Z.values())
+      c.disposePointer?.(), c.editor?.destroy(), c.node.remove();
+    Z.clear(), B = null, I.clear(), Ae = null, ie = null, xe(), go(), C.destroy(), C = a, L = C.getMap("slide-objects"), U = C.getMap("slide-pages"), G = C.getMap("slide-backgrounds"), J = C.getMap("slide-notes"), K = C.getMap("clist_refs"), le = C.getMap("slide-design"), H = Se()[0], Wo(), C.on("beforeObserverCalls", Yt), L.observeDeep(we), U.observe(we), le.observe(we), G.observe(we), K.observe(Ut), J.observe(qt), C.on("update", It), C.on("update", kt), pe = !0, e.document && (s("doc-name").value = e.document), we(), mo(), Ut(), kt();
   }
   function Pt() {
-    ye++;
-    const e = N;
-    N = null, W = !1, e?.destroy(), J("Local only"), a("connect").textContent = "Connect";
+    je++;
+    const e = te;
+    te = null, Y = !1, Q = null, e?.destroy(), X("Local only"), s("connect").textContent = "Connect";
   }
-  async function kn() {
+  async function Ln() {
     Pt();
-    const e = ye;
+    const e = je, t = i.captureSession?.();
     try {
-      const t = a("server-url").value.trim();
-      let o = a("doc-name").value.trim();
-      if (!/^wss?:\/\//i.test(t) || !o) throw new Error("Enter a WebSocket URL and document name");
-      if (l.resolveDocumentName && (o = await l.resolveDocumentName(o)), e !== ye) return;
-      a("doc-name").value = o;
-      const r = typeof l.parameters == "function" ? l.parameters() : l.parameters;
-      N = new u({
-        url: t,
-        name: o,
-        document: v,
-        token: l.token || a("token").value || void 0,
-        parameters: r || {},
-        onStatus: ({ status: s }) => {
-          e === ye && J(s === "connected" ? "Synchronizing..." : s);
+      const o = s("server-url").value.trim();
+      let a = s("doc-name").value.trim();
+      if (!/^wss?:\/\//i.test(o) || !a) throw new Error("Enter a WebSocket URL and document name");
+      if (i.resolveDocumentName && (a = await i.resolveDocumentName(a)), e !== je) return;
+      s("doc-name").value = a;
+      const c = typeof i.parameters == "function" ? i.parameters() : i.parameters;
+      te = new p({
+        url: o,
+        name: a,
+        document: C,
+        token: i.token || s("token").value || void 0,
+        parameters: c || {},
+        onStatus: ({ status: u }) => {
+          e === je && X(u === "connected" ? "Synchronizing..." : u);
         },
-        onSynced: ({ state: s }) => {
-          e !== ye || s === !1 || (W = !0, l.seed !== !1 && Tt(), J("Synced", "connected"));
+        onSynced: ({ state: u }) => {
+          e !== je || u === !1 || (Y = !0, i.seed !== !1 && qn(), X("Synced", "connected"));
         },
-        onAuthenticationFailed: ({ reason: s } = {}) => {
-          if (e !== ye) return;
-          const d = typeof s == "string" && s.trim() ? s.trim() : "The server did not provide a reason.";
-          console.error("Slides collaboration authentication failed:", d), Pt(), J(`Authentication failed: ${d}`, "error");
+        onAuthenticationFailed: ({ reason: u } = {}) => {
+          if (e !== je) return;
+          const k = typeof u == "string" && u.trim() ? u.trim() : "The server did not provide a reason.";
+          console.error("Slides collaboration authentication failed:", k), Pt(), X(`Authentication failed: ${k}`, "error");
         },
         onDisconnect: () => {
-          e === ye && (W = !1, J("Disconnected", "error"));
+          e === je && (Y = !1, X("Disconnected", "error"));
         }
-      }), a("connect").textContent = "Disconnect", J("Connecting...");
-    } catch (t) {
-      if (e !== ye) return;
-      console.error("Slides connection failed:", t), Pt(), J(t.message, "error");
+      }), Q = { docId: a, server: o, owner: te, document: C, session: t }, s("connect").textContent = "Disconnect", X("Connecting...");
+    } catch (o) {
+      if (e !== je) return;
+      console.error("Slides connection failed:", o), Pt(), X(o.message, "error");
     }
   }
   function Dt(e) {
-    console.error("Slides connection failed:", e), J(e.message, "error");
+    console.error("Slides connection failed:", e), X(e.message, "error");
   }
-  a("connect").addEventListener("click", () => {
-    N ? Pt() : kn().catch(Dt);
+  s("connect").addEventListener("click", () => {
+    te ? Pt() : Ln().catch(Dt);
   });
-  function tn() {
-    a("undo").disabled = z || !D?.undoStack.length, a("redo").disabled = z || !D?.redoStack.length;
+  function ln() {
+    s("undo").disabled = R || !D?.undoStack.length, s("redo").disabled = R || !D?.redoStack.length;
   }
-  function ao(e) {
-    e.local && e.origin !== "init" && !se && D.trackedOrigins.add(e.origin);
+  function ho(e) {
+    e.local && e.origin !== "init" && !rt && D.trackedOrigins.add(e.origin);
   }
-  function so() {
-    D = new c.UndoManager([...v.share.values()], {
+  function mo() {
+    D = new l.UndoManager([...C.share.values()], {
       trackedOrigins: /* @__PURE__ */ new Set([null, "geometry", "layer"]),
-      captureTransaction: (e) => e.local && e.origin !== "init" && !se
-    }), v.on("beforeTransaction", ao);
-    for (const e of ["stack-item-added", "stack-item-popped", "stack-cleared", "stack-item-updated"]) D.on(e, tn);
-    tn();
+      captureTransaction: (e) => e.local && e.origin !== "init" && !rt
+    }), C.on("beforeTransaction", ho);
+    for (const e of ["stack-item-added", "stack-item-popped", "stack-cleared", "stack-item-updated"]) D.on(e, ln);
+    ln();
   }
-  function lo() {
-    v.off("beforeTransaction", ao), D?.destroy(), D = null;
+  function go() {
+    C.off("beforeTransaction", ho), D?.destroy(), D = null;
   }
-  function En(e = !1) {
-    if (!(z || !D)) {
+  function Mn(e = !1) {
+    if (!(R || !D)) {
       xe(), D.stopCapturing();
       try {
-        e ? D.redo() : D.undo(), we(), tn();
+        e ? D.redo() : D.undo(), we(), ln();
       } catch (t) {
-        console.error("Slides history failed:", t), J("Could not " + (e ? "redo" : "undo") + ": " + t.message, "error");
+        console.error("Slides history failed:", t), X("Could not " + (e ? "redo" : "undo") + ": " + t.message, "error");
       }
     }
   }
-  function Vo(e) {
-    if (z || e.isComposing || e.ctrlKey || e.metaKey || e.altKey || !T) return;
+  function rr(e) {
+    if (R || e.isComposing || e.ctrlKey || e.metaKey || e.altKey || !B) return;
     const t = e.target;
     if (t.isContentEditable || !!t.closest?.('[contenteditable="true"]')) {
-      e.key === "Escape" && (e.preventDefault(), e.stopImmediatePropagation(), X.get(T)?.node.focus({ preventScroll: !0 }), $ = null);
+      e.key === "Escape" && (e.preventDefault(), e.stopImmediatePropagation(), Z.get(B)?.node.focus({ preventScroll: !0 }), Ae = null);
       return;
     }
     if (t.closest?.("input, textarea, select, button")) return;
-    if (et() && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Delete", "Backspace"].includes(e.key)) {
-      e.preventDefault(), e.stopImmediatePropagation(), J("Unlock selected objects before moving or deleting.", "error");
+    if (tt() && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Delete", "Backspace"].includes(e.key)) {
+      e.preventDefault(), e.stopImmediatePropagation(), X("Unlock selected objects before moving or deleting.", "error");
       return;
     }
-    const r = X.get(T);
-    if (!r) return;
-    if (e.key === "Enter" && r.editor && C.size === 1) {
-      e.preventDefault(), r.editor.commands.focus();
+    const a = Z.get(B);
+    if (!a) return;
+    if (e.key === "Enter" && a.editor && I.size === 1) {
+      e.preventDefault(), a.editor.commands.focus();
       return;
     }
     if (e.key === "Delete" || e.key === "Backspace") {
-      e.preventDefault(), e.stopImmediatePropagation(), D?.stopCapturing(), wn(), D?.stopCapturing(), h.tabIndex = -1, h.focus({ preventScroll: !0 });
+      e.preventDefault(), e.stopImmediatePropagation(), D?.stopCapturing(), En(), D?.stopCapturing(), f.tabIndex = -1, f.focus({ preventScroll: !0 });
       return;
     }
-    const s = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
-    if (!s) return;
+    const c = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+    if (!c) return;
     e.preventDefault(), e.stopImmediatePropagation(), e.repeat || D?.stopCapturing();
-    const d = e.shiftKey ? 10 : 1, x = [...C].map((I) => ({ id: I, ...M.get(I).toJSON() })), m = Yt(x), j = Math.max(-m.x, Math.min(k - m.x - m.width, s[0] * d)), B = Math.max(-m.y, Math.min(L - m.y - m.height, s[1] * d));
-    v.transact(() => {
-      for (const I of x) {
-        const H = M.get(I.id);
-        H.set("x", I.x + j), H.set("y", I.y + B);
+    const u = e.shiftKey ? 10 : 1, k = [...I].map((N) => ({ id: N, ...L.get(N).toJSON() })), w = tn(k), M = Math.max(-w.x, Math.min(E - w.x - w.width, c[0] * u)), P = Math.max(-w.y, Math.min(A - w.y - w.height, c[1] * u));
+    C.transact(() => {
+      for (const N of k) {
+        const O = L.get(N.id);
+        O.set("x", N.x + M), O.set("y", N.y + P);
       }
     }, "geometry");
   }
-  function Ko(e) {
-    if (e.target.closest?.(".slide-crop-stage, .rotation-handle") || (Vo(e), z || !(e.ctrlKey || e.metaKey) || e.altKey || !h.contains(e.target))) return;
+  function ir(e) {
+    if (e.target.closest?.(".slide-crop-stage, .rotation-handle") || (rr(e), R || !(e.ctrlKey || e.metaKey) || e.altKey || !f.contains(e.target))) return;
     const t = e.key.toLowerCase();
-    t !== "z" && t !== "y" || ["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName) && e.target !== a("speaker-notes") || (e.preventDefault(), e.stopImmediatePropagation(), En(t === "y" || e.shiftKey));
+    t !== "z" && t !== "y" || ["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName) && e.target !== s("speaker-notes") || (e.preventDefault(), e.stopImmediatePropagation(), Mn(t === "y" || e.shiftKey));
   }
-  function nn() {
+  function cn() {
     D?.stopCapturing();
   }
-  a("undo").addEventListener("click", () => En()), a("redo").addEventListener("click", () => En(!0)), h.addEventListener("click", nn, !0), h.addEventListener("click", nn), h.addEventListener("change", nn, !0), h.addEventListener("change", nn), h.addEventListener("keydown", Ko, !0);
-  function Ot(e, t) {
+  s("undo").addEventListener("click", () => Mn()), s("redo").addEventListener("click", () => Mn(!0)), f.addEventListener("click", cn, !0), f.addEventListener("click", cn), f.addEventListener("change", cn, !0), f.addEventListener("change", cn), f.addEventListener("keydown", ir, !0);
+  function Wt(e, t) {
     const o = t.createElement("div");
-    o.className = "slide presenter-slide", o.style.backgroundColor = At(e), o.setAttribute("aria-label", "Slide preview");
-    for (const r of De(e)) {
-      const s = M.get(r), d = t.createElement("div"), x = t.createElement("div");
-      if (d.className = s.get("kind") === "shape" ? "slide-object shape-object" : s.get("kind") === "image" ? "slide-object image-object" : "slide-object", d.style.left = 100 * s.get("x") / k + "%", d.style.top = 100 * s.get("y") / L + "%", d.style.width = 100 * s.get("width") / k + "%", d.style.height = 100 * s.get("height") / L + "%", d.style.transform = "rotate(" + (Number(s.get("rotation")) || 0) + "deg)", d.style.zIndex = String(De(e).indexOf(r)), s.get("kind") === "image") {
-        x.className = "image-content";
-        const m = t.createElement("img");
-        m.src = kt(s.get("source")), m.alt = typeof s.get("alt") == "string" ? s.get("alt") : "", pn(m, s, !0), x.append(m);
-      } else if (s.get("kind") === "shape") {
-        x.className = "shape-content";
-        const m = t.createElementNS("http://www.w3.org/2000/svg", "svg");
-        Xt(m, s), x.append(m);
+    o.className = "slide presenter-slide", o.style.backgroundColor = zt(e), o.setAttribute("aria-label", "Slide preview");
+    for (const a of De(e)) {
+      const c = L.get(a), u = t.createElement("div"), k = t.createElement("div");
+      if (u.className = c.get("kind") === "shape" ? "slide-object shape-object" : c.get("kind") === "image" ? "slide-object image-object" : "slide-object", u.style.left = 100 * c.get("x") / E + "%", u.style.top = 100 * c.get("y") / A + "%", u.style.width = 100 * c.get("width") / E + "%", u.style.height = 100 * c.get("height") / A + "%", u.style.transform = "rotate(" + (Number(c.get("rotation")) || 0) + "deg)", u.style.zIndex = String(De(e).indexOf(a)), c.get("kind") === "image") {
+        k.className = "image-content";
+        const w = t.createElement("img");
+        w.src = Ct(c.get("source")), w.alt = typeof c.get("alt") == "string" ? c.get("alt") : "", bn(w, c, !0), k.append(w);
+      } else if (c.get("kind") === "shape") {
+        k.className = "shape-content";
+        const w = t.createElementNS("http://www.w3.org/2000/svg", "svg");
+        Jt(w, c), k.append(w);
       } else {
-        x.className = "text-content";
-        const m = mt(s), j = vt(s), B = t.createElement("div");
-        d.style.setProperty("--slide-font-size", m.size / 12.8 + "cqw"), d.style.fontFamily = xt[m.family], d.style.color = m.colour, d.style.textAlign = m.align, x.style.backgroundColor = j.fill ? j.fillColour : "transparent", x.style.border = j.border ? j.width / 12.8 + "cqw solid " + j.borderColour : "none", B.className = "tiptap", B.append(xo(v.getXmlFragment("slide-text-" + r), t)), x.append(B);
+        k.className = "text-content";
+        const w = ht(c), M = Et(c), P = t.createElement("div");
+        u.style.setProperty("--slide-font-size", w.size / 12.8 + "cqw"), u.style.fontFamily = Mt[w.family], u.style.color = w.colour, u.style.textAlign = w.align, k.style.backgroundColor = M.fill ? M.fillColour : "transparent", k.style.border = M.border ? M.width / 12.8 + "cqw solid " + M.borderColour : "none", P.className = "tiptap", P.append(Lo(C.getXmlFragment("slide-text-" + a), t)), k.append(P);
       }
-      d.append(x), o.append(d);
+      u.append(k), o.append(u);
     }
     return o;
   }
-  function Go() {
+  function ar() {
     return {
-      title: l.presentationTitle?.() || a("doc-name").value || "CList presentation",
-      slides: ve().map((e) => ({
-        background: At(e),
-        notes: typeof U.get(e) == "string" ? U.get(e) : "",
+      title: i.presentationTitle?.() || s("doc-name").value || "CList presentation",
+      slides: Se().map((e) => ({
+        background: zt(e),
+        notes: typeof J.get(e) == "string" ? J.get(e) : "",
         objects: De(e).map((t) => {
-          const o = M.get(t), r = o.get("kind") || "text", s = {
+          const o = L.get(t), a = o.get("kind") || "text", c = {
             id: t,
-            kind: r,
+            kind: a,
             x: Number(o.get("x")) || 0,
             y: Number(o.get("y")) || 0,
             width: Number(o.get("width")),
             height: Number(o.get("height")),
             rotation: Number(o.get("rotation")) || 0,
-            style: vt(o)
+            style: Et(o)
           };
-          if (!(s.width > 0 && s.height > 0)) throw new Error("An object has invalid dimensions: " + t);
-          if (r === "text")
-            s.format = mt(o), s.runs = bi(xo(v.getXmlFragment("slide-text-" + t), document), s.format.size);
-          else if (r === "image") {
-            if (s.source = kt(o.get("source")), !s.source) throw new Error("An image has no valid source: " + t);
-            s.alt = typeof o.get("alt") == "string" ? o.get("alt") : "";
-            const d = un(o);
-            s.crop = { ...d }, d.fit === "cover" && Object.assign(s.crop, qt(o));
-          } else if (r === "shape") {
-            s.definition = structuredClone(Wt(o));
-            const d = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-            Xt(d, o), d.setAttribute("width", s.width), d.setAttribute("height", s.height);
-            for (const x of d.querySelectorAll("[vector-effect]")) x.style.strokeWidth = (s.style.border ? Math.min(s.style.width, s.width, s.height) : 0) + "px";
-            s.source = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(new XMLSerializer().serializeToString(d));
-          } else throw new Error("Unsupported slide object: " + r);
-          return s;
+          if (!(c.width > 0 && c.height > 0)) throw new Error("An object has invalid dimensions: " + t);
+          if (a === "text")
+            c.format = ht(o), c.runs = Pr(Lo(C.getXmlFragment("slide-text-" + t), document), c.format.size);
+          else if (a === "image") {
+            if (c.source = Ct(o.get("source")), !c.source) throw new Error("An image has no valid source: " + t);
+            c.alt = typeof o.get("alt") == "string" ? o.get("alt") : "";
+            const u = gn(o);
+            c.crop = { ...u }, u.fit === "cover" && Object.assign(c.crop, Kt(o));
+          } else if (a === "shape") {
+            c.definition = structuredClone(Gt(o));
+            const u = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+            Jt(u, o), u.setAttribute("width", c.width), u.setAttribute("height", c.height);
+            for (const k of u.querySelectorAll("[vector-effect]")) k.style.strokeWidth = (c.style.border ? Math.min(c.style.width, c.width, c.height) : 0) + "px";
+            c.source = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(new XMLSerializer().serializeToString(u));
+          } else throw new Error("Unsupported slide object: " + a);
+          return c;
         })
       }))
     };
   }
-  function Cn() {
-    if (!Se) return;
-    if (Se.closed) {
-      Se = null;
+  function Nn() {
+    if (!$e) return;
+    if ($e.closed) {
+      $e = null;
       return;
     }
-    const e = ve(), t = e.indexOf(O);
-    Se.update({ id: O, nextId: e[t + 1], index: t, total: e.length, notes: typeof U.get(O) == "string" ? U.get(O) : "", presenting: z });
+    const e = Se(), t = e.indexOf(H);
+    $e.update({ id: H, nextId: e[t + 1], index: t, total: e.length, notes: typeof J.get(H) == "string" ? J.get(H) : "", presenting: R });
   }
-  function co() {
+  function bo() {
     try {
-      if (Se && !Se.closed) {
-        Cn(), Se.focus();
+      if ($e && !$e.closed) {
+        Nn(), $e.focus();
         return;
       }
-      Se = hi({
-        renderSlide: Ot,
-        navigate: on,
+      $e = Ir({
+        renderSlide: Wt,
+        navigate: dn,
         jump: (e) => {
-          const t = ve();
-          O = e === "first" ? t[0] : t[t.length - 1], T = null, C.clear(), we();
+          const t = Se();
+          H = e === "first" ? t[0] : t[t.length - 1], B = null, I.clear(), we();
         },
-        present: uo,
-        end: rn
-      }), Cn();
+        present: yo,
+        end: un
+      }), Nn();
     } catch (e) {
-      console.error("Presenter view could not open:", e), J("Presenter view could not open: " + e.message, "error"), z && (a("presentation-status").textContent = e.message);
+      console.error("Presenter view could not open:", e), X("Presenter view could not open: " + e.message, "error"), R && (s("presentation-status").textContent = e.message);
     }
   }
-  a("presenter-view").addEventListener("click", co), a("presentation-presenter-view").addEventListener("click", co);
-  function on(e) {
-    const t = ve(), o = t[t.indexOf(O) + e];
-    o && (O = o, T = null, C.clear(), we());
+  s("presenter-view").addEventListener("click", bo), s("presentation-presenter-view").addEventListener("click", bo);
+  function dn(e) {
+    const t = Se(), o = t[t.indexOf(H) + e];
+    o && (H = o, B = null, I.clear(), we());
   }
-  function Sn(e) {
-    at?.presenting(e), z = e, jt(), tn(), xe(), Le(null), h.classList.toggle("presenting", e), st.update(), a("presentation-controls").hidden = !e;
-    for (const t of X.values()) t.editor?.setEditable(!e);
-    e ? (Ae = document.activeElement, h.tabIndex = -1, h.focus()) : (Ae?.focus?.(), Ae = null), Nt();
+  function jn(e) {
+    Ge?.presenting(e), R = e, ro(), ln(), xe(), ze(null), f.classList.toggle("presenting", e), it.update(), s("presentation-controls").hidden = !e;
+    for (const t of Z.values()) t.editor?.setEditable(!e);
+    e ? (gt = document.activeElement, f.tabIndex = -1, f.focus()) : (gt?.focus?.(), gt = null), It();
   }
-  async function uo() {
-    Sn(!0), a("presentation-status").textContent = "";
+  async function yo() {
+    jn(!0), s("presentation-status").textContent = "";
     try {
-      h.requestFullscreen && await h.requestFullscreen();
+      f.requestFullscreen && await f.requestFullscreen();
     } catch (e) {
-      console.error("Slides fullscreen failed:", e), a("presentation-status").textContent = "Full screen unavailable. Presenting in this window.";
+      console.error("Slides fullscreen failed:", e), s("presentation-status").textContent = "Full screen unavailable. Presenting in this window.";
     }
   }
-  async function rn() {
-    Sn(!1);
+  async function un() {
+    jn(!1);
     try {
-      document.fullscreenElement === h && await document.exitFullscreen();
+      document.fullscreenElement === f && await document.exitFullscreen();
     } catch (e) {
-      console.error("Slides fullscreen exit failed:", e), J("Could not leave full screen. Press Escape.", "error");
+      console.error("Slides fullscreen exit failed:", e), X("Could not leave full screen. Press Escape.", "error");
     }
   }
-  function po(e) {
-    if (!(!z || e.altKey || e.ctrlKey || e.metaKey)) {
+  function wo(e) {
+    if (!(!R || e.altKey || e.ctrlKey || e.metaKey)) {
       if (e.key === "Escape")
-        e.preventDefault(), rn().catch(Dt);
+        e.preventDefault(), un().catch(Dt);
       else if (["ArrowRight", "ArrowDown", "PageDown", "ArrowLeft", "ArrowUp", "PageUp", "Home", "End", " "].includes(e.key)) {
         if (e.key === " " && e.target?.tagName === "BUTTON") return;
         if (e.preventDefault(), e.key === "Home" || e.key === "End") {
-          const t = ve();
-          O = e.key === "Home" ? t[0] : t[t.length - 1], we();
-        } else on(["ArrowLeft", "ArrowUp", "PageUp"].includes(e.key) ? -1 : 1);
+          const t = Se();
+          H = e.key === "Home" ? t[0] : t[t.length - 1], we();
+        } else dn(["ArrowLeft", "ArrowUp", "PageUp"].includes(e.key) ? -1 : 1);
       }
     }
   }
-  function fo() {
-    z && document.fullscreenElement !== h && Sn(!1);
+  function xo() {
+    R && document.fullscreenElement !== f && jn(!1);
   }
-  a("present").addEventListener("click", () => uo().catch(Dt)), a("exit-presentation").addEventListener("click", () => rn().catch(Dt)), a("previous-slide").addEventListener("click", () => on(-1)), a("next-slide").addEventListener("click", () => on(1)), document.addEventListener("keydown", po), document.addEventListener("fullscreenchange", fo);
-  function ho(e) {
-    return typeof e.toDelta == "function" ? e.toDelta().map((t) => typeof t.insert == "string" ? t.insert : "").join("") : typeof e.toArray == "function" ? e.toArray().map(ho).join(e.nodeName === "paragraph" ? "" : `
+  s("present").addEventListener("click", () => yo().catch(Dt)), s("exit-presentation").addEventListener("click", () => un().catch(Dt)), s("previous-slide").addEventListener("click", () => dn(-1)), s("next-slide").addEventListener("click", () => dn(1)), document.addEventListener("keydown", wo), document.addEventListener("fullscreenchange", xo);
+  function vo(e) {
+    return typeof e.toDelta == "function" ? e.toDelta().map((t) => typeof t.insert == "string" ? t.insert : "").join("") : typeof e.toArray == "function" ? e.toArray().map(vo).join(e.nodeName === "paragraph" ? "" : `
 `) : "";
   }
-  return pe = ii({
-    root: h,
-    shapes: [...E.values()],
-    readImage: xn,
+  return Ne = kr({
+    root: f,
+    shapes: [...x.values()],
+    readImage: Cn,
     openModal: (e) => {
-      if (!l.openInsertModal) throw new Error("This host does not provide the insertion modal.");
-      return l.openInsertModal(e);
+      if (!i.openInsertModal) throw new Error("This host does not provide the insertion modal.");
+      return i.openInsertModal(e);
     },
     capture() {
-      const e = v, t = O, o = l.captureSession?.();
-      return () => h.isConnected && !z && v === e && O === t && ve().includes(t) && (!l.sessionCurrent || l.sessionCurrent(o));
+      const e = C, t = H, o = i.captureSession?.();
+      return () => f.isConnected && !R && C === e && H === t && Se().includes(t) && (!i.sessionCurrent || i.sessionCurrent(o));
     },
-    insertShape: Yn,
+    insertShape: oo,
     insertImage(e) {
       xe();
-      const t = tt();
-      D?.stopCapturing(), v.transact(() => {
-        We(t, (k - e.width) / 2, (L - e.height) / 2, e.width, e.height, e.source, e.alt);
-        const o = M.get(t);
+      const t = nt();
+      D?.stopCapturing(), C.transact(() => {
+        St(t, (E - e.width) / 2, (A - e.height) / 2, e.width, e.height, e.source, e.alt);
+        const o = L.get(t);
         o.set("imageRatio", e.image.naturalWidth / e.image.naturalHeight);
-        for (const r of ["imageFit", "cropX", "cropY", "cropImageWidth", "cropImageHeight", "aspectRatio"]) o.set(r, e[r]);
-      }), D?.stopCapturing(), Le(t), J("Image added");
+        for (const a of ["imageFit", "cropX", "cropY", "cropImageWidth", "cropImageHeight", "aspectRatio"]) o.set(a, e[a]);
+      }), D?.stopCapturing(), ze(t), X("Image added");
     },
     log: (e) => console.error("Slides insertion failed:", e)
-  }), Y = ri(h, () => !z, () => {
+  }), Le = Sr(f, () => !R, () => {
     try {
-      pe.shape();
+      Ne.shape();
     } catch (e) {
-      J("Could not open shape picker: " + e.message, "error");
+      X("Could not open shape picker: " + e.message, "error");
     }
-  }), _ = Qo(h, () => !z, () => xe()), ne = _o({
-    root: h,
-    current: () => !z && h.isConnected,
+  }), oe = br(f, () => !R, () => xe()), q = lr(f), ee = pr(f, (e, t) => {
+    try {
+      xt(e, t);
+    } catch (o) {
+      console.error("Slides text formatting:", o), X("Could not format text: " + o.message, "error");
+    }
+  }), se = mr({
+    root: f,
+    current: () => !R && f.isConnected,
     capture() {
-      const e = v, t = O, o = l.captureSession?.();
-      return () => h.isConnected && !z && v === e && O === t && (!l.sessionCurrent || l.sessionCurrent(o));
+      const e = C, t = H, o = i.captureSession?.();
+      return () => f.isConnected && !R && C === e && H === t && (!i.sessionCurrent || i.sessionCurrent(o));
     },
-    theme: lt,
-    themes: () => [...dn().values()],
-    apply: zn,
-    designs: () => [...f.values(), ...S.values()].map((e) => ({ label: e.label })),
+    theme: bt,
+    themes: () => [...mn().values()],
+    apply: Hn,
+    designs: () => [...h.values(), ...v.values()].map((e) => ({ label: e.label })),
     save(e) {
-      const t = ln(e);
-      D?.stopCapturing(), v.transact(() => {
-        K.set("saved-theme:" + t.id, structuredClone(t)), K.set("theme", structuredClone(t));
+      const t = hn(e);
+      D?.stopCapturing(), C.transact(() => {
+        le.set("saved-theme:" + t.id, structuredClone(t)), le.set("theme", structuredClone(t));
       }, "theme"), D?.stopCapturing();
     },
-    canSaveLayout: () => typeof l.onSaveLayout == "function",
-    saveLayout: () => a("save-layout").click(),
+    canSaveLayout: () => typeof i.onSaveLayout == "function",
+    saveLayout: () => i.onSaveLayout?.(),
     openModal: (e) => {
-      if (!l.openInsertModal) throw new Error("This host does not provide the Themes dialog.");
-      return l.openInsertModal(e);
+      if (!i.openInsertModal) throw new Error("This host does not provide the Themes dialog.");
+      return i.openInsertModal(e);
     },
-    error: (e) => J("Could not open Themes: " + e.message, "error")
-  }), te = ai({
-    root: h,
-    canChange: () => !z,
-    selectSlide: Gt,
-    getSlides: () => ve().map((e) => ({
+    error: (e) => X("Could not open Themes: " + e.message, "error")
+  }), _ = sr(f, () => {
+    try {
+      if (R) return;
+      D?.stopCapturing(), G.delete(H), D?.stopCapturing();
+    } catch (e) {
+      console.error("Slides colour:", e), X("Could not reset slide colour: " + e.message, "error");
+    }
+  }), f.querySelector('[data-panel="layouts"]')?.remove(), f.querySelector('[data-panel="text"]')?.remove(), qe = dr({
+    root: f,
+    openModal: (e) => {
+      if (!i.openInsertModal) throw new Error("This host does not provide the link dialog.");
+      return i.openInsertModal(e, { wide: !1 });
+    },
+    closed: () => {
+      Me = null;
+    },
+    error: (e) => X("Could not edit link: " + e.message, "error"),
+    capture() {
+      const e = B, t = Z.get(e), o = t?.editor, a = C, c = H, u = i.captureSession?.();
+      if (R || !o || t.box.get("locked") === !0) throw new Error("Select editable text to link.");
+      const k = o.state.selection.empty, w = o.state.selection.from;
+      k && o.commands.selectAll();
+      const { from: M, to: P } = o.state.selection;
+      if (M === P) throw new Error("Select the text to link first.");
+      const N = o.state.doc, O = N.textBetween(M, P, `
+`), $ = o.getAttributes("link"), ce = () => !R && C === a && H === c && B === e && Z.get(e)?.editor === o && !o.isDestroyed && t.box.get("locked") !== !0 && (!i.sessionCurrent || i.sessionCurrent(u));
+      return Me = e, {
+        values: { href: $.href || "", text: O, title: $.title || "", alt: $.ariaLabel || "", newTab: $.target !== "_self" },
+        current: () => ce() && o.state.doc.eq(N),
+        restore() {
+          ce() && (o.commands.setTextSelection(k ? w : { from: M, to: P }), on(o), wt());
+        },
+        focus() {
+          ce() && (k && o.commands.setTextSelection(o.state.selection.from), on(o), wt());
+        },
+        apply(he) {
+          if (!ce() || !o.state.doc.eq(N)) throw new Error("The original text changed.");
+          D?.stopCapturing();
+          let ae = o.chain().setTextSelection({ from: M, to: P }), Re = P;
+          if (he.text !== O) {
+            let He = [];
+            N.nodesBetween(M, P, (Ve) => {
+              Ve.isText && !He.length && (He = Ve.marks.filter((Oe) => Oe.type.name !== "link").map((Oe) => Oe.toJSON()));
+            }), ae = ae.insertContentAt({ from: M, to: P }, { type: "text", text: he.text, marks: He }), Re = M + he.text.length;
+          }
+          ae.setTextSelection({ from: M, to: Re }).setLink({ href: he.href, title: he.title || null, ariaLabel: he.alt || null, target: he.newTab ? "_blank" : "_self", rel: "noopener noreferrer" }).setTextSelection({ from: M, to: Re }).run(), D?.stopCapturing();
+        }
+      };
+    }
+  }), ue = Er({
+    root: f,
+    canChange: () => !R,
+    selectSlide: Qt,
+    getSlides: () => Se().map((e) => ({
       id: e,
-      active: e === O,
-      text: De(e).filter((t) => !["image", "shape"].includes(M.get(t)?.get("kind"))).map((t) => ho(v.getXmlFragment("slide-text-" + t))).filter(Boolean).join(`
+      active: e === H,
+      text: De(e).filter((t) => !["image", "shape"].includes(L.get(t)?.get("kind"))).map((t) => vo(C.getXmlFragment("slide-text-" + t))).filter(Boolean).join(`
 
 `)
     }))
-  }), l.url ? kn().catch(Dt) : l.seed !== !1 && Tt(), we(), so(), It(), at = Li({
-    root: h,
-    Y: c,
-    getDocument: () => v,
-    canEdit: () => !z,
-    getEntries: () => ve().flatMap((e, t) => [...le.get(e) || []].sort((o, r) => _e(M.get(o)) - _e(M.get(r)) || o.localeCompare(r)).filter((o) => !M.get(o).get("kind") || M.get(o).get("kind") === "text").map((o) => ({ id: o, slideId: e, slideNumber: t + 1, locked: M.get(o).get("locked") === !0, fragment: v.getXmlFragment("slide-text-" + o) }))),
+  }), i.url ? Ln().catch(Dt) : i.seed !== !1 && qn(), we(), mo(), Ft(), Ge = Vr({
+    root: f,
+    Y: l,
+    getDocument: () => C,
+    canEdit: () => !R,
+    getEntries: () => Se().flatMap((e, t) => [...Te.get(e) || []].sort((o, a) => Ze(L.get(o)) - Ze(L.get(a)) || o.localeCompare(a)).filter((o) => !L.get(o).get("kind") || L.get(o).get("kind") === "text").map((o) => ({ id: o, slideId: e, slideNumber: t + 1, locked: L.get(o).get("locked") === !0, fragment: C.getXmlFragment("slide-text-" + o) }))),
     selectedText: () => {
-      const e = X.get(T)?.editor;
+      const e = Z.get(B)?.editor;
       return e ? e.state.doc.textBetween(e.state.selection.from, e.state.selection.to, `
 `) : "";
     },
     jump: (e) => {
       Je = !0;
       try {
-        xe(), bt([e.entry.slideId]), we(), Le(e.entry.id);
-        const t = X.get(e.entry.id);
+        xe(), yt([e.entry.slideId]), we(), ze(e.entry.id);
+        const t = Z.get(e.entry.id);
         t?.editor && (t.editor.commands.setTextSelection({ from: e.from, to: e.to }), t.editor.view.focus()), t?.node.scrollIntoView({ block: "nearest", inline: "nearest" });
       } finally {
         Je = !1;
       }
     },
     transact: (e, t) => {
-      if (!z) {
-        for (const o of new Set(e.map((r) => r.entry.fragment))) D?.addToScope(o);
-        D?.stopCapturing(), v.transact(t), D?.stopCapturing();
+      if (!R) {
+        for (const o of new Set(e.map((a) => a.entry.fragment))) D?.addToScope(o);
+        D?.stopCapturing(), C.transact(t), D?.stopCapturing();
       }
     },
-    report: gt,
+    report: Bt,
     onError: (e) => {
-      console.error("Slides find/replace failed:", e), typeof window.showErrorModal == "function" ? window.showErrorModal(e.message, { title: "Find and replace failed" }) : J("Find and replace failed: " + e.message, "error");
+      console.error("Slides find/replace failed:", e), typeof window.showErrorModal == "function" ? window.showErrorModal(e.message, { title: "Find and replace failed" }) : X("Find and replace failed: " + e.message, "error");
     }
   }), {
-    getArticleHtml: () => Pi({ slideIds: ve(), renderSlide: Ot }),
-    getHtml: () => Lo({ slideIds: ve(), renderSlide: Ot, title: l.presentationTitle?.() || a("doc-name").value || "CList presentation" }),
-    exportHtml: () => Ii({ slideIds: ve(), renderSlide: Ot, title: l.presentationTitle?.() || a("doc-name").value || "CList presentation" }),
-    snapshotRecovery: Pe.snapshot,
-    importPowerPoint: Xo,
-    exportPowerPoint: () => vi(Go()),
-    exportPdf: () => gi({ slideIds: ve(), renderSlide: Ot, title: l.presentationTitle?.() || a("doc-name").value || "CList presentation" }),
-    snapshot: Wo,
-    loadSnapshot: $o,
-    importContent: qo,
-    getReferences: Qt,
-    addReferences: en,
-    connect: kn,
+    getArticleHtml: () => Yr({ slideIds: Se(), renderSlide: Wt }),
+    getHtml: () => Bo({ slideIds: Se(), renderSlide: Wt, title: i.presentationTitle?.() || s("doc-name").value || "CList presentation" }),
+    exportHtml: () => Jr({ slideIds: Se(), renderSlide: Wt, title: i.presentationTitle?.() || s("doc-name").value || "CList presentation" }),
+    snapshotRecovery: ft.snapshot,
+    importPowerPoint: nr,
+    exportPowerPoint: () => Br(ar()),
+    exportPdf: () => Fr({ slideIds: Se(), renderSlide: Wt, title: i.presentationTitle?.() || s("doc-name").value || "CList presentation" }),
+    snapshot: tr,
+    loadSnapshot: or,
+    importContent: er,
+    getReferences: an,
+    addReferences: sn,
+    connect: Ln,
     disconnect: Pt,
-    createSavedLayout: Ho,
-    registerSavedLayout: ro,
-    removeSavedLayout: no,
-    setView: (e) => te.setMode(e),
+    createSavedLayout: Zo,
+    registerSavedLayout: fo,
+    removeSavedLayout: co,
+    setView: (e) => ue.setMode(e),
     get viewMode() {
-      return te.mode;
+      return ue.mode;
     },
     get document() {
-      return v;
+      return C;
+    },
+    getSharing() {
+      const e = Q;
+      return !e || te !== e.owner || i.sessionCurrent && !i.sessionCurrent(e.session) ? null : { docId: e.docId, server: e.server, title: e.docId, current: () => te === e.owner && C === e.document && (!i.sessionCurrent || i.sessionCurrent(e.session)) };
     },
     get connected() {
-      return W;
+      return Y;
     },
     destroy() {
-      re?.destroy(), pe?.destroy(), ne?.destroy(), _?.destroy(), Y?.destroy(), te?.destroy(), at?.destroy(), Pe.destroy(), Ge.destroy(), it.destroy(), st.destroy(), Se?.close(), Se = null, document.removeEventListener("copy", Vn, !0), document.removeEventListener("cut", Kn, !0), document.removeEventListener("paste", Gn, !0), document.removeEventListener("keydown", po), document.removeEventListener("fullscreenchange", fo), z && rn().catch(Dt), Pt(), xe(), v.off("beforeObserverCalls", $t), M.unobserveDeep(we), q.unobserve(we), K.unobserve(we), Z.unobserve(we), ee.unobserve(Rt), U.unobserve(Ft), v.off("update", Nt), v.off("update", qe);
-      for (const e of X.values())
+      ke?.destroy(), Ne?.destroy(), qe?.destroy(), _?.destroy(), q?.destroy(), ee?.destroy(), se?.destroy(), oe?.destroy(), Le?.destroy(), ue?.destroy(), Ge?.destroy(), ft.destroy(), _e.destroy(), Ie.destroy(), it.destroy(), $e?.close(), $e = null, document.removeEventListener("copy", Qn, !0), document.removeEventListener("cut", eo, !0), document.removeEventListener("paste", to, !0), document.removeEventListener("keydown", wo), document.removeEventListener("fullscreenchange", xo), R && un().catch(Dt), Pt(), xe(), C.off("beforeObserverCalls", Yt), L.unobserveDeep(we), U.unobserve(we), le.unobserve(we), G.unobserve(we), K.unobserve(Ut), J.unobserve(qt), C.off("update", It), C.off("update", kt);
+      for (const e of Z.values())
         e.disposePointer?.(), e.editor?.destroy();
-      X.clear(), lo(), de?.document.destroy(), de = null, ge = null, v.destroy(), h.remove();
+      Z.clear(), go(), re?.document.destroy(), re = null, de = null, C.destroy(), f.remove();
     }
   };
 }
 export {
-  Ui as createSlideEditor,
-  Hi as loadSlideCatalogs
+  ii as createSlideEditor,
+  ri as loadSlideCatalogs
 };

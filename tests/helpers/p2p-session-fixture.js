@@ -16,7 +16,7 @@ class SessionPeer extends SessionEmitter {
 function p2pGate() { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; }
 async function p2pFlush() { for (let i = 0; i < 12; i++) await Promise.resolve(); }
 let previousP2pFixture = null;
-function p2pFixture(bridge = false) {
+function p2pFixture(bridge = false, loadPeer = null) {
     previousP2pFixture?.dispose();
     const root = document.createElement('div'); root.id = 'chat-section'; document.body.appendChild(root);
     const add = (tag, id) => { const node = document.createElement(tag); node.id = id; root.appendChild(node); return node; };
@@ -43,7 +43,7 @@ function p2pFixture(bridge = false) {
             signMessage: async () => behavior.sign ? behavior.sign() : null
         });
     }
-    const deps = { source: () => source, createPeer: makePeer, state: state => states.push(structuredClone(state)),
+    const deps = { loadPeer, source: () => source, createPeer: makePeer, state: state => states.push(structuredClone(state)),
         activate() {}, ready: id => events.push(['ready', id]), connecting: id => events.push(['connect', id]),
         open: (channel, inbound) => events.push(['open', channel.peer, inbound]), closed: channel => events.push(['closed', channel.peer]),
         receive: async (channel, data, current) => { if (behavior.receive) await behavior.receive(); if (current()) events.push(['data', channel.peer, data]); },
@@ -73,6 +73,28 @@ function p2pFixture(bridge = false) {
     previousP2pFixture = f; return f;
 }
 const p2pSessionCases = [
+    ['lazy PeerJS coalesces startup and queues one join while retaining unsent text', async check => {
+        const gate=p2pGate();let loads=0;const f=p2pFixture(false,()=>{loads++;return gate.promise;});
+        const session=f.start();session.start();await p2pFlush();
+        check(loads===1&&f.peers.length===0,'one pending library load');
+        f.input.value='Keep draft';await f.click(f.send);check(f.input.value==='Keep draft','no pre-library send consumes draft');
+        session.connect('remote','Captured discussion');session.connect('remote','Duplicate');
+        gate.resolve();await p2pFlush();
+        check(f.peers.length===1&&f.peers[0].targets.length===1,'one queued join replayed');
+        check(f.events.some(e=>e[0]==='connect'&&e[1]==='remote'),'captured join delivered');f.dispose();
+    }],
+    ['late library completion cannot initialize a replaced source or disposed panel', async check => {
+        for(const dispose of [false,true]){
+            const gate=p2pGate(),f=p2pFixture(false,()=>gate.promise);const session=f.start();await p2pFlush();
+            session.connect('remote');if(dispose)session.dispose();else f.source();
+            gate.resolve();await p2pFlush();check(f.peers.length===0,'stale library cannot construct Peer');f.dispose();
+        }
+    }],
+    ['lazy library failure is visible and an explicit new session can retry', async check => {
+        let fail=true;const f=p2pFixture(false,async()=>{if(fail)throw Error('PeerJS unavailable');});
+        f.start();await p2pFlush();check(f.errors.includes('PeerJS unavailable')&&!f.session().isCurrent(),'visible failure and retired session');
+        fail=false;f.dispose();const retry=p2pFixture(false,async()=>{});retry.start();await p2pFlush();check(retry.peers.length===1,'explicit retry constructs Peer');retry.dispose();
+    }],
     ['initialization is single-use and hidden controls retain their live session', async check => {
         const f = p2pFixture(), session = f.start(); session.start(); check(f.peers.length === 1, 'one Peer instance');
         await f.peers[0].emit('open', 'peer-private'); check(f.label.textContent === 'peer-private' && f.states.at(-1).phase === 'ready', 'open updates view/summary');

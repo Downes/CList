@@ -10,7 +10,7 @@ function lifecycleFixture({local=false}={}) {
  const deps={keys:names,server:()=>C.config.flaskSiteUrl,local:()=>local,epoch:()=>C.state.authEpoch,now:()=>Date.now(),
   cookie:(site,key)=>cookies.get(key)??null,deleteCookie:(site,key)=>{calls.push('delete:'+key);if(behavior.tokenBlocked&&key==='token')return;cookies.delete(key);if(behavior.delete)behavior.delete(key);},
   get:key=>store.get(key)??null,set:(key,value)=>{if(behavior.noticeBlocked)throw Error('Notice storage blocked');store.set(key,value);},remove:key=>{calls.push('remove:'+key);if(behavior.remove===key)throw Error('Cleanup blocked');store.delete(key);},listKeys:()=>[...store.keys()],
-  getKey:async()=>{calls.push('key');if(behavior.key)return behavior.key();return 'imported-key';},load:async session=>{calls.push('load');if(behavior.load)return behavior.load(session);return[{key:'restored',value:'{"type":"test"}'}];},parse:account=>JSON.parse(account.value),
+  prepareAccounts:()=>behavior.prepare?behavior.prepare():undefined,getKey:async()=>{calls.push('key');if(behavior.key)return behavior.key();return 'imported-key';},load:async session=>{calls.push('load');if(behavior.load)return behavior.load(session);return[{key:'restored',value:'{"type":"test"}'}];},parse:account=>JSON.parse(account.value),
   wait:ms=>behavior.wait?behavior.wait(ms):Promise.resolve(),reader:()=>version,navigate:async()=>{calls.push('navigate');},reload:()=>{calls.push('reload');if(behavior.reload)throw Error('Reload blocked');},invalidateAuth(){C.state.authEpoch++;calls.push('invalidate');}
  };
  const controller=createSessionLifecycle(deps,C.ui.sessionLifecycle);
@@ -18,6 +18,14 @@ function lifecycleFixture({local=false}={}) {
 }
 function lifecycleGate(){let resolve;const promise=new Promise(done=>resolve=done);return{promise,resolve};}
 const lifecycleCases=[
+ ['session controls precede registry readiness and expired waits cannot read accounts',async check=>{
+    const f=lifecycleFixture(),g=lifecycleGate();f.behavior.prepare=()=>g.promise;
+    const pending=f.controller.restore();await new Promise(r=>setTimeout(r,0));
+    check(f.calls.includes('authenticated')&&!f.calls.includes('load'),'identity shown before schemas');
+    f.cookies.set('token','newer');delete f.behavior.prepare;await f.controller.restore();
+    g.resolve();await pending;check(f.calls.filter(x=>x==='load').length===1,'old registry continuation cannot load accounts');
+ }],
+ ['recovery reset preserves drafts and rejects a pending restore',async check=>{const f=lifecycleFixture(),g=lifecycleGate();f.store.set('clist_draft_x','keep');f.store.set('preference','keep');f.behavior.load=()=>g.promise;const pending=f.controller.restore();await new Promise(r=>setTimeout(r,0));f.controller.logout({preserveDrafts:true});g.resolve([{key:'stale'}]);await pending;check(f.cookies.size===0&&f.calls.includes('reload'),'session cleared and reloaded');check(f.store.get('clist_draft_x')==='keep'&&f.store.get('preference')==='keep','draft and preferences preserved');check(window.CList.accounts.length===0&&f.state().phase==='logged-out','pending restore cannot undo reset');}],
  ['valid hosted/Local restoration is read-only',async check=>{for(const local of [false,true]){const f=lifecycleFixture({local});await f.controller.restore();check(f.state().phase==='ready'&&f.calls.filter(c=>c==='load').length===1&&window.CList.accounts[0].key==='restored','valid restore');check(!f.calls.some(c=>c.startsWith('delete:')||c.startsWith('remove:'))&&!JSON.stringify(f.state()).includes('secret'),'no secret state or auth mutation');}}],
  ['missing key and invalid/expired expiry become quiet guest',async check=>{for(const mode of ['key','expiry','expired']){const f=lifecycleFixture();if(mode==='key')f.store.clear();else f.cookies.set('expires',mode==='expiry'?'invalid-date':'2000-01-01');await f.controller.restore();check(f.state().phase==='guest'&&f.viewState()==='none'&&window.CList.accounts.length===0&&!f.calls.includes('load'),'invalid '+mode+' rejected');}}],
  ['import failure differs from account load failure',async check=>{const f=lifecycleFixture();f.behavior.key=async()=>{throw Error('Invalid key');};await f.controller.restore();check(f.viewState()==='none'&&f.state().phase==='failed','key failure stays guest');const g=lifecycleFixture();g.behavior.load=async()=>{throw Error('Read failed');};await g.controller.restore();check(g.viewState()==='alice'&&g.state().error==='Read failed','valid identity retained on account failure');delete g.behavior.load;await g.retry();check(g.state().phase==='ready','explicit read retry');}],

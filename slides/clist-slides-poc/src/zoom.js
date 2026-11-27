@@ -11,6 +11,7 @@ export function mountCanvasZoom(root, isPresenting) {
     if (mode === 'fit') percent = Math.min(100, availableWidth / 1280 * 100, availableHeight / 720 * 100)
     const width = 1280 * percent / 100, height = 720 * percent / 100
     slide.style.setProperty('--canvas-slide-width', width + 'px')
+    slide.style.setProperty('--slide-text-unit', width / 1280 + 'px')
     viewport.style.setProperty('--canvas-stage-width', width + 48 + 'px')
     viewport.style.setProperty('--canvas-stage-height', height + 48 + 'px')
     picker.options[0].textContent = 'Fit (' + Math.round(percent) + '%)'
@@ -28,8 +29,14 @@ export function mountCanvasZoom(root, isPresenting) {
   control('zoom-fit').addEventListener('click', () => choose('fit'))
   control('zoom-in').addEventListener('click', () => choose(String(steps.find(value => value > percent + 0.1) || 200)))
   control('zoom-out').addEventListener('click', () => choose(String([...steps].reverse().find(value => value < percent - 0.1) || 25)))
-  const observer = new ResizeObserver(update)
+  const observer = new ResizeObserver(entries => {
+    if (entries.some(entry => entry.target === viewport)) update()
+    // Observe the slide too: fullscreen/presentation can size it independently.
+    const width = slide.getBoundingClientRect().width
+    if (width > 0) slide.style.setProperty('--slide-text-unit', width / 1280 + 'px')
+  })
   observer.observe(viewport)
+  observer.observe(slide)
   update()
   return { update, destroy() { observer.disconnect() } }
 }

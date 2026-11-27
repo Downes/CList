@@ -1,3 +1,4 @@
+import { cleanTextFormat } from './text-format.js'
 // PptxGenJS is self-hosted and loaded only when export is requested.
 let library
 export function loadPowerPointLibrary() {
@@ -35,6 +36,13 @@ export function textRuns(fragment, fontSize) {
     if (['code', 'pre'].includes(tag)) next.fontFace = 'Courier New'
     if (tag === 'a' && /^(https?:|mailto:|tel:)/i.test(node.getAttribute('href') || '')) {
       next.hyperlink = { url: node.getAttribute('href') }; next.color = '2365BF'; next.underline = { style: 'sng' }
+    }
+    if (node.hasAttribute?.('data-slide-text-style')) {
+      const format = cleanTextFormat({fontFamily:node.getAttribute('data-font-family'),fontSize:node.getAttribute('data-font-size'),textColour:node.getAttribute('data-text-colour'),highlightColour:node.getAttribute('data-highlight-colour')})
+      if (format.fontFamily) next.fontFace = fonts[format.fontFamily]
+      if (format.fontSize) next.fontSize = points(format.fontSize)
+      if (format.textColour) next.color = colour(format.textColour)
+      if (format.highlightColour) next.highlight = colour(format.highlightColour)
     }
     if (tag === 'br') { runs.push({ text: '', options: { ...next, breakLine: true } }); return }
     for (const child of node.childNodes) inline(child, next)

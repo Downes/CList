@@ -1,17 +1,17 @@
 <!doctype html>
 <meta charset="utf-8">
 <title>Slide editor views</title>
-<link rel="stylesheet" href="../css/interface.css?v=2026-11-24.19">
-<link rel="stylesheet" href="../slides/clist-slides-poc/dist-embed/editor.css?v=2026-11-24.19">
+<link rel="stylesheet" href="../css/interface.css?v=2026-11-25.6">
+<link rel="stylesheet" href="../slides/clist-slides-poc/dist-embed/editor.css?v=2026-11-25.6">
 <h1>Slide editor views</h1>
-<p>Test 2026-11-24.19. Real embedded editor, local Yjs deck and DOM, with a fixture modal shell using shared wide-modal CSS. No collaboration connection, external service requests or storage writes. Editor/vendor assets are served locally.</p>
+<p>Test 2026-11-25.6. Real embedded editor, local Yjs deck and DOM, with a fixture modal shell using shared wide-modal CSS. No collaboration connection, external service requests or storage writes. Editor/vendor assets are served locally.</p>
 <pre id="result" role="status">Checking…</pre><div id="host" style="width:100%;height:800px"></div>
 <script>
 (async()=>{
 let count=0
 const check=(value,message)=>{if(!value)throw Error(message);count++}
 try {
- const [dependencies,{createSlideEditor}]=await Promise.all([import('../js/vendor/collab-editor-bundle.js'),import('../slides/clist-slides-poc/dist-embed/editor.js?v=2026-11-24.19')])
+ const [dependencies,{createSlideEditor}]=await Promise.all([import('../js/vendor/collab-editor-bundle.js'),import('../slides/clist-slides-poc/dist-embed/editor.js?v=2026-11-25.6')])
  const openInsertModal=body=>{
   document.getElementById('generic-modal')?.remove()
   const modal=document.createElement('div'),content=document.createElement('div');modal.id='generic-modal';content.id='modal-content';content.className='modal-content--wide'
@@ -32,7 +32,7 @@ try {
  const choose=value=>{picker.value=value;picker.dispatchEvent(new Event('change',{bubbles:true}))}
  const bars=root.querySelectorAll('.slide-menu-bar'),newSlide=root.querySelector('[data-menu="new"]'),newGroup=root.querySelector('[data-menu-group="new"]')
  check([...root.querySelectorAll('.canvas-zoom button')].every(button=>Math.abs(button.getBoundingClientRect().top-root.querySelector('.canvas-zoom button').getBoundingClientRect().top)<1),'zoom controls stay on one line')
- check(['bold','italic','present','undo','redo'].every(name=>bars[0].contains(root.querySelector('[data-control="'+name+'"]'))),'existing icon controls remain visible in upper bar')
+ check(['present','undo','redo'].every(name=>bars[0].contains(root.querySelector('[data-control="'+name+'"]'))),'existing icon controls remain visible in upper bar')
  check(bars.length===2 && bars[0].className===bars[1].className,'matching menu bars')
  check(bars[1].getBoundingClientRect().top >= bars[0].getBoundingClientRect().bottom,'lower menu is below upper menu')
  check(bars[0].firstElementChild.classList.contains('slide-view-picker') && bars[0].firstElementChild.nextElementSibling===newSlide,'View at far left then New Slide')

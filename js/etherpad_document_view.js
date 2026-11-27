@@ -13,6 +13,7 @@ function createEtherpadDocumentView(connection) {
         clearName(value) { if (current() && name.value.trim() === value) name.value = ''; },
         share(url, pad) {
             if (!current()) return;
+            if(typeof openEditorSharing==='function'){openEditorSharing(editorHandlers.etherpad.getSharing()).catch(error=>{console.error('Etherpad sharing:',error);showStatusMessage(error.message)});return;}
             const card = document.createElement('div'), heading = document.createElement('p'), link = document.createElement('a');
             heading.textContent = 'Share Etherpad: ' + pad; link.href = url; link.textContent = url; link.target = '_blank'; link.rel = 'noopener noreferrer';
             card.appendChild(heading); card.appendChild(link); showModal(card);

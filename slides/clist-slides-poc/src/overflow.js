@@ -1,3 +1,9 @@
+export function largestFittingTextSize(fits, minimum=8, maximum=200) {
+  let low=Math.ceil(minimum*2),high=Math.floor(maximum*2),best=low
+  while(low<=high){const size=Math.floor((low+high)/2);if(fits(size/2)){best=size;low=size+1}else high=size-1}
+  return best/2
+}
+export const scaledTextSize=(size,scale)=>Math.max(8,Math.min(200,Math.round(size*scale*2)/2))
 export function mountTextOverflow(root, slide, options) {
   let frame = null, destroyed = false
   const badges = new WeakMap()
@@ -35,25 +41,29 @@ export function mountTextOverflow(root, slide, options) {
     if (options.presenting() || selected.some(view => view.box.get('locked') === true)) return
     const changes = []
     for (const view of selected) {
-      if (!view.editor || !overflows(view)) continue
+      if (!view.editor || !view.editor.getText().trim()) continue
       const previous = view.node.style.getPropertyValue('--slide-font-size')
-      const current = options.size(view.box)
-      let size = 8
+      const current = options.size(view.box), unit=slide.getBoundingClientRect().width/1280
+      if(unit<=0)continue
+      const spans=[...view.content.querySelectorAll('[data-slide-text-style][data-font-size]')].map(node=>({node,style:node.style.cssText,size:Number(node.getAttribute('data-font-size'))}))
+      let size=current
       try {
-        let low = 8, high = Math.floor(current)
-        while (low <= high) {
-          const candidate = Math.floor((low + high) / 2)
-          view.node.style.setProperty('--slide-font-size', candidate / 12.8 + 'cqw')
-          if (overflows(view)) high = candidate - 1
-          else { size = candidate; low = candidate + 1 }
-        }
-      } finally { view.node.style.setProperty('--slide-font-size', previous) }
-      if (size < current) changes.push({ box: view.box, size })
+        size=largestFittingTextSize(candidate=>{
+          view.node.style.setProperty('--slide-font-size',candidate*unit+'px')
+          for(const span of spans)span.node.style.setProperty('font-size',scaledTextSize(span.size,candidate/current)*unit+'px','important')
+          return !overflows(view)
+        })
+      } finally {
+        view.node.style.setProperty('--slide-font-size',previous)
+        for(const span of spans)span.node.style.cssText=span.style
+      }
+      if(size!==current)changes.push({box:view.box,view,size,scale:size/current})
     }
     options.apply(changes)
     check()
   }
-  button.addEventListener('click', fit)
+  const runFit=()=>{try{fit()}catch(error){console.error('Slides Fit:',error);options.error?.(error)}}
+  button.addEventListener('click', runFit)
   const mutations = new MutationObserver(schedule)
   mutations.observe(slide, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['style', 'class'] })
   const resize = new ResizeObserver(schedule)
@@ -65,6 +75,6 @@ export function mountTextOverflow(root, slide, options) {
     if (frame !== null) cancelAnimationFrame(frame)
     mutations.disconnect(); resize.disconnect()
     document.fonts?.removeEventListener('loadingdone', schedule)
-    button.removeEventListener('click', fit)
+    button.removeEventListener('click', runFit)
   } }
 }

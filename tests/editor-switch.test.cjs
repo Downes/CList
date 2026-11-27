@@ -203,3 +203,26 @@ test('a switch superseded during account-list refresh reports false to its loadi
     assert.equal(await first,false); assert.equal(await second,true);
     assert.equal(f.ctx.currentEditor,'texteditor'); assert.equal(f.ctx.window.CList.state.editorSwitching.phase,'complete');
 });
+
+
+test('library dependency resolves before mount; a changed session rejects a pending mount', async () => {
+    for (const expire of [false, true]) {
+        const f = fixture(); f.ctx.window.CList.config = {flaskSiteUrl:'https://store.invalid'};
+        let finish, mounted = 0;
+        f.handler('rich', {loadDependencies: () => new Promise(resolve => {finish = resolve;}), initialize: () => {mounted++; f.ctx.currentEditor = 'rich';}});
+        const pending = f.ctx.mountEditor('rich', null);
+        assert.equal(mounted, 0);
+        if (expire) f.ctx.window.CList.state.authEpoch = 1;
+        finish();
+        assert.equal(await pending, !expire);
+        assert.equal(mounted, expire ? 0 : 1);
+    }
+});
+test('failed library load gives visible error without changing source and can be retried', async () => {
+    const f = fixture(); f.ctx.window.CList.config = {flaskSiteUrl:'https://store.invalid'};
+    const target = f.handler('rich', {loadDependencies: async () => {throw Error('Library unavailable');}});
+    assert.equal(await f.ctx.mountEditor('rich', null), false);
+    assert.equal(f.ctx.currentEditor, 'texteditor'); assert.match(String(f.errors[0]), /Library unavailable/);
+    target.loadDependencies = async () => {};
+    assert.equal(await f.ctx.mountEditor('rich', null), true);
+});

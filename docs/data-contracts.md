@@ -703,7 +703,7 @@ service retry after user review, while unknown KV writes reconcile by ciphertext
 
 `CListSessionSnapshot` is a private source capture of server/Local mode, auth
 epoch, cookie token/username/expiry and encoded tab key. It never enters UI state.
-`CListSessionLifecycleState` contains generation/phase/error only. Restoration
+`CListSessionLifecycleState` contains generation/phase/error plus safe stage, elapsedMs and stage-entry timings (milliseconds since restoration began). It contains no credentials. Restoration
 requires a nonempty tab key and a finite future expiry, then imports the key and
 reuses `loadAccountRecords` with a captured session guard. It never changes auth
 cookies, seeds accounts or replaces newer reader navigation. Local storage auth
@@ -1849,3 +1849,47 @@ Modal Done stages a preview; Insert commits. Direct-slide Done commits in one
 history boundary after validating the original object snapshot and session;
 Cancel/stale completion must not write. This is nondestructive cropping, not a
 raster-file rewrite. Older cropping text/sliders in historical notes are superseded.
+
+
+## Slides inline text formatting
+
+Yjs slide-text fragments may carry the `slideTextStyle` mark. Its optional/null
+attributes are fontFamily (one of the existing slide font keys), fontSize (8–200
+slide pixels), textColour and highlightColour (six-digit hex colours). This is
+separate from text-box defaults in slide-objects and applies only to marked text.
+`text-format.js` normalizes attributes before generating spans with data markers
+and safe CSS. Presenter/HTML preserve those spans; PowerPoint run capture converts
+size to points and reads font/foreground/highlight. Native Yjs snapshots retain the
+mark. Older clients without this mark schema are not verified collaborators.
+
+
+Slides Link marks additionally support optional `title` metadata. URL protocols
+remain restricted to http/https/mailto/tel; target is `_blank` or `_self`, with safe
+rel attributes. Display text is inserted as a text node rather than parsed HTML.
+The link dialog keeps its captured range/editor state private and refuses to apply
+when the source text document, selected object, slide or session has changed.
+
+Slides Link marks may include optional `ariaLabel` (up to 500 characters), entered
+as Link alt text. Render it as the anchor aria-label, distinct from tooltip title
+and image alt text. Omitted/blank input leaves no aria-label attribute.
+
+
+## Active editor sharing capability
+
+An editor handler may expose `getSharing(): CListEditorShareResource|null`.
+Descriptors contain public docId/server/title, optional public edit/read links and
+an ownership callback. Credentials are captured separately by editor-sharing.js;
+only existing CListCollabShareState progress is placed in state. accessSettings:false
+means the service lacks the Collab access API; links still use shared Copy/Post.
+Private Post handoff includes editorType so the existing composer can return to
+its captured source editor. Sharing does not install an account or switch sessions.
+
+
+## Phased application startup
+
+`CListAppStartupState` is `CList.state.appStartup`: phase, loaded/total counts and
+error only. The startup coordinator, promises and callbacks live on
+`CList.startup`, outside presentation state. The session workflow imports the
+captured key and renders identity before awaiting registry readiness. Account
+reads and schema filtering start only afterward, rechecking the original session.
+No account/collection/reference formats or stored records change.

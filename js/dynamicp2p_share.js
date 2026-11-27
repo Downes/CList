@@ -9,7 +9,7 @@ function createP2pShareController(deps, view) {
     };
     const validSession = session => current() && session?.isCurrent() && deps.session(false) === session;
     const transmit = (session, packet, preview, valid = () => validSession(session)) => {
-        if (!valid() || !session.resources.peer.id) return null;
+        if (!valid() || !session.resources.peer?.id) return null;
         const resources = session.resources, recipients = Object.values(resources.connections);
         if (packet.type === 'share') resources.processedMsgIds.add(packet.msgId);
         const result = broadcastP2pPacket(packet, recipients, { current: valid,
@@ -24,11 +24,11 @@ function createP2pShareController(deps, view) {
         return result;
     };
     const packet = (session, data, extra = {}) => ({ ...structuredClone(extra), type: 'share', kind: data.kind, url: data.url, title: data.title,
-        excerpt: data.excerpt, username: deps.username(), msgId: session.resources.peer.id + '-' + deps.id() });
+        excerpt: data.excerpt, username: deps.username(), msgId: session.resources.peer?.id + '-' + deps.id() });
     const flush = async op => {
         const valid = () => current() && pending === op && validSession(op.session) && op.source.current();
         if (!valid()) { if (pending === op) { pending = null; phase = 'idle'; state(); } return; }
-        if (!op.session.resources.peer.id || op.running) return;
+        if (!op.session.resources.peer?.id || op.running) return;
         op.running = true;
         try {
             if (deps.discussion() !== op.before) throw Error('The discussion changed before this share was ready. Select Share again.');
@@ -66,14 +66,14 @@ function createP2pShareController(deps, view) {
             if (pending) { view.notice('A share is already pending. Wait before sharing another item.'); return null; }
             try {
                 const session = deps.session(false);
-                if (!validSession(session) || !session.resources.peer.id) throw Error('Open chat first to share.');
+                if (!validSession(session) || !session.resources.peer?.id) throw Error('Open chat first to share.');
                 const data = structuredClone({ kind, url, title, excerpt });
                 phase = 'sending'; state(); const result = transmit(session, packet(session, data, extra), true); phase = result?.stale ? 'idle' : 'complete'; state(); return result;
             } catch (error) { if (current()) { phase = 'error'; state(); view.error(error); } return null; }
         },
         invite(invite) {
             try {
-                const session = deps.session(false); if (!validSession(session) || !session.resources.peer.id) return false;
+                const session = deps.session(false); if (!validSession(session) || !session.resources.peer?.id) return false;
                 const data = { ...structuredClone(invite), type: 'collab-invite' };
                 return (transmit(session, data, true)?.sent || 0) > 0;
             } catch (error) { if (current()) view.error(error); return false; }

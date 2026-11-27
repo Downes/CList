@@ -111,8 +111,8 @@ function captureEtherpadDocument(owner) {
 function bindEtherpadDocuments(owner, view) {
     owner.documents = createEtherpadDocumentController({
         current: () => _etherpadConnection === owner && owner.controller.active(),
-        capture: () => captureEtherpadDocument(owner), present: state => { window.CList.state.etherpadDocument = state; },
-        select: result => { padName = result.pad; authorID = result.author; etherpadUsername = result.username; },
+        capture: () => captureEtherpadDocument(owner), present: state => { window.CList.state.etherpadDocument = state; if(typeof notifyEditorSharingChanged==='function')notifyEditorSharingChanged(); },
+        select: result => { padName = result.pad; authorID = result.author; etherpadUsername = result.username; if(typeof notifyEditorSharingChanged==='function')notifyEditorSharingChanged(); },
         author: (name, id) => { etherpadUsername = name; authorID = id; },
         pendingContent: () => typeof loadPredefinedContent === 'function' ? loadPredefinedContent('etherpad') : undefined,
         reference: id => { createReference(id, document.getElementById('etherpadDiv')); displayReferences(document.getElementById('etherpadDiv')); },

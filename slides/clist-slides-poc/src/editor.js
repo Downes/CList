@@ -1,3 +1,7 @@
+import { mountSlideFormat } from './slide-format.js'
+import { mountObjectFormat } from './object-format.js'
+import { mountSlideLinkPicker, validSlideLink as validLink } from './link-picker.js'
+import { slideFonts as fontFamilies, createSlideTextStyle, mountTextFormat } from './text-format.js'
 import { objectPasteOffset, ownsObjectClipboard } from './object-clipboard.js'
 import { mountThemePicker } from './theme-picker.js'
 import { imageHandleProperties, mountImageHandleMode } from './image-handle-mode.js'
@@ -10,7 +14,7 @@ import { mountInsertPickers } from './insert-picker.js'
 import { mountSlideMenu } from './slide-menu.js'
 import { mountSlideViews, slideDropBeforeIndex } from './slide-views.js'
 import { importedHtml, normalizedReference } from './import-content.js'
-import { mountTextOverflow } from './overflow.js'
+import { mountTextOverflow, scaledTextSize } from './overflow.js'
 import { mountMarquee } from './marquee.js'
 import { mountCanvasZoom } from './zoom.js'
 import { setToolbarIcon } from './icons.js'
@@ -64,6 +68,9 @@ verticalGuide.hidden = horizontalGuide.hidden = true
 slide.append(verticalGuide, horizontalGuide)
 
 let doc = new Y.Doc()
+let slideFormatting = null
+let objectFormatting = null
+let textFormatting = null
 let themePicker = null
 let imageHandleMode = null
 let objects = doc.getMap('slide-objects')
@@ -80,6 +87,7 @@ const objectButtons = new Map()
 const thumbnailViews = new Map(), thumbnailObjectSlides = new Map(), thumbnailObjects = new Map(), dirtyThumbnails = new Set()
 let thumbnailBoxIds = new WeakMap(), thumbnailTextIds = new WeakMap(), allThumbnailsDirty = true, thumbnailOrder = ''
 let provider = null
+let sharingResource = null
 let connected = false
 const selectedIds = new Set()
 let selected = null
@@ -92,7 +100,7 @@ let pasteSurfaceActive = false
 let pastePoint = null
 let objectClipboard = null
 let formatClipboard = null
-let linkTarget = null
+let linkTarget = null, linkPicker = null
 let history = null
 let suppressHistory = false
 let presenting = false
@@ -200,13 +208,16 @@ function createView(id, box) {
     editable: !presenting,
     extensions: [
       StarterKit.configure({ undoRedo: false, history: false, link: false }),
-      Link.configure({ openOnClick: false, HTMLAttributes: { target: '_blank', rel: 'noopener noreferrer' } }),
+      createSlideTextStyle(Link.constructor),
+      Link.extend({ addAttributes() { return { ...this.parent?.(), title: { default: null, parseHTML: element => element.getAttribute('title') }, ariaLabel: { default: null, parseHTML: element => element.getAttribute('aria-label'), renderHTML: attributes => attributes.ariaLabel ? { 'aria-label': attributes.ariaLabel } : {} } } } }).configure({ openOnClick: false, HTMLAttributes: { target: '_blank', rel: 'noopener noreferrer' } }),
       Collaboration.configure({ document: doc, field: `slide-text-${id}` }),
     ],
     editorProps: {
       attributes: { 'aria-label': `Edit text in ${id}` },
     },
     onFocus: () => { editorFocused = id; select(id, false, selectedIds.has(id)) },
+    onSelectionUpdate: () => { if (views.get(id)?.editor === editor) syncTextFormatting() },
+    onUpdate: () => { if (views.get(id)?.editor === editor) syncTextFormatting() },
     onBlur: () => { if (editorFocused === id) editorFocused = null; history?.stopCapturing() },
   }) } finally { suppressHistory = false }
   }
@@ -220,6 +231,7 @@ function createView(id, box) {
   node.addEventListener('dblclick', event => { if (box.get('kind') === 'image' && !event.target.closest('.rotation-handle')) { event.preventDefault(); event.stopPropagation(); select(id); startImageCrop() } })
   node.addEventListener('focus', () => {
     select(id, false, selectedIds.has(id))
+    if(editor&&!editor.state.selection.empty)editor.commands.setTextSelection(editor.state.selection.from)
     const range = document.getSelection()
     if (range?.anchorNode && root.contains(range.anchorNode)) range.removeAllRanges()
   })
@@ -228,14 +240,7 @@ function createView(id, box) {
   applyGeometry(id)
   if (selected === id) node.classList.add('selected')
 }
-const fontFamilies = {
-  system: 'system-ui, sans-serif',
-  arial: 'Arial, Helvetica, sans-serif',
-  verdana: 'Verdana, Geneva, sans-serif',
-  georgia: 'Georgia, serif',
-  times: '"Times New Roman", Times, serif',
-  courier: '"Courier New", Courier, monospace',
-}
+
 function currentTheme() {
   const saved = design.get('theme')
   if (saved) { try { return validateThemeDefinition(saved) } catch (error) { /* Invalid incoming themes use safe defaults. */ } }
@@ -836,7 +841,7 @@ function select(id, additive = false, keepGroup = false, reveal = false) {
   if (linkTarget && selected !== linkTarget) closeLinkControls()
   $('bullet-list').disabled = multiple || !views.get(selected)?.editor
   $('ordered-list').disabled = multiple || !views.get(selected)?.editor
-  for (const name of ['font-family', 'font-size', 'text-colour', 'text-align']) $(name).disabled = multiple || !views.get(selected)?.editor
+  for (const name of ['font-family', 'font-size', 'text-colour', 'text-align']) if($(name)) $(name).disabled = multiple || !views.get(selected)?.editor
   const appearanceEnabled = box && !multiple && (!!views.get(selected)?.editor || box.get('kind') === 'shape')
   for (const name of ['fill-enabled', 'fill-colour', 'border-enabled', 'border-colour', 'border-width']) $(name).disabled = !appearanceEnabled
   if (appearanceEnabled) {
@@ -854,11 +859,20 @@ function select(id, additive = false, keepGroup = false, reveal = false) {
     $('font-family').value = format.family
     $('font-size').value = String(Math.round(format.size))
     $('text-colour').value = format.colour
-    $('text-align').value = format.align
+    if($('text-align')) $('text-align').value = format.align
   }
   renderObjectList()
   revealSelectionControls(reveal)
   textOverflow?.schedule()
+  syncTextFormatting()
+}
+function syncTextFormatting() {
+  const view = selectedIds.size === 1 ? views.get(selected) : null
+  slideFormatting?.update(selectedIds.size===0&&!presenting)
+  objectFormatting?.update(presenting?[]:[...selectedIds].map(id=>objects.get(id)).filter(Boolean), !!view && view.box.get('kind') !== 'image')
+  const editor = view?.editor, visible = !!editor && !editor.isDestroyed && !presenting
+  const format = view ? textStyle(view.box) : {}, attrs = visible ? editor.getAttributes('slideTextStyle') : {}
+  textFormatting?.update(visible, { family: attrs.fontFamily || format.family, size: attrs.fontSize || format.size, colour: attrs.textColour || format.colour, highlight: attrs.highlightColour }, !!editor && editor.isEditable && view.box.get('locked') !== true)
 }
 function beginDrag(e, id, action) {
   if (presenting) return
@@ -1488,11 +1502,17 @@ textOverflow = mountTextOverflow(root, slide, {
   selected: () => [...selectedIds].map(id => views.get(id)).filter(Boolean),
   presenting: () => presenting,
   size: box => textStyle(box).size,
+  error: error=>status('Could not fit text: '+error.message,'error'),
   apply: changes => {
     if (!changes.length) return
     history?.stopCapturing()
-    doc.transact(() => { for (const { box, size } of changes) box.set('fontSize', size) })
-    history?.stopCapturing()
+    doc.transact(() => { for (const { box,view,size,scale } of changes) {
+      box.set('fontSize',size)
+      const editor=view.editor,type=editor.schema.marks.slideTextStyle,tr=editor.state.tr
+      editor.state.doc.descendants((node,pos)=>{if(!node.isText)return;const mark=node.marks.find(mark=>mark.type===type);if(mark?.attrs.fontSize)tr.addMark(pos,pos+node.nodeSize,type.create({...mark.attrs,fontSize:scaledTextSize(mark.attrs.fontSize,scale)}))})
+      if(tr.docChanged)editor.view.dispatch(tr)
+    } })
+    history?.stopCapturing();syncTextFormatting()
   },
 })
 marquee = mountMarquee(root, slide, {
@@ -1549,65 +1569,26 @@ $('duplicate').addEventListener('click', () => {
   select(id)
 })
 $('delete').addEventListener('click', deleteSelected)
-$('bold').addEventListener('click', () => { if (selected) views.get(selected)?.editor?.chain().focus().toggleBold().run() })
-$('italic').addEventListener('click', () => { if (selected) views.get(selected)?.editor?.chain().focus().toggleItalic().run() })
-
-$('bullet-list').addEventListener('click', () => {
-  if (!presenting && selected) views.get(selected)?.editor?.chain().focus().toggleBulletList().run()
-})
-$('ordered-list').addEventListener('click', () => {
-  if (!presenting && selected) views.get(selected)?.editor?.chain().focus().toggleOrderedList().run()
-})
-
-function validLink(value) {
-  try {
-    const url = new URL(value)
-    return ['http:', 'https:', 'mailto:', 'tel:'].includes(url.protocol)
-  } catch { return false }
+function runTextCommand(command) {
+  const view=views.get(selected),editor=view?.editor
+  if(presenting||!editor||selectedIds.size!==1||view.box.get('locked')===true)return
+  const whole=editor.state.selection.empty
+  try { history?.stopCapturing();command(whole?editor.chain().selectAll():editor.chain()).run();if(whole)editor.commands.setTextSelection(editor.state.selection.from);history?.stopCapturing();restoreTextSelection(editor);syncTextFormatting() }
+  catch(error){console.error('Slides text formatting:',error);status('Could not format selected text: '+error.message,'error')}
 }
-function closeLinkControls() {
-  $('link-controls').hidden = true
-  linkTarget = null
+function restoreTextSelection(editor) {
+  if(editor.isDestroyed)return
+  const {from,to}=editor.state.selection
+  editor.commands.setTextSelection({from,to})
+  editor.view.focus()
 }
-$('edit-link').addEventListener('click', () => {
-  const editor = views.get(selected)?.editor
-  if (presenting || !editor) return
-  if (editor.state.selection.empty && !editor.isActive('link')) {
-    status('Select the text to link first.', 'error')
-    return
-  }
-  linkTarget = selected
-  $('link-url').value = editor.getAttributes('link').href || ''
-  $('link-controls').hidden = false
-  $('link-url').focus()
-})
-$('cancel-link').addEventListener('click', closeLinkControls)
-$('apply-link').addEventListener('click', () => {
-  const editor = views.get(linkTarget)?.editor
-  if (presenting || !editor) { closeLinkControls(); return }
-  const href = $('link-url').value.trim()
-  if (!validLink(href)) { status('Enter an http, https, mailto, or tel URL.', 'error'); return }
-  try {
-    history?.stopCapturing()
-    editor.chain().focus().extendMarkRange('link').setLink({ href }).run()
-    history?.stopCapturing()
-    closeLinkControls()
-  } catch (error) {
-    console.error('Slides link failed:', error)
-    status('Could not apply link: ' + error.message, 'error')
-  }
-})
-$('remove-link').addEventListener('click', () => {
-  const editor = views.get(selected)?.editor
-  if (presenting || !editor) return
-  try {
-    editor.chain().focus().extendMarkRange('link').unsetLink().run()
-    closeLinkControls()
-  } catch (error) {
-    console.error('Slides unlink failed:', error)
-    status('Could not remove link: ' + error.message, 'error')
-  }
-})
+$('bold').addEventListener('click',()=>runTextCommand(chain=>chain.toggleBold()))
+$('italic').addEventListener('click',()=>runTextCommand(chain=>chain.toggleItalic()))
+$('bullet-list').addEventListener('click',()=>runTextCommand(chain=>chain.toggleBulletList()))
+$('ordered-list').addEventListener('click',()=>runTextCommand(chain=>chain.toggleOrderedList()))
+function closeLinkControls() { linkPicker?.close();linkTarget=null }
+$('edit-link').addEventListener('click',()=>linkPicker?.open())
+$('remove-link').addEventListener('click',()=>runTextCommand(chain=>chain.unsetLink()))
 root.addEventListener('click', event => {
   const anchor = event.target.closest?.('.text-content a')
   if (!presenting || !anchor) return
@@ -1728,6 +1709,16 @@ function updateTextStyle(key, value) {
   const box = objects.get(selected)
   const shapeAppearance = box?.get('kind') === 'shape' && ['fillEnabled', 'fillColour', 'borderEnabled', 'borderColour', 'borderWidth'].includes(key)
   if (presenting || selectedIds.size !== 1 || (!views.get(selected)?.editor && !shapeAppearance)) return
+  if (box.get('locked') === true) return
+  const editor = views.get(selected)?.editor
+  if (editor && ['fontFamily','fontSize','textColour','highlightColour'].includes(key)) {
+    const whole=editor.state.selection.empty
+    history?.stopCapturing()
+    try { (whole?editor.chain().selectAll():editor.chain()).setMark('slideTextStyle', { [key]: value }).run();if(whole){if(key!=='highlightColour')box.set(key,value);editor.commands.setTextSelection(editor.state.selection.from)} restoreTextSelection(editor) }
+    catch(error) { console.error('Slides text formatting:', error); status('Could not format selected text: '+error.message, 'error') }
+    history?.stopCapturing(); syncTextFormatting()
+    return
+  }
   objects.get(selected).set(key, value)
 }
 for (const [control, key] of [['fill-enabled', 'fillEnabled'], ['border-enabled', 'borderEnabled']]) {
@@ -1762,11 +1753,12 @@ $('font-size').addEventListener('change', event => {
 $('text-colour').addEventListener('input', event => {
   if (/^#[0-9a-f]{6}$/i.test(event.target.value)) updateTextStyle('textColour', event.target.value)
 })
-$('text-align').addEventListener('change', event => {
+$('text-align')?.addEventListener('change', event => {
   if (['left', 'center', 'right', 'justify'].includes(event.target.value)) updateTextStyle('textAlign', event.target.value)
 })
 
 function updateSavedLayoutActions() {
+  if(!$('saved-layout-hint'))return
   const saved = savedLayouts.has($('slide-layout').value)
   const selectedLayout = savedLayouts.get($('slide-layout').value)
   const available = typeof options.onRenameSavedLayout === 'function' && typeof options.onDeleteSavedLayout === 'function'
@@ -2064,13 +2056,14 @@ function disconnect() {
   const previous = provider
   provider = null
   connected = false
+  sharingResource = null
   previous?.destroy()
   status('Local only')
   $('connect').textContent = 'Connect'
 }
 async function connect() {
   disconnect()
-  const attempt = connectionAttempt
+  const attempt = connectionAttempt,shareSession=options.captureSession?.()
   try {
     const url = $('server-url').value.trim()
     let name = $('doc-name').value.trim()
@@ -2105,6 +2098,7 @@ async function connect() {
         if (attempt === connectionAttempt) { connected = false; status('Disconnected', 'error') }
       },
     })
+    sharingResource={docId:name,server:url,owner:provider,document:doc,session:shareSession}
     $('connect').textContent = 'Disconnect'
     status('Connecting...')
   } catch (err) {
@@ -2437,6 +2431,8 @@ insertPickers = mountInsertPickers({ root, shapes: [...shapeCatalog.values()], r
 })
 slideMenu = mountSlideMenu(root, () => !presenting, () => { try { insertPickers.shape() } catch (error) { status('Could not open shape picker: '+error.message,'error') } })
 imageHandleMode = mountImageHandleMode(root, () => !presenting, () => stopDrag())
+objectFormatting = mountObjectFormat(root)
+textFormatting = mountTextFormat(root, (key, value) => { try { updateTextStyle(key, value) } catch(error) { console.error('Slides text formatting:',error); status('Could not format text: '+error.message,'error') } })
 themePicker = mountThemePicker({ root, current: () => !presenting && root.isConnected,
   capture() { const target = doc, targetSlide = activeSlide, source = options.captureSession?.(); return () => root.isConnected && !presenting && doc === target && activeSlide === targetSlide && (!options.sessionCurrent || options.sessionCurrent(source)) },
   theme: currentTheme, themes: () => [...availableThemes().values()], apply: applyTheme,
@@ -2446,9 +2442,43 @@ themePicker = mountThemePicker({ root, current: () => !presenting && root.isConn
     doc.transact(() => { design.set('saved-theme:' + theme.id, structuredClone(theme)); design.set('theme', structuredClone(theme)) }, 'theme')
     history?.stopCapturing()
   },
-  canSaveLayout: () => typeof options.onSaveLayout === 'function', saveLayout: () => $('save-layout').click(),
+  canSaveLayout: () => typeof options.onSaveLayout === 'function', saveLayout: () => options.onSaveLayout?.(),
   openModal: body => { if (!options.openInsertModal) throw new Error('This host does not provide the Themes dialog.'); return options.openInsertModal(body) },
   error: error => status('Could not open Themes: ' + error.message, 'error'),
+})
+slideFormatting=mountSlideFormat(root,()=>{try{if(presenting)return;history?.stopCapturing();backgrounds.delete(activeSlide);history?.stopCapturing()}catch(error){console.error('Slides colour:',error);status('Could not reset slide colour: '+error.message,'error')}})
+root.querySelector('[data-panel="layouts"]')?.remove()
+root.querySelector('[data-panel="text"]')?.remove()
+linkPicker = mountSlideLinkPicker({ root,
+  openModal: body => { if(!options.openInsertModal)throw new Error('This host does not provide the link dialog.');return options.openInsertModal(body,{wide:false}) },
+  closed:()=>{linkTarget=null},error:error=>status('Could not edit link: '+error.message,'error'),
+  capture(){
+    const id=selected,view=views.get(id),editor=view?.editor,sourceDoc=doc,sourceSlide=activeSlide,source=options.captureSession?.()
+    if(presenting||!editor||view.box.get('locked')===true)throw new Error('Select editable text to link.')
+    const whole=editor.state.selection.empty,caret=editor.state.selection.from
+    if(whole)editor.commands.selectAll()
+    const {from,to}=editor.state.selection
+    if(from===to)throw new Error('Select the text to link first.')
+    const original=editor.state.doc,originalText=original.textBetween(from,to,'\n'),attrs=editor.getAttributes('link')
+    const owned=()=>!presenting&&doc===sourceDoc&&activeSlide===sourceSlide&&selected===id&&views.get(id)?.editor===editor&&!editor.isDestroyed&&view.box.get('locked')!==true&&(!options.sessionCurrent||options.sessionCurrent(source))
+    linkTarget=id
+    return {values:{href:attrs.href||'',text:originalText,title:attrs.title||'',alt:attrs.ariaLabel||'',newTab:attrs.target!=='_self'},
+      current:()=>owned()&&editor.state.doc.eq(original),
+      restore(){if(owned()){editor.commands.setTextSelection(whole?caret:{from,to});restoreTextSelection(editor);syncTextFormatting()}},
+      focus(){if(owned()){if(whole)editor.commands.setTextSelection(editor.state.selection.from);restoreTextSelection(editor);syncTextFormatting()}},
+      apply(value){
+        if(!owned()||!editor.state.doc.eq(original))throw new Error('The original text changed.')
+        history?.stopCapturing()
+        let chain=editor.chain().setTextSelection({from,to}),end=to
+        if(value.text!==originalText){
+          let marks=[];original.nodesBetween(from,to,node=>{if(node.isText&&!marks.length)marks=node.marks.filter(mark=>mark.type.name!=='link').map(mark=>mark.toJSON())})
+          chain=chain.insertContentAt({from,to},{type:'text',text:value.text,marks});end=from+value.text.length
+        }
+        chain.setTextSelection({from,to:end}).setLink({href:value.href,title:value.title||null,ariaLabel:value.alt||null,target:value.newTab?'_blank':'_self',rel:'noopener noreferrer'}).setTextSelection({from,to:end}).run()
+        history?.stopCapturing()
+      },
+    }
+  },
 })
 slideViews = mountSlideViews({ root, canChange: () => !presenting, selectSlide,
   getSlides: () => slideIds().map(id => ({ id, active: id === activeSlide,
@@ -2504,11 +2534,13 @@ return {
   setView: mode => slideViews.setMode(mode),
   get viewMode() { return slideViews.mode },
   get document() { return doc },
+  getSharing() {const source=sharingResource;if(!source||provider!==source.owner||(options.sessionCurrent&&!options.sessionCurrent(source.session)))return null;return {docId:source.docId,server:source.server,title:source.docId,current:()=>provider===source.owner&&doc===source.document&&(!options.sessionCurrent||options.sessionCurrent(source.session))}},
   get connected() { return connected },
   destroy() {
     inPlaceCrop?.destroy()
     insertPickers?.destroy()
-    themePicker?.destroy(); imageHandleMode?.destroy(); slideMenu?.destroy()
+    linkPicker?.destroy()
+    slideFormatting?.destroy(); objectFormatting?.destroy(); textFormatting?.destroy(); themePicker?.destroy(); imageHandleMode?.destroy(); slideMenu?.destroy()
     slideViews?.destroy()
     findReplace?.destroy()
     recoverySnapshot.destroy()

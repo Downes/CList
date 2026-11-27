@@ -365,7 +365,7 @@ preparation, reject stale library/drop callbacks and propagate failed initializa
 or pending-content delivery as `false`. Never rebuild an incomplete existing surface
 by discarding its content. Full editor-switch internals and live sync need separate evidence.
 
-- `interface.js` must load last (depends on all other scripts)
+- `interface.js` loads last in the core shell list. Feature modules are in the ordered `app-feature-scripts` manifest; see `docs/startup.md`. Core startup must not invoke feature APIs before registration finishes.
 - All shared state lives under `window.CList`: `config.flaskSiteUrl`, `state.username`,
   `accounts`, `readers`, `publishers`, `savers`, `loaders`, `schemas`
 - TinyMCE is loaded from `https://www.downes.ca/assets/tinymce/tinymce.min.js`

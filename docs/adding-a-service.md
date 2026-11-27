@@ -24,7 +24,7 @@ CList uses a set of global registries under `window.CList` that services populat
 
 The `window.CList` namespace is declared in an inline `<script>` in `index.html` before deferred scripts load. Check initialization for the registry you extend; optional registries such as `accountFlows` and `accountHooks` are initialized by their service modules before registration.
 
-Scripts are loaded via `index.html` with `defer`. `interface.js` must remain last; add your service script before it.
+Feature scripts are listed in the `app-feature-scripts` JSON manifest in `index.html`. Add service modules there in dependency order, not as eager script tags. The startup coordinator loads them after the shell and session controls paint. `interface.js` is last in the separate core shell list. See [Startup sequence](startup.md).
 
 ---
 

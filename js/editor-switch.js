@@ -80,6 +80,7 @@ async function playEditorSwitch() {
     } catch (error) { window.CList.ui.editorSwitch.error(error); }
 }
 function updateEditorIndicator() {
+    if (typeof refreshEditorShareButton === 'function') refreshEditorShareButton();
     window.CList.ui.editorSwitch.indicator(editorHandlers[currentEditor]?.label || currentEditor, EDITOR_TEST_VERSION);
 }
 // Legacy service handlers still mutate their own mounting DOM. Serialize mounts;
@@ -144,6 +145,15 @@ async function mountEditor(editorType, account) {
         if (handler.visible && !handler.visible()) throw new Error('That editor is not available. Please register or log in.');
         const parsed = account ? parseAccountValue(account) : null;
         if (account && !parsed) throw new Error('This editor account could not be read.');
+        if (handler.loadDependencies) {
+            const session = () => JSON.stringify([window.CList.config.flaskSiteUrl, window.CList.state.authEpoch, window.CList.state.username,
+                typeof readerSession === 'function' ? readerSession() : null]);
+            const sourceSession = session();
+            const owned = () => currentEditor === previousEditor && currentEditorAccount === previousAccount && sourceSession === session();
+            try { await handler.loadDependencies(); }
+            catch (error) { if (!owned()) return false; throw error; }
+            if (!owned()) return false;
+        }
         currentEditorAccount = account;
         undo = window.CList.ui.editorSwitch.prepare(handler, editorType);
         const initialized = await handler.initialize(parsed);

@@ -1,0 +1,16 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Shared collaborative editor Share</title>
+<link rel="stylesheet" href="../css/interface.css?v=2026-11-25.19">
+<h1>Shared collaborative editor Share</h1>
+<p>Test 2026-11-25.19. Real header entry point and shared access controller/view/requests. Editor resources, sessions, HTTP, URL helper, clipboard and Post handoff mocked. No external requests, clipboard changes, publishing or storage writes. Real editor mounting/live connections not exercised.</p>
+<div id="right-main-command"><button id="editor-share-button" class="btn" onclick="shareActiveEditor()" hidden>Share</button></div>
+<pre id="result">Checking…</pre>
+<script src="helpers/editor-sharing-fixture.js?v=2026-11-25.19"></script>
+<script src="../js/collab_share_requests.js?v=2026-11-25.19"></script>
+<script src="../js/collab_share_view.js?v=2026-11-25.19"></script>
+<script src="../js/collab_share.js?v=2026-11-25.19"></script>
+<script src="../js/editor-sharing.js?v=2026-11-25.19"></script>
+<script>
+(async()=>{let count=0;try{await runEditorSharingChecks((value,label)=>{if(!value)throw Error(label);count++});document.getElementById('result').textContent='PASS: '+count+' checks. Shared Collab/LaTeX/Slides/Etherpad Share entry, access-capability controls, captured Copy/Post, stale editor/session/resource guards and private-state exclusion. All external effects mocked.'}catch(error){document.getElementById('result').textContent='FAIL: '+error.message+'\n'+(error.stack||'')}finally{document.getElementById('generic-modal')?.remove()}})();
+</script>

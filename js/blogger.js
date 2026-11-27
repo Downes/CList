@@ -79,7 +79,8 @@ async function publishBloggerPost(blogid, clientid, bloggerTitle, bloggerContent
  * @param {string} clientid
  * @returns {Promise<string>} Transient access token; never persisted.
  */
-function requestBloggerAccessToken(clientid) {
+async function requestBloggerAccessToken(clientid) {
+    if (typeof window.ensureGoogleIdentity === 'function') await window.ensureGoogleIdentity();
     return new Promise((resolve, reject) => {
         if (typeof google === 'undefined' || !google.accounts?.oauth2?.initTokenClient) {
             reject(new Error('Google authorization is unavailable. Reload CList and try again.'));

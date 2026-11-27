@@ -15,6 +15,8 @@ async function readRestoredAccounts(snapshot,deps) {
     deps.assertCurrent();const encKey=await deps.getKey(snapshot.serverUrl);deps.assertCurrent();
     if(!encKey)throw new Error('The session encryption key is unavailable. Please log in again.');
     deps.validated();
+    if (deps.prepareAccounts) { await deps.prepareAccounts(); deps.assertCurrent(); }
+    deps.accountsStarting?.();
     const accounts=await deps.load({storeUrl:snapshot.serverUrl,token:snapshot.token,encKey,isCurrent:deps.current});deps.assertCurrent();
     if(accounts.length&&accounts.every(account=>deps.parse(account)?.type==='bad'))throw new Error('Saved accounts could not be decrypted. Please check the session key.');
     return accounts;
@@ -40,7 +42,7 @@ function clearCapturedSession(snapshot,deps) {
     };
     if(snapshot.username)remove(snapshot.serverUrl+'_'+snapshot.username+'_encKey',snapshot.key);
     remove(snapshot.serverUrl+'_encKey');
-    try{for(const key of deps.listKeys().filter(key=>key.startsWith(deps.keys.EDITOR_DRAFT_PREFIX)))remove(key);}
+    try{if(!deps.preserveDrafts)for(const key of deps.listKeys().filter(key=>key.startsWith(deps.keys.EDITOR_DRAFT_PREFIX)))remove(key);}
     catch(error){warnings.push(error.message);}
     sameTarget();
     const message='You have been logged out.'+(warnings.length?' Some browser session data could not be cleared.':'');

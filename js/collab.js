@@ -88,6 +88,7 @@ window.CList.schemas['Collab'] = {
                 sharedRefs = resources?.map || null
                 currentDocId = resources?.target.docId || null
                 if (resources?.target.wsUrl) currentWsUrl = resources.target.wsUrl
+                if(typeof notifyEditorSharingChanged==='function')notifyEditorSharingChanged()
             },
             ready: () => buildFormatToolbar(),
             schedule: (callback, delay) => setTimeout(callback, delay), clear: timer => clearTimeout(timer),
@@ -301,13 +302,14 @@ window.CList.schemas['Collab'] = {
     window.openCollabSharePost = function(mode, captured = null) {
         try {
             if (captured && !captured.current()) return false
-            if (!['collab', 'collab-share'].includes(currentEditor)) return false
+            if (!['collab', 'collab-share'].includes(currentEditor) && captured?.editorType !== currentEditor) return false
             const target = captured || (() => { const value = captureShareTarget(); return { ...value, mode, link: value.links[mode], current: shareDependencies(value).contextCurrent } })()
             let previous = null
             return openCollabComposer(target, {
                 install(handler) {
                     previous = { editor:currentEditor, account:currentEditorAccount, switchId:window.CList.state.editorSwitching?.id, handler:editorHandlers['collab-share'] }
                     editorHandlers['collab-share'] = handler; currentEditor = 'collab-share'
+                    if(typeof refreshEditorShareButton==='function')refreshEditorShareButton()
                 },
                 owns: handler => currentEditor === 'collab-share' && editorHandlers['collab-share'] === handler &&
                     currentEditorAccount === previous?.account && window.CList.state.editorSwitching?.id === previous?.switchId,
@@ -316,8 +318,9 @@ window.CList.schemas['Collab'] = {
                     const restore = currentEditor === 'collab-share' && currentEditorAccount === previous.account && window.CList.state.editorSwitching?.id === previous.switchId
                     if (previous.handler) editorHandlers['collab-share'] = previous.handler; else delete editorHandlers['collab-share']
                     if (restore) currentEditor = previous.editor
+                    if(typeof refreshEditorShareButton==='function')refreshEditorShareButton()
                 },
-                hasRich: () => typeof tinymce !== 'undefined', init: config => tinymce.init(config),
+                ensureRich: () => ensureTinyMCE(), hasRich: () => typeof tinymce !== 'undefined', init: config => tinymce.init(config),
                 schedule: (callback, delay) => setTimeout(callback,delay), clear: timer => clearTimeout(timer),
                 getCompletion: () => window._onPostAllComplete, setCompletion: callback => { window._onPostAllComplete = callback },
                 publishing: () => !!window.CList.state.publishing?.busy,
@@ -328,7 +331,7 @@ window.CList.schemas['Collab'] = {
     }
 
     async function shareCollabDoc() {
-        try { const target = captureShareTarget(); return await openCollabSharePanel(target, shareDependencies(target)) }
+        try { if(typeof openEditorSharing==='function')return await openEditorSharing(editorHandlers.collab.getSharing());const target = captureShareTarget(); return await openCollabSharePanel(target, shareDependencies(target)) }
         catch (error) { console.error('Could not open Collab sharing:', error); showErrorModal(error.message || String(error), { title: 'Could not share document' }) }
     }
 
@@ -463,6 +466,7 @@ window.CList.schemas['Collab'] = {
         // editors.js's editor-switch state park/restore to recognize "still the same
         // live document" and resync references from the Y.Map instead of restoring a
         // stale local snapshot. null when not connected (e.g. local-only, pre-title).
+        getSharing: () => {if(!connectionLifecycle?.owned()||!currentDocId)return null;const target=captureShareTarget();return {docId:target.docId,server:target.server,title:target.title,discussion:target.discussion,chatOwner:target.chatOwner,current:shareDependencies(target).contextCurrent};},
         getDocId: () => currentDocId,
 
         // Shared references remain authoritative when this document is reactivated.

@@ -23,7 +23,7 @@ test('Find mounts in lower menu with placeholder labels and Done restores the me
  f.api.destroy();f.doc.destroy();assert.deepEqual(f.errors,[])
 })
 test('lower-menu search retains navigation and rejects destroyed controls',async()=>{
- const f=await fixture();f.control('open-find').dispatch('click');f.control('find-query').value='word';f.control('find-next').dispatch('click')
+ const f=await fixture();f.control('open-find').dispatch('click');f.control('find-query').value='word';assert.equal(f.control('find-next').disabled,true);f.root.listeners.keydown({key:'Enter',target:f.control('find-query'),preventDefault(){},stopImmediatePropagation(){}})
  assert.equal(f.jumps(),1);assert.equal(f.api.isOpen(),true)
  const old=f.control('open-find');f.api.destroy();old.dispatch('click');assert.equal(f.lower.dataset.searchOpen,'false');assert.equal(f.api.isOpen(),false)
  f.doc.destroy();assert.deepEqual(f.errors,[])
